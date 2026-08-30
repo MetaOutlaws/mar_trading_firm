@@ -118,11 +118,17 @@ def main() -> int:
         return 0
 
     if settings.trading_mode is TradingMode.LIVE:
-        logger.critical(
-            "TRADING_MODE=live. This script is for paper trading. "
-            "Use scripts/run_live_trading.py deliberately instead."
-        )
-        return 1
+        from scripts.check_go_live import evaluate_gates
+
+        report = evaluate_gates()
+        if not report["ready"]:
+            failed = [g["name"] for g in report["gates"] if not g["passed"]]
+            logger.critical(
+                "TRADING_MODE=live but go-live gates failed: %s. Staying stopped.",
+                ", ".join(failed),
+            )
+            return 1
+        logger.warning("All go-live gates passed. Starting LIVE trading.")
 
     signal.signal(signal.SIGINT, _handle_shutdown)
     signal.signal(signal.SIGTERM, _handle_shutdown)
@@ -132,6 +138,14 @@ def main() -> int:
     logger.info("=" * 70)
 
     engine = build_engine(starting_equity=args.equity, candidates=args.symbols)
+    orchestrator = None
+    try:
+        from firm.orchestrator import Orchestrator
+
+        orchestrator = Orchestrator()
+        logger.info("Employee floor attached. Agents start at L1 (advisory only).")
+    except Exception as exc:
+        logger.warning("Orchestrator unavailable (%s); trading continues without agents.", exc)
 
     if not engine.plan.entries:
         logger.error("Nothing to trade: the plan is empty. Check config/asset_params.json.")
@@ -152,6 +166,12 @@ def main() -> int:
             logger.info("--- cycle %d at %s ---", cycle, datetime.now(timezone.utc).isoformat())
 
             try:
+                if orchestrator is not None:
+                    try:
+                        orchestrator.run_due()
+                        orchestrator.advice_for_engine().apply_to(engine)
+                    except Exception:
+                        logger.exception("Employee cycle failed; trading continues.")
                 report = engine.run_cycle()
                 logger.info("%s", report)
                 if report.halted:
@@ -176,6 +196,8 @@ def main() -> int:
                 slept += 5
 
     finally:
+        if orchestrator is not None:
+            orchestrator.close()
         engine.close()
         print_status(engine.ledger)
         logger.info("Paper trading stopped after %d cycles.", cycle)

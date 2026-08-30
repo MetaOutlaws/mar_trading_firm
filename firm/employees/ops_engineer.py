@@ -58,8 +58,8 @@ class OpsEngineer(Agent):
         checks.append(
             {
                 "name": "kill_switch",
-                "ok": not kill.is_tripped,
-                "detail": f"{kill.reason.value}: {kill.detail}" if kill.is_tripped else "clear",
+                "ok": not kill.tripped,
+                "detail": f"{kill.reason.value}: {kill.detail}" if kill.tripped else "clear",
             }
         )
 

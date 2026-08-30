@@ -70,9 +70,10 @@ class ModelTier(str, Enum):
 
 
 class Provider(str, Enum):
-    """Supported API surfaces. Both are OpenAI chat-completions compatible."""
+    """Supported API surfaces. All three are OpenAI chat-completions compatible."""
 
     XAI = "xai"
+    OPENAI = "openai"
     DEEPSEEK = "deepseek"
 
 
@@ -110,17 +111,17 @@ class ModelSpec:
 DEFAULT_CATALOGUE: dict[ModelTier, ModelSpec] = {
     ModelTier.CHEAP: ModelSpec(
         tier=ModelTier.CHEAP,
-        provider=Provider.DEEPSEEK,
-        model="deepseek-v4-flash",
-        input_per_mtok=0.44,
-        output_per_mtok=1.32,
+        provider=Provider.OPENAI,
+        model="gpt-4o-mini",
+        input_per_mtok=0.15,
+        output_per_mtok=0.60,
     ),
     ModelTier.STANDARD: ModelSpec(
         tier=ModelTier.STANDARD,
-        provider=Provider.DEEPSEEK,
-        model="deepseek-v4-pro",
-        input_per_mtok=1.32,
-        output_per_mtok=3.96,
+        provider=Provider.OPENAI,
+        model="gpt-4o",
+        input_per_mtok=2.50,
+        output_per_mtok=10.00,
     ),
     ModelTier.STRONG: ModelSpec(
         tier=ModelTier.STRONG,
@@ -143,6 +144,7 @@ DEFAULT_CATALOGUE: dict[ModelTier, ModelSpec] = {
 
 PROVIDER_ENDPOINTS: dict[Provider, str] = {
     Provider.XAI: "https://api.x.ai/v1/chat/completions",
+    Provider.OPENAI: "https://api.openai.com/v1/chat/completions",
     Provider.DEEPSEEK: "https://api.deepseek.com/chat/completions",
 }
 
@@ -322,6 +324,8 @@ class LlmRouter:
     def api_key_for(self, provider: Provider) -> str:
         if provider is Provider.XAI:
             return self.settings.xai_api_key
+        if provider is Provider.OPENAI:
+            return self.settings.openai_api_key
         return self.settings.deepseek_api_key
 
     def is_configured(self, tier: ModelTier) -> bool:

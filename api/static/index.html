@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Employee Floor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+:root{--bg:#0b1020;--card:#151b2e;--ink:#e8edf7;--muted:#8b95b7;--good:#3dd68c;--bad:#ff6b7a;--warn:#ffd166;--line:#243049}
+body{margin:0;font:14px/1.45 ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:20px 28px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+h1{margin:0;font-size:20px;letter-spacing:.04em}
+main{padding:20px 28px 60px;display:grid;gap:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.muted{color:var(--muted)}.ok{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+button{background:#2a3558;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
+button.danger{background:#5a2030}
+input{background:#0e1426;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+.heat{display:flex;flex-wrap:wrap;gap:8px}.chip{padding:8px 10px;border-radius:8px;min-width:90px}
+</style>
+</head>
+<body>
+<header>
+<div><h1>EMPLOYEE FLOOR</h1><div class="muted" id="mode">loading</div></div>
+<div>
+<input id="token" placeholder="API token" size="28"/>
+<button onclick="saveToken()">Save token</button>
+<button class="danger" onclick="kill()">Kill switch</button>
+</div>
+</header>
+<main>
+<section class="card" id="golive"></section>
+<section><h2>Employees</h2><div class="grid" id="employees"></div></section>
+<section class="grid">
+<div class="card"><h2>Activity</h2><div id="activity"></div></div>
+<div class="card"><h2>Decision inbox</h2><div id="inbox"></div></div>
+<div class="card"><h2>Risk</h2><div id="risk"></div></div>
+</section>
+<section class="card"><h2>Sentiment</h2><div class="heat" id="sentiment"></div></section>
+<section class="card"><h2>Research</h2><div id="research"></div></section>
+<section class="card"><h2>Trade blotter</h2><div id="trades"></div></section>
+</main>
+<script>
+const API = localStorage.getItem("firmApiBase") || "";
+document.getElementById("token").value = localStorage.getItem("firmApiToken") || "";
+function saveToken(){localStorage.setItem("firmApiToken", document.getElementById("token").value)}
+function headers(){const t=localStorage.getItem("firmApiToken")||"";return t?{"X-API-Token":t,"Content-Type":"application/json"}:{"Content-Type":"application/json"}}
+async function get(p){return (await fetch(API+p)).json()}
+async function post(p,b){return (await fetch(API+p,{method:"POST",headers:headers(),body:JSON.stringify(b||{})})).json()}
+async function kill(){if(!confirm("Trip the kill switch?"))return;await post("/api/risk/kill",{detail:"manual halt from dashboard",operator:"operator"});load()}
+async function decide(id,approved){await post("/api/inbox/"+id+"/decide",{approved,decided_by:"operator",reason:"dashboard"});load()}
+function esc(s){return String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
+async function load(){
+const [floor,risk,trades,golive]=await Promise.all([get("/api/floor"),get("/api/risk"),get("/api/trades"),get("/api/go-live")]);
+document.getElementById("mode").textContent=risk.mode+" · kill "+(risk.kill_switch.tripped?"TRIPPED":"clear");
+document.getElementById("golive").innerHTML=`<strong class="${golive.ready?"ok":"warn"}">${esc(golive.verdict)}</strong><div class="muted">`+(golive.gates||[]).map(g=>`${g.passed?"✓":"✗"} ${esc(g.name)} — ${esc(g.detail)}`).join("<br>")+"</div>";
+document.getElementById("employees").innerHTML=(floor.employees||[]).map(e=>{const t=e.trust||{};return `<div class="card"><strong>${esc(e.role||e.agent)}</strong><div class="muted">${esc(e.status)} · ${esc(t.level_label||"L1")}</div><div>${esc(e.current_task||"—")}</div><div class="muted">hit ${t.hit_rate_pct??0}% · PnL ${t.pnl_attribution??0} · today $${e.spend_today_usd??0}</div></div>`}).join("");
+document.getElementById("activity").innerHTML=(floor.activity||[]).slice(0,12).map(a=>`<div><strong>${esc(a.agent)}</strong> <span class="muted">${esc(a.status)}</span><div>${esc((a.reasoning||a.task||"").slice(0,140))}</div></div>`).join("");
+document.getElementById("inbox").innerHTML=(floor.inbox||[]).map(p=>`<div><strong>${esc(p.title)}</strong> <span class="muted">${esc(p.agent)}</span><div>${esc((p.rationale||"").slice(0,140))}</div><button onclick="decide(${p.id},true)">Approve</button> <button onclick="decide(${p.id},false)">Reject</button></div>`).join("")||"<div class='muted'>Empty</div>";
+document.getElementById("risk").innerHTML=`<div>Kill: <span class="${risk.kill_switch.tripped?"bad":"ok"}">${risk.kill_switch.tripped?"TRIPPED":"clear"}</span></div><div class="muted">${esc(risk.kill_switch.detail||"")}</div><div>Open positions: ${(risk.open_positions||[]).length}</div>`;
+document.getElementById("sentiment").innerHTML=(floor.sentiment||[]).map(s=>`<div class="chip" style="background:hsl(${120*(s.score+1)/2} 40% 22%)">${esc(s.symbol)}<br>${s.score} · ${esc(s.hype_stage)}</div>`).join("")||"<div class='muted'>No readings yet</div>";
+document.getElementById("research").innerHTML=(floor.research||[]).map(r=>`<div><strong>${esc(r.status)}</strong> ${esc((r.hypothesis||"").slice(0,180))}</div>`).join("")||"<div class='muted'>No hypotheses yet</div>";
+document.getElementById("trades").innerHTML="<table><tr><th>Symbol</th><th>Side</th><th>PnL</th><th>Agents</th><th>Why</th></tr>"+(trades||[]).map(t=>`<tr><td>${esc(t.symbol)}</td><td>${esc(t.side)}</td><td class="${t.net_pnl>0?"ok":"bad"}">${t.net_pnl}</td><td>${esc((t.agents||[]).join(", "))}</td><td>${esc(t.exit_reason)}</td></tr>`).join("")+"</table>";
+}
+load(); setInterval(load,15000);
+</script>
+</body>
+</html>

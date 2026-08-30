@@ -57,5 +57,5 @@ def test_model_cost_uses_peak_rates() -> None:
     from firm.llm import DEFAULT_CATALOGUE
 
     cheap = DEFAULT_CATALOGUE[ModelTier.CHEAP]
-    # 1M in + 1M out at peak flash rates.
-    assert cheap.cost_usd(1_000_000, 1_000_000) == 1.76
+    # 1M in + 1M out at gpt-4o-mini peak rates.
+    assert cheap.cost_usd(1_000_000, 1_000_000) == 0.75

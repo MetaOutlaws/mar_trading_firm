@@ -279,11 +279,22 @@ class Agent(ABC):
         try:
             output, llm = self.execute(inputs)
         except BudgetExhausted as exc:
-            # Expected, not exceptional: the ceiling did its job.
             logger.warning("%s skipped: %s", self.name, exc)
             memory.finish_run(run_id, RunStatus.SKIPPED, error=str(exc))
             return AgentResult(
                 agent=self.name, status=RunStatus.SKIPPED, run_id=run_id, error=str(exc)
+            )
+        except LlmError as exc:
+            if "No API key" in str(exc):
+                logger.warning("%s skipped: %s", self.name, exc)
+                memory.finish_run(run_id, RunStatus.SKIPPED, error=str(exc))
+                return AgentResult(
+                    agent=self.name, status=RunStatus.SKIPPED, run_id=run_id, error=str(exc)
+                )
+            logger.exception("%s failed", self.name)
+            memory.finish_run(run_id, RunStatus.FAILED, error=str(exc)[:1_000])
+            return AgentResult(
+                agent=self.name, status=RunStatus.FAILED, run_id=run_id, error=str(exc)
             )
         except Exception as exc:
             logger.exception("%s failed", self.name)

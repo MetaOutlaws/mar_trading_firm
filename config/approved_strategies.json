@@ -1,107 +1,275 @@
 {
-  "_generated_at": "2026-08-30T14:02:24.982341+00:00",
+  "_generated_at": "2026-08-30T16:15:31.917141+00:00",
   "_readme": "Written by research/validate.py. This file is the ONLY source of trading rights. Do not hand-edit: rerun validation instead.",
+  "_verdict": "REJECTED \u2014 see research/artifacts/PHASE1_VERDICT.md",
   "BTCUSDT:LONG": {
     "approved": false,
     "failures": [
-      "OOS profit factor 0.84 < 1.15",
-      "OOS expectancy -0.166% is not positive",
-      "only 47% of folds profitable (need >= 50%)",
+      "OOS profit factor 0.87 < 1.15",
+      "OOS expectancy -0.130% is not positive",
+      "only 42% of folds profitable (need >= 50%)",
       "expectancy confidence interval includes zero",
-      "does not beat random entries (p=0.977)",
-      "loses money in regime(s): bear, chop"
+      "does not beat random entries (p=0.959)",
+      "loses money in regime(s): bear, bull, chop"
     ],
     "error": null,
-    "oos_trades": 487,
-    "oos_win_rate": 43.74,
-    "oos_profit_factor": 0.836,
-    "oos_expectancy_pct": -0.1661,
-    "validated_at": "2026-08-30T14:02:24.984889+00:00"
+    "timeframe": "15m",
+    "params": {
+      "rsi_min": 30.0,
+      "rsi_max": 40.0,
+      "volume_threshold": 1.5,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.02
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 529,
+    "oos_win_rate": 43.29,
+    "oos_profit_factor": 0.872,
+    "oos_expectancy_pct": -0.1301,
+    "oos_max_drawdown_pct": 7.19,
+    "validated_at": "2026-08-30T16:15:31.935742+00:00"
   },
   "ETHUSDT:LONG": {
     "approved": false,
     "failures": [
-      "OOS profit factor 0.69 < 1.15",
-      "OOS expectancy -0.379% is not positive",
-      "only 26% of folds profitable (need >= 50%)",
+      "OOS profit factor 0.76 < 1.15",
+      "OOS expectancy -0.271% is not positive",
+      "only 27% of folds profitable (need >= 50%)",
       "expectancy confidence interval includes zero",
-      "does not beat random entries (p=0.999)",
+      "does not beat random entries (p=0.993)",
       "unstable parameters: stop_loss_pct (cv=0.36)",
       "loses money in regime(s): bear, bull, chop"
     ],
     "error": null,
-    "oos_trades": 545,
-    "oos_win_rate": 40.92,
-    "oos_profit_factor": 0.689,
-    "oos_expectancy_pct": -0.379,
-    "validated_at": "2026-08-30T14:02:24.989645+00:00"
+    "timeframe": "15m",
+    "params": {
+      "rsi_min": 30.0,
+      "rsi_max": 40.0,
+      "volume_threshold": 1.2,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 560,
+    "oos_win_rate": 43.21,
+    "oos_profit_factor": 0.762,
+    "oos_expectancy_pct": -0.2706,
+    "oos_max_drawdown_pct": 13.97,
+    "validated_at": "2026-08-30T16:15:31.948264+00:00"
   },
   "SOLUSDT:LONG": {
     "approved": false,
     "failures": [
-      "OOS profit factor 0.82 < 1.15",
-      "OOS expectancy -0.273% is not positive",
-      "only 19% of folds profitable (need >= 50%)",
+      "OOS profit factor 0.76 < 1.15",
+      "OOS expectancy -0.405% is not positive",
+      "only 31% of folds profitable (need >= 50%)",
       "expectancy confidence interval includes zero",
-      "does not beat random entries (p=0.932)",
+      "does not beat random entries (p=0.986)",
+      "unstable parameters: stop_loss_pct (cv=0.36)",
       "loses money in regime(s): bear, bull, chop"
     ],
     "error": null,
-    "oos_trades": 320,
-    "oos_win_rate": 47.19,
-    "oos_profit_factor": 0.823,
-    "oos_expectancy_pct": -0.2735,
-    "validated_at": "2026-08-30T14:02:24.992066+00:00"
+    "timeframe": "15m",
+    "params": {
+      "rsi_min": 25.0,
+      "rsi_max": 40.0,
+      "volume_threshold": 1.5,
+      "take_profit_pct": 0.03,
+      "stop_loss_pct": 0.03
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 377,
+    "oos_win_rate": 44.56,
+    "oos_profit_factor": 0.756,
+    "oos_expectancy_pct": -0.405,
+    "oos_max_drawdown_pct": 13.9,
+    "validated_at": "2026-08-30T16:15:31.960424+00:00"
+  },
+  "BNBUSDT:LONG": {
+    "approved": false,
+    "failures": [
+      "OOS profit factor 0.86 < 1.15",
+      "OOS expectancy -0.150% is not positive",
+      "only 36% of folds profitable (need >= 50%)",
+      "expectancy confidence interval includes zero",
+      "does not beat random entries (p=0.963)",
+      "loses money in regime(s): bear, bull, chop"
+    ],
+    "error": null,
+    "timeframe": "15m",
+    "params": {
+      "rsi_min": 30.0,
+      "rsi_max": 40.0,
+      "volume_threshold": 1.0,
+      "take_profit_pct": 0.03,
+      "stop_loss_pct": 0.02
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 478,
+    "oos_win_rate": 48.54,
+    "oos_profit_factor": 0.858,
+    "oos_expectancy_pct": -0.15,
+    "oos_max_drawdown_pct": 8.36,
+    "validated_at": "2026-08-30T16:15:31.969735+00:00"
+  },
+  "XRPUSDT:LONG": {
+    "approved": false,
+    "failures": [
+      "OOS profit factor 0.57 < 1.15",
+      "OOS expectancy -0.635% is not positive",
+      "only 14% of folds profitable (need >= 50%)",
+      "expectancy confidence interval includes zero",
+      "does not beat random entries (p=1.000)",
+      "unstable parameters: stop_loss_pct (cv=0.37)",
+      "loses money in regime(s): bear, bull, chop"
+    ],
+    "error": null,
+    "timeframe": "15m",
+    "params": {
+      "rsi_min": 35.0,
+      "rsi_max": 40.0,
+      "volume_threshold": 1.5,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.02
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 375,
+    "oos_win_rate": 37.87,
+    "oos_profit_factor": 0.566,
+    "oos_expectancy_pct": -0.635,
+    "oos_max_drawdown_pct": 21.22,
+    "validated_at": "2026-08-30T16:15:31.976873+00:00"
   },
   "BTCUSDT:SHORT": {
     "approved": false,
     "failures": [
-      "OOS profit factor 0.80 < 1.15",
-      "OOS expectancy -0.230% is not positive",
-      "only 11% of folds profitable (need >= 50%)",
+      "OOS profit factor 0.71 < 1.15",
+      "OOS expectancy -0.585% is not positive",
+      "only 48% of folds profitable (need >= 50%)",
       "expectancy confidence interval includes zero",
-      "does not beat random entries (p=0.895)",
-      "loses money in regime(s): bear, bull, chop"
+      "does not beat random entries (p=0.801)",
+      "unstable parameters: stop_loss_pct (cv=0.37)",
+      "loses money in regime(s): bull"
     ],
     "error": null,
-    "oos_trades": 463,
-    "oos_win_rate": 47.73,
-    "oos_profit_factor": 0.797,
-    "oos_expectancy_pct": -0.2303,
-    "validated_at": "2026-08-30T14:02:24.996609+00:00"
+    "timeframe": "4h",
+    "params": {
+      "rsi_threshold": 65.0,
+      "volume_threshold": 1.0,
+      "take_profit_pct": 0.03,
+      "stop_loss_pct": 0.05
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 98,
+    "oos_win_rate": 38.78,
+    "oos_profit_factor": 0.709,
+    "oos_expectancy_pct": -0.5854,
+    "oos_max_drawdown_pct": 6.46,
+    "validated_at": "2026-08-30T16:15:31.979186+00:00"
   },
   "ETHUSDT:SHORT": {
     "approved": false,
     "failures": [
-      "OOS profit factor 0.91 < 1.15",
-      "OOS expectancy -0.123% is not positive",
-      "only 37% of folds profitable (need >= 50%)",
+      "OOS profit factor 0.82 < 1.15",
+      "OOS expectancy -0.289% is not positive",
+      "only 43% of folds profitable (need >= 50%)",
       "expectancy confidence interval includes zero",
-      "does not beat random entries (p=0.640)",
-      "loses money in regime(s): bull"
+      "does not beat random entries (p=0.654)",
+      "unstable parameters: stop_loss_pct (cv=0.42)",
+      "loses money in regime(s): bull, chop"
     ],
     "error": null,
-    "oos_trades": 600,
-    "oos_win_rate": 49.17,
-    "oos_profit_factor": 0.908,
-    "oos_expectancy_pct": -0.123,
-    "validated_at": "2026-08-30T14:02:25.003975+00:00"
+    "timeframe": "4h",
+    "params": {
+      "rsi_threshold": 60.0,
+      "volume_threshold": 1.5,
+      "take_profit_pct": 0.03,
+      "stop_loss_pct": 0.03
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 95,
+    "oos_win_rate": 38.95,
+    "oos_profit_factor": 0.824,
+    "oos_expectancy_pct": -0.2894,
+    "oos_max_drawdown_pct": 4.26,
+    "validated_at": "2026-08-30T16:15:31.981817+00:00"
   },
   "SOLUSDT:SHORT": {
     "approved": false,
     "failures": [
-      "OOS profit factor 0.72 < 1.15",
-      "OOS expectancy -0.495% is not positive",
-      "only 19% of folds profitable (need >= 50%)",
+      "OOS profit factor 0.80 < 1.15",
+      "OOS expectancy -0.401% is not positive",
+      "only 48% of folds profitable (need >= 50%)",
       "expectancy confidence interval includes zero",
-      "does not beat random entries (p=0.990)",
-      "loses money in regime(s): bear, bull, chop"
+      "does not beat random entries (p=0.767)",
+      "loses money in regime(s): bull, chop"
     ],
     "error": null,
-    "oos_trades": 467,
-    "oos_win_rate": 42.61,
-    "oos_profit_factor": 0.716,
-    "oos_expectancy_pct": -0.4954,
-    "validated_at": "2026-08-30T14:02:25.007318+00:00"
+    "timeframe": "4h",
+    "params": {
+      "rsi_threshold": 60.0,
+      "volume_threshold": 1.2,
+      "take_profit_pct": 0.03,
+      "stop_loss_pct": 0.05
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 105,
+    "oos_win_rate": 53.33,
+    "oos_profit_factor": 0.803,
+    "oos_expectancy_pct": -0.4013,
+    "oos_max_drawdown_pct": 7.36,
+    "validated_at": "2026-08-30T16:15:31.985372+00:00"
+  },
+  "BNBUSDT:SHORT": {
+    "approved": false,
+    "failures": [
+      "OOS profit factor 0.96 < 1.15",
+      "OOS expectancy -0.072% is not positive",
+      "expectancy confidence interval includes zero",
+      "does not beat random entries (p=0.449)",
+      "unstable parameters: stop_loss_pct (cv=0.37)",
+      "loses money in regime(s): bull"
+    ],
+    "error": null,
+    "timeframe": "4h",
+    "params": {
+      "rsi_threshold": 60.0,
+      "volume_threshold": 1.2,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.05
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 70,
+    "oos_win_rate": 44.29,
+    "oos_profit_factor": 0.96,
+    "oos_expectancy_pct": -0.0722,
+    "oos_max_drawdown_pct": 3.6,
+    "validated_at": "2026-08-30T16:15:31.987123+00:00"
+  },
+  "XRPUSDT:SHORT": {
+    "approved": false,
+    "failures": [
+      "OOS profit factor 0.89 < 1.15",
+      "OOS expectancy -0.202% is not positive",
+      "expectancy confidence interval includes zero",
+      "does not beat random entries (p=0.605)",
+      "unstable parameters: stop_loss_pct (cv=0.38)",
+      "loses money in regime(s): bull, chop"
+    ],
+    "error": null,
+    "timeframe": "4h",
+    "params": {
+      "rsi_threshold": 60.0,
+      "volume_threshold": 1.5,
+      "take_profit_pct": 0.03,
+      "stop_loss_pct": 0.02
+    },
+    "reoptimise_days": 60,
+    "oos_trades": 84,
+    "oos_win_rate": 39.29,
+    "oos_profit_factor": 0.886,
+    "oos_expectancy_pct": -0.2024,
+    "oos_max_drawdown_pct": 5.98,
+    "validated_at": "2026-08-30T16:15:31.989456+00:00"
   }
 }

@@ -58,7 +58,7 @@ class Settings(BaseSettings):
 
     # ---- LLM providers ------------------------------------------------------
     #: xAI is the only provider with live X/web search, which the Sentiment
-    #: Analyst depends on. DeepSeek serves the cheap and standard tiers.
+    #: Analyst depends on. OpenAI serves the cheap and standard employee tiers.
     xai_api_key: str = ""
     deepseek_api_key: str = ""
     openai_api_key: str = ""
