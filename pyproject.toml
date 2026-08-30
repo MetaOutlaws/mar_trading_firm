@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mar-trading-firm"
+version = "0.1.0"
+description = "Autonomous crypto trading firm: deterministic core with an AI agent desk"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+# Installed as an editable package so `config`, `core`, `firm`, `research` and
+# `api` import identically from scripts, tests, and the API server regardless of
+# the current working directory.
+[tool.setuptools]
+packages = [
+    "api",
+    "config",
+    "core",
+    "core.data",
+    "core.execution",
+    "core.ledger",
+    "core.risk",
+    "core.strategy",
+    "firm",
+    "firm.employees",
+    "research",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

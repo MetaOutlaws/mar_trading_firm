@@ -1,0 +1,1145 @@
+{
+  "_readme": "Ported from mar_trading_bot legacy configs. 'params' are strategy inputs. 'legacy_claims' are UNVALIDATED backtest figures from ~5 weeks of Q4 2024 bull-market data; treat them as hypotheses to re-verify via research/, never as measured performance. 'enabled' is the legacy trading flag and is IGNORED by this project: nothing trades until research/ validation passes.",
+  "long": {
+    "1000FLOKIUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.5,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 79.8,
+        "expected_trades_per_quarter": 16.5,
+        "backtest_return_q1": 4.73,
+        "backtest_return_q4": 5.09,
+        "profit_factor": 4.65
+      }
+    },
+    "AAVEUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 70.3,
+        "expected_trades_per_quarter": 35,
+        "backtest_return_q1": 2.4,
+        "backtest_return_q4": 6.39,
+        "profit_factor": 1.94
+      }
+    },
+    "ADAUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.5,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 66.4,
+        "expected_trades_per_quarter": 22,
+        "backtest_return_q1": 0.95,
+        "backtest_return_q4": 5.88,
+        "profit_factor": 2.06
+      }
+    },
+    "ALGOUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.1,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 83.9,
+        "expected_trades_per_quarter": 12,
+        "backtest_return_q1": 3.75,
+        "backtest_return_q4": 2.95,
+        "profit_factor": 5.47
+      }
+    },
+    "APTUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.3,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 81.2,
+        "expected_trades_per_quarter": 6,
+        "backtest_return_q1": 0.79,
+        "backtest_return_q4": 3.05,
+        "profit_factor": 4.01
+      }
+    },
+    "ARBUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.3,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 68.8,
+        "expected_trades_per_quarter": 6,
+        "backtest_return_q1": 0.15,
+        "backtest_return_q4": 3.2,
+        "profit_factor": 4.19
+      }
+    },
+    "AVAXUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.5,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 78.6,
+        "expected_trades_per_quarter": 17.5,
+        "backtest_return_q1": 1.6,
+        "backtest_return_q4": 5.43,
+        "profit_factor": 4.11
+      }
+    },
+    "BCHUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.1,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 68.3,
+        "expected_trades_per_quarter": 36.5,
+        "backtest_return_q1": 8.66,
+        "backtest_return_q4": 8.79,
+        "profit_factor": 3.52
+      }
+    },
+    "BONKUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 69.4,
+        "expected_trades_per_quarter": 7.5,
+        "backtest_return_q1": 1.56,
+        "backtest_return_q4": 0.91,
+        "profit_factor": 3.25
+      }
+    },
+    "BTCUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 90.0,
+        "expected_trades_per_quarter": 11,
+        "backtest_return_q1": 2.53,
+        "backtest_return_q4": 3.1,
+        "profit_factor": 4.94
+      }
+    },
+    "DEXEUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 31,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "DOGEUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 67.7,
+        "expected_trades_per_quarter": 10.5,
+        "backtest_return_q1": -0.2,
+        "backtest_return_q4": 2.63,
+        "profit_factor": 2.69
+      }
+    },
+    "DOTUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 76.9,
+        "expected_trades_per_quarter": 13,
+        "backtest_return_q1": 1.44,
+        "backtest_return_q4": 7.2,
+        "profit_factor": 9.45
+      }
+    },
+    "DYDXUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 68.9,
+        "expected_trades_per_quarter": 14.5,
+        "backtest_return_q1": 1.47,
+        "backtest_return_q4": 1.31,
+        "profit_factor": 2.15
+      }
+    },
+    "ETHUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.1,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 85.4,
+        "expected_trades_per_quarter": 17,
+        "backtest_return_q1": 3.8,
+        "backtest_return_q4": 4.67,
+        "profit_factor": 11.54
+      }
+    },
+    "FILUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 29,
+        "rsi_max": 39,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "FLRUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "GLMUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 31,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "GRTUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 73.9,
+        "expected_trades_per_quarter": 9.5,
+        "backtest_return_q1": 2.27,
+        "backtest_return_q4": 2.2,
+        "profit_factor": 3.02
+      }
+    },
+    "HBARUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 77.5,
+        "expected_trades_per_quarter": 15.5,
+        "backtest_return_q1": 4.08,
+        "backtest_return_q4": 5.83,
+        "profit_factor": 8.74
+      }
+    },
+    "HNTUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 27,
+        "rsi_max": 37,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "IMXUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 77.8,
+        "expected_trades_per_quarter": 9,
+        "backtest_return_q1": 3.74,
+        "backtest_return_q4": 1.47,
+        "profit_factor": 29.05
+      }
+    },
+    "INJUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.5,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 72.9,
+        "expected_trades_per_quarter": 10,
+        "backtest_return_q1": 1.77,
+        "backtest_return_q4": 1.46,
+        "profit_factor": 2.91
+      }
+    },
+    "KASUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.1,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 58.1,
+        "expected_trades_per_quarter": 10,
+        "backtest_return_q1": 3.52,
+        "backtest_return_q4": -2.9,
+        "profit_factor": 47.15
+      }
+    },
+    "LDOUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 29,
+        "rsi_max": 39,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "LINKUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 62.5,
+        "expected_trades_per_quarter": 12,
+        "backtest_return_q1": 2.28,
+        "backtest_return_q4": 2.28,
+        "profit_factor": 2.72
+      }
+    },
+    "LPTUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "MNTUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 29,
+        "rsi_max": 39,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "NEARUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.3,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 75.0,
+        "expected_trades_per_quarter": 7.5,
+        "backtest_return_q1": 2.59,
+        "backtest_return_q4": 2.59,
+        "profit_factor": 7.7
+      }
+    },
+    "OPUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 76.4,
+        "expected_trades_per_quarter": 15,
+        "backtest_return_q1": 4.38,
+        "backtest_return_q4": 4.38,
+        "profit_factor": 6.78
+      }
+    },
+    "ORDIUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "PEPEUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 64.1,
+        "expected_trades_per_quarter": 39,
+        "backtest_return_q1": 7.02,
+        "backtest_return_q4": 7.02,
+        "profit_factor": 2.47
+      }
+    },
+    "POPCATUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 31,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "RSRUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 29,
+        "rsi_max": 39,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "RUNEUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 70.1,
+        "expected_trades_per_quarter": 27.5,
+        "backtest_return_q1": 3.01,
+        "backtest_return_q4": 3.01,
+        "profit_factor": 3.13
+      }
+    },
+    "SANDUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 28,
+        "rsi_max": 38,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "SEIUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.3,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 73.9,
+        "expected_trades_per_quarter": 24,
+        "backtest_return_q1": 5.89,
+        "backtest_return_q4": 5.89,
+        "profit_factor": 4.93
+      }
+    },
+    "SHIB1000USDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.1,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 67.1,
+        "expected_trades_per_quarter": 12,
+        "backtest_return_q1": 2.04,
+        "backtest_return_q4": 2.04,
+        "profit_factor": 2.24
+      }
+    },
+    "SOLUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.3,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 63.9,
+        "expected_trades_per_quarter": 5.5,
+        "backtest_return_q1": 1.12,
+        "backtest_return_q4": 1.12,
+        "profit_factor": 8.04
+      }
+    },
+    "STXUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 29,
+        "rsi_max": 39,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "SUIUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.1,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 67.9,
+        "expected_trades_per_quarter": 10.5,
+        "backtest_return_q1": 0.5,
+        "backtest_return_q4": 0.5,
+        "profit_factor": 2.71
+      }
+    },
+    "TIAUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 75.0,
+        "expected_trades_per_quarter": 6,
+        "backtest_return_q1": 1.19,
+        "backtest_return_q4": 1.19,
+        "profit_factor": 3.54
+      }
+    },
+    "TONUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.3,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 70.6,
+        "expected_trades_per_quarter": 8,
+        "backtest_return_q1": 1.18,
+        "backtest_return_q4": 1.18,
+        "profit_factor": 3.34
+      }
+    },
+    "TRUMPUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 26,
+        "rsi_max": 36,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "TRXUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 78.0,
+        "expected_trades_per_quarter": 10,
+        "backtest_return_q1": 1.45,
+        "backtest_return_q4": 1.45,
+        "profit_factor": 4.07
+      }
+    },
+    "UNIUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 72.1,
+        "expected_trades_per_quarter": 35,
+        "backtest_return_q1": 7.52,
+        "backtest_return_q4": 7.52,
+        "profit_factor": 3.57
+      }
+    },
+    "XCNUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 32,
+        "rsi_max": 40,
+        "volume_threshold": 1.0,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "XLMUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 35,
+        "rsi_max": 45,
+        "volume_threshold": 1.5,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 60.0,
+        "expected_trades_per_quarter": 12,
+        "backtest_return_q1": 1.48,
+        "backtest_return_q4": 1.48,
+        "profit_factor": 2.27
+      }
+    }
+  },
+  "short": {
+    "ADAUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.5,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 87.5,
+        "expected_trades_per_quarter": 4,
+        "backtest_return_q1": 1.54,
+        "backtest_return_q4": 2.46
+      }
+    },
+    "AVAXUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 65,
+        "volume_threshold": 1.2,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 90.0,
+        "expected_trades_per_quarter": 3,
+        "backtest_return_q1": 0.62,
+        "backtest_return_q4": 0.92
+      }
+    },
+    "BTCUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 65,
+        "volume_threshold": 1.2,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 62.5,
+        "expected_trades_per_quarter": 4,
+        "backtest_return_q1": 0.19,
+        "backtest_return_q4": -0.19
+      }
+    },
+    "DEXEUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 64,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "DOGEUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.2,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 61.1,
+        "expected_trades_per_quarter": 6,
+        "backtest_return_q1": 0.79,
+        "backtest_return_q4": -0.01
+      }
+    },
+    "DOTUSDT": {
+      "enabled": false,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 65,
+        "volume_threshold": 1.5,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 54.2,
+        "expected_trades_per_quarter": 3.5,
+        "backtest_return_q1": 0.42,
+        "backtest_return_q4": 0.74
+      }
+    },
+    "FILUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 62,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "FLRUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 62,
+        "volume_threshold": 1.1,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "GLMUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 61,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "HNTUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 61,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "LDOUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "LPTUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.5,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "MNTUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.8,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "NEARUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 70.8,
+        "expected_trades_per_quarter": 10.5,
+        "backtest_return_q1": 1.14,
+        "backtest_return_q4": 1.14
+      }
+    },
+    "ORDIUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "POPCATUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "PYTHUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.2,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 75.0,
+        "expected_trades_per_quarter": 3,
+        "backtest_return_q1": 0.31,
+        "backtest_return_q4": 0.31
+      }
+    },
+    "RSRUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 64,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "SANDUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "SHIB1000USDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 65,
+        "volume_threshold": 1.2,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {
+        "expected_win_rate": 81.2,
+        "expected_trades_per_quarter": 4.5,
+        "backtest_return_q1": 0.32,
+        "backtest_return_q4": 0.32
+      }
+    },
+    "STXUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 60,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "TRUMPUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 63,
+        "volume_threshold": 1.0,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "XCNUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 64,
+        "volume_threshold": 2.1,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    }
+  }
+}

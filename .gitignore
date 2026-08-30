@@ -1,0 +1,46 @@
+# ---- Secrets: never commit ----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+service-account*.json
+gcp-*.json
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Data & runtime state ----
+# The firm database is machine-local runtime state, not source.
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/cache/
+logs/*.log
+logs/*.log.*
+logs/archive/
+
+# ---- Research artifacts ----
+# Reports are reproducible from code + BigQuery; keep the repo lean.
+research/artifacts/
+*.parquet
+
+# ---- Node / Next.js dashboard ----
+node_modules/
+.next/
+out/
+dashboard/.env.local
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
