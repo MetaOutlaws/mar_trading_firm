@@ -1234,6 +1234,27 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "are a different family."
         ),
     ),
+    SleeveSpec(
+        name="fib_extension_break",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs a 1.618 extension break of a completed impulse from causal "
+            "confirmed_swings. Last event +1 new swing high, -1 new swing low, "
+            "ffill. LONG: up-impulse ready, close>ext, close>H. SHORT "
+            "symmetric. ext=end+0.618*(end-start). Optional inner 1.272 as "
+            "zone start, not a second family. Invalidation is close back "
+            "through impulse end. Ratios 1.272/1.618. Not Donchian, not "
+            "fib_retracement_bounce. Do not implement the 0.618 retracement bounce."
+        ),
+        summary="Break a 1.618 extension of a completed confirmed-swing impulse.",
+        justification=(
+            "The 1.618 break is two confirmed swings projected past the "
+            "impulse end, not a rolling Donchian and not the 0.618 bounce of "
+            "the same impulse. Follow-on to fib_retracement_bounce, not a clone."
+        ),
+    ),
 ]
 
 

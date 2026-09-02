@@ -1,0 +1,14 @@
+{
+  "family": "fib_extension_break",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs a 1.618 extension break of a completed impulse from causal confirmed_swings. Last event +1 new swing high, -1 new swing low, ffill. LONG: up-impulse ready, close>ext, close>H. SHORT symmetric. ext=end+0.618*(end-start). Optional inner 1.272 as zone start, not a second family. Invalidation is close back through impulse end. Ratios 1.272/1.618. Not Donchian, not fib_retracement_bounce. Do not implement the 0.618 retracement bounce.",
+  "summary": "Break a 1.618 extension of a completed confirmed-swing impulse.",
+  "justification": "The 1.618 break is two confirmed swings projected past the impulse end, not a rolling Donchian and not the 0.618 bounce of the same impulse. Follow-on to fib_retracement_bounce, not a clone.",
+  "written_at": "2026-09-02T17:55:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/fib_extension_break.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

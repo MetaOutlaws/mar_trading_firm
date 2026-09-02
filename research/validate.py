@@ -800,6 +800,12 @@ def _novel_kit(name: str, side: SignalSide):
             "FibRetracementBounceStrategy",
             {"fib_ratio": [0.5, 0.618, 0.786], "atr_buffer": [0.0, 0.15]},
         ),
+        "fib_extension_break": (
+            "core.strategy.fib_extension_break",
+            "FibExtensionBreakParams",
+            "FibExtensionBreakStrategy",
+            {"fib_ratio": [1.272, 1.618]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
