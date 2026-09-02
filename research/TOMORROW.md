@@ -25,6 +25,8 @@ Stay dead. Do not recode:
 - `session_liquidity_sweep`
 - `bar_vwap_inflow_surge`
 - `fib_retracement_bounce`
+- `measured_move_break` (job 86 honest 0/12, stays dead, do not recode, do not overlay skip_bull/chop on the BTC LONG 2.23 miss)
+- skip_bull overlay on `fib_extension_break` (job 85 overwrote winners; do not rerun)
 
 ## Quant / coding
 
