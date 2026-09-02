@@ -278,8 +278,12 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert atr["coded"] is True
     coded = set(list_strategies())
     assert "session_liquidity_sweep" in coded
+    assert "bar_vwap_inflow_surge" in coded
+    assert "fib_retracement_bounce" in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
+    assert "bar_vwap_inflow_surge" not in novel_ready
+    assert "fib_retracement_bounce" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -692,6 +696,8 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "kama_trend" not in families
     assert "session_liquidity_sweep" not in families
     assert "volume_force_divergence" not in families
+    assert "bar_vwap_inflow_surge" not in families
+    assert "fib_retracement_bounce" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

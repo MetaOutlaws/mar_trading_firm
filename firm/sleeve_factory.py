@@ -1194,6 +1194,46 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "Asian range and from a generic wick-rejection with no session clock."
         ),
     ),
+    SleeveSpec(
+        name="bar_vwap_inflow_surge",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs per-bar VWAP from unused turnover/volume, then pulse = "
+            "volume*(close-bar_vwap)/ATR versus the prior-20 |pulse| baseline "
+            "(current bar excluded). LONG surge>2, SHORT<-2. Optional "
+            "same-direction body. Not OBV/VPT/Force/volume_force_divergence/"
+            "ADL/CMF/Klinger/climax fade. Do not cumsum. Do not fade. Do not "
+            "invent taker/CVD/netflow/on-chain/funding columns."
+        ),
+        summary="Follow a per-bar VWAP inflow surge from unused turnover.",
+        justification=(
+            "Turnover/volume is a bar VWAP the other volume ledgers never use. "
+            "A one-bar pulse versus its own prior |pulse| is not a cumulative "
+            "force and not a fade of a price extreme."
+        ),
+    ),
+    SleeveSpec(
+        name="fib_retracement_bounce",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs a 0.618 bounce of a completed impulse from causal "
+            "confirmed_swings. LONG: last event is swing high after a distinct "
+            "low, tag 0.618, close back above it, origin intact. SHORT "
+            "symmetric. Ratios 0.500/0.618/0.786. Optional 0.15*ATR buffer. "
+            "Not Donchian, not floor pivots, not round_number_fade, not "
+            "swing_failure_reversal. Do not implement 1.272/1.618 extensions."
+        ),
+        summary="Bounce the 0.618 retracement of a completed confirmed-swing impulse.",
+        justification=(
+            "The 0.618 tag is two confirmed swings, not a rolling Donchian, "
+            "not a daily floor pivot, and not a failed swing break. Extensions "
+            "are a different family."
+        ),
+    ),
 ]
 
 

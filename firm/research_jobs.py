@@ -131,6 +131,8 @@ CLOCK_BY_FAMILY = {
     "volume_weighted_macd_cross": "4h/4h",
     "volume_force_divergence": "4h/4h",
     "session_liquidity_sweep": "1h/1h",
+    "bar_vwap_inflow_surge": "4h/4h",
+    "fib_retracement_bounce": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 

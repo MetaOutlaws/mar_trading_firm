@@ -89,6 +89,8 @@ APPROVED = [
     "williams_fractal_break",
     "volume_force_divergence",
     "session_liquidity_sweep",
+    "bar_vwap_inflow_surge",
+    "fib_retracement_bounce",
 ]
 
 
@@ -113,6 +115,8 @@ def _ohlcv(index: pd.DatetimeIndex, close: np.ndarray, high=None, low=None, open
         },
         index=index,
     )
+    # Quote volume so bar_vwap = turnover / volume is defined on every fixture.
+    frame["turnover"] = frame["volume"] * frame["close"]
     frame.index.name = "timestamp"
     return frame
 
@@ -1053,6 +1057,180 @@ def test_session_liquidity_sweep_ignores_real_breakout() -> None:
     candles = _ohlcv(index, close, high=high, low=low, open_=open_)
     signals = _signals("session_liquidity_sweep", candles)
     assert int(signals["signal"].iloc[32]) == 0
+
+
+def _quiet_vwap_tape(n: int = 80) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Flat tape with a small close-vs-bar-VWAP residual so the |pulse| baseline is nonzero."""
+    close = np.full(n, 100.0)
+    high = close + 1.0
+    low = close - 1.0
+    open_ = np.full(n, 99.8)
+    volume = np.full(n, 1_000.0)
+    # turnover a hair under volume*close → tiny positive pulse, baseline stays finite.
+    return close, high, low, open_, volume
+
+
+def test_bar_vwap_inflow_surge_schema_and_long_entry() -> None:
+    n = 80
+    close, high, low, open_, volume = _quiet_vwap_tape(n)
+    turnover = volume * 99.5
+    # Surge bar: close well above bar VWAP, same-direction body, heavy volume.
+    close[60] = 110.0
+    open_[60] = 100.0
+    high[60] = 111.0
+    low[60] = 99.5
+    volume[60] = 8_000.0
+    turnover[60] = 8_000.0 * 100.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = turnover
+    assert "turnover" in candles.columns
+    signals = _signals("bar_vwap_inflow_surge", candles)
+    for column in ("signal", "side", "score", "reason", "bar_vwap", "pulse", "surge"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[60]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert signals["bar_vwap"].iloc[60] == pytest.approx(turnover[60] / volume[60])
+
+
+def test_bar_vwap_inflow_surge_short_entry() -> None:
+    n = 80
+    close, high, low, open_, volume = _quiet_vwap_tape(n)
+    turnover = volume * 100.5
+    close[60] = 90.0
+    open_[60] = 100.0
+    high[60] = 100.5
+    low[60] = 89.0
+    volume[60] = 8_000.0
+    turnover[60] = 8_000.0 * 100.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = turnover
+    signals = _signals("bar_vwap_inflow_surge", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[60]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert signals["bar_vwap"].iloc[60] == pytest.approx(turnover[60] / volume[60])
+
+
+def test_bar_vwap_inflow_surge_reads_turnover() -> None:
+    """The sleeve must consume the unused turnover column, not invent a feed."""
+    n = 80
+    close, high, low, open_, volume = _quiet_vwap_tape(n)
+    turnover = volume * 99.5
+    close[60] = 110.0
+    open_[60] = 100.0
+    high[60] = 111.0
+    low[60] = 99.5
+    volume[60] = 8_000.0
+    turnover[60] = 8_000.0 * 100.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = turnover
+    from research.validate import strategy_kit
+
+    factory, base, _space = strategy_kit("bar_vwap_inflow_surge", SignalSide.LONG)
+    sleeve = factory(base)
+    with pytest.raises(ValueError, match="turnover"):
+        sleeve.generate_signals(candles.drop(columns=["turnover"]))
+    fired = sleeve.generate_signals(candles)
+    assert int(fired["signal"].iloc[60]) == 1
+    # Neutralise the print: turnover = volume * close → pulse 0, surge gone.
+    muted = candles.copy()
+    muted.loc[muted.index[60], "turnover"] = volume[60] * close[60]
+    quiet = sleeve.generate_signals(muted)
+    assert int(quiet["signal"].iloc[60]) == 0
+    assert fired["bar_vwap"].iloc[60] == pytest.approx(turnover[60] / volume[60])
+
+
+def _impulse_then_retrace(
+    *,
+    long_side: bool,
+    n: int = 80,
+    origin: float = 80.0,
+    extreme: float = 120.0,
+    swing_a: int = 15,
+    swing_b: int = 40,
+    bounce: int = 50,
+) -> pd.DataFrame:
+    """Plant two confirmed swings (left=3) and a 0.618 tag that closes back through."""
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    left = 3
+    # After each swing publishes, walk the opposite extreme away so confirmed_swings
+    # does not replace the planted origin with a later flat-tape pivot.
+    if long_side:
+        low[swing_a] = origin
+        high[swing_a] = 100.0
+        close[swing_a] = 99.0
+        high[swing_b] = extreme
+        low[swing_b] = 99.0
+        close[swing_b] = 118.0
+        for i in range(swing_a + left + 1, bounce):
+            low[i] = 99.0 + 0.02 * (i - swing_a)
+        level = extreme - 0.618 * (extreme - origin)
+        low[bounce] = level - 0.8
+        high[bounce] = level + 2.0
+        close[bounce] = level + 1.2
+        open_[bounce] = level - 0.2
+    else:
+        high[swing_a] = extreme
+        low[swing_a] = 100.0
+        close[swing_a] = 101.0
+        low[swing_b] = origin
+        high[swing_b] = 101.0
+        close[swing_b] = 82.0
+        for i in range(swing_a + left + 1, bounce):
+            high[i] = 101.0 - 0.02 * (i - swing_a)
+        level = origin + 0.618 * (extreme - origin)
+        high[bounce] = level + 0.8
+        low[bounce] = level - 2.0
+        close[bounce] = level - 1.2
+        open_[bounce] = level + 0.2
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+
+
+def test_fib_retracement_bounce_schema_and_long_entry() -> None:
+    candles = _impulse_then_retrace(long_side=True)
+    signals = _signals("fib_retracement_bounce", candles)
+    for column in ("signal", "side", "score", "reason", "swing_high", "swing_low", "fib_level"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+
+
+def test_fib_retracement_bounce_short_entry() -> None:
+    candles = _impulse_then_retrace(long_side=False)
+    signals = _signals("fib_retracement_bounce", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+
+
+def test_fib_retracement_bounce_level_from_confirmed_swings_not_donchian() -> None:
+    """0.618 is two confirmed swings, not a Donchian channel retrace."""
+    from core.strategy import indicators as ind
+
+    candles = _impulse_then_retrace(long_side=True)
+    signals = _signals("fib_retracement_bounce", candles)
+    fired = signals.index[signals["signal"] == 1]
+    assert len(fired) >= 1
+    bar = fired[0]
+    swing_high, swing_low = ind.confirmed_swings(candles["high"], candles["low"], left=3)
+    expected = swing_high.loc[bar] - 0.618 * (swing_high.loc[bar] - swing_low.loc[bar])
+    assert signals.loc[bar, "fib_level"] == pytest.approx(float(expected))
+    assert signals.loc[bar, "swing_high"] == pytest.approx(float(swing_high.loc[bar]))
+    assert signals.loc[bar, "swing_low"] == pytest.approx(float(swing_low.loc[bar]))
+    # Donchian 20 ending at this bar does not contain the origin low (bar 15).
+    prior = slice(None, bar)
+    donchian_high = candles.loc[prior, "high"].iloc[-20:].max()
+    donchian_low = candles.loc[prior, "low"].iloc[-20:].min()
+    donchian_618 = donchian_high - 0.618 * (donchian_high - donchian_low)
+    assert signals.loc[bar, "fib_level"] != pytest.approx(float(donchian_618), abs=0.2)
+    assert swing_low.loc[bar] == pytest.approx(80.0)
+    assert swing_high.loc[bar] == pytest.approx(120.0)
 
 
 def test_williams_fractal_break_long_entry() -> None:
