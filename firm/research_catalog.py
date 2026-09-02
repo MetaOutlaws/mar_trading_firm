@@ -13,12 +13,19 @@ walk-forward measures it. Rank first, code one, test one, keep a novel buffer.
 from __future__ import annotations
 
 import json
+import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 
 from config.settings import PROJECT_ROOT
 
+logger = logging.getLogger(__name__)
+
 CATALOG_RANKING_PATH = PROJECT_ROOT / "data" / "catalog_ranking.json"
+# Append-only memory of finished family@clock[@side] grids. Survives a jobs
+# ledger rewrite so Desk Head cannot treat CLOCK_BY_FAMILY as a fresh backlog.
+WALK_FORWARD_HISTORY_PATH = PROJECT_ROOT / "data" / "walk_forward_history.json"
 
 # Cannot be the next coding or walk-forward mandate until the feed exists.
 FAMILIES_NEEDING_FEED = frozenset({"funding_fade"})
@@ -994,6 +1001,215 @@ def hypothesis_tested_keys(jobs: list[dict[str, Any]]) -> set[str]:
     return out
 
 
+def _atomic_write_json(path: Any, payload: dict[str, Any]) -> None:
+    """Write-then-rename so a crash cannot leave a truncated catalog file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _empty_walk_forward_history() -> dict[str, Any]:
+    return {
+        "updated_at": "",
+        "max_job_id": 0,
+        "grids": [],
+        "hypothesis_ids": [],
+    }
+
+
+def load_walk_forward_history() -> dict[str, Any]:
+    """Durable finished-grid index. Empty file or missing file is a cold start."""
+    path = WALK_FORWARD_HISTORY_PATH
+    base = _empty_walk_forward_history()
+    if not path.exists():
+        bak = path.with_suffix(path.suffix + ".bak")
+        path = bak if bak.exists() else path
+    if not path.exists():
+        return base
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        logger.exception("Walk-forward history unreadable at %s", path)
+        return {**base, "_corrupt": True}
+    if not isinstance(raw, dict):
+        return {**base, "_corrupt": True}
+    base.update(raw)
+    base["grids"] = [str(x) for x in (base.get("grids") or []) if x]
+    base["hypothesis_ids"] = [str(x) for x in (base.get("hypothesis_ids") or []) if x]
+    try:
+        base["max_job_id"] = int(base.get("max_job_id") or 0)
+    except (TypeError, ValueError):
+        base["max_job_id"] = 0
+    return base
+
+
+def history_grid_keys() -> set[str]:
+    return set(load_walk_forward_history().get("grids") or [])
+
+
+def history_hypothesis_ids() -> set[str]:
+    return set(load_walk_forward_history().get("hypothesis_ids") or [])
+
+
+def history_max_job_id() -> int:
+    return int(load_walk_forward_history().get("max_job_id") or 0)
+
+
+def paper_book_finished_keys() -> set[str]:
+    """family@clock[@side] keys already measured on the paper/approvals book.
+
+    Presence in approved_strategies.json means a walk-forward wrote a verdict
+    (approved or rejected). Auto-advance must not re-run that grid to fill a slot.
+    """
+    from config.universe import APPROVALS_PATH
+
+    out: set[str] = set()
+    if not APPROVALS_PATH.exists():
+        return out
+    try:
+        raw = json.loads(APPROVALS_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return out
+    if not isinstance(raw, dict):
+        return out
+    for key, row in raw.items():
+        if not key or str(key).startswith("_"):
+            continue
+        parts = str(key).split(":")
+        family = ""
+        side = "BOTH"
+        tf = ""
+        if len(parts) >= 4:
+            family, _symbol, side, tf = parts[0], parts[1], parts[2], parts[3]
+        elif len(parts) == 3:
+            family, _symbol, side = parts[0], parts[1], parts[2]
+            if isinstance(row, dict):
+                tf = str(row.get("timeframe") or "")
+        if not family or not tf:
+            continue
+        clock = f"{tf}/{tf}"
+        out.update(coverage_keys(family, clock, str(side or "BOTH").upper()))
+    return out
+
+
+def durable_tested_keys(jobs: list[dict[str, Any]] | None = None) -> set[str]:
+    """Jobs + append-only history + paper book. Used after a ledger id reset."""
+    rows = jobs if jobs is not None else []
+    return hypothesis_tested_keys(rows) | history_grid_keys() | paper_book_finished_keys()
+
+
+def record_finished_walk_forward(job: dict[str, Any]) -> None:
+    """Remember this family@clock@side even if research_jobs.json is later rewritten."""
+    family = str(job.get("family") or "")
+    clock = str(job.get("clock") or "")
+    side = str(job.get("side") or "BOTH")
+    hid = str(job.get("hypothesis_id") or job.get("id") or "")
+    try:
+        job_id = int(job.get("id") or 0)
+    except (TypeError, ValueError):
+        job_id = 0
+    if not family or not clock:
+        return
+    data = load_walk_forward_history()
+    if data.get("_corrupt"):
+        logger.error("Refusing to overwrite corrupt walk-forward history")
+        return
+    grids = set(data.get("grids") or [])
+    grids.update(coverage_keys(family, clock, side))
+    ids = set(data.get("hypothesis_ids") or [])
+    if hid:
+        ids.add(str(hid))
+    data["grids"] = sorted(grids)
+    data["hypothesis_ids"] = sorted(ids)
+    data["max_job_id"] = max(int(data.get("max_job_id") or 0), job_id)
+    data["updated_at"] = _utcnow_iso()
+    data.pop("_corrupt", None)
+    path = WALK_FORWARD_HISTORY_PATH
+    bak = path.with_suffix(path.suffix + ".bak")
+    if path.exists():
+        try:
+            os.replace(path, bak)
+        except OSError:
+            logger.exception("Could not rotate walk-forward history bak")
+    _atomic_write_json(path, data)
+
+
+def note_job_id(job_id: int) -> None:
+    """Keep the id sequencer above any ledger rewrite that restarted at 1."""
+    try:
+        n = int(job_id or 0)
+    except (TypeError, ValueError):
+        return
+    if n <= 0:
+        return
+    data = load_walk_forward_history()
+    if data.get("_corrupt"):
+        logger.error("Refusing to overwrite corrupt walk-forward history")
+        return
+    if n <= int(data.get("max_job_id") or 0):
+        return
+    data["max_job_id"] = n
+    data["updated_at"] = _utcnow_iso()
+    data.pop("_corrupt", None)
+    _atomic_write_json(WALK_FORWARD_HISTORY_PATH, data)
+
+
+def is_explicit_retest(row: dict[str, Any]) -> bool:
+    """Operator-queued frozen near-miss / tagged param grid, not a CLOCK leftover.
+
+    Auto-advance may start these when they are already in remaining/standby.
+    It must not invent them to keep walk-forward slots busy.
+    """
+    hid = str(row.get("id") or row.get("hypothesis_id") or "")
+    family = str(row.get("family") or "")
+    clock = str(row.get("clock") or "")
+    side = str(row.get("side") or "BOTH")
+    if not hid or not is_param_variant(
+        {"id": hid, "family": family, "clock": clock, "side": side}
+    ):
+        return False
+    if row.get("force_retest") or row.get("operator_queued"):
+        return True
+    near_miss_ids = {str(r.get("id") or "") for r in NEAR_MISS_RETESTS}
+    near_miss_ids.update(str(r.get("id") or "") for r in TODAY_CLOSE_RETESTS)
+    if hid in near_miss_ids:
+        return True
+    if str(row.get("added_by") or "") in {"operator", "test"}:
+        return True
+    if str(row.get("disposition") or "") == "re-parameterise" and str(
+        row.get("added_by") or ""
+    ):
+        return True
+    return False
+
+
+def auto_advance_grid_spent(
+    row: dict[str, Any], *, jobs: list[dict[str, Any]] | None = None
+) -> bool:
+    """True when Desk Head must not spawn this family/clock/side again.
+
+    Explicit tagged near-miss retests are spent only after that hypothesis_id
+    itself has finished. Base CLOCK_BY_FAMILY leftovers are spent when any
+    finished job, history row, or paper-book verdict covers the grid.
+    """
+    family = str(row.get("family") or "")
+    clock = str(row.get("clock") or "")
+    side = str(row.get("side") or "BOTH")
+    hid = str(row.get("id") or row.get("hypothesis_id") or "")
+    if jobs is None:
+        from firm.research_jobs import list_jobs
+
+        jobs = list_jobs()
+    finished_ids = _job_ids_by_status(jobs, {"done", "failed"}) | history_hypothesis_ids()
+    if is_explicit_retest(row):
+        return bool(hid) and hid in finished_ids
+    if not family or not clock:
+        return False
+    tested = durable_tested_keys(jobs)
+    return bool(coverage_keys(family, clock, side) & tested)
+
+
 def _job_ids_by_status(jobs: list[dict[str, Any]], statuses: set[str]) -> set[str]:
     """hypothesis_id values currently in those statuses."""
     out: set[str] = set()
@@ -1087,8 +1303,10 @@ def remaining_hypotheses(jobs: list[dict[str, Any]] | None = None) -> list[dict[
         from firm.research_jobs import list_jobs
 
         jobs = list_jobs()
-    tested = hypothesis_tested_keys(jobs)
-    tested_ids = _job_ids_by_status(jobs, {"done", "failed"})
+    # History survives a jobs-ledger id reset. Paper-book skip happens at
+    # auto-advance (stage/fill) so catalog tests can isolate jobs + overlay.
+    tested = hypothesis_tested_keys(jobs) | history_grid_keys()
+    tested_ids = _job_ids_by_status(jobs, {"done", "failed"}) | history_hypothesis_ids()
     busy: set[str] = set()
     for job in jobs:
         if job.get("status") not in {"running", "queued", "standby", "gated"}:
@@ -1544,6 +1762,10 @@ def land_coded_candidate_specs(
         for job in jobs
         if job.get("status") in {"done", "failed"} and job.get("family")
     }
+    for key in durable_tested_keys(jobs):
+        family = str(key).split("@")[0]
+        if family:
+            tested_families.add(family)
     added: list[dict[str, Any]] = []
     for spec in CANDIDATE_SPECS:
         if spec.name in existing or spec.name not in coded or spec.needs_feed:
@@ -1606,9 +1828,9 @@ def replenish_catalog(*, jobs: list[dict[str, Any]] | None = None, target: int |
     """Keep un-queued depth at the floor. Coded families (including novels) first.
 
     Does not invent indicators here — Quant/Cursor do that. This function only
-    lands what is already in the registry, then near-miss clocks of families
-    that are not clear losses. SHORT after BOTH on the same clock is skipped.
-    15m is not a candidate. Uncoded novels become coding requests, not JSON.
+    lands coded families that have never been walked. It does not refill from
+    CLOCK_BY_FAMILY leftovers, SHORT clones, or extra clocks of a finished
+    family. Empty remaining is idle. Uncoded novels become coding requests.
     """
     from config.pipeline import pipeline_config
     from core.strategy.registry import list_strategies
@@ -1632,15 +1854,18 @@ def replenish_catalog(*, jobs: list[dict[str, Any]] | None = None, target: int |
         for job in jobs
         if job.get("status") in {"done", "failed"} and job.get("family")
     }
+    for key in durable_tested_keys(jobs):
+        family = str(key).split("@")[0]
+        if family:
+            tested_families.add(family)
     coded = [
         name
         for name in list_strategies()
         if not family_blocked_from_replenish(name, jobs)
         and not is_clear_loss_family(name, jobs)
     ]
+    # Families that already finished a grid are not a replenish backlog.
     fresh = [name for name in coded if name not in tested_families]
-    rest = [name for name in coded if name in tested_families]
-    family_order = fresh + rest
     last_why: dict[str, str] = {}
     for job in jobs:
         family = str(job.get("family") or "")
@@ -1671,61 +1896,47 @@ def replenish_catalog(*, jobs: list[dict[str, Any]] | None = None, target: int |
                 candidate = spec.hypothesis_row(coded=True)
                 candidate["rank"] = 1
         if candidate is None:
-            for family in family_order:
+            # First clock of a coded family that has never been walked. Do not
+            # invent CLOCK_BY_FAMILY leftovers, SHORT clones, or extra clocks
+            # of a family that already has a finished grid — idle is correct.
+            tested_durable = durable_tested_keys(jobs)
+            for family in fresh:
                 if family_blocked_from_replenish(family, jobs):
                     continue
-                if family not in tested_families:
-                    # First clock already landed. Do not clone 1h/1h until measured.
+                if is_clear_loss_family(family, jobs):
                     continue
-                for clock in REPLENISH_CLOCKS:
-                    for side in REPLENISH_SIDES:
-                        hid = (
-                            f"{family}@{clock}"
-                            if side == "BOTH"
-                            else f"{family}@{clock}@{side}"
-                        )
-                        both_hid = f"{family}@{clock}"
-                        key = hypothesis_key(family, clock, side)
-                        if hid in existing or key in tested:
-                            continue
-                        if side != "BOTH" and (
-                            both_hid in existing
-                            or hypothesis_key(family, clock, "BOTH") in tested
-                        ):
-                            continue
-                        why = last_why.get(family) or (
-                            f"{family} is coded and has not been walked at {clock} {side}."
-                        )
-                        candidate = {
-                            "id": hid,
-                            "family": family,
-                            "name": f"{family} {clock} {side}",
-                            "clock": clock,
-                            "side": side,
-                            "coded": True,
-                            "rank": (
-                                1
-                                if family not in tested_families
-                                and clock == "4h/4h"
-                                and side == "BOTH"
-                                else 0
-                            ),
-                            "free_params": 4,
-                            "disposition": "retest_under_different_regime",
-                            "justification": (
-                                f"Catalog replenishment (quant_researcher). {why} "
-                                "Clock change of an untested or still-open family, "
-                                "not a silent re-run. 15m is excluded. SHORT is "
-                                "not queued after BOTH on this clock."
-                            ),
-                            "param_change": {"clock": clock, "side": side},
-                            "needs_feed": False,
-                        }
-                        break
-                    if candidate:
-                        break
-                if candidate:
-                    break
+                clock = family_primary_clock(family)
+                side = "BOTH"
+                hid = hypothesis_key(family, clock, side)
+                if hid in existing or hid in tested or hid in tested_durable:
+                    continue
+                if auto_advance_grid_spent(
+                    {"family": family, "clock": clock, "side": side, "id": hid},
+                    jobs=jobs,
+                ):
+                    continue
+                why = last_why.get(family) or (
+                    f"{family} is coded and has not been walked at {clock} {side}."
+                )
+                candidate = {
+                    "id": hid,
+                    "family": family,
+                    "name": f"{family} {clock} {side}",
+                    "clock": clock,
+                    "side": side,
+                    "coded": True,
+                    "rank": 1,
+                    "free_params": 4,
+                    "disposition": "new_family",
+                    "justification": (
+                        f"Catalog replenishment (quant_researcher). {why} "
+                        "First clock of an untested coded family, not a leftover "
+                        "CLOCK_BY_FAMILY clone."
+                    ),
+                    "param_change": {"clock": clock, "side": side},
+                    "needs_feed": False,
+                }
+                break
         if candidate is None:
             novel = next_novel_candidate(existing=existing_families)
             if novel is not None:
@@ -2067,7 +2278,9 @@ def queue_near_miss_retests(*, added_by: str = "operator") -> list[dict[str, Any
     """Land the 15 near-miss frozen-grid hypotheses. Does not start validators."""
     landed: list[dict[str, Any]] = []
     for row in NEAR_MISS_RETESTS:
-        item = append_hypothesis(dict(row), added_by=added_by)
+        payload = dict(row)
+        payload["operator_queued"] = True
+        item = append_hypothesis(payload, added_by=added_by)
         if item is not None:
             landed.append(item)
     promote_remaining_into_top5()
@@ -2078,7 +2291,9 @@ def queue_today_close_retests(*, added_by: str = "operator") -> list[dict[str, A
     """Land today's PF/WR/expectancy close-calls as frozen trend-filter retests."""
     landed: list[dict[str, Any]] = []
     for row in TODAY_CLOSE_RETESTS:
-        item = append_hypothesis(dict(row), added_by=added_by)
+        payload = dict(row)
+        payload["operator_queued"] = True
+        item = append_hypothesis(payload, added_by=added_by)
         if item is not None:
             landed.append(item)
     promote_remaining_into_top5()

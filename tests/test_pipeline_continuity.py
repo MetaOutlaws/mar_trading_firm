@@ -10,6 +10,16 @@ from firm.envelope import classify_hypothesis
 from firm.research_catalog import remaining_hypotheses
 
 
+def _isolate_finished_grids(monkeypatch, tmp_path) -> None:
+    """Keep catalog tests from reading the live paper book or history file."""
+    from firm import research_catalog, research_jobs
+
+    monkeypatch.setattr(research_catalog, "WALK_FORWARD_HISTORY_PATH", tmp_path / "wf_history.json")
+    monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
+    monkeypatch.setattr(research_catalog, "paper_book_finished_keys", lambda: set())
+    research_jobs._LAST_GOOD_JOBS = None
+
+
 def test_atr_1h_is_tier_a(monkeypatch) -> None:
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     hypo = {
@@ -83,6 +93,7 @@ def test_fill_slots_starts_standby_same_tick(tmp_path, monkeypatch, firm_db) -> 
     from firm import continuity, pipeline_state, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     spawned: list[int] = []
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
@@ -98,12 +109,145 @@ def test_fill_slots_starts_standby_same_tick(tmp_path, monkeypatch, firm_db) -> 
     assert all(j.get("stage") == "walk_forward" for j in live)
 
 
+def test_empty_catalog_does_not_spawn_finished_family(tmp_path, monkeypatch, firm_db) -> None:
+    """After a ledger reset, CLOCK_BY_FAMILY leftovers must not refill slots."""
+    from firm import continuity, pipeline_state, research_catalog, research_jobs
+
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
+    monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
+    spawned: list[int] = []
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
+    monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
+    (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
+    (tmp_path / "ranking.json").write_text(
+        '{"added":[],"ranks":{},"retired":[],"justifications":{},"dispositions":{}}',
+        encoding="utf-8",
+    )
+    leftovers = [
+        {
+            "id": "atr_channel_breakout@4h/4h@SHORT",
+            "family": "atr_channel_breakout",
+            "clock": "4h/4h",
+            "side": "SHORT",
+            "rank": 1,
+            "coded": True,
+            "name": "ATR 4h shorts leftover",
+            "justification": "CLOCK_BY_FAMILY leftover after ledger reset",
+            "param_change": {"clock": "4h/4h", "side": "SHORT"},
+        },
+        {
+            "id": "ema_adx_trend@4h/4h@SHORT",
+            "family": "ema_adx_trend",
+            "clock": "4h/4h",
+            "side": "SHORT",
+            "rank": 2,
+            "coded": True,
+            "name": "EMA 4h shorts leftover",
+            "justification": "legacy family already had a 4h SHORT grid",
+            "param_change": {"clock": "4h/4h", "side": "SHORT"},
+        },
+    ]
+    monkeypatch.setattr(research_catalog, "remaining_hypotheses", lambda jobs=None: leftovers)
+    monkeypatch.setattr(continuity, "remaining_hypotheses", lambda jobs=None: leftovers)
+    monkeypatch.setattr(research_catalog, "replenish_catalog", lambda **kwargs: [])
+    research_catalog.record_finished_walk_forward(
+        {
+            "id": 50,
+            "family": "atr_channel_breakout",
+            "clock": "4h/4h",
+            "side": "SHORT",
+            "status": "done",
+            "hypothesis_id": "atr_channel_breakout@4h/4h@SHORT",
+        }
+    )
+    research_catalog.record_finished_walk_forward(
+        {
+            "id": 12,
+            "family": "ema_adx_trend",
+            "clock": "4h/4h",
+            "side": "SHORT",
+            "status": "done",
+            "hypothesis_id": "ema_adx_trend@4h/4h@SHORT",
+        }
+    )
+    result = continuity.fill_walk_forward_slots(source="event")
+    assert result["started"] == []
+    assert spawned == []
+    live = [
+        j
+        for j in research_jobs.list_jobs()
+        if j.get("status") in {"running", "queued"}
+    ]
+    assert live == []
+    assert all(
+        j.get("family") not in {"atr_channel_breakout", "ema_adx_trend"}
+        or j.get("status") not in {"running", "queued", "standby"}
+        for j in research_jobs.list_jobs()
+    )
+
+
+def test_explicit_near_miss_queue_still_advances(tmp_path, monkeypatch, firm_db) -> None:
+    """Operator-queued frozen near-miss retests still start when catalog is otherwise empty."""
+    from firm import continuity, pipeline_state, research_catalog, research_jobs
+    from firm.research_catalog import NEAR_MISS_RETESTS
+
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
+    monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
+    spawned: list[int] = []
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
+    monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
+    monkeypatch.setattr(
+        continuity,
+        "classify_hypothesis",
+        lambda *args, **kwargs: {"tier": "A", "checks": {}, "reasons": []},
+    )
+    monkeypatch.setattr(
+        continuity,
+        "classify_family_clock",
+        lambda *args, **kwargs: {"tier": "A", "checks": {}, "reasons": []},
+    )
+    row = dict(NEAR_MISS_RETESTS[0])
+    row["operator_queued"] = True
+    row["added_by"] = "operator"
+    (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
+    (tmp_path / "ranking.json").write_text(
+        '{"added":[],"ranks":{},"retired":[],"justifications":{},"dispositions":{}}',
+        encoding="utf-8",
+    )
+    research_catalog.record_finished_walk_forward(
+        {
+            "id": 80,
+            "family": row["family"],
+            "clock": row["clock"],
+            "side": "BOTH",
+            "status": "done",
+            "hypothesis_id": f"{row['family']}@{row['clock']}",
+        }
+    )
+    monkeypatch.setattr(research_catalog, "remaining_hypotheses", lambda jobs=None: [row])
+    monkeypatch.setattr(continuity, "remaining_hypotheses", lambda jobs=None: [row])
+    monkeypatch.setattr(research_catalog, "replenish_catalog", lambda **kwargs: [])
+    result = continuity.fill_walk_forward_slots(source="event")
+    assert result["started"]
+    assert spawned == result["started"]
+    jobs = research_jobs.list_jobs()
+    live = [j for j in jobs if j.get("status") in {"running", "queued"}]
+    assert live
+    assert live[0]["hypothesis_id"] == row["id"]
+    assert live[0]["family"] == row["family"]
+
+
 def test_fill_slots_does_not_drain_catalog_when_breaker_tripped(
     tmp_path, monkeypatch, firm_db
 ) -> None:
     from firm import continuity, pipeline_state, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(continuity, "auto_advance_allowed", lambda: (False, "circuit breaker"))
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
@@ -133,6 +277,7 @@ def test_breaker_releases_for_a_new_clock(tmp_path, monkeypatch, firm_db) -> Non
     from firm import continuity, pipeline_state, research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
@@ -161,6 +306,7 @@ def test_budget_exhausted_still_starts_new_followup(tmp_path, monkeypatch, firm_
     from firm import continuity, pipeline_state, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
@@ -194,6 +340,7 @@ def test_budget_still_blocks_same_grid(tmp_path, monkeypatch, firm_db) -> None:
     from firm import continuity, memory, pipeline_state, research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
@@ -231,6 +378,7 @@ def test_backstop_fill_is_dropped_event(tmp_path, monkeypatch, firm_db) -> None:
     from firm import continuity, pipeline_state, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
@@ -248,6 +396,7 @@ def test_empty_standby_opens_ticket(tmp_path, monkeypatch, firm_db) -> None:
     from firm import continuity, pipeline_state, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr("firm.research_catalog.remaining_hypotheses", lambda jobs=None: [])
     monkeypatch.setattr(continuity, "remaining_hypotheses", lambda jobs=None: [])
@@ -267,6 +416,7 @@ def test_evaluate_invariants_starts_walk_forward_when_idle(
     from firm import continuity, pipeline_state, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     spawned: list[int] = []
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
@@ -285,6 +435,7 @@ def test_llm_timeout_still_starts_waiting_walk_forward(
     from firm import accountability, pipeline_state, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     spawned: list[int] = []
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
@@ -324,6 +475,7 @@ def test_remaining_hypotheses_skips_tested_clock(tmp_path, monkeypatch) -> None:
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     (tmp_path / "jobs.json").write_text(
         '{"jobs":[{"family":"atr_channel_breakout","status":"done","clock":"1h/1h","side":"BOTH"}]}',
@@ -340,6 +492,7 @@ def test_replenish_catalog_fills_depth(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "jobs.json").write_text(
         '{"jobs":[{"family":"atr_channel_breakout","status":"done","clock":"1h/1h","side":"BOTH"}]}',
         encoding="utf-8",
@@ -366,6 +519,7 @@ def test_replenish_lands_coded_novel_families(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     added = research_catalog.replenish_catalog(
         jobs=research_jobs.list_jobs(), target=1
@@ -387,6 +541,7 @@ def test_replenish_does_not_clone_clocks_after_primary_zero(tmp_path, monkeypatc
 
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "jobs.json").write_text(
         '{"jobs":[{"family":"mfi_fade","status":"done","clock":"4h/4h","side":"BOTH","pairs_approved":0}]}',
         encoding="utf-8",
@@ -470,6 +625,7 @@ def test_promote_remaining_into_top5_after_postmortem(tmp_path, monkeypatch) -> 
 
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "jobs.json").write_text(
         json.dumps(
             {

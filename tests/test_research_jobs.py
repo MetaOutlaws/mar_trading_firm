@@ -7,6 +7,15 @@ from config.pipeline import APPROVED_RESEARCH_SYMBOLS
 from firm.research_jobs import infer_family, on_strategy_approved
 
 
+def _isolate_finished_grids(monkeypatch, tmp_path) -> None:
+    from firm import research_catalog, research_jobs
+
+    monkeypatch.setattr(research_catalog, "WALK_FORWARD_HISTORY_PATH", tmp_path / "wf_history.json")
+    monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
+    monkeypatch.setattr(research_catalog, "paper_book_finished_keys", lambda: set())
+    research_jobs._LAST_GOOD_JOBS = None
+
+
 def test_research_majors_include_bnb_xrp_avax() -> None:
     assert APPROVED_RESEARCH_SYMBOLS == (
         "BTCUSDT",
@@ -61,6 +70,7 @@ def test_coded_family_queues_without_spawning(tmp_path, monkeypatch) -> None:
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
 
@@ -95,6 +105,7 @@ def test_uncoded_family_is_blocked_not_spawned(tmp_path, monkeypatch) -> None:
 
     spawned: list[int] = []
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
 
@@ -117,6 +128,7 @@ def test_catch_up_only_starts_coded_untested_families(tmp_path, monkeypatch) -> 
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
     monkeypatch.setattr("firm.memory.approved_code_mandates", lambda limit=20: [])
@@ -157,6 +169,7 @@ def test_paper_scan_family_follows_latest_coded_job(tmp_path, monkeypatch) -> No
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":[{"family":"donchian_breakout","status":"running","symbols":["BTCUSDT"]}]}',
         encoding="utf-8",
@@ -179,6 +192,7 @@ def test_paper_plan_scans_donchian_when_that_job_is_running(tmp_path, monkeypatc
         ),
     )
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":[{"family":"donchian_breakout","status":"running","symbols":["BTCUSDT"]}]}',
         encoding="utf-8",
@@ -294,6 +308,7 @@ def test_code_family_approve_starts_walk_forward_when_coded(tmp_path, monkeypatc
     from firm.research_jobs import on_operator_approved
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
 
@@ -318,6 +333,7 @@ def test_code_family_approve_starts_opening_range_when_coded(tmp_path, monkeypat
     from firm.research_jobs import on_operator_approved
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
 
@@ -342,6 +358,7 @@ def test_catch_up_starts_approved_code_mandate(tmp_path, monkeypatch) -> None:
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
     monkeypatch.setattr("firm.memory.decided_strategy_proposals", lambda limit=20: [])
@@ -366,6 +383,7 @@ def test_headline_job_ignores_unknown_blocked(tmp_path, monkeypatch) -> None:
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":['
         '{"family":"donchian_breakout","status":"done","pairs_approved":0,"clock":"1h/4h"},'
@@ -382,6 +400,7 @@ def test_headline_job_prefers_approval_over_old_crash(tmp_path, monkeypatch) -> 
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":['
         '{"id":58,"family":"engulfing_reversal","status":"failed",'
@@ -399,6 +418,7 @@ def test_headline_job_skips_code_crash_for_later_reject(tmp_path, monkeypatch) -
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":['
         '{"id":58,"family":"engulfing_reversal","status":"failed",'
@@ -431,6 +451,7 @@ def test_already_tested_clock_does_not_spawn(tmp_path, monkeypatch) -> None:
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
     (tmp_path / "research_jobs.json").write_text(
@@ -454,6 +475,7 @@ def test_next_step_after_htf_is_opening_range_walk_forward(tmp_path, monkeypatch
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":['
@@ -479,6 +501,7 @@ def test_next_step_prefers_uncoded_opening_range_before_atr_followup(tmp_path, m
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":['
@@ -499,6 +522,7 @@ def test_ensure_next_gate_files_next_novel_when_grid_exhausted(tmp_path, monkeyp
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":['
         '{"family":"rsi_trend","status":"done","pairs_approved":0},'
@@ -537,6 +561,7 @@ def test_ensure_next_gate_does_not_file_review_after_approvals(
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":[{"family":"atr_channel_breakout","status":"done","pairs_approved":2}]}',
         encoding="utf-8",
@@ -616,6 +641,7 @@ def test_open_code_mandates_phases(tmp_path, monkeypatch) -> None:
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     (tmp_path / "research_jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     monkeypatch.setattr(
         "firm.memory.approved_code_mandates",
@@ -709,6 +735,7 @@ def test_approve_novel_hands_brief_to_cursor(tmp_path, monkeypatch, firm_db) -> 
     from firm.research_jobs import on_operator_approved
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(cursor_coding, "QUEUE_PATH", tmp_path / "queue.json")
     monkeypatch.setattr(cursor_coding, "INBOX_DIR", tmp_path)
     monkeypatch.setattr(cursor_coding, "NOW_PATH", tmp_path / "NOW.md")
@@ -735,3 +762,65 @@ def test_approve_novel_hands_brief_to_cursor(tmp_path, monkeypatch, firm_db) -> 
     assert job is not None
     assert job["family"] == family
     assert family in (tmp_path / "NOW.md").read_text(encoding="utf-8")
+
+
+def test_jobs_ledger_refuses_to_wipe_on_save(tmp_path, monkeypatch) -> None:
+    """A process that loaded empty must not replace a 220-row ledger with ids 1-32."""
+    from firm import research_jobs
+
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    existing = {
+        "jobs": [
+            {"id": i, "family": "session_liquidity_sweep", "status": "done", "clock": "1h/1h"}
+            for i in range(1, 33)
+        ]
+        + [
+            {
+                "id": 220,
+                "family": "session_liquidity_sweep",
+                "status": "done",
+                "clock": "1h/1h",
+                "pairs_approved": 0,
+            }
+        ]
+    }
+    (tmp_path / "research_jobs.json").write_text(
+        __import__("json").dumps(existing), encoding="utf-8"
+    )
+    research_jobs._LAST_GOOD_JOBS = None
+    research_jobs._save(
+        [
+            {
+                "id": 1,
+                "family": "atr_channel_breakout",
+                "status": "standby",
+                "clock": "4h/4h",
+                "side": "SHORT",
+            }
+        ]
+    )
+    jobs = research_jobs.list_jobs()
+    ids = {int(j["id"]) for j in jobs}
+    assert 220 in ids
+    assert len(jobs) >= 33
+
+
+def test_new_job_ids_continue_past_history_max(tmp_path, monkeypatch) -> None:
+    """Ledger id reset to 1-32 must not reuse those ids for the next walk-forward."""
+    from firm import research_catalog, research_jobs
+
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    (tmp_path / "research_jobs.json").write_text(
+        '{"jobs":[{"id":1,"family":"atr_channel_breakout","status":"standby","clock":"4h/4h"}]}',
+        encoding="utf-8",
+    )
+    research_catalog.note_job_id(220)
+    job = research_jobs._record_job(
+        family="fresh_novel_sleeve",
+        clock="4h/4h",
+        side="BOTH",
+        status="standby",
+    )
+    assert int(job["id"]) == 221
