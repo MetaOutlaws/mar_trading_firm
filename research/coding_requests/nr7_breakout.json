@@ -1,0 +1,14 @@
+{
+  "family": "nr7_breakout",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs the narrowest range of the last 7 bars (NR7), then a close beyond that bar. Not BB squeeze and not Donchian.",
+  "summary": "Break the NR7 bar after the narrowest of 7 prints.",
+  "justification": "NR7 is a range-rank, not a squeeze of Bollinger width.",
+  "written_at": "2026-08-31T18:53:32.723804+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/nr7_breakout.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

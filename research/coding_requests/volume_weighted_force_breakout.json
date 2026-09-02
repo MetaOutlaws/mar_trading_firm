@@ -1,0 +1,14 @@
+{
+  "family": "volume_weighted_force_breakout",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Calculates a Volume-Weighted Force Index (VWFI) by multiplying the directional close-to-close change by volume, normalized by a rolling 20-period ATR. It enters a breakout trade on a 4h clock when the VWFI crosses above a positive threshold (for longs) or below a negative threshold (for shorts).",
+  "summary": "Calculates a Volume-Weighted Force Index (VWFI) by multiplying the directional close-to-close change by volume, normalized by a rolling 20-period ATR. It enters a breakout trade on a 4h clock when the VWFI crosses above a positive threshold",
+  "justification": "Ensures that breakout entries are only triggered when there is significant institutional volume backing the directional expansion, avoiding low-liquidity traps.",
+  "written_at": "2026-09-01T12:07:07.614133+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/volume_weighted_force_breakout.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -1,0 +1,14 @@
+{
+  "family": "keltner_break",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Keltner Channel: EMA mid with ATR bands, then a close through the band. Not Bollinger stdev bands and not SuperTrend.",
+  "summary": "Break a Keltner Channel band.",
+  "justification": "Keltner is ATR around EMA, not a stdev envelope.",
+  "written_at": "2026-09-02T04:27:31.427505+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/keltner_break.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

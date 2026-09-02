@@ -1,0 +1,14 @@
+{
+  "family": "stochastic_momentum_velocity",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Calculates a 14-period Stochastic oscillator on the 3-period rate of change (velocity) of the MACD histogram. It enters a mean-reversion trade when the stochastic of velocity reaches extreme overbought (>80) or oversold (<20) levels and crosses back, signaling that the momentum of the move is decelerating rapidly.",
+  "summary": "Calculates a 14-period Stochastic oscillator on the 3-period rate of change (velocity) of the MACD histogram. It enters a mean-reversion trade when the stochastic of velocity reaches extreme overbought (>80) or oversold (<20) levels and cro",
+  "justification": "Directly measures the exhaustion of momentum rather than price levels, preventing premature entries in strong trends.",
+  "written_at": "2026-09-02T07:41:17.950673+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/stochastic_momentum_velocity.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

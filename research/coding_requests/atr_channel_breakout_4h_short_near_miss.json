@@ -1,0 +1,14 @@
+{
+  "family": "atr_channel_breakout_4h_short_near_miss",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "SHORT",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "An ATR channel breakout strategy on a 4h clock restricted to the SHORT side to capture major structural breakdowns while adjusting channel width dynamically to market volatility, with a frozen ADX filter.",
+  "summary": "An ATR channel breakout strategy on a 4h clock restricted to the SHORT side to capture major structural breakdowns while adjusting channel width dynamically to market volatility, with a frozen ADX filter.",
+  "justification": "4h shorts were the closest to passing our validation gates in previous runs. Freezing the ADX parameter stabilizes the optimization folds.",
+  "written_at": "2026-09-02T04:27:31.540819+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/atr_channel_breakout_4h_short_near_miss.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

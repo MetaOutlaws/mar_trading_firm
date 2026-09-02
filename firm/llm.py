@@ -70,17 +70,55 @@ class ModelTier(str, Enum):
 
 
 class Provider(str, Enum):
-    """Supported API surfaces. All three are OpenAI chat-completions compatible."""
+    """Supported API surfaces. All four expose an OpenAI chat-completions path."""
 
     XAI = "xai"
     OPENAI = "openai"
     DEEPSEEK = "deepseek"
+    GEMINI = "gemini"
 
 
 #: $5 per 1,000 tool calls for xAI's `x_search` / `web_search`, billed on top of
 #: tokens. The Sentiment Analyst is the only employee that uses them, and it
 #: batches the whole watchlist into one call precisely because of this.
 SEARCH_TOOL_COST_USD = 0.005
+
+# After a socket timeout, do not immediately retry that same model — the hang
+# already cost 3–5 minutes, and a second wait freezes paper + research. Cool
+# the model for ten minutes so Quant/Desk Head skip while Flash-Lite (Ops)
+# can still run. Walk-forward does not wait on Gemini.
+PROVIDER_TIMEOUT_COOLDOWN_SEC = 600.0
+_model_open_until: dict[str, float] = {}
+
+
+def _model_key(provider: Provider | str, model: str) -> str:
+    name = provider.value if isinstance(provider, Provider) else str(provider)
+    return f"{name}:{model}"
+
+
+def reset_model_cooldowns() -> None:
+    """Tests only: forget live timeout trips."""
+    _model_open_until.clear()
+
+
+def trip_model_timeout(
+    provider: Provider | str,
+    model: str,
+    *,
+    seconds: float | None = None,
+) -> None:
+    """Stop calling this model until the cooldown elapses."""
+    wait = PROVIDER_TIMEOUT_COOLDOWN_SEC if seconds is None else float(seconds)
+    _model_open_until[_model_key(provider, model)] = time.monotonic() + wait
+
+
+def model_cooldown_remaining(provider: Provider | str, model: str) -> float:
+    until = _model_open_until.get(_model_key(provider, model), 0.0)
+    return max(0.0, until - time.monotonic())
+
+
+def clear_model_timeout(provider: Provider | str, model: str) -> None:
+    _model_open_until.pop(_model_key(provider, model), None)
 
 
 @dataclass(frozen=True)
@@ -106,29 +144,34 @@ class ModelSpec:
 
 
 #: Default tier assignments, current as of August 2026. Every entry is
-#: overridable through `.env` (e.g. `LLM_MODEL_STRONG=grok-4.6`) so a model
-#: retirement never requires a code change.
+#: overridable through `.env` (e.g. `LLM_MODEL_STRONG=gemini-3.6-flash`) so a
+#: model retirement never requires a code change. Paid Gemini quota (not the
+#: 20 RPD free-tier metric) is what employees use.
 DEFAULT_CATALOGUE: dict[ModelTier, ModelSpec] = {
     ModelTier.CHEAP: ModelSpec(
         tier=ModelTier.CHEAP,
-        provider=Provider.OPENAI,
-        model="gpt-4o-mini",
-        input_per_mtok=0.15,
-        output_per_mtok=0.60,
+        provider=Provider.GEMINI,
+        # Highest RPD on the paid Flash-Lite row (150K/day in AI Studio).
+        model="gemini-3.5-flash-lite",
+        input_per_mtok=0.30,
+        output_per_mtok=2.50,
     ),
     ModelTier.STANDARD: ModelSpec(
         tier=ModelTier.STANDARD,
-        provider=Provider.OPENAI,
-        model="gpt-4o",
-        input_per_mtok=2.50,
-        output_per_mtok=10.00,
+        provider=Provider.GEMINI,
+        model="gemini-3.5-flash",
+        input_per_mtok=1.50,
+        output_per_mtok=9.00,
     ),
     ModelTier.STRONG: ModelSpec(
         tier=ModelTier.STRONG,
-        provider=Provider.XAI,
-        model="grok-4.6",
-        input_per_mtok=2.00,
-        output_per_mtok=6.00,
+        provider=Provider.GEMINI,
+        # 3.6 Flash is listed on the paid dashboard but returns empty content
+        # on the OpenAI-compat JSON path. 3.7 Flash JSON-works, then 503s.
+        # Stay on 3.5 Flash until those are stable; override via env.
+        model="gemini-3.5-flash",
+        input_per_mtok=1.50,
+        output_per_mtok=9.00,
     ),
     ModelTier.SEARCH: ModelSpec(
         tier=ModelTier.SEARCH,
@@ -146,6 +189,9 @@ PROVIDER_ENDPOINTS: dict[Provider, str] = {
     Provider.XAI: "https://api.x.ai/v1/chat/completions",
     Provider.OPENAI: "https://api.openai.com/v1/chat/completions",
     Provider.DEEPSEEK: "https://api.deepseek.com/chat/completions",
+    # OpenAI-compatible Gemini surface. Same JSON contract as the others, so
+    # employees do not need a second request path.
+    Provider.GEMINI: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
 }
 
 #: Employees exempt from the budget pause. Both exist to detect problems; muting
@@ -154,6 +200,59 @@ ESSENTIAL_AGENTS = frozenset({"risk_officer", "ops_engineer"})
 
 #: Fraction of budget at which non-essential agents are downgraded.
 DEGRADE_AT = 0.80
+
+
+def _key_status(key: str) -> dict[str, Any]:
+    """Whether a secret is present. Returns a prefix only — never the key."""
+    token = (key or "").strip()
+    if not token:
+        return {"configured": False}
+    if token.startswith("sk-proj"):
+        prefix = "sk-proj"
+    elif token.startswith("AQ."):
+        prefix = "AQ."
+    elif token.startswith("AIza"):
+        prefix = "AIza"
+    else:
+        prefix = "set"
+    return {"configured": True, "prefix": prefix}
+
+
+def _key_for(settings: Any, provider: Provider) -> str:
+    if provider is Provider.XAI:
+        return settings.xai_api_key
+    if provider is Provider.OPENAI:
+        return settings.openai_api_key
+    if provider is Provider.GEMINI:
+        return settings.gemini_api_key
+    return settings.deepseek_api_key
+
+
+def provider_status(
+    settings: Any | None = None,
+    catalogue: dict[ModelTier, ModelSpec] | None = None,
+) -> dict[str, Any]:
+    """Desk-safe snapshot of which LLM seats can actually run."""
+    settings = settings or get_settings()
+    catalogue = catalogue or dict(DEFAULT_CATALOGUE)
+    return {
+        "providers": {
+            "openai": _key_status(settings.openai_api_key),
+            "gemini": _key_status(settings.gemini_api_key),
+            "xai": _key_status(settings.xai_api_key),
+            "deepseek": _key_status(settings.deepseek_api_key),
+        },
+        "tiers": [
+            {
+                "tier": spec.tier.value,
+                "provider": spec.provider.value,
+                "model": spec.model,
+                "configured": bool(_key_for(settings, spec.provider)),
+                "supports_search": spec.supports_search,
+            }
+            for spec in catalogue.values()
+        ],
+    }
 
 
 class BudgetPosture(str, Enum):
@@ -284,7 +383,7 @@ class LlmRouter:
         self,
         catalogue: dict[ModelTier, ModelSpec] | None = None,
         budget: BudgetGuard | None = None,
-        timeout: float = 120.0,
+        timeout: float = 180.0,
     ) -> None:
         self.settings = get_settings()
         self.catalogue = catalogue or self._catalogue_from_env()
@@ -307,7 +406,25 @@ class LlmRouter:
                     output_per_mtok=spec.output_per_mtok,
                     supports_search=spec.supports_search,
                 )
-        return catalogue
+        # Search stays on xAI. Every other employee seat rides Gemini so a
+        # leftover OpenAI/DeepSeek override cannot skip the floor after a
+        # provider swap.
+        remapped: dict[ModelTier, ModelSpec] = {}
+        for tier, spec in catalogue.items():
+            if spec.supports_search:
+                remapped[tier] = spec
+                continue
+            if spec.provider in (Provider.OPENAI, Provider.DEEPSEEK):
+                remapped[tier] = DEFAULT_CATALOGUE[tier]
+                logger.info(
+                    "Remapped %s tier %s onto Gemini %s",
+                    spec.provider.value,
+                    tier.value,
+                    remapped[tier].model,
+                )
+            else:
+                remapped[tier] = spec
+        return remapped
 
     def close(self) -> None:
         self._client.close()
@@ -322,16 +439,65 @@ class LlmRouter:
     # Credentials
     # -----------------------------------------------------------------
     def api_key_for(self, provider: Provider) -> str:
-        if provider is Provider.XAI:
-            return self.settings.xai_api_key
-        if provider is Provider.OPENAI:
-            return self.settings.openai_api_key
-        return self.settings.deepseek_api_key
+        return _key_for(self.settings, provider)
 
     def is_configured(self, tier: ModelTier) -> bool:
         """Whether a tier has credentials, so callers can degrade gracefully."""
         spec = self.catalogue.get(tier)
         return bool(spec and self.api_key_for(spec.provider))
+
+    def credential_snapshot(self) -> dict[str, Any]:
+        """Provider/tier status for the desk. Never includes the key itself."""
+        return provider_status(self.settings, self.catalogue)
+
+    def ping(self, provider: Provider) -> dict[str, Any]:
+        """Prove employees can actually call this provider.
+
+        `/v1/models` can succeed on an account with a valid key and $0 credit.
+        Employees use chat completions, so that is what we probe — one token.
+        """
+        api_key = self.api_key_for(provider)
+        if not api_key:
+            return {"ok": False, "provider": provider.value, "detail": "no API key in .env"}
+        spec = next((s for s in self.catalogue.values() if s.provider is provider), None)
+        model = spec.model if spec else (
+            "gemini-3.5-flash-lite" if provider is Provider.GEMINI else "gpt-4o-mini"
+        )
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 8,
+        }
+        if provider is Provider.GEMINI and "lite" not in model:
+            payload["reasoning_effort"] = "none"
+        try:
+            response = self._client.post(
+                PROVIDER_ENDPOINTS[provider],
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+        except Exception as exc:
+            return {"ok": False, "provider": provider.value, "detail": str(exc)[:240]}
+        if response.status_code == 200:
+            return {
+                "ok": True,
+                "provider": provider.value,
+                "detail": f"chat completions ok ({model})",
+            }
+        body = response.text[:240]
+        try:
+            parsed = response.json()
+            body = str((parsed.get("error") or {}).get("message") or body)
+        except Exception:
+            pass
+        return {
+            "ok": False,
+            "provider": provider.value,
+            "detail": f"HTTP {response.status_code}: {body}",
+        }
 
     # -----------------------------------------------------------------
     # Completion
@@ -459,6 +625,11 @@ class LlmRouter:
             "response_format": {"type": "json_object"},
         }
 
+        # 3.5 Flash (not Lite) needs this so thinking does not leak into JSON.
+        # 3.6 Flash rejects the field (400). Lite rejects it too.
+        if spec.provider is Provider.GEMINI and spec.model.startswith("gemini-3.5-flash") and "lite" not in spec.model:
+            payload["reasoning_effort"] = "none"
+
         if enable_search:
             payload["search_parameters"] = {
                 "mode": "on",
@@ -466,25 +637,63 @@ class LlmRouter:
                 "return_citations": True,
             }
 
-        started = time.perf_counter()
-        try:
-            response = self._client.post(
-                PROVIDER_ENDPOINTS[spec.provider],
-                headers={
-                    "Authorization": f"Bearer {self.api_key_for(spec.provider)}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            response.raise_for_status()
-            body = response.json()
-        except httpx.HTTPStatusError as exc:
+        cooling = model_cooldown_remaining(spec.provider, spec.model)
+        if cooling > 0:
             raise LlmError(
-                f"{spec.provider.value} returned {exc.response.status_code}: "
-                f"{exc.response.text[:400]}"
-            ) from exc
-        except Exception as exc:
-            raise LlmError(f"{spec.provider.value} call failed: {exc}") from exc
+                f"{spec.provider.value} skipped: {spec.model} cooling down "
+                f"{int(cooling)}s after timeout. Research walk-forward does not wait."
+            )
+
+        started = time.perf_counter()
+        body: dict[str, Any] | None = None
+        # Retry once on 429/503. Do not retry a socket timeout: that doubles a
+        # 3–5 minute hang and is what froze the duty board on Gemini outages.
+        for attempt in range(2):
+            try:
+                response = self._client.post(
+                    PROVIDER_ENDPOINTS[spec.provider],
+                    headers={
+                        "Authorization": f"Bearer {self.api_key_for(spec.provider)}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    # Quant / Desk Head send large prompts; Gemini often needs
+                    # more than the default 180s socket or both retry attempts fail.
+                    timeout=300.0 if spec.tier is ModelTier.STRONG else 180.0,
+                )
+                response.raise_for_status()
+                body = response.json()
+                break
+            except httpx.HTTPStatusError as exc:
+                retryable = exc.response.status_code in {429, 503} and attempt == 0
+                if retryable:
+                    logger.warning(
+                        "%s %s returned 429 for %s; retrying once",
+                        spec.provider.value,
+                        spec.model,
+                        agent,
+                    )
+                    time.sleep(2.0)
+                    continue
+                raise LlmError(
+                    f"{spec.provider.value} returned {exc.response.status_code}: "
+                    f"{exc.response.text[:400]}"
+                ) from exc
+            except httpx.TimeoutException as exc:
+                trip_model_timeout(spec.provider, spec.model)
+                logger.warning(
+                    "%s %s timed out for %s; cooling %ss (no immediate retry)",
+                    spec.provider.value,
+                    spec.model,
+                    agent,
+                    int(PROVIDER_TIMEOUT_COOLDOWN_SEC),
+                )
+                raise LlmError(f"{spec.provider.value} call failed: {exc}") from exc
+            except Exception as exc:
+                raise LlmError(f"{spec.provider.value} call failed: {exc}") from exc
+        if body is None:
+            raise LlmError(f"{spec.provider.value} call failed: empty response")
+        clear_model_timeout(spec.provider, spec.model)
 
         latency_ms = int((time.perf_counter() - started) * 1000)
 
@@ -550,5 +759,11 @@ __all__ = [
     "LlmRouter",
     "ModelSpec",
     "ModelTier",
+    "PROVIDER_TIMEOUT_COOLDOWN_SEC",
     "Provider",
+    "clear_model_timeout",
+    "model_cooldown_remaining",
+    "provider_status",
+    "reset_model_cooldowns",
+    "trip_model_timeout",
 ]

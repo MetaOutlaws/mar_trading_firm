@@ -1,0 +1,14 @@
+{
+  "family": "psychological_line_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Psychological Line: 100 * share of up-closes over N. Not RSI Wilder smoothing and not CMO.",
+  "summary": "Trade PSY crossing 50.",
+  "justification": "PSY is a count of up days, not an average-gain oscillator.",
+  "written_at": "2026-09-01T12:58:09.697162+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/psychological_line_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

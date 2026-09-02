@@ -1,0 +1,14 @@
+{
+  "family": "zero_lag_ema_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Ehlers zero-lag EMA: 2*EMA - EMA(EMA). Not MACD of raw EMAs and not T3.",
+  "summary": "Trade zero-lag EMA crossing a slow EMA.",
+  "justification": "ZLEMA error-corrects lag; a plain EMA cross does not.",
+  "written_at": "2026-09-01T17:43:08.443025+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/zero_lag_ema_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

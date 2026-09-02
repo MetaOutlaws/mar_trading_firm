@@ -1,0 +1,14 @@
+{
+  "family": "chande_momentum_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Chande Momentum Oscillator: (sum up - sum down)/(sum up + sum down) over N closes, scaled to -100..100. Not RSI Wilder smoothing.",
+  "summary": "Fade CMO extremes.",
+  "justification": "CMO is a sum-of-change oscillator, not RSI.",
+  "written_at": "2026-09-01T04:42:47.272066+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/chande_momentum_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

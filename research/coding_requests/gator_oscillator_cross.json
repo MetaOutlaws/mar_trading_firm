@@ -1,0 +1,14 @@
+{
+  "family": "gator_oscillator_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Bill Williams Gator: SMMA of median price at 13/8/5 with 8/5/3 offsets, then jaw-teeth and teeth-lips as a two-sided oscillator. Not Alligator-only and not MACD of close.",
+  "summary": "Trade Gator Oscillator turning from sleep to awake.",
+  "justification": "Gator is offset SMMA of median price, not an EMA histogram.",
+  "written_at": "2026-09-01T17:43:08.575234+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/gator_oscillator_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

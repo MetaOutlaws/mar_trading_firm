@@ -1,0 +1,14 @@
+{
+  "family": "dpo_cycle_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Detrended Price Oscillator with a causal lag (shift SMA by N/2+1 of PAST bars only). Fade DPO extremes.",
+  "summary": "Fade causal DPO extremes.",
+  "justification": "DPO removes trend; not a Bollinger mean-reversion.",
+  "written_at": "2026-09-01T04:42:50.216037+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/dpo_cycle_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

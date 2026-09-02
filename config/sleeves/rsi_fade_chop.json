@@ -1,0 +1,21 @@
+{
+  "name": "rsi_fade_chop",
+  "template": "fade_stretch",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "summary": "Fade RSI extremes only when ADX says there is no trend.",
+  "justification": "rsi_trend is a golden-cross pullback with the trend. This is the opposite: mean-revert RSI in chop.",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "",
+  "channel": "atr",
+  "trend": "ema",
+  "stretch": "rsi",
+  "squeeze": false,
+  "volume_filter": false,
+  "defaults": {
+    "rsi_os": 30.0,
+    "rsi_ob": 70.0,
+    "max_adx": 20.0
+  }
+}

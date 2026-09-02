@@ -21,6 +21,7 @@ import numpy as np
 from pydantic import Field
 
 from core.data.ohlcv import BybitOHLCV
+from config.pipeline import APPROVED_RESEARCH_SYMBOLS
 from firm import memory
 from firm.llm import ModelTier
 from firm.runtime import Agent, AgentOutput, Cadence
@@ -46,7 +47,7 @@ class RegimeAnalyst(Agent):
     role = "Regime Analyst"
     cadence = Cadence.HOURLY
     tier = ModelTier.CHEAP
-    prompt_version = "v1"
+    prompt_version = "v2"
     output_model = RegimeOutput
     max_tokens = 1_200
 
@@ -108,11 +109,36 @@ class RegimeAnalyst(Agent):
             "range_24h_pct": round(hourly_range * 100, 2),
             "as_of": datetime.now(timezone.utc).isoformat(),
         }
+
+        # Positioning is a *context* for the classification, not a trade. Fail
+        # open if Bybit is unreachable so a dead OI feed cannot blind the desk.
+        try:
+            from core.data.positioning import snapshot_symbols
+
+            blob = snapshot_symbols(
+                list(APPROVED_RESEARCH_SYMBOLS), include_cross=True
+            )
+            symbols = blob.get("symbols") if isinstance(blob, dict) else {}
+            btc_pos = (symbols or {}).get("BTCUSDT") or {}
+            metrics["btc_oi_change_24h_pct"] = btc_pos.get("oi_change_24h_pct")
+            metrics["btc_funding_rate_8h_pct"] = btc_pos.get("funding_rate_8h_pct")
+            metrics["btc_buy_ratio"] = btc_pos.get("buy_ratio")
+            metrics["btc_positioning"] = btc_pos.get("label")
+            cross = blob.get("cross") if isinstance(blob, dict) else {}
+            if isinstance(cross, dict):
+                metrics["eth_btc"] = cross.get("eth_btc")
+                metrics["eth_btc_7d_pct"] = cross.get("eth_btc_7d_pct")
+        except Exception:
+            metrics["positioning_error"] = "unavailable"
+
         return {"metrics": metrics}
 
     def task_prompt(self, inputs: dict[str, Any]) -> str:
         return (
             "Classify the current crypto market regime from these BTC metrics. "
+            "Open interest, funding, account long/short, and ETH/BTC are crowding "
+            "context only — do not invent a trade from them. High positive funding "
+            "plus rising OI is a crowded long; the mirror is a crowded short. "
             f"{inputs['metrics']}"
         )
 

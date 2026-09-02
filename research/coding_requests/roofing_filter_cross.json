@@ -1,0 +1,14 @@
+{
+  "family": "roofing_filter_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Ehlers roofing filter: high-pass then SuperSmoother of close. Not a single high-pass decycler.",
+  "summary": "Trade the roofing filter crossing zero.",
+  "justification": "Roofing is HP then SuperSmoother; decycler is HP minus slow HP.",
+  "written_at": "2026-09-02T04:27:31.469476+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/roofing_filter_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

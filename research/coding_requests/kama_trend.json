@@ -1,0 +1,14 @@
+{
+  "family": "kama_trend",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Kaufman Adaptive Moving Average: ER-scaled smoothing constant between fast and slow SC. Not the ER-only kaufman_efficiency_trend sleeve and not VIDYA.",
+  "summary": "Trade a KAMA turn.",
+  "justification": "KAMA adapts with efficiency ratio; VIDYA adapts with CMO.",
+  "written_at": "2026-09-02T04:27:31.380207+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/kama_trend.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

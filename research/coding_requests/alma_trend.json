@@ -1,0 +1,14 @@
+{
+  "family": "alma_trend",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Arnaud Legoux MA: Gaussian weights with offset. Not SMA, EMA, Hull, or T3.",
+  "summary": "Trade an ALMA turn.",
+  "justification": "ALMA uses a Gaussian window, not cascaded EMAs.",
+  "written_at": "2026-09-02T04:27:31.417915+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/alma_trend.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -1,0 +1,14 @@
+{
+  "family": "volume_price_divergence_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Fades price extremes on a 4h clock when price makes a new 20-bar high or low but volume-weighted accumulation-distribution (or volume force) fails to confirm, printing a clear divergence. This signals that aggressive market orders are being absorbed by passive limit orders, indicating an impending reversal.",
+  "summary": "Fades price extremes on a 4h clock when price makes a new 20-bar high or low but volume-weighted accumulation-distribution (or volume force) fails to confirm, printing a clear divergence. This signals that aggressive market orders are being",
+  "justification": "It directly exploits institutional limit order absorption at key liquidity pools, which is highly effective in choppy, non-trending regimes.",
+  "written_at": "2026-09-01T12:40:04.977730+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/volume_price_divergence_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

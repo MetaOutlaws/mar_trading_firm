@@ -1,0 +1,14 @@
+{
+  "family": "ichimoku_tk_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Tenkan/Kijun midpoints of 9/26-bar high-low (no displaced cloud, which would leak future bars). Not EMA cross.",
+  "summary": "Trade Tenkan crossing Kijun.",
+  "justification": "Ichimoku midpoints are high-low averages, not EMAs.",
+  "written_at": "2026-09-01T04:04:05.595419+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/ichimoku_tk_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

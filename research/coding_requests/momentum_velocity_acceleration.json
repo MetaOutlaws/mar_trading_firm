@@ -1,0 +1,14 @@
+{
+  "family": "momentum_velocity_acceleration",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Measures the rate of change of a 14-period momentum indicator (velocity of velocity). It enters trend-following positions on a 4h clock when momentum acceleration crosses zero, indicating that the trend is not just moving, but actively speeding up.",
+  "summary": "Measures the rate of change of a 14-period momentum indicator (velocity of velocity). It enters trend-following positions on a 4h clock when momentum acceleration crosses zero, indicating that the trend is not just moving, but actively spee",
+  "justification": "Filters out slow, grinding trends that are prone to sudden mean-reverting collapses, focusing only on high-velocity moves.",
+  "written_at": "2026-09-01T10:58:21.362793+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/momentum_velocity_acceleration.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

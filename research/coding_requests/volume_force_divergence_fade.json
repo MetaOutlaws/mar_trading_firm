@@ -1,0 +1,14 @@
+{
+  "family": "volume_force_divergence_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Calculates a cumulative Volume Force index (signed volume based on close-to-close price change normalized by ATR). It triggers a mean-reversion trade when price makes a new 20-period high or low but the Volume Force fails to confirm (printing a clear divergence), filtered by a low ADX to ensure a range-bound regime.",
+  "summary": "Calculates a cumulative Volume Force index (signed volume based on close-to-close price change normalized by ATR). It triggers a mean-reversion trade when price makes a new 20-period high or low but the Volume Force fails to confirm (printi",
+  "justification": "It directly targets the lack of institutional participation on marginal new highs/lows in a range-bound market, preventing buying the top of weak breakouts.",
+  "written_at": "2026-09-02T07:16:26.971847+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/volume_force_divergence_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

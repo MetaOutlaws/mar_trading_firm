@@ -58,7 +58,8 @@ class Settings(BaseSettings):
 
     # ---- LLM providers ------------------------------------------------------
     #: xAI is the only provider with live X/web search, which the Sentiment
-    #: Analyst depends on. OpenAI serves the cheap and standard employee tiers.
+    #: Analyst depends on. Gemini serves cheap, standard, and strong tiers
+    #: (OpenAI is out of credit; DeepSeek is unused).
     xai_api_key: str = ""
     deepseek_api_key: str = ""
     openai_api_key: str = ""
@@ -81,6 +82,29 @@ class Settings(BaseSettings):
 
     # ---- Logging ------------------------------------------------------------
     log_level: str = "INFO"
+
+    # ---- Research pipeline continuity ---------------------------------------
+    #: Tier A walk-forwards start without Inbox. Paper-to-live stays human.
+    pipeline_auto_advance: bool = True
+    #: Rolling 24h cap on *same-grid* auto-starts. Unique clock/side follow-ups
+    #: still launch. 48 keeps three validators busy through a full research day.
+    pipeline_auto_advance_budget_24h: int = Field(default=48, ge=0)
+    #: Consecutive auto-advanced 0-pair rejects that pause auto-advance.
+    pipeline_circuit_breaker_rejects: int = Field(default=3, ge=1)
+    #: Concurrent walk-forward validators. Scheduling does not use duration.
+    pipeline_wf_parallelism: int = Field(default=3, ge=1, le=8)
+    pipeline_catalog_min_unqueued: int = Field(default=10, ge=0)
+    #: Brief asked for a floor of 2 uncoded families. That fights "code now".
+    #: Default 0: no approved-uncoded may sit; cap 5 still applies.
+    pipeline_coding_queue_floor: int = Field(default=0, ge=0)
+    pipeline_coding_queue_cap: int = Field(default=5, ge=0)
+    pipeline_standby_floor: int = Field(default=1, ge=0)
+    pipeline_standby_target: int = Field(default=2, ge=0)
+    pipeline_tier_b_hours: float = Field(default=24.0, ge=0)
+    pipeline_max_free_params: int = Field(default=6, ge=1)
+    pipeline_reject_cooldown_days: int = Field(default=30, ge=0)
+    pipeline_hung_median_n: int = Field(default=20, ge=3)
+    pipeline_hung_median_mult: float = Field(default=3.0, ge=1.0)
 
     # -----------------------------------------------------------------------
     # Validation

@@ -1,0 +1,14 @@
+{
+  "family": "choppiness_index_break",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Choppiness Index: 100*log10(sum(ATR)/range)/log10(n). Break when CI falls from a high reading. Not BB width squeeze and not ADX.",
+  "summary": "Break after Choppiness Index compresses.",
+  "justification": "CI is a range-efficiency log ratio, not ATR-channel breakout.",
+  "written_at": "2026-09-01T12:58:37.159735+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/choppiness_index_break.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

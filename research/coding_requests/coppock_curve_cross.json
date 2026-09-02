@@ -1,0 +1,14 @@
+{
+  "family": "coppock_curve_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Coppock Curve: WMA of ROC(14)+ROC(11). Long-horizon ROC sum, not MACD and not TRIX.",
+  "summary": "Trade Coppock Curve crossing zero.",
+  "justification": "Coppock is a WMA of two ROCs, not a triple EMA.",
+  "written_at": "2026-09-01T11:21:03.616552+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/coppock_curve_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -1,0 +1,14 @@
+{
+  "family": "elder_ray_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Elder Ray Bull/Bear Power: high-EMA and low-EMA, fade extreme Bear Power turning up. Not ATR channel and not Force Index.",
+  "summary": "Fade extreme Elder Ray Bear/Bull Power.",
+  "justification": "Elder Ray measures bar extremes vs EMA, not signed volume.",
+  "written_at": "2026-09-01T05:31:16.279014+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/elder_ray_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

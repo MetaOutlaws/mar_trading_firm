@@ -1,0 +1,14 @@
+{
+  "family": "asian_range_breakout",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs the high/low of 00:00\u201308:00 UTC, published only after 08:00. Not the 1-hour opening range and not a rolling Donchian.",
+  "summary": "Break the completed Asian (00:00\u201308:00 UTC) range.",
+  "justification": "An 8-hour session box is different bar math from a 1-hour ORB.",
+  "written_at": "2026-08-31T17:25:17.109151+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/asian_range_breakout.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

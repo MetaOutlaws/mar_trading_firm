@@ -1,0 +1,14 @@
+{
+  "family": "stochastic_rsi_volatility_squeeze",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Applies a 14-period Stochastic formula to the RSI indicator itself, but only triggers entries when the Bollinger Band Width is in the bottom 20% of its 100-bar range (indicating extreme volatility compression). It enters a mean-reversion trade when the Stochastic of RSI crosses back from overbought (>80) or oversold (<20) thresholds on a 4h clock.",
+  "summary": "Applies a 14-period Stochastic formula to the RSI indicator itself, but only triggers entries when the Bollinger Band Width is in the bottom 20% of its 100-bar range (indicating extreme volatility compression). It enters a mean-reversion tr",
+  "justification": "Filters out false signals by ensuring mean-reversion is only traded when volatility is compressed and a explosive expansion is statistically overdue.",
+  "written_at": "2026-09-02T07:41:18.081884+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/stochastic_rsi_volatility_squeeze.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

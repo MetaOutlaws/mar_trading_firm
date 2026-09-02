@@ -1,0 +1,14 @@
+{
+  "family": "squeeze_momentum_break",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs TTM-style squeeze: Bollinger inside Keltner, then a linreg momentum release. Not BB-width squeeze alone.",
+  "summary": "Break after a BB-inside-Keltner squeeze.",
+  "justification": "Squeeze requires BB inside KC, then momentum, not width only.",
+  "written_at": "2026-09-02T04:42:34.311062+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/squeeze_momentum_break.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

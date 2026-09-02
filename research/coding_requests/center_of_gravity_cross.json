@@ -1,0 +1,14 @@
+{
+  "family": "center_of_gravity_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Ehlers Center of Gravity: weighted sum of closes / sum of weights, then a trigger. Not SMA and not Fisher.",
+  "summary": "Trade CG oscillator crossing its trigger.",
+  "justification": "CG is a finite FIR oscillator, not a z-score of close.",
+  "written_at": "2026-09-01T12:58:26.977636+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/center_of_gravity_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

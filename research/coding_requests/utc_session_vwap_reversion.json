@@ -1,0 +1,14 @@
+{
+  "family": "utc_session_vwap_reversion",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs VWAP reset at each UTC midnight from typical-price * volume. Not a rolling SMA and not a Bollinger fade.",
+  "summary": "Fade stretch away from the UTC-day VWAP.",
+  "justification": "Session VWAP is untested here; requires cumulative volume math.",
+  "written_at": "2026-08-31T17:28:28.892236+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/utc_session_vwap_reversion.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

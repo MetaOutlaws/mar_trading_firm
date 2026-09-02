@@ -376,3 +376,37 @@ def _covers(frame: pd.DataFrame, start: datetime, end: datetime, timeframe: str)
     step = TIMEFRAME_DELTAS[timeframe]
     tolerance = step * 2
     return bool(frame.index.min() <= start + tolerance and frame.index.max() >= end - tolerance)
+
+
+def closed_candles(
+    frame: pd.DataFrame,
+    timeframe: str,
+    *,
+    now: datetime | None = None,
+) -> pd.DataFrame:
+    """Drop the still-forming last bar so signals match the backtest (`<= t` closed).
+
+    Bybit includes the in-progress candle. Trading that close is how paper
+    entered ETH on a 15m wick that later rewrote itself.
+    """
+    if frame.empty:
+        return frame
+    timeframe = normalise_timeframe(timeframe)
+    step = TIMEFRAME_DELTAS[timeframe]
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    else:
+        now = now.astimezone(timezone.utc)
+    last_open = frame.index[-1]
+    if last_open.tzinfo is None:
+        last_open = last_open.tz_localize("UTC")
+    else:
+        last_open = last_open.tz_convert("UTC")
+    close_at = last_open.to_pydatetime()
+    if close_at.tzinfo is None:
+        close_at = close_at.replace(tzinfo=timezone.utc)
+    close_at = close_at + step
+    if now < close_at:
+        return frame.iloc[:-1]
+    return frame

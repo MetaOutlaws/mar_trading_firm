@@ -309,6 +309,14 @@ def test_tripped_switch_blocks_everything(engine, healthy_state, kill_switch):
     assert any("kill switch tripped" in r for r in decision.reasons)
 
 
+def test_kill_switch_state_exposes_is_tripped(kill_switch):
+    """Gather paths call is_tripped on the snapshot from read(), not only KillSwitch."""
+    state = kill_switch.read()
+    assert state.is_tripped is False
+    kill_switch.trip(TripReason.MANUAL, "alias check", tripped_by="tester")
+    assert kill_switch.read().is_tripped is True
+
+
 def test_kill_switch_survives_restart(tmp_path):
     """Fault injection: the halt must persist across process restarts.
 

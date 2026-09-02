@@ -1,1 +1,1 @@
-"""Market data access: live Bybit OHLCV, BigQuery history, funding rates."""
+"""Market data access: live Bybit OHLCV, BigQuery history, funding, positioning."""

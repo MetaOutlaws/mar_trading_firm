@@ -1,0 +1,14 @@
+{
+  "family": "stochastic_velocity_reversal",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Calculates a 14-period Stochastic oscillator on the 3-period rate of change (velocity) of price. It enters a mean-reversion trade on a 4h clock when the stochastic of velocity reaches extreme overbought (>80) or oversold (<20) levels and crosses back, signaling that the momentum of the move is decelerating rapidly.",
+  "summary": "Calculates a 14-period Stochastic oscillator on the 3-period rate of change (velocity) of price. It enters a mean-reversion trade on a 4h clock when the stochastic of velocity reaches extreme overbought (>80) or oversold (<20) levels and cr",
+  "justification": "Directly measures the exhaustion of momentum rather than price levels, preventing premature entries in strong trends.",
+  "written_at": "2026-09-02T06:57:54.745029+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/stochastic_velocity_reversal.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

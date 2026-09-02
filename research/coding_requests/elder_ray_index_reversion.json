@@ -1,0 +1,14 @@
+{
+  "family": "elder_ray_index_reversion",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Calculates the Elder-Ray Index (Bull Power and Bear Power) based on the distance between bar extremes and an exponential moving average. When Bull Power reaches an N-bar low while price makes a higher high (or Bear Power reaches an N-bar high while price makes a lower low), it enters a mean-reversion trade targeting the EMA basis.",
+  "summary": "Calculates the Elder-Ray Index (Bull Power and Bear Power) based on the distance between bar extremes and an exponential moving average. When Bull Power reaches an N-bar low while price makes a higher high (or Bear Power reaches an N-bar hi",
+  "justification": "It directly measures the ability of buyers/sellers to push prices to extremes relative to the consensus value, capturing exhaustion at key structural levels.",
+  "written_at": "2026-09-01T11:21:03.727082+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/elder_ray_index_reversion.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

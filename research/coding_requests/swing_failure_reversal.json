@@ -1,0 +1,14 @@
+{
+  "family": "swing_failure_reversal",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs swing highs/lows (N-bar pivots) and a failed break of the last swing. Not ATR/Donchian channel break.",
+  "summary": "Fade a failed break of the last swing high or low.",
+  "justification": "Market-structure pivots are not in the indicator library.",
+  "written_at": "2026-08-31T17:25:17.125317+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/swing_failure_reversal.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -37,7 +37,7 @@ class OpsEngineer(Agent):
     role = "Ops Engineer"
     cadence = Cadence.HOURLY
     tier = ModelTier.CHEAP
-    prompt_version = "v1"
+    prompt_version = "v3"
     output_model = OpsReport
     max_tokens = 1_000
 
@@ -45,9 +45,13 @@ class OpsEngineer(Agent):
         return (
             "You are the Ops Engineer of a systematic crypto trading firm. You "
             "read a list of deterministic health checks and produce a concise "
-            "diagnosis. Escalate only when something needs a human: a tripped "
-            "kill switch, a dead data feed, hung agent runs, or repeated "
-            "failures. Do not escalate a single transient warning."
+            "diagnosis. Escalate only when something needs a human right now: a "
+            "tripped kill switch, a dead data feed, hung agent runs, or a live "
+            "LLM timeout (gemini call failed / timed out). A single timeout is "
+            "enough — do not wait for three. Ignore rows marked historical_noise. "
+            "Missing DeepSeek or OpenAI keys are not failures — those providers "
+            "are retired and employees use Gemini. A missing xAI key only darkens "
+            "Sentiment. Do not escalate a patched KillSwitchState.is_tripped error."
         )
 
     def gather(self) -> dict[str, Any]:
@@ -67,7 +71,15 @@ class OpsEngineer(Agent):
             healthy, message = _probe_feed(source)
         checks.append({"name": "bybit_public_feed", "ok": healthy, "detail": message})
 
+        from firm.accountability import live_llm_failures
+        from firm.health_filters import is_resolved_noise, llm_seat_briefing
+        from firm import memory
+
+        # Close leftover DeepSeek / is_tripped inbox items before diagnosing.
+        memory.clear_resolved_health_noise()
+
         hung_cutoff = now - timedelta(minutes=20)
+        failure_cutoff = now - timedelta(hours=6)
         with session_scope() as session:
             hung = session.scalars(
                 select(AgentRun).where(
@@ -75,12 +87,19 @@ class OpsEngineer(Agent):
                     AgentRun.started_at < hung_cutoff,
                 )
             ).all()
-            recent_failures = session.scalars(
-                select(AgentRun)
-                .where(AgentRun.status == RunStatus.FAILED.value)
-                .order_by(AgentRun.started_at.desc())
-                .limit(8)
-            ).all()
+            recent_failures = [
+                row
+                for row in session.scalars(
+                    select(AgentRun)
+                    .where(
+                        AgentRun.status == RunStatus.FAILED.value,
+                        AgentRun.started_at >= failure_cutoff,
+                    )
+                    .order_by(AgentRun.started_at.desc())
+                    .limit(20)
+                )
+                if not is_resolved_noise(row.error or "")
+            ]
 
         checks.append(
             {
@@ -94,14 +113,40 @@ class OpsEngineer(Agent):
                 ),
             }
         )
+        live_timeouts = live_llm_failures()
+        checks.append(
+            {
+                "name": "llm_timeouts",
+                "ok": not live_timeouts,
+                "detail": (
+                    live_timeouts
+                    if live_timeouts
+                    else "none live (recovered Gemini retries are not a seat outage)"
+                ),
+            }
+        )
         checks.append(
             {
                 "name": "recent_failures",
                 "ok": len(recent_failures) < 3,
                 "detail": [
-                    {"agent": r.agent, "error": r.error[:160], "when": r.started_at.isoformat()}
-                    for r in recent_failures
-                ],
+                    {
+                        "agent": r.agent,
+                        "error": (r.error or "")[:160],
+                        "when": r.started_at.isoformat(),
+                    }
+                    for r in recent_failures[:8]
+                ]
+                or "none in the last 6 hours (older DeepSeek / is_tripped rows ignored)",
+            }
+        )
+
+        seats = llm_seat_briefing()
+        checks.append(
+            {
+                "name": "llm_seats",
+                "ok": bool(seats.get("employee_seats_ok")),
+                "detail": seats,
             }
         )
 

@@ -229,9 +229,67 @@ def test_volume_ratio_handles_zero_baseline():
     assert pd.isna(result.iloc[-1])
 
 
-# ---------------------------------------------------------------------------
-# Slope
-# ---------------------------------------------------------------------------
-def test_slope_detects_direction():
-    assert ind.slope(series([1.0, 2.0, 4.0]), 1).iloc[-1] == pytest.approx(2.0)
-    assert ind.slope(series([4.0, 2.0, 1.0]), 1).iloc[-1] == pytest.approx(-1.0)
+def test_bollinger_bands_width_is_k_std():
+    """Upper/lower sit k population-stds from the SMA mid."""
+    values = series([float(i) for i in range(1, 31)])
+    mid, upper, lower = ind.bollinger_bands(values, period=20, k=2.0)
+    assert pd.isna(mid.iloc[18])
+    window = values.iloc[10:30]
+    expected_mid = window.mean()
+    expected_std = window.std(ddof=0)
+    assert mid.iloc[-1] == pytest.approx(expected_mid)
+    assert upper.iloc[-1] == pytest.approx(expected_mid + 2.0 * expected_std)
+    assert lower.iloc[-1] == pytest.approx(expected_mid - 2.0 * expected_std)
+
+
+def test_bollinger_bands_rejects_nonpositive():
+    with pytest.raises(ValueError):
+        ind.bollinger_bands(series([1.0, 2.0]), 0)
+    with pytest.raises(ValueError):
+        ind.bollinger_bands(series([1.0, 2.0]), 5, k=0)
+
+
+def test_utc_opening_range_blank_during_window_then_locks():
+    """Range is NaN in the opening hour, then equals that hour's high/low."""
+    index = pd.date_range("2024-01-02", periods=4, freq="h", tz="UTC")
+    high = pd.Series([10.0, 12.0, 11.0, 13.0], index=index)
+    low = pd.Series([8.0, 9.0, 8.5, 9.5], index=index)
+    range_high, range_low, ready = ind.utc_opening_range(high, low, range_hours=1.0)
+    assert bool(ready.iloc[0]) is False
+    assert pd.isna(range_high.iloc[0])
+    assert bool(ready.iloc[1]) is True
+    assert range_high.iloc[1] == pytest.approx(10.0)
+    assert range_low.iloc[1] == pytest.approx(8.0)
+    assert range_high.iloc[2] == pytest.approx(10.0)
+    assert range_low.iloc[3] == pytest.approx(8.0)
+
+
+def test_utc_opening_range_truncation_matches_prefix():
+    index = pd.date_range("2024-01-02", periods=30, freq="h", tz="UTC")
+    high = pd.Series(range(30), index=index, dtype="float64") + 100.0
+    low = high - 2.0
+    full_high, _, _ = ind.utc_opening_range(high, low, range_hours=1.0)
+    cut = 10
+    trunc_high, _, _ = ind.utc_opening_range(high.iloc[:cut], low.iloc[:cut], range_hours=1.0)
+    pd.testing.assert_series_equal(full_high.iloc[:cut], trunc_high, check_names=False)
+
+
+def test_utc_session_vwap_resets_at_midnight():
+    index = pd.date_range("2024-01-02", periods=26, freq="h", tz="UTC")
+    close = pd.Series([100.0] * 24 + [110.0, 110.0], index=index)
+    high = close + 1.0
+    low = close - 1.0
+    volume = pd.Series(1.0, index=index)
+    vwap = ind.utc_session_vwap(high, low, close, volume)
+    assert vwap.iloc[0] == pytest.approx(100.0)
+    assert vwap.iloc[23] == pytest.approx(100.0)
+    assert vwap.iloc[24] == pytest.approx(110.0)
+
+
+def test_prior_day_close_is_previous_session_last_bar():
+    index = pd.date_range("2024-01-02", periods=26, freq="h", tz="UTC")
+    close = pd.Series(range(26), index=index, dtype="float64")
+    prev = ind.prior_day_close(close)
+    assert pd.isna(prev.iloc[0])
+    assert prev.iloc[24] == pytest.approx(23.0)
+    assert prev.iloc[25] == pytest.approx(23.0)

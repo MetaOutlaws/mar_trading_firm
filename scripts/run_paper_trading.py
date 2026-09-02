@@ -33,6 +33,7 @@ from config.settings import TradingMode, get_settings
 from core.db import init_db, session_scope
 from core.execution.engine import build_engine
 from core.ledger.store import Ledger
+from firm.locks import PAPER_PID_PATH, acquire_pidfile, release_pidfile
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,15 @@ def main() -> int:
         print_status(Ledger(mode=settings.trading_mode.value, starting_equity=args.equity))
         return 0
 
+    acquire_pidfile(PAPER_PID_PATH, "Paper trading")
+    try:
+        return _run_loop(args, settings)
+    finally:
+        release_pidfile(PAPER_PID_PATH)
+
+
+def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
+    """Inner loop, always unwrapped by the pid-file finally."""
     if settings.trading_mode is TradingMode.LIVE:
         from scripts.check_go_live import evaluate_gates
 
@@ -149,6 +159,7 @@ def main() -> int:
 
     if not engine.plan.entries:
         logger.error("Nothing to trade: the plan is empty. Check config/asset_params.json.")
+        engine.close()
         return 1
 
     logger.info("Trading plan (%d pairs):", len(engine.plan.entries))
@@ -166,14 +177,29 @@ def main() -> int:
             logger.info("--- cycle %d at %s ---", cycle, datetime.now(timezone.utc).isoformat())
 
             try:
+                from firm.research_jobs import advance_pipeline
+
+                # Scan first. Gemini seats (GM, Advisor, Auditor) can take
+                # minutes; they must not block the 15-minute paper clock or
+                # last_cycle.json stays stale and the duty board lies.
+                advance_pipeline()
+                report = engine.run_cycle()
+                logger.info("%s", report)
                 if orchestrator is not None:
                     try:
                         orchestrator.run_due()
                         orchestrator.advice_for_engine().apply_to(engine)
                     except Exception:
                         logger.exception("Employee cycle failed; trading continues.")
-                report = engine.run_cycle()
-                logger.info("%s", report)
+                    finally:
+                        # Gemini timeouts must not skip the next coded family until
+                        # the following 15-minute sleep.
+                        try:
+                            from firm.continuity import fill_walk_forward_slots
+
+                            fill_walk_forward_slots(source="paper_cycle")
+                        except Exception:
+                            logger.exception("Paper cycle could not refill walk-forward slots")
                 if report.halted:
                     logger.critical(
                         "Trading halted: %s. Investigate, then reset the kill switch "
@@ -188,13 +214,10 @@ def main() -> int:
                 logger.info("Reached the requested %d cycles; stopping.", args.cycles)
                 break
 
-            # Sleep in short slices so a shutdown signal is honoured promptly
-            # rather than after a full 15-minute interval.
             slept = 0
             while slept < args.interval and not _shutdown_requested:
                 time.sleep(min(5, args.interval - slept))
                 slept += 5
-
     finally:
         if orchestrator is not None:
             orchestrator.close()

@@ -1,0 +1,14 @@
+{
+  "family": "failed_higher_high",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs two consecutive swing highs where the second makes a higher high then closes back below the first. Not a single swing-failure.",
+  "summary": "Fade a failed higher-high against the prior swing high.",
+  "justification": "Two-swing structure is not one wick through one pivot.",
+  "written_at": "2026-08-31T18:53:42.367390+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/failed_higher_high.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

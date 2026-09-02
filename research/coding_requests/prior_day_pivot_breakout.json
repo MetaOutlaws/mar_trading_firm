@@ -1,0 +1,14 @@
+{
+  "family": "prior_day_pivot_breakout",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs classic floor-trader pivots from the prior UTC day (H+L+C)/3 plus R1/S1. Not a rolling Donchian.",
+  "summary": "Break prior UTC-day pivot / R1 / S1 after that day has closed.",
+  "justification": "Daily floor pivots require calendar-day aggregation.",
+  "written_at": "2026-08-31T17:25:17.152748+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/prior_day_pivot_breakout.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

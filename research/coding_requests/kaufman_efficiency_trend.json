@@ -1,0 +1,14 @@
+{
+  "family": "kaufman_efficiency_trend",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Kaufman Efficiency Ratio: abs(close-close[n]) / sum(|close diffs|). Not ADX and not Aroon time-since-extreme.",
+  "summary": "Trade in the direction of a high-ER move.",
+  "justification": "ER is path-efficiency, not DI smoothing.",
+  "written_at": "2026-09-01T11:21:03.667384+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/kaufman_efficiency_trend.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -1,0 +1,14 @@
+{
+  "family": "vwap_spread_exhaustion",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Calculates the absolute distance between the rolling 20-period VWAP and the 20-period SMA, normalized by the 20-period ATR. When this spread reaches an N-bar extreme and volume is expanding, it enters a mean-reversion trade targeting the VWAP basis, filtered by a low ADX to ensure a range-bound environment.",
+  "summary": "Calculates the absolute distance between the rolling 20-period VWAP and the 20-period SMA, normalized by the 20-period ATR. When this spread reaches an N-bar extreme and volume is expanding, it enters a mean-reversion trade targeting the VW",
+  "justification": "It exploits institutional execution limits where aggressive market orders push price away from the volume-weighted average, creating temporary liquidity vacuums that revert when the flow pauses.",
+  "written_at": "2026-09-01T11:13:50.622560+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/vwap_spread_exhaustion.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

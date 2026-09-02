@@ -126,6 +126,14 @@ def finish_run(
         run.error = error
 
 
+def _display_task(agent: str, task: str | None) -> str:
+    """Rewrite retired cadence labels so the desk never shows 'weekly run'."""
+    text = task or ""
+    if agent == "quant_researcher" and "weekly" in text.lower():
+        return "Propose next catalog family (when the pipeline is idle)"
+    return text
+
+
 def recent_runs(agent: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
     """Latest runs, newest first. Powers the dashboard activity feed."""
     with session_scope() as session:
@@ -139,7 +147,7 @@ def recent_runs(agent: str | None = None, limit: int = 50) -> list[dict[str, Any
                 "id": run.id,
                 "agent": run.agent,
                 "role": run.role,
-                "task": run.task,
+                "task": _display_task(run.agent, run.task),
                 "status": run.status,
                 "started_at": run.started_at.isoformat(),
                 "finished_at": run.finished_at.isoformat() if run.finished_at else None,
@@ -176,9 +184,11 @@ def agent_activity(agent: str) -> dict[str, Any]:
         return {
             "agent": agent,
             "status": latest.status if latest else "never_run",
-            "current_task": latest.task if latest else "",
+            "current_task": _display_task(agent, latest.task if latest else ""),
             "last_run_at": latest.started_at.isoformat() if latest else None,
             "last_reasoning": latest.reasoning if latest else "",
+            "last_error": latest.error if latest else "",
+            "last_model": latest.model if latest else "",
             "last_output": latest.output if latest else {},
             "runs_total": int(totals[0]),
             "cost_usd_total": round(float(totals[1]), 4),
@@ -268,6 +278,107 @@ def decide_proposal(
         proposal.decided_at = utcnow()
         proposal.decision_reason = reason
         return True
+
+
+def get_proposal(proposal_id: int) -> dict[str, Any] | None:
+    """One proposal as a plain dict, or None."""
+    with session_scope() as session:
+        proposal = session.get(Proposal, proposal_id)
+        if proposal is None:
+            return None
+        return {
+            "id": proposal.id,
+            "agent": proposal.agent,
+            "kind": proposal.kind,
+            "symbol": proposal.symbol,
+            "title": proposal.title,
+            "payload": proposal.payload,
+            "rationale": proposal.rationale,
+            "status": proposal.status,
+            "confidence": proposal.confidence,
+        }
+
+
+def decided_strategy_proposals(limit: int = 20) -> list[dict[str, Any]]:
+    """Recently approved strategy tests — catch up after a code deploy."""
+    with session_scope() as session:
+        rows = session.scalars(
+            select(Proposal)
+            .where(Proposal.kind == ProposalKind.STRATEGY.value)
+            .where(Proposal.status == ProposalStatus.APPROVED.value)
+            .order_by(Proposal.created_at.desc())
+            .limit(limit)
+        )
+        return [
+            {
+                "id": p.id,
+                "agent": p.agent,
+                "kind": p.kind,
+                "symbol": p.symbol,
+                "title": p.title,
+                "payload": p.payload,
+                "rationale": p.rationale,
+                "status": p.status,
+            }
+            for p in rows
+        ]
+
+
+def approved_code_mandates(limit: int = 20) -> list[dict[str, Any]]:
+    """Operational 'code this family' approvals — catch up after a sleeve is coded."""
+    with session_scope() as session:
+        rows = session.scalars(
+            select(Proposal)
+            .where(Proposal.kind == ProposalKind.OPERATIONAL.value)
+            .where(Proposal.status == ProposalStatus.APPROVED.value)
+            .order_by(Proposal.created_at.desc())
+            .limit(max(limit * 3, 40))
+        )
+        out: list[dict[str, Any]] = []
+        for p in rows:
+            payload = p.payload if isinstance(p.payload, dict) else {}
+            if payload.get("action") != "code_family":
+                continue
+            out.append(
+                {
+                    "id": p.id,
+                    "agent": p.agent,
+                    "kind": p.kind,
+                    "symbol": p.symbol,
+                    "title": p.title,
+                    "payload": payload,
+                    "rationale": p.rationale,
+                    "status": p.status,
+                    "created_at": p.created_at.isoformat() if p.created_at else None,
+                    "decided_at": p.decided_at.isoformat() if p.decided_at else None,
+                }
+            )
+            if len(out) >= limit:
+                break
+        return out
+
+
+def mark_research_status(family: str, status: str, verdict: str = "") -> int:
+    """Stamp matching hypotheses so the Research tab shows queued/testing."""
+    if not family:
+        return 0
+    needle = family.lower()
+    updated = 0
+    with session_scope() as session:
+        rows = session.scalars(
+            select(ResearchReport).order_by(ResearchReport.created_at.desc())
+        )
+        for row in rows:
+            blob = f"{row.hypothesis} {json.dumps(row.metrics or {})}".lower()
+            if needle not in blob:
+                continue
+            row.status = status
+            if verdict:
+                row.verdict = verdict
+            updated += 1
+            if updated >= 8:
+                break
+    return updated
 
 
 def expire_stale_proposals() -> int:
@@ -363,11 +474,63 @@ def scored_proposals(agent: str, limit: int = 200) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Escalations
 # ---------------------------------------------------------------------------
-def escalate(agent: str, title: str, detail: str, severity: str = "warning") -> int:
+def escalate_once(
+    agent: str,
+    title: str,
+    detail: str,
+    severity: str = "warning",
+    root_cause: str = "",
+    owner_seat: str = "",
+) -> int | None:
+    """Open an escalation unless the same root cause (or title) is already unresolved.
+
+    Recurring faults increment occurrence_count instead of opening N rows.
+    """
+    cause = root_cause or title[:120]
+    owner = owner_seat or agent
+    with session_scope() as session:
+        rows = session.scalars(
+            select(EscalationRecord)
+            .where(EscalationRecord.lifecycle != "resolved")
+            .order_by(EscalationRecord.created_at.desc())
+            .limit(80)
+        )
+        for row in rows:
+            match_cause = (row.root_cause or "") == cause
+            match_title = row.agent == agent and row.title == title[:400]
+            if match_cause or match_title:
+                row.occurrence_count = int(row.occurrence_count or 1) + 1
+                row.last_seen_at = utcnow()
+                row.detail = detail
+                if owner and not row.owner_seat:
+                    row.owner_seat = owner
+                _maybe_promote_escalation(row)
+                return None
+    return escalate(
+        agent, title, detail, severity, root_cause=cause, owner_seat=owner
+    )
+
+
+def escalate(
+    agent: str,
+    title: str,
+    detail: str,
+    severity: str = "warning",
+    root_cause: str = "",
+    owner_seat: str = "",
+) -> int:
     """Raise something for the human operator. Returns the record id."""
     with session_scope() as session:
         record = EscalationRecord(
-            agent=agent, title=title[:200], detail=detail, severity=severity
+            agent=agent,
+            title=title[:400],
+            detail=detail,
+            severity=severity,
+            lifecycle="open",
+            owner_seat=owner_seat or agent,
+            root_cause=root_cause or title[:120],
+            occurrence_count=1,
+            last_seen_at=utcnow(),
         )
         session.add(record)
         session.flush()
@@ -375,36 +538,144 @@ def escalate(agent: str, title: str, detail: str, severity: str = "warning") -> 
         return int(record.id)
 
 
+def _maybe_promote_escalation(record: EscalationRecord) -> None:
+    """Past timeout → raise severity. Unresolved rows stay visible."""
+    from datetime import timedelta
+
+    hours = float(record.timeout_hours or 24.0)
+    created = record.created_at
+    if created is None:
+        return
+    age = utcnow() - created
+    if age < timedelta(hours=hours) or record.severity_promoted:
+        return
+    if record.severity != "critical":
+        record.severity = "critical"
+    record.severity_promoted = True
+
+
 def open_escalations(limit: int = 50) -> list[dict[str, Any]]:
-    """Unacknowledged escalations, newest first."""
+    """Unresolved escalations (open or acknowledged), newest first."""
+    promote_stale_escalations()
     with session_scope() as session:
         rows = session.scalars(
             select(EscalationRecord)
-            .where(EscalationRecord.acknowledged.is_(False))
+            .where(EscalationRecord.lifecycle != "resolved")
             .order_by(EscalationRecord.created_at.desc())
             .limit(limit)
         )
-        return [
-            {
-                "id": r.id,
-                "agent": r.agent,
-                "severity": r.severity,
-                "title": r.title,
-                "detail": r.detail,
-                "created_at": r.created_at.isoformat(),
-            }
-            for r in rows
-        ]
+        return [_escalation_row(r) for r in rows]
+
+
+def _escalation_row(r: EscalationRecord) -> dict[str, Any]:
+    created = r.created_at
+    age_hours = None
+    if created is not None:
+        age_hours = round((utcnow() - created).total_seconds() / 3600.0, 2)
+    return {
+        "id": r.id,
+        "agent": r.agent,
+        "severity": r.severity,
+        "title": r.title,
+        "detail": r.detail,
+        "created_at": r.created_at.isoformat() if r.created_at else "",
+        "last_seen_at": r.last_seen_at.isoformat() if r.last_seen_at else "",
+        "lifecycle": r.lifecycle or ("acknowledged" if r.acknowledged else "open"),
+        "owner_seat": r.owner_seat or r.agent,
+        "root_cause": r.root_cause or "",
+        "occurrence_count": int(r.occurrence_count or 1),
+        "age_hours": age_hours,
+        "timeout_hours": float(r.timeout_hours or 24.0),
+        "severity_promoted": bool(r.severity_promoted),
+        "acknowledged": bool(r.acknowledged),
+    }
+
+
+def promote_stale_escalations() -> int:
+    """Dashboard aging: unresolved past timeout becomes critical."""
+    n = 0
+    with session_scope() as session:
+        rows = session.scalars(
+            select(EscalationRecord).where(EscalationRecord.lifecycle != "resolved")
+        )
+        for row in rows:
+            before = row.severity_promoted
+            _maybe_promote_escalation(row)
+            if row.severity_promoted and not before:
+                n += 1
+    return n
 
 
 def acknowledge_escalation(escalation_id: int) -> bool:
     with session_scope() as session:
         record = session.get(EscalationRecord, escalation_id)
-        if record is None or record.acknowledged:
+        if record is None or record.lifecycle == "resolved":
             return False
         record.acknowledged = True
         record.acknowledged_at = utcnow()
+        record.lifecycle = "acknowledged"
         return True
+
+
+def resolve_escalation(escalation_id: int) -> bool:
+    with session_scope() as session:
+        record = session.get(EscalationRecord, escalation_id)
+        if record is None or record.lifecycle == "resolved":
+            return False
+        record.acknowledged = True
+        if record.acknowledged_at is None:
+            record.acknowledged_at = utcnow()
+        record.lifecycle = "resolved"
+        record.resolved_at = utcnow()
+        return True
+
+
+def clear_resolved_health_noise() -> dict[str, int]:
+    """Ack leftover DeepSeek / is_tripped inbox items so they stop recirculating.
+
+    Desk Head reads open escalations and pending sit-outs, then files the same
+    complaint again. Closing the resolved ones breaks that loop.
+    """
+    from firm.health_filters import is_resolved_noise
+
+    acked = 0
+    rejected = 0
+    reason = (
+        "stale: DeepSeek/OpenAI are retired and KillSwitchState.is_tripped is patched"
+    )
+    with session_scope() as session:
+        escalations = session.scalars(
+            select(EscalationRecord).where(EscalationRecord.lifecycle != "resolved")
+        )
+        for row in escalations:
+            if is_resolved_noise(f"{row.title} {row.detail}"):
+                row.acknowledged = True
+                row.acknowledged_at = utcnow()
+                row.lifecycle = "resolved"
+                row.resolved_at = utcnow()
+                acked += 1
+
+        proposals = session.scalars(
+            select(Proposal).where(Proposal.status == ProposalStatus.PENDING.value)
+        )
+        for proposal in proposals:
+            payload = proposal.payload if isinstance(proposal.payload, dict) else {}
+            blob = f"{proposal.title} {proposal.rationale} {payload}"
+            if not is_resolved_noise(blob):
+                continue
+            proposal.status = ProposalStatus.REJECTED.value
+            proposal.decided_by = "system"
+            proposal.decided_at = utcnow()
+            proposal.decision_reason = reason
+            rejected += 1
+
+    if acked or rejected:
+        logger.info(
+            "Cleared resolved health noise: %d escalation(s), %d proposal(s).",
+            acked,
+            rejected,
+        )
+    return {"acked": acked, "rejected": rejected}
 
 
 # ---------------------------------------------------------------------------
@@ -557,10 +828,16 @@ def record_research(
     symbols: list[str],
     agent: str = "quant_researcher",
     status: str = "proposed",
+    metrics: dict[str, Any] | None = None,
 ) -> int:
+    """Persist a hypothesis. `metrics` holds rationale so the desk can show why."""
     with session_scope() as session:
         report = ResearchReport(
-            agent=agent, hypothesis=hypothesis, symbols=symbols, status=status
+            agent=agent,
+            hypothesis=hypothesis,
+            symbols=symbols,
+            status=status,
+            metrics=metrics or {},
         )
         session.add(report)
         session.flush()
@@ -583,23 +860,62 @@ def complete_research(
 def research_board(limit: int = 50) -> list[dict[str, Any]]:
     """Every hypothesis and its fate. The firm's institutional memory."""
     with session_scope() as session:
-        rows = session.scalars(
-            select(ResearchReport).order_by(ResearchReport.created_at.desc()).limit(limit)
+        rows = list(
+            session.scalars(
+                select(ResearchReport).order_by(ResearchReport.created_at.desc()).limit(limit)
+            )
         )
-        return [
-            {
-                "id": r.id,
-                "agent": r.agent,
-                "hypothesis": r.hypothesis,
-                "status": r.status,
-                "verdict": r.verdict,
-                "metrics": r.metrics,
-                "symbols": r.symbols,
-                "created_at": r.created_at.isoformat(),
-                "tested_at": r.tested_at.isoformat() if r.tested_at else None,
+        # Older rows stored the "why" only on the matching inbox proposal.
+        # Join that back so clicking a card still has one or two sentences.
+        proposals = session.scalars(
+            select(Proposal)
+            .where(Proposal.kind == ProposalKind.STRATEGY.value)
+            .order_by(Proposal.created_at.desc())
+            .limit(80)
+        )
+        by_name: dict[str, dict[str, str]] = {}
+        for proposal in proposals:
+            payload = proposal.payload if isinstance(proposal.payload, dict) else {}
+            name = str(payload.get("name") or "").strip().lower()
+            if not name or name in by_name:
+                continue
+            by_name[name] = {
+                "rationale": str(
+                    proposal.rationale or payload.get("why_it_might_work") or ""
+                ),
+                "why_it_might_fail": str(payload.get("why_it_might_fail") or ""),
             }
-            for r in rows
-        ]
+
+        board: list[dict[str, Any]] = []
+        for row in rows:
+            metrics = dict(row.metrics or {})
+            name = (row.hypothesis or "").split(":", 1)[0].strip().lower()
+            matched = by_name.get(name, {})
+            rationale = str(
+                metrics.get("rationale")
+                or metrics.get("why_it_might_work")
+                or matched.get("rationale")
+                or ""
+            )
+            why_fail = str(
+                metrics.get("why_it_might_fail") or matched.get("why_it_might_fail") or ""
+            )
+            board.append(
+                {
+                    "id": row.id,
+                    "agent": row.agent,
+                    "hypothesis": row.hypothesis,
+                    "status": row.status,
+                    "verdict": row.verdict,
+                    "metrics": metrics,
+                    "rationale": rationale,
+                    "why_it_might_fail": why_fail,
+                    "symbols": row.symbols,
+                    "created_at": row.created_at.isoformat(),
+                    "tested_at": row.tested_at.isoformat() if row.tested_at else None,
+                }
+            )
+        return board
 
 
 def already_tested(keywords: list[str]) -> list[dict[str, Any]]:

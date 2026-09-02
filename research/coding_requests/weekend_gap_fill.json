@@ -1,0 +1,14 @@
+{
+  "family": "weekend_gap_fill",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Friday UTC close vs the first Monday bar (or Sat\u2013Sun range). Calendar weekend, not a rolling gap of N bars.",
+  "summary": "Fade or fill the weekend gap versus Friday's UTC close.",
+  "justification": "Weekend calendar math is not in the indicator library.",
+  "written_at": "2026-08-31T17:25:17.158177+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/weekend_gap_fill.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

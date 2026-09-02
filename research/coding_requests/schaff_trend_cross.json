@@ -1,0 +1,14 @@
+{
+  "family": "schaff_trend_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Schaff Trend Cycle: a stochastic of MACD, then a second stochastic. Not MACD histogram and not Stochastic %K of price.",
+  "summary": "Trade STC crossing 25/75.",
+  "justification": "STC is a cycle transform of MACD, not ema_adx_trend.",
+  "written_at": "2026-09-01T11:21:47.732046+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/schaff_trend_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

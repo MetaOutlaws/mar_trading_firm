@@ -1,0 +1,14 @@
+{
+  "family": "ehlers_decycler_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Ehlers high-pass decycler of close vs a slow decycler. Not DPO with a causal SMA lag.",
+  "summary": "Trade the Ehlers decycler crossing zero.",
+  "justification": "Decycler is a high-pass FIR, not detrended price vs SMA.",
+  "written_at": "2026-09-01T12:58:14.266765+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/ehlers_decycler_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

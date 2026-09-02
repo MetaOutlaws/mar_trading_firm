@@ -80,6 +80,70 @@ KNOWN_INVALID_SYMBOLS = {
 
 LONG = "LONG"
 SHORT = "SHORT"
+KNOWN_SIDES = {LONG, SHORT}
+
+
+def approval_record_key(strategy: str, symbol: str, side: str, timeframe: str | None) -> str:
+    """Stable id for one walk-forward: family, pair, side, and candle clock.
+
+    Timeframe belongs in the key. A later 1h Donchian run used to overwrite the
+    15m LONG rows because both wrote `donchian_breakout:BTCUSDT:LONG`.
+    """
+    tf = str(timeframe or "unknown").strip() or "unknown"
+    return f"{strategy}:{symbol}:{side.upper()}:{tf}"
+
+
+def parse_approval_key(key: str) -> tuple[str, str, str] | None:
+    """Return `(strategy, symbol, side)` from an approvals-file key.
+
+    Accepted shapes:
+    - `SYMBOL:SIDE` — Phase 1 RSI rows
+    - `strategy:SYMBOL:SIDE` — family namespaced, clock only in the record
+    - `strategy:SYMBOL:SIDE:timeframe` — current; clocks cannot overwrite each other
+    """
+    if not key or key.startswith("_"):
+        return None
+    parts = key.split(":")
+    if len(parts) == 2:
+        symbol, side = parts
+        if side.upper() in KNOWN_SIDES:
+            return ("rsi_trend", symbol, side.upper())
+        return None
+    if len(parts) >= 3:
+        strategy, symbol, side = parts[0], parts[1], parts[2]
+        if side.upper() in KNOWN_SIDES and strategy and symbol:
+            return (strategy, symbol, side.upper())
+        return None
+    return None
+
+
+def migrate_approval_keys(payload: dict[str, Any]) -> dict[str, Any]:
+    """Rewrite 2-part and 3-part keys to include the record's timeframe.
+
+    Leaves metadata (`_generated_at`, …) and already-4-part keys alone. If a
+    legacy key and a 4-part key would collide, the 4-part row wins.
+    """
+    out: dict[str, Any] = {}
+    for key, value in payload.items():
+        if key.startswith("_") or not isinstance(value, dict):
+            out[key] = value
+            continue
+        parts = key.split(":")
+        if len(parts) >= 4:
+            out[key] = value
+            continue
+        parsed = parse_approval_key(key)
+        if parsed is None:
+            out[key] = value
+            continue
+        strategy, symbol, side = parsed
+        new_key = approval_record_key(strategy, symbol, side, value.get("timeframe"))
+        if new_key in out:
+            continue
+        record = dict(value)
+        record.setdefault("strategy", strategy)
+        out[new_key] = record
+    return out
 
 
 @dataclass(frozen=True)
@@ -153,17 +217,50 @@ class Universe:
         This is the only gate that grants trading rights. Legacy `enabled`
         flags have no effect here.
         """
-        record = self.approvals.get(f"{symbol}:{side.upper()}")
-        return bool(record and record.get("approved") is True)
+        side_u = side.upper()
+        for key, record in self.approvals.items():
+            parsed = parse_approval_key(key)
+            if parsed is None:
+                continue
+            _strategy, rec_symbol, rec_side = parsed
+            if rec_symbol == symbol and rec_side == side_u and record.get("approved") is True:
+                return True
+        return False
+
+    def has_paper_override(self, strategy: str, symbol: str, side: str, timeframe: str) -> bool:
+        """Operator veto: this exact sleeve may paper-scan while live stays gated."""
+        key = approval_record_key(strategy, symbol, side, timeframe)
+        rec = self.approvals.get(key)
+        return bool(isinstance(rec, dict) and rec.get("paper_override") is True)
+
+    @property
+    def paper_override_records(self) -> list[tuple[str, dict[str, Any]]]:
+        """Approval rows the operator promoted to paper only."""
+        out: list[tuple[str, dict[str, Any]]] = []
+        for key, record in sorted(self.approvals.items()):
+            if not isinstance(record, dict) or record.get("paper_override") is not True:
+                continue
+            if parse_approval_key(key) is None:
+                continue
+            out.append((key, record))
+        return out
 
     @property
     def approved_pairs(self) -> list[tuple[str, str]]:
         """All (symbol, side) pairs cleared for trading."""
         out: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
         for key, record in sorted(self.approvals.items()):
-            if record.get("approved") is True and ":" in key:
-                symbol, side = key.split(":", 1)
-                out.append((symbol, side))
+            if record.get("approved") is not True:
+                continue
+            parsed = parse_approval_key(key)
+            if parsed is None:
+                continue
+            _strategy, symbol, side = parsed
+            pair = (symbol, side)
+            if pair not in seen:
+                seen.add(pair)
+                out.append(pair)
         return out
 
 
@@ -229,10 +326,11 @@ def get_universe() -> Universe:
 
     logger.info(
         "Universe loaded: %d monitored symbols, %d LONG params, %d SHORT params, "
-        "%d approved to trade.",
+        "%d research-approved, %d operator paper override(s).",
         len(universe.monitored_symbols),
         len(universe.long_params),
         len(universe.short_params),
         len(universe.approved_pairs),
+        len(universe.paper_override_records),
     )
     return universe

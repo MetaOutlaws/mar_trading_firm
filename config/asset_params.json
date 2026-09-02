@@ -153,6 +153,19 @@
         "profit_factor": 3.52
       }
     },
+    "BNBUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
     "BONKUSDT": {
       "enabled": false,
       "params": {
@@ -822,6 +835,19 @@
         "backtest_return_q4": 1.48,
         "profit_factor": 2.27
       }
+    },
+    "XRPUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "15min",
+        "rsi_min": 30,
+        "rsi_max": 40,
+        "volume_threshold": 1.2,
+        "trend_filter": "golden_cross",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
     }
   },
   "short": {
@@ -858,6 +884,18 @@
         "backtest_return_q1": 0.62,
         "backtest_return_q4": 0.92
       }
+    },
+    "BNBUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 65,
+        "volume_threshold": 1.2,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
     },
     "BTCUSDT": {
       "enabled": false,
@@ -1135,6 +1173,18 @@
         "timeframe": "4h",
         "rsi_threshold": 64,
         "volume_threshold": 2.1,
+        "trend_filter": "in_uptrend",
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.05
+      },
+      "legacy_claims": {}
+    },
+    "XRPUSDT": {
+      "enabled": true,
+      "params": {
+        "timeframe": "4h",
+        "rsi_threshold": 65,
+        "volume_threshold": 1.2,
         "trend_filter": "in_uptrend",
         "take_profit_pct": 0.05,
         "stop_loss_pct": 0.05

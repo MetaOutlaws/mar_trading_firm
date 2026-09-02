@@ -1,0 +1,14 @@
+{
+  "family": "rsi_laguerre_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Ehlers Laguerre RSI: a 4-pole Laguerre filter of close mapped to 0..1. Not Wilder RSI and not Connors RSI.",
+  "summary": "Fade Laguerre RSI extremes.",
+  "justification": "Laguerre RSI is a FIR gamma filter, not Wilder smoothing.",
+  "written_at": "2026-09-01T13:09:22.036610+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/rsi_laguerre_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

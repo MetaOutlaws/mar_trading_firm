@@ -1,0 +1,14 @@
+{
+  "family": "session_volume_imbalance_reversal",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Calculates the volume imbalance ratio between buying and selling volume at the boundaries of the preceding UTC session. When price sweeps the session high or low on a 4h clock but volume imbalance shows a clear exhaustion signature (less than 30% of the average session boundary volume), it enters a mean-reversion trade targeting the session mid-point.",
+  "summary": "Calculates the volume imbalance ratio between buying and selling volume at the boundaries of the preceding UTC session. When price sweeps the session high or low on a 4h clock but volume imbalance shows a clear exhaustion signature (less th",
+  "justification": "Passive limit orders at session extremes act as strong absorption barriers in range-bound regimes, trapping breakout traders.",
+  "written_at": "2026-09-02T07:41:17.836548+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/session_volume_imbalance_reversal.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

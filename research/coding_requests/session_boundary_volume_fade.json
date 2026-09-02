@@ -1,0 +1,14 @@
+{
+  "family": "session_boundary_volume_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Identifies the high and low of the previous UTC day. When price sweeps outside this boundary on the 4h clock but the volume of the sweeping bar is below the 20-period volume moving average, it enters a mean-reversion trade targeting the daily VWAP.",
+  "summary": "Identifies the high and low of the previous UTC day. When price sweeps outside this boundary on the 4h clock but the volume of the sweeping bar is below the 20-period volume moving average, it enters a mean-reversion trade targeting the dai",
+  "justification": "Captures trapped breakout traders at key daily liquidity pools when there is no institutional volume to support the expansion.",
+  "written_at": "2026-09-02T07:16:26.866529+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/session_boundary_volume_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

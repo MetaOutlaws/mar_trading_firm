@@ -1,0 +1,14 @@
+{
+  "family": "outside_bar_reversal",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs an outside bar (range fully contains the prior bar) plus close direction. Opposite of inside-bar breakout.",
+  "summary": "Reverse in the close direction of an outside bar.",
+  "justification": "Outside-bar geometry is not an existing template.",
+  "written_at": "2026-08-31T18:54:02.268041+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/outside_bar_reversal.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -1,0 +1,122 @@
+"""Template sleeve factory: JSON specs, no freeform Python, novel -> Cursor."""
+
+from __future__ import annotations
+
+from core.strategy.base import SignalSide
+from core.strategy.registry import list_strategies
+from core.strategy.spec_sleeve import spec_kit
+from firm.sleeve_factory import (
+    CANDIDATE_SPECS,
+    materialize_spec,
+    ready_novel_specs,
+    spec_for_family,
+    write_coding_request,
+)
+from tests.test_strategy import make_candles
+
+
+def test_at_least_ten_novel_families_are_ready() -> None:
+    ready = ready_novel_specs()
+    assert len(ready) >= 10
+    names = {spec.name for spec in ready}
+    assert "kama_trend" in names
+    assert "vidya_trend" not in names
+    assert "t3_trend" not in names
+    assert "williams_fractal_break" not in names
+    assert "gator_oscillator_cross" not in names
+    assert "elder_impulse_trend" not in names
+    assert "smi_fade" not in names
+    assert "rsi_laguerre_fade" not in names
+    assert "choppiness_index_break" not in names
+    assert "connors_rsi_fade" not in names
+    assert "mama_fama_cross" not in names
+    assert "mass_index_reversal" not in names
+    assert "demarker_fade" not in names
+    assert "elder_ray_fade" not in names
+    assert "hull_ma_trend" not in names
+    assert "fisher_transform_cross" not in names
+    assert "tsi_cross" not in names
+    assert "kst_cross" not in names
+    assert "ultimate_oscillator_fade" not in names
+    assert "ppo_cross" not in names
+    assert "mfi_fade" not in names
+    assert "ichimoku_tk_cross" not in names
+    assert "obv_break" not in names
+    assert "williams_r_fade" not in names
+    assert "heikin_ashi_trend" not in names
+    assert "utc_session_vwap_reversion" not in names
+    assert "opening_range_breakout" not in names
+    from pathlib import Path
+
+    names = list_strategies()
+    strategy_dir = Path(__file__).resolve().parents[1] / "core" / "strategy"
+    for spec in CANDIDATE_SPECS:
+        implemented = spec.auto_code or (strategy_dir / f"{spec.name}.py").exists()
+        if implemented:
+            assert spec.name in names, spec.name
+        else:
+            assert spec.name not in names, spec.name
+
+
+def test_spec_kit_is_not_rsi() -> None:
+    kit = spec_kit("bb_squeeze_breakout", SignalSide.LONG)
+    assert kit is not None
+    factory, base, space = kit
+    sleeve = factory(base)
+    assert sleeve.name == "bb_squeeze_breakout"
+    assert "take_profit_pct" in space
+
+
+def test_spec_sleeve_no_lookahead() -> None:
+    kit = spec_kit("rsi_fade_chop", SignalSide.LONG)
+    assert kit is not None
+    factory, base, _ = kit
+    sleeve = factory(base)
+    candles = make_candles(n=400, seed=7)
+    full = sleeve.generate_signals(candles)
+    cut = 300
+    truncated = sleeve.generate_signals(candles.iloc[:cut])
+    import pandas as pd
+
+    pd.testing.assert_series_equal(
+        full["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    shocked = candles.copy()
+    shocked.iloc[-1, shocked.columns.get_loc("close")] *= 1.5
+    original = sleeve.generate_signals(candles)["signal"].iloc[:-1]
+    after = sleeve.generate_signals(shocked)["signal"].iloc[:-1]
+    pd.testing.assert_series_equal(original, after)
+
+
+def test_unknown_strategy_kit_does_not_silently_become_rsi() -> None:
+    from research.validate import strategy_kit
+    import pytest
+
+    with pytest.raises(KeyError, match="Unknown strategy"):
+        strategy_kit("not_a_real_family", SignalSide.LONG)
+
+
+def test_novel_spec_writes_coding_request_not_python(tmp_path, monkeypatch) -> None:
+    from firm import sleeve_factory
+
+    monkeypatch.setattr(sleeve_factory, "CODING_REQUESTS_DIR", tmp_path)
+    spec = spec_for_family("opening_range_breakout")
+    assert spec is not None
+    assert spec.auto_code is False
+    path = write_coding_request(spec)
+    assert path.exists()
+    assert not (tmp_path / "opening_range_breakout.py").exists()
+    assert "core/strategy/opening_range_breakout.py" in path.read_text(encoding="utf-8")
+
+
+def test_materialize_refuses_novel(tmp_path, monkeypatch) -> None:
+    import pytest
+    from firm import sleeve_factory
+
+    monkeypatch.setattr(sleeve_factory, "SLEEVES_DIR", tmp_path)
+    spec = spec_for_family("opening_range_breakout")
+    assert spec is not None
+    with pytest.raises(ValueError, match="not auto-codable"):
+        materialize_spec(spec)

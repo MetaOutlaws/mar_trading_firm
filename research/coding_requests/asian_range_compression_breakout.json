@@ -1,0 +1,14 @@
+{
+  "family": "asian_range_compression_breakout",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Measures the ratio of the Asian session range (00:00-08:00 UTC) to the 10-day average daily range. If the session is highly compressed (ratio < 0.7), it enters a breakout trade in the direction of the first 4h candle close outside the Asian range during the London/NY overlap.",
+  "summary": "Measures the ratio of the Asian session range (00:00-08:00 UTC) to the 10-day average daily range. If the session is highly compressed (ratio < 0.7), it enters a breakout trade in the direction of the first 4h candle close outside the Asian",
+  "justification": "Filters out low-volatility noise and only takes breakouts when the market has stored significant energy, increasing the probability of a sustained trend.",
+  "written_at": "2026-09-01T18:34:50.912230+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/asian_range_compression_breakout.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

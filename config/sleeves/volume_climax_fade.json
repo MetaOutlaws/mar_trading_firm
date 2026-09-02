@@ -1,0 +1,20 @@
+{
+  "name": "volume_climax_fade",
+  "template": "fade_stretch",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "summary": "Fade an RSI extreme only on a volume spike (exhaustion, not drift).",
+  "justification": "Requires a volume climax plus RSI extreme. Not a clock change of rsi_trend or a raw Bollinger fade.",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "",
+  "channel": "atr",
+  "trend": "ema",
+  "stretch": "rsi",
+  "squeeze": false,
+  "volume_filter": true,
+  "defaults": {
+    "volume_spike": 1.8,
+    "max_adx": 25.0
+  }
+}

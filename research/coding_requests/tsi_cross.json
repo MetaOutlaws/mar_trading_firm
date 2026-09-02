@@ -1,0 +1,14 @@
+{
+  "family": "tsi_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs True Strength Index: double-smoothed momentum over double-smoothed absolute momentum. Not CMO and not RSI.",
+  "summary": "Trade TSI crossing zero.",
+  "justification": "TSI is double-smoothed momentum, not Chande's raw sum ratio.",
+  "written_at": "2026-09-01T05:15:50.519964+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/tsi_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

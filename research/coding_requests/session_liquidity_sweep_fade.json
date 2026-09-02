@@ -1,0 +1,14 @@
+{
+  "family": "session_liquidity_sweep_fade",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Identifies the high and low boundaries established during the Asian session (00:00-08:00 UTC). If the subsequent London or NY session sweeps outside this range by less than a threshold percentage (e.g., 1.0%) and immediately closes back inside the boundary on a 1h clock, it enters a reversal trade targeting the opposite side of the session range.",
+  "summary": "Identifies the high and low boundaries established during the Asian session (00:00-08:00 UTC). If the subsequent London or NY session sweeps outside this range by less than a threshold percentage (e.g., 1.0%) and immediately closes back ins",
+  "justification": "Exploits highly reliable daily liquidity-seeking behavior of market maker algorithms in range-bound regimes.",
+  "written_at": "2026-09-02T04:27:31.510205+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/session_liquidity_sweep_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

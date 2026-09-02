@@ -2,68 +2,2121 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>Employee Floor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MAR Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#0b1020;--card:#151b2e;--ink:#e8edf7;--muted:#8b95b7;--good:#3dd68c;--bad:#ff6b7a;--warn:#ffd166;--line:#243049}
-body{margin:0;font:14px/1.45 ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
-header{padding:20px 28px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-h1{margin:0;font-size:20px;letter-spacing:.04em}
-main{padding:20px 28px 60px;display:grid;gap:20px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-.muted{color:var(--muted)}.ok{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
-button{background:#2a3558;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
-button.danger{background:#5a2030}
-input{background:#0e1426;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
-table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
-.heat{display:flex;flex-wrap:wrap;gap:8px}.chip{padding:8px 10px;border-radius:8px;min-width:90px}
+:root {
+  --bg: #0b0c0a;
+  --bg-2: #10120e;
+  --surface: #161814;
+  --surface-2: #1c1f19;
+  --line: rgba(232, 226, 208, 0.09);
+  --line-strong: rgba(232, 226, 208, 0.16);
+  --ink: #ece8dc;
+  --muted: #8f8a7a;
+  --faint: #5c594e;
+  --accent: #c8f54a;
+  --accent-ink: #1a2208;
+  --good: #3ee0a2;
+  --bad: #ff6a5c;
+  --warn: #f0b429;
+  --paper: #e8e2d0;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  --radius: 14px;
+  --sidebar: 248px;
+  --header: 64px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(200, 245, 74, 0.05), transparent 50%),
+    var(--bg);
+  font: 14.5px/1.45 "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.011em;
+}
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+a { color: inherit; }
+.num { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.app { display: flex; height: 100%; overflow: hidden; }
+.sidebar {
+  width: var(--sidebar);
+  flex: 0 0 var(--sidebar);
+  border-right: 1px solid var(--line);
+  background: rgba(11, 12, 10, 0.88);
+  backdrop-filter: blur(16px);
+  padding: 22px 16px;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.brand { display: flex; align-items: baseline; gap: 10px; padding: 4px 10px 22px; }
+.brand-mark {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.brand-sub { color: var(--muted); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; }
+.nav { display: flex; flex-direction: column; gap: 3px; }
+.nav button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 140ms ease, color 140ms ease;
+}
+.nav button:hover { background: var(--surface); color: var(--ink); }
+.nav button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.nav .count {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  min-width: 18px;
+  text-align: right;
+}
+.sidebar-foot { margin-top: auto; padding: 16px 10px 4px; border-top: 1px solid var(--line); }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.dot.ok { background: var(--good); box-shadow: 0 0 0 3px rgba(62, 224, 162, 0.12); }
+.dot.bad { background: var(--bad); box-shadow: 0 0 0 3px rgba(255, 106, 92, 0.14); }
+.dot.warn { background: var(--warn); }
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.topbar {
+  height: var(--header);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: rgba(11, 12, 10, 0.82);
+  backdrop-filter: blur(18px);
+  z-index: 5;
+}
+.page-title { font-family: "Instrument Serif", Georgia, serif; font-size: 26px; margin: 0; letter-spacing: -0.02em; }
+.page-kicker { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.top-actions { display: flex; align-items: center; gap: 10px; }
+.btn {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 8px 12px;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+.btn:hover { border-color: var(--paper); }
+.btn:focus-visible, .nav button:focus-visible, .field:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.btn.ghost { background: transparent; }
+.btn.danger { background: #3a1614; border-color: rgba(255, 106, 92, 0.35); color: #ffc4be; }
+.btn.accent { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+.content {
+  padding: 0;
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overflow-anchor: none;
+  overscroll-behavior: contain;
+}
+#viewInner {
+  display: grid;
+  gap: 18px;
+  padding: 24px 28px 72px;
+  overflow-anchor: none;
+}
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.kpi, .card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%), var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 16px 14px;
+}
+.kpi .label, .card h2, .section-label {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.kpi .value { font-size: 24px; font-weight: 500; letter-spacing: -0.03em; }
+.kpi .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.grid-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.employees { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.emp { display: flex; flex-direction: column; gap: 10px; min-height: 196px; overflow: visible; }
+.emp-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.role { font-size: 16px; font-weight: 600; }
+.badge {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.badge.l1 { color: var(--paper); }
+.badge.ok { color: var(--good); border-color: rgba(62,224,162,.28); }
+.badge.bad { color: var(--bad); border-color: rgba(255,106,92,.3); }
+.badge.warn { color: var(--warn); border-color: rgba(240,180,41,.3); }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.ok { color: var(--good); }
+.bad { color: var(--bad); }
+.warn { color: var(--warn); }
+.task { color: var(--ink); }
+.meta-row { display: flex; gap: 14px; color: var(--muted); font-size: 12px; flex-wrap: wrap; }
+.empty {
+  padding: 28px 20px;
+  text-align: left;
+  color: var(--muted);
+}
+.empty strong { display: block; color: var(--ink); font-size: 16px; margin-bottom: 6px; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 500;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.why {
+  max-width: 22rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+tr:hover td { background: rgba(255,255,255,0.015); }
+tr.job-group td {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-strong);
+}
+tr.job-group:hover td { background: var(--surface-2); }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toolbar.filters { margin-bottom: 12px; }
+.toolbar .filter-count { color: var(--muted); font-size: 12px; margin-left: auto; }
+.pager {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 8px 0;
+  border-top: 1px solid var(--line);
+}
+.pager-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 36px;
+}
+.pager-meta {
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.pager-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.pager-btn.nav { color: var(--ink); }
+.pager-btn.nav svg { display: block; width: 14px; height: 14px; }
+.pager-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.pager-btn[aria-current="page"] {
+  background: rgba(232, 226, 208, 0.1);
+  color: var(--ink);
+  font-weight: 600;
+}
+.pager-btn:disabled { opacity: 0.4; cursor: default; }
+.pager-gap {
+  width: 16px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  font-size: 13px;
+  pointer-events: none;
+}
+[data-page-list="integrity"] { min-height: 17.5rem; }
+.status-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.status-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+.status-chip .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.status-chip .muted { font-size: 12px; }
+.clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#integrityList .feed-item:last-child { border-bottom: 0; padding-bottom: 2px; }
+.field {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.feed { display: grid; gap: 10px; padding-right: 4px; }
+.scroll-list { padding-right: 4px; }
+.stamp { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.feed-item { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.feed-item.clickable { cursor: pointer; border-radius: 10px; padding: 10px 8px; }
+.feed-item.clickable:hover { background: rgba(255,255,255,0.03); }
+.research-why { display: none; margin-top: 10px; color: var(--ink); line-height: 1.5; white-space: pre-wrap; }
+.feed-item.open .research-why { display: block; }
+.hint-click { color: var(--faint); font-size: 12px; }
+.heat { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--surface-2);
+}
+.gate { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.gate:last-child { border: 0; }
+.banner {
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  padding: 16px 18px;
+  background: var(--surface);
+}
+.banner.warn { border-color: rgba(240,180,41,.28); background: rgba(240,180,41,.05); }
+.banner.bad { border-color: rgba(255,106,92,.3); background: rgba(255,106,92,.06); }
+.banner.ok { border-color: rgba(62,224,162,.25); background: rgba(62,224,162,.05); }
+.spark-wrap { height: 84px; }
+canvas { width: 100%; height: 84px; display: block; }
+.modal-back {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: none; align-items: center; justify-content: center; z-index: 20;
+}
+.modal-back.show { display: flex; }
+.modal {
+  width: min(460px, calc(100vw - 32px));
+  background: var(--bg-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+.modal h3 { margin: 0 0 8px; font-family: "Instrument Serif", Georgia, serif; font-size: 26px; }
+.modal p { color: var(--muted); margin: 0 0 16px; }
+.modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.toast {
+  position: fixed; right: 20px; bottom: 20px; z-index: 30;
+  background: var(--surface-2); border: 1px solid var(--line-strong);
+  padding: 12px 14px; border-radius: 12px; display: none; max-width: 440px;
+}
+.toast.show { display: block; }
+@keyframes pipe-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(200, 245, 74, 0.22); }
+  50% { box-shadow: inset 0 0 0 1px rgba(200, 245, 74, 0.55), 0 0 18px rgba(200, 245, 74, 0.08); }
+}
+.pipeline {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  margin-top: 12px;
+}
+.pipe-stage {
+  flex: 1 1 0;
+  min-width: 168px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.pipe-stage + .pipe-stage { border-left: 0; }
+.pipe-stage:first-child { border-radius: 12px 0 0 12px; }
+.pipe-stage:last-child { border-radius: 0 12px 12px 0; }
+.pipe-stage.done { border-color: rgba(62, 224, 162, 0.28); }
+.pipe-stage.current {
+  border-width: 2px;
+  border-color: rgba(200, 245, 74, 0.85);
+  background: rgba(200, 245, 74, 0.09);
+  animation: pipe-pulse 1.8s ease-in-out infinite;
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px rgba(200, 245, 74, 0.4), 0 0 22px rgba(200, 245, 74, 0.12);
+  z-index: 1;
+}
+.pipe-stage.current .pipe-kicker,
+.pipe-stage.current .pipe-state,
+.pipe-stage.current .pipe-now { color: var(--accent); }
+.pipe-stage.current.stalled {
+  border-color: rgba(240, 180, 41, 0.8);
+  background: rgba(240, 180, 41, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(240, 180, 41, 0.35);
+}
+.pipe-stage.current.stalled .pipe-now { color: var(--warn); }
+.pipe-stage.current.bad {
+  border-color: rgba(255, 106, 92, 0.75);
+  background: rgba(255, 106, 92, 0.08);
+  animation: none;
+}
+.pipe-now {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-top: 4px;
+}
+.pipe-bar {
+  height: 10px;
+  background: rgba(232, 226, 208, 0.16);
+  border: 1px solid rgba(232, 226, 208, 0.14);
+  border-radius: 99px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.pipe-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  min-width: 4px;
+}
+.pipe-bar.stalled > span { background: var(--warn); }
+.pipe-eta { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.pipe-eta.stalled { color: var(--warn); }
+.pipe-stage.wait { opacity: 0.72; }
+.pipe-stage.bad { border-color: rgba(255, 106, 92, 0.4); }
+.pipe-kicker {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pipe-state { font-size: 13px; font-weight: 600; margin-top: 4px; }
+.pipe-stage.done .pipe-state { color: var(--good); }
+.pipe-stage.active .pipe-state { color: var(--accent); }
+.pipe-stage.bad .pipe-state { color: var(--bad); }
+.pipe-detail {
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.feed-item, .emp, .emp .muted, .emp .task {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.standup-headline { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+.standup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; margin-top: 12px; }
+.standup-grid h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.standup-grid ul { margin: 0; padding-left: 18px; }
+.card ul.plain { margin: 8px 0 0; padding-left: 18px; }
+.card ul.plain li { margin: 0 0 6px; }
+.standup-grid li { margin: 0 0 7px; line-height: 1.4; }
+.blocker-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.blocker {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.blocker.blocking { border-color: rgba(255,106,92,.4); color: var(--bad); }
+.blocker.waiting { border-color: rgba(240,180,41,.4); color: var(--warn); }
+@media (max-width: 980px) {
+  .standup-grid { grid-template-columns: 1fr; }
+}
+.job-list { display: grid; gap: 8px; margin-top: 12px; }
+@media (max-width: 980px) {
+  .pipe-stage + .pipe-stage { border-left: 1px solid var(--line); border-top: 0; }
+  .pipeline { flex-direction: column; }
+  .pipe-stage:first-child, .pipe-stage:last-child { border-radius: 12px; }
+}
+.hidden { display: none !important; }
+.menu-btn { display: none; }
+@media (max-width: 980px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed; left: 0; top: 0; z-index: 15;
+    transform: translateX(-100%);
+    transition: transform 180ms ease;
+  }
+  .sidebar.open { transform: none; }
+  .menu-btn { display: inline-flex; }
+  .topbar, #viewInner { padding-left: 16px; padding-right: 16px; }
+  .status-row { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
-<header>
-<div><h1>EMPLOYEE FLOOR</h1><div class="muted" id="mode">loading</div></div>
-<div>
-<input id="token" placeholder="API token" size="28"/>
-<button onclick="saveToken()">Save token</button>
-<button class="danger" onclick="kill()">Kill switch</button>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">MAR</div>
+      <div class="brand-sub">Desk</div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sidebar-foot">
+      <div class="pill"><span class="dot" id="liveDot"></span><span id="liveLabel">Connecting</span></div>
+      <div class="faint" style="margin-top:10px;font-size:12px" id="clock"></div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn ghost menu-btn" onclick="toggleNav()">Menu</button>
+        <div>
+          <h1 class="page-title" id="pageTitle">Overview</h1>
+          <div class="page-kicker" id="pageKicker">Firm status at a glance</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="pill" id="modePill">paper</span>
+        <button class="btn ghost" onclick="load(true)">Refresh</button>
+        <button class="btn" onclick="openSettings()">Token</button>
+        <button class="btn danger" onclick="openKill()">Halt</button>
+      </div>
+    </header>
+    <main class="content" id="view"><div id="viewInner"></div></main>
+  </div>
 </div>
-</header>
-<main>
-<section class="card" id="golive"></section>
-<section><h2>Employees</h2><div class="grid" id="employees"></div></section>
-<section class="grid">
-<div class="card"><h2>Activity</h2><div id="activity"></div></div>
-<div class="card"><h2>Decision inbox</h2><div id="inbox"></div></div>
-<div class="card"><h2>Risk</h2><div id="risk"></div></div>
-</section>
-<section class="card"><h2>Sentiment</h2><div class="heat" id="sentiment"></div></section>
-<section class="card"><h2>Research</h2><div id="research"></div></section>
-<section class="card"><h2>Trade blotter</h2><div id="trades"></div></section>
-</main>
+<div class="modal-back" id="modal"></div>
+<div class="toast" id="toast"></div>
 <script>
 const API = localStorage.getItem("firmApiBase") || "";
-document.getElementById("token").value = localStorage.getItem("firmApiToken") || "";
-function saveToken(){localStorage.setItem("firmApiToken", document.getElementById("token").value)}
-function headers(){const t=localStorage.getItem("firmApiToken")||"";return t?{"X-API-Token":t,"Content-Type":"application/json"}:{"Content-Type":"application/json"}}
-async function get(p){return (await fetch(API+p)).json()}
-async function post(p,b){return (await fetch(API+p,{method:"POST",headers:headers(),body:JSON.stringify(b||{})})).json()}
-async function kill(){if(!confirm("Trip the kill switch?"))return;await post("/api/risk/kill",{detail:"manual halt from dashboard",operator:"operator"});load()}
-async function decide(id,approved){await post("/api/inbox/"+id+"/decide",{approved,decided_by:"operator",reason:"dashboard"});load()}
-function esc(s){return String(s??"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]))}
-async function load(){
-const [floor,risk,trades,golive]=await Promise.all([get("/api/floor"),get("/api/risk"),get("/api/trades"),get("/api/go-live")]);
-document.getElementById("mode").textContent=risk.mode+" · kill "+(risk.kill_switch.tripped?"TRIPPED":"clear");
-document.getElementById("golive").innerHTML=`<strong class="${golive.ready?"ok":"warn"}">${esc(golive.verdict)}</strong><div class="muted">`+(golive.gates||[]).map(g=>`${g.passed?"✓":"✗"} ${esc(g.name)} — ${esc(g.detail)}`).join("<br>")+"</div>";
-document.getElementById("employees").innerHTML=(floor.employees||[]).map(e=>{const t=e.trust||{};return `<div class="card"><strong>${esc(e.role||e.agent)}</strong><div class="muted">${esc(e.status)} · ${esc(t.level_label||"L1")}</div><div>${esc(e.current_task||"—")}</div><div class="muted">hit ${t.hit_rate_pct??0}% · PnL ${t.pnl_attribution??0} · today $${e.spend_today_usd??0}</div></div>`}).join("");
-document.getElementById("activity").innerHTML=(floor.activity||[]).slice(0,12).map(a=>`<div><strong>${esc(a.agent)}</strong> <span class="muted">${esc(a.status)}</span><div>${esc((a.reasoning||a.task||"").slice(0,140))}</div></div>`).join("");
-document.getElementById("inbox").innerHTML=(floor.inbox||[]).map(p=>`<div><strong>${esc(p.title)}</strong> <span class="muted">${esc(p.agent)}</span><div>${esc((p.rationale||"").slice(0,140))}</div><button onclick="decide(${p.id},true)">Approve</button> <button onclick="decide(${p.id},false)">Reject</button></div>`).join("")||"<div class='muted'>Empty</div>";
-document.getElementById("risk").innerHTML=`<div>Kill: <span class="${risk.kill_switch.tripped?"bad":"ok"}">${risk.kill_switch.tripped?"TRIPPED":"clear"}</span></div><div class="muted">${esc(risk.kill_switch.detail||"")}</div><div>Open positions: ${(risk.open_positions||[]).length}</div>`;
-document.getElementById("sentiment").innerHTML=(floor.sentiment||[]).map(s=>`<div class="chip" style="background:hsl(${120*(s.score+1)/2} 40% 22%)">${esc(s.symbol)}<br>${s.score} · ${esc(s.hype_stage)}</div>`).join("")||"<div class='muted'>No readings yet</div>";
-document.getElementById("research").innerHTML=(floor.research||[]).map(r=>`<div><strong>${esc(r.status)}</strong> ${esc((r.hypothesis||"").slice(0,180))}</div>`).join("")||"<div class='muted'>No hypotheses yet</div>";
-document.getElementById("trades").innerHTML="<table><tr><th>Symbol</th><th>Side</th><th>PnL</th><th>Agents</th><th>Why</th></tr>"+(trades||[]).map(t=>`<tr><td>${esc(t.symbol)}</td><td>${esc(t.side)}</td><td class="${t.net_pnl>0?"ok":"bad"}">${t.net_pnl}</td><td>${esc((t.agents||[]).join(", "))}</td><td>${esc(t.exit_reason)}</td></tr>`).join("")+"</table>";
+const RESET_PHRASE = "I HAVE INVESTIGATED THE CAUSE";
+const VIEWS = [
+  ["overview", "Overview"],
+  ["health", "Health"],
+  ["floor", "Floor"],
+  ["blotter", "Blotter"],
+  ["positions", "Positions"],
+  ["strategies", "Strategies"],
+  ["inbox", "Inbox"],
+  ["research", "Research"],
+  ["sentiment", "Sentiment"],
+  ["gates", "Go-live"],
+  ["controls", "Controls"],
+];
+const KICKERS = {
+  overview: "Daily standup — where we are, what needs you, what is next",
+  health: "Keys, last cycle, and why the blotter is quiet",
+  floor: "Ten employees, trust ladder, and current work",
+  blotter: "Closed round trips with costs and attribution",
+  positions: "Open book — mark, open P&L, stop, and target",
+  strategies: "Research-approved (live gate) vs operator paper vetoes vs rejects",
+  inbox: "Proposals that need a human, plus open escalations",
+  research: "Ranked next tests (clock/side follow-ups), then finished family verdicts",
+  sentiment: "Latest Grok / X readings per symbol",
+  gates: "Every live-trading condition, measured not hoped",
+  controls: "Token, kill switch, and the only legal reset",
+};
+let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {} };
+let lastError = "";
+
+function viewName() {
+  const hash = (location.hash || "#overview").slice(1);
+  return VIEWS.some(([id]) => id === hash) ? hash : "overview";
 }
-load(); setInterval(load,15000);
+function token() { return localStorage.getItem("firmApiToken") || ""; }
+async function ensureLocalToken() {
+  // Inbox approve no longer needs a token on localhost. Halt/wake still do;
+  // seed it from the loopback-only session so Controls is not a scavenger hunt.
+  if (token()) return;
+  try {
+    const session = await get("/api/local-session");
+    if (session && session.token) localStorage.setItem("firmApiToken", session.token);
+  } catch (_) { /* remote or API down — reads still work */ }
+}
+function headers() {
+  const t = token();
+  return t
+    ? { "X-API-Token": t, "Content-Type": "application/json" }
+    : { "Content-Type": "application/json" };
+}
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+function money(n, digits = 2) {
+  if (n == null || Number.isNaN(Number(n))) return "—";
+  const v = Number(n);
+  const sign = v < 0 ? "-" : "";
+  return sign + "$" + Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+function pct(n, digits = 2) {
+  if (n == null || Number.isNaN(Number(n))) return "—";
+  return Number(n).toFixed(digits) + "%";
+}
+function pnlClass(n) { return Number(n) > 0 ? "ok" : Number(n) < 0 ? "bad" : "muted"; }
+function when(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return esc(iso);
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function rel(iso) {
+  if (!iso) return "never";
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms)) return "—";
+  if (ms < 60_000) return "just now";
+  if (ms < 3_600_000) return Math.floor(ms / 60_000) + "m ago";
+  if (ms < 86_400_000) return Math.floor(ms / 3_600_000) + "h ago";
+  return Math.floor(ms / 86_400_000) + "d ago";
+}
+function stamp(iso) {
+  if (!iso) return "—";
+  return when(iso) + " · " + rel(iso);
+}
+function withinWindow(iso, window) {
+  if (!window || window === "all") return true;
+  const t = Date.parse(iso || "");
+  if (!Number.isFinite(t)) return false;
+  const span = { "1h": 3600000, "6h": 6 * 3600000, "24h": 86400000, "7d": 7 * 86400000 }[window];
+  return span ? Date.now() - t <= span : true;
+}
+function recencyOptions(selected) {
+  const opts = [["all", "Any time"], ["1h", "Last hour"], ["6h", "Last 6 hours"], ["24h", "Last 24 hours"], ["7d", "Last 7 days"]];
+  return opts.map(([v, label]) => `<option value="${v}" ${selected === v ? "selected" : ""}>${label}</option>`).join("");
+}
+const FILTER_IDS = [
+  "blotterQ", "blotterSide",
+  "integrityStatus", "integrityWhen", "integrityQ",
+  "stratStatus", "stratFamily", "stratWhen", "stratQ",
+  "inboxQ", "inboxWhen", "escalQ", "escalWhen", "escalSev",
+];
+function snapshotFilters() {
+  const out = {};
+  for (const id of FILTER_IDS) {
+    const el = document.getElementById(id);
+    if (el) out[id] = el.value;
+  }
+  return out;
+}
+let restoringUi = false;
+function restoreFilters(snap) {
+  restoringUi = true;
+  for (const [id, value] of Object.entries(snap || {})) {
+    const el = document.getElementById(id);
+    if (el && value != null) el.value = value;
+  }
+  restoringUi = false;
+}
+const PAGE_SIZES = {
+  integrity: 5,
+  inbox: 20,
+  escal: 10,
+  strat: 15,
+  blotter: 10,
+  rejects: 10,
+  jobs: 10,
+  activity: 10,
+  backlog: 10,
+  hypotheses: 10,
+  positions: 10,
+};
+function pageSize(id) {
+  return PAGE_SIZES[id] || 10;
+}
+const pages = {};
+const VIEW_PAGE_KEYS = {
+  strategies: ["strat", "integrity"],
+  blotter: ["blotter", "rejects"],
+  inbox: ["inbox", "escal"],
+  research: ["jobs", "backlog", "hypotheses"],
+  positions: ["positions"],
+  floor: ["activity", "jobs"],
+};
+function pageSlice(id, arr) {
+  const list = arr || [];
+  const size = pageSize(id);
+  const total = list.length;
+  const max = Math.max(1, Math.ceil(total / size) || 1);
+  let page = Number(pages[id] || 1) || 1;
+  if (page > max) page = max;
+  if (page < 1) page = 1;
+  pages[id] = page;
+  const start = (page - 1) * size;
+  const shown = Math.min(total, start + size);
+  return { items: list.slice(start, start + size), total, page, max, start, shown, size };
+}
+function pageWindow(page, max) {
+  if (max <= 7) return Array.from({ length: max }, (_, i) => i + 1);
+  const keep = new Set([1, max, page, page - 1, page + 1]);
+  if (page <= 3) [2, 3, 4].forEach((n) => keep.add(n));
+  if (page >= max - 2) [max - 1, max - 2, max - 3].forEach((n) => keep.add(n));
+  const nums = [...keep].filter((n) => n >= 1 && n <= max).sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < nums.length; i++) {
+    if (i && nums[i] - nums[i - 1] > 1) out.push("gap");
+    out.push(nums[i]);
+  }
+  return out;
+}
+function pagerHtml(id, sliced, noun) {
+  const { total, page, max, start, shown, size } = sliced;
+  if (!total || total <= (size || pageSize(id))) return "";
+  const label = `${start + 1}–${shown} of ${total}${noun ? " " + noun : ""}`;
+  const buttons = pageWindow(page, max).map((n) => {
+    if (n === "gap") return `<span class="pager-gap">…</span>`;
+    const current = n === page ? ` aria-current="page"` : "";
+    return `<button class="pager-btn" type="button"${current} onclick="goPage('${id}', ${n})" aria-label="Page ${n}">${n}</button>`;
+  }).join("");
+  return `<nav class="pager" data-pager="${id}" aria-label="Pagination">
+    <div class="pager-controls">
+      <button class="pager-btn nav" type="button" ${page <= 1 ? "disabled" : ""} onclick="goPage('${id}', ${page - 1})" aria-label="Previous page">${pagerChevron("prev")}</button>
+      ${buttons}
+      <button class="pager-btn nav" type="button" ${page >= max ? "disabled" : ""} onclick="goPage('${id}', ${page + 1})" aria-label="Next page">${pagerChevron("next")}</button>
+    </div>
+    <div class="pager-meta">${esc(label)}</div>
+  </nav>`;
+}
+function pagerChevron(dir) {
+  const d = dir === "prev" ? "M10.2 3.2 5.4 8l4.8 4.8-.9.9L3.6 8l5.7-5.7z" : "M5.8 3.2 10.6 8l-4.8 4.8.9.9L12.4 8 6.7 2.3z";
+  return `<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="${d}"/></svg>`;
+}
+function goPage(id, page) {
+  pages[id] = Math.max(1, Number(page) || 1);
+  render({ keepScroll: true, force: true });
+}
+function snapshotScroll() {
+  const view = document.getElementById("view");
+  const out = {
+    view: view ? view.scrollTop : 0,
+    windowX: window.scrollX,
+    windowY: window.scrollY,
+    doc: document.documentElement ? document.documentElement.scrollTop : 0,
+  };
+  document.querySelectorAll("[data-scroll]").forEach((el) => {
+    if (el.id) out[el.id] = el.scrollTop;
+  });
+  return out;
+}
+function restoreScroll(snap) {
+  if (!snap) return;
+  const apply = () => {
+    const view = document.getElementById("view");
+    if (view && typeof snap.view === "number") view.scrollTop = snap.view;
+    if (typeof snap.windowY === "number") window.scrollTo(snap.windowX || 0, snap.windowY);
+    if (document.documentElement && typeof snap.doc === "number") {
+      document.documentElement.scrollTop = snap.doc;
+    }
+    document.querySelectorAll("[data-scroll]").forEach((el) => {
+      if (el.id && typeof snap[el.id] === "number") el.scrollTop = snap[el.id];
+    });
+  };
+  apply();
+  requestAnimationFrame(() => {
+    apply();
+    requestAnimationFrame(apply);
+  });
+}
+function filterVal(id, fallback) {
+  const el = document.getElementById(id);
+  return el ? el.value : fallback;
+}
+function toast(msg, kind = "", ms = 4200) {
+  const el = document.getElementById("toast");
+  el.className = "toast show " + kind;
+  el.textContent = fmtErr(msg);
+  setTimeout(() => el.classList.remove("show"), ms);
+}
+function fmtErr(err) {
+  if (err == null || err === "") return "request failed";
+  if (typeof err === "string") return err;
+  if (Array.isArray(err)) return err.map(fmtErr).filter(Boolean).join("; ") || "request failed";
+  if (typeof err === "object") {
+    if (err.msg) return err.msg;
+    if (err.detail) return fmtErr(err.detail);
+    if (err.message) return fmtErr(err.message);
+    try { return JSON.stringify(err); } catch (_) { return "request failed"; }
+  }
+  return String(err);
+}
+function closeModal() { document.getElementById("modal").classList.remove("show"); document.getElementById("modal").innerHTML = ""; }
+function showModal(html) {
+  const el = document.getElementById("modal");
+  el.innerHTML = html;
+  el.classList.add("show");
+  el.onclick = (e) => { if (e.target === el) closeModal(); };
+}
+function toggleNav() { document.getElementById("sidebar").classList.toggle("open"); }
+
+async function get(path) {
+  const res = await fetch(API + path);
+  if (!res.ok) throw new Error(path + " " + res.status);
+  return res.json();
+}
+async function post(path, body) {
+  const res = await fetch(API + path, { method: "POST", headers: headers(), body: JSON.stringify(body || {}) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(fmtErr(data.detail) || (path + " " + res.status));
+  return data;
+}
+
+function renderNav() {
+  const inbox = (state.floor.inbox || []).length;
+  const positions = (state.risk.open_positions || []).length;
+  const counts = { inbox, positions, blotter: (state.trades || []).length };
+  document.getElementById("nav").innerHTML = VIEWS.map(([id, label]) => {
+    const active = viewName() === id ? "active" : "";
+    const count = counts[id] ? `<span class="count">${counts[id]}</span>` : "";
+    return `<button class="${active}" onclick="go('${id}')">${esc(label)}${count}</button>`;
+  }).join("");
+}
+function go(id) {
+  document.getElementById("sidebar").classList.remove("open");
+  if ((location.hash || "#overview").replace(/^#/, "") === id) {
+    render({ keepScroll: false, force: true });
+    return;
+  }
+  location.hash = id;
+}
+function onFilterChange() {
+  if (restoringUi) return;
+  for (const key of (VIEW_PAGE_KEYS[viewName()] || [])) pages[key] = 1;
+  render({ keepScroll: true, force: true });
+}
+
+function empty(title, body) {
+  return `<div class="empty"><strong>${esc(title)}</strong>${esc(body)}</div>`;
+}
+function regimeMetricsLine(metrics) {
+  if (!metrics || typeof metrics !== "object") return "";
+  const bits = [];
+  if (metrics.btc_positioning) bits.push(String(metrics.btc_positioning));
+  if (metrics.btc_oi_change_24h_pct != null) bits.push("OI 24h " + Number(metrics.btc_oi_change_24h_pct).toFixed(1) + "%");
+  if (metrics.btc_funding_rate_8h_pct != null) bits.push("fund " + Number(metrics.btc_funding_rate_8h_pct).toFixed(3) + "%/8h");
+  if (metrics.eth_btc != null) bits.push("ETH/BTC " + Number(metrics.eth_btc).toFixed(4));
+  if (!bits.length) return "";
+  return `<div class="muted" style="margin-top:6px">${esc(bits.join(" · "))}</div>`;
+}
+function positioningCard() {
+  const pos = (state.floor || {}).positioning || {};
+  const symbols = pos.symbols || {};
+  const rows = Object.keys(symbols).sort().map((sym) => [sym, symbols[sym] || {}]);
+  const cross = pos.cross || {};
+  const asOf = pos.as_of ? rel(pos.as_of) : "";
+  if (!rows.length) {
+    return `<div class="card" style="margin-bottom:16px"><h2>Positioning</h2>${empty("No OI snapshot yet", "The paper clock and regime analyst fetch Bybit open interest, funding, and account long/short. Paper skips crowded-with-the-crowd entries; live is unchanged.")}</div>`;
+  }
+  const crossLine = [
+    cross.eth_btc != null ? "ETH/BTC " + Number(cross.eth_btc).toFixed(4) : "",
+    cross.eth_btc_7d_pct != null ? "7d " + Number(cross.eth_btc_7d_pct).toFixed(2) + "%" : "",
+    asOf ? "as of " + asOf : "",
+  ].filter(Boolean).join(" · ");
+  const body = rows.map(([sym, row]) => {
+    const oi = row.oi_change_24h_pct;
+    const fund = row.funding_rate_8h_pct;
+    const buy = row.buy_ratio;
+    const label = row.label || "—";
+    const labelClass = label.indexOf("crowded") >= 0 ? "warn" : (label.indexOf("lean") >= 0 ? "muted" : "ok");
+    return `<tr>
+      <td>${esc(sym)}</td>
+      <td class="num">${oi == null ? "—" : (Number(oi) >= 0 ? "+" : "") + Number(oi).toFixed(1) + "%"}</td>
+      <td class="num">${fund == null ? "—" : Number(fund).toFixed(3) + "%"}</td>
+      <td class="num">${buy == null ? "—" : (Number(buy) * 100).toFixed(1) + "%"}</td>
+      <td class="${labelClass}">${esc(label)}</td>
+    </tr>`;
+  }).join("");
+  return `<div class="card" style="margin-bottom:16px">
+    <h2>Positioning</h2>
+    <div class="muted" style="margin-bottom:8px">Paper overlay skips adding to crowded longs/shorts and sizes down when accounts already lean with the trade. Never enlarges. ${esc(crossLine)}</div>
+    <table>
+      <thead><tr><th>Symbol</th><th>OI 24h</th><th>Funding /8h</th><th>Acct long</th><th>Book</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderOverview() {
+  const risk = state.risk || {};
+  const perf = risk.performance || {};
+  const eq = risk.equity || (state.equity || []).at(-1) || {};
+  const golive = state.golive || {};
+  const advice = (state.floor.advice || {});
+  const regime = state.floor.regime;
+  const killed = !!(risk.kill_switch && risk.kill_switch.tripped);
+  const ready = !!golive.ready;
+  const strat = state.strategies || {};
+  const approvedN = Number(strat.approved_count || 0);
+  const paperN = Number(strat.paper_override_count || 0);
+  const bannerClass = killed ? "bad" : ready ? "ok" : "warn";
+  const bannerTitle = killed ? "Kill switch is tripped. No new risk." : (golive.verdict || "STAY IN PAPER");
+  const bannerBody = killed
+    ? (risk.kill_switch.detail || "Trading is halted until a human resets with the investigation phrase.")
+    : `${approvedN} research-approved (live still gated). ${paperN} on paper by operator veto.`;
+  const positions = risk.open_positions || [];
+  const activity = (state.floor.activity || []).slice(0, 8);
+  const cont = (state.floor.pipeline || {}).continuity || {};
+  return `
+    <div class="banner ${bannerClass}">
+      <strong>${esc(bannerTitle)}</strong>
+      <div class="muted" style="margin-top:6px">${esc(bannerBody)}</div>
+    </div>
+    ${standupCard()}
+    ${dutyCard()}
+    ${orgCard()}
+    <section class="kpis">
+      ${kpi("Equity", money(eq.equity), eq.recorded_at ? "as of " + rel(eq.recorded_at) : "no snapshot yet")}
+      ${kpi("Net P&amp;L", money(perf.net_pnl), (perf.trades || 0) + " closed trades", pnlClass(perf.net_pnl))}
+      ${kpi("Win rate", perf.trades ? pct(perf.win_rate) : "—", perf.profit_factor != null ? "PF " + perf.profit_factor : "no sample")}
+      ${kpi("Open risk", String(positions.length), money(eq.exposure || 0) + " notional")}
+      ${kpi("Drawdown", eq.drawdown_pct != null ? pct(eq.drawdown_pct) : "—", "peak " + money(eq.peak_equity))}
+      ${kpi("Inbox", String((state.floor.inbox || []).length), (state.floor.escalations || []).length + " escalations")}
+      ${kpi("Walk-forward", String((cont.running || 0)), (cont.standby_depth || 0) + " standby · " + (cont.dropped_event_count || 0) + " dropped events", (cont.open_invariant_violations || 0) ? "bad" : "ok")}
+      ${kpi("Gemini", ((state.llm.providers || {}).gemini || {}).configured ? "ready" : "missing", "cheap/standard/strong seats", ((state.llm.providers || {}).gemini || {}).configured ? "ok" : "bad")}
+    </section>
+    <section class="grid-2">
+      <div class="card">
+        <h2>Equity</h2>
+        <div class="spark-wrap"><canvas id="equitySpark"></canvas></div>
+        <div class="muted" style="margin-top:8px">${(state.equity || []).length ? (state.equity.length + " snapshots") : "Paper clock has not written a curve yet."}</div>
+      </div>
+      <div class="card">
+        <h2>Regime &amp; advice</h2>
+        ${regime ? `<div><strong>${esc(regime.regime || "regime")}</strong> <span class="muted">${esc(regime.volatility_bucket || "")} · ${esc(regime.btc_trend || "")}</span><div class="muted">${esc((regime.reasoning || "").slice(0, 220))}</div>${regimeMetricsLine(regime.metrics || {})}</div>` : empty("No regime yet", "The regime analyst has not posted a reading.")}
+        ${advice.sit_out ? `<div class="warn" style="margin-top:10px">Employees asked the book to sit out this cycle.</div>` : ""}
+        ${Object.keys(advice.vetoes || {}).length ? `<div class="bad" style="margin-top:6px">Vetoes: ${esc(Object.entries(advice.vetoes).map(([s, a]) => s + " (" + a + ")").join(", "))}</div>` : ""}
+        ${Object.keys(advice.size_multipliers || {}).length ? `<div class="muted" style="margin-top:6px">Size cuts: ${esc(Object.entries(advice.size_multipliers).map(([s, m]) => s + " ×" + m).join(", "))}</div>` : ""}
+        ${(advice.notes || []).length ? `<div class="muted" style="margin-top:6px">${esc(advice.notes.slice(0, 3).join(" · "))}</div>` : ""}
+      </div>
+    </section>
+    ${positioningCard()}
+    <section class="grid-2">
+      <div class="card">
+        <h2>Open positions</h2>
+        ${positionsTable(positions.slice(0, 5), false, false)}
+      </div>
+      <div class="card">
+        <h2>Latest activity</h2>
+        ${activity.length ? activity.map(activityRow).join("") : empty("Floor is quiet", "Start paper trading or wait for the next employee cadence.")}
+      </div>
+    </section>
+    ${pipelineCard()}
+    ${paperOverrideCard()}
+    ${state.rejections.length ? `<div class="card"><h2>Recent rejections</h2>${rejectionList(state.rejections.slice(0, 6))}</div>` : ""}
+  `;
+}
+
+function kpi(label, value, hint, klass = "") {
+  return `<article class="kpi"><div class="label">${label}</div><div class="value num ${klass}">${value}</div><div class="hint">${hint || ""}</div></article>`;
+}
+
+function dutyCard() {
+  const acc = state.floor.accountability || {};
+  const slips = acc.slips || [];
+  const duties = acc.duties || [];
+  const fails = acc.llm_failures || [];
+  if (!duties.length && !slips.length) return "";
+  const slipRows = slips.length
+    ? `<div class="banner warn" style="margin-bottom:12px"><strong>${slips.length} slip(s)</strong>
+        <ul>${slips.map(s => `<li><strong>${esc(s.owner)}</strong> — ${esc(s.issue)} <span class="muted">${esc(s.expected || "")}</span></li>`).join("")}</ul>
+      </div>`
+    : `<div class="muted" style="margin-bottom:10px">No slips. Bottom flagged work; top has nothing overdue.</div>`;
+  const failRows = fails.length
+    ? `<div class="bad" style="margin-bottom:10px">Live LLM failures (GM + Ops): ${fails.map(f => esc((f.agent || "") + ": " + String(f.error || "").slice(0, 80))).join(" · ")}</div>`
+    : "";
+  const table = duties.map(d => `<div class="feed-item">
+      <div><strong>${esc(d.title || d.id)}</strong>
+        <span class="badge ${d.on_track ? "ok" : "bad"}">${d.on_track ? "on track" : "slipping"}</span>
+      </div>
+      <div class="muted">${esc(d.goal || "")}</div>
+      <div class="muted">${esc(d.target || "")}</div>
+    </div>`).join("");
+  return `<div class="card">
+    <h2>Duty board</h2>
+    <p class="muted">${esc(acc.note || "Who owns the current stall. Trust-ladder P&L is not this KPI.")}</p>
+    ${slipRows}
+    ${failRows}
+    <div class="feed">${table}</div>
+  </div>`;
+}
+
+function orgCard() {
+  const org = state.floor.org || {};
+  if (!org.gm_title) return "";
+  const seats = (org.employees || []).map(e => `<div class="feed-item">
+      <div><strong>${esc(e.title)}</strong> <span class="muted">${esc(e.cadence || "")}</span></div>
+      <div class="muted">${esc(e.does || e.mandate || "")}</div>
+      ${e.does_not ? `<div class="muted">Not: ${esc(e.does_not)}</div>` : ""}
+    </div>`).join("");
+  const gates = (org.gates || []).map(g => `<li>${esc(g)}</li>`).join("");
+  return `<div class="card">
+    <h2>Who runs daily ops</h2>
+    <p class="muted">${esc(org.note || "")}</p>
+    <div><strong>${esc(org.gm_title)}</strong> — ${esc(org.gm_mandate || "")}</div>
+    <h3 style="margin-top:14px">Your gates</h3>
+    <ul class="plain">${gates}</ul>
+    <h3 style="margin-top:14px">The floor</h3>
+    <div class="feed">${seats}</div>
+  </div>`;
+}
+
+function standupCard() {
+  const s = state.floor.standup || {};
+  if (!s.headline) {
+    return `<div class="card">${empty("Standup not loaded", "Hard-refresh after the API restarts. This card is the daily brief.")}</div>`;
+  }
+  const list = (rows) => `<ul>${(rows || []).map(r => `<li>${esc(r)}</li>`).join("")}</ul>`;
+  const blockers = (s.blockers || []).map(b => `<span class="blocker ${esc(b.level || "waiting")}">${esc(b.text)}</span>`).join("");
+  return `<div class="card">
+    <h2>Daily standup</h2>
+    <div class="standup-headline">${esc(s.headline)}</div>
+    <div class="muted">${esc(s.now_label || "")}</div>
+    <div class="standup-grid">
+      <div><h3>Happening now</h3>${list(s.happening_now)}</div>
+      <div><h3>Needs you</h3>${list(s.needs_you)}</div>
+      <div><h3>Taken</h3>${list(s.taken)}</div>
+      <div><h3>What’s next</h3>${list(s.next)}</div>
+    </div>
+    ${blockers ? `<div class="blocker-row">${blockers}</div>` : ""}
+  </div>`;
+}
+
+function renderFloor() {
+  const employees = state.floor.employees || [];
+  if (!employees.length) return empty("No employees loaded", "The orchestrator has not registered the floor yet.");
+  return `<div class="toolbar">
+      <button class="btn accent" onclick="wakeFloor()">Wake floor</button>
+      <span class="muted">Runs every employee whose seat has a key. Sentiment stays skipped until an xAI key is set.</span>
+    </div>
+    <section class="employees">${employees.map(empCard).join("")}</section>
+    <div class="card"><h2>Activity</h2>${(() => {
+      const sliced = pageSlice("activity", state.floor.activity || []);
+      return `<div class="feed" data-page-list="activity">${sliced.items.map(activityRow).join("") || empty("No runs yet", "Employees appear here after their first cycle.")}</div>${pagerHtml("activity", sliced, "runs")}`;
+    })()}</div>
+    ${pipelineCard()}`;
+}
+
+function pipelineCard() {
+  const pipe = state.floor.pipeline || {};
+  const stages = pipe.stages || [];
+  const jobs = pipe.jobs || [];
+  const now = pipe.now || {};
+  const stateLabel = { done: "Done", active: "In progress", wait: "Waiting", bad: "Failed" };
+  const nowClass = now.state === "bad" ? "bad" : now.state === "active" ? "ok" : now.state === "done" ? "ok" : "warn";
+  const nowBlock = now.label
+    ? `<div class="banner ${nowClass}" style="margin-bottom:12px">
+        <strong>${esc(now.label)}</strong>
+        <div class="muted" style="margin-top:6px">${esc(now.detail || pipe.note || "")}</div>
+      </div>`
+    : "";
+  const strip = stages.length
+    ? `<div class="pipeline">${stages.map(s => {
+        const live = !!s.current;
+        const pct = s.progress;
+        const showBar = (live || s.stalled) && typeof pct === "number";
+        const bar = showBar
+          ? `<div class="pipe-bar ${s.stalled ? "stalled" : ""}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>
+             <div class="pipe-eta ${s.stalled ? "stalled" : ""}">${Math.round(pct)}% · ${esc(s.progress_label || (s.stalled ? "Stalled" : ""))}</div>`
+          : "";
+        const status = live
+          ? `<div class="pipe-now">${s.stalled ? "Stalled" : "In progress"}</div>`
+          : `<div class="pipe-state">${esc(s.state === "active" ? "Queued" : (stateLabel[s.state] || s.state || "Waiting"))}</div>`;
+        return `<div class="pipe-stage ${esc(s.state || "wait")}${live ? " current" : ""}${s.stalled ? " stalled" : ""}">
+        <div class="pipe-kicker">${esc(s.label)}</div>
+        ${status}
+        <div class="pipe-detail">${esc(s.detail || "")}</div>
+        ${bar}
+      </div>`;
+      }).join("")}</div>`
+    : empty("Pipeline not loaded", "Refresh the desk after the API restarts.");
+  const jobSliced = pageSlice("jobs", jobs.slice().reverse());
+  const jobRows = jobs.length
+    ? `<div class="job-list" data-page-list="jobs">${jobSliced.items.map(j => `<div class="feed-item">
+        <div><strong>${esc(j.family || "job")}</strong> <span class="badge ${j.status === "running" || j.status === "queued" ? "ok" : j.status === "failed" ? "bad" : ""}">${esc(j.status || "")}</span>
+          <span class="muted">${esc((j.symbols || []).join(", "))}</span>
+          <span class="muted">${esc(rel(j.started_at || j.created_at))}</span>
+        </div>
+        <div class="muted">${esc(j.detail || "")}</div>
+      </div>`).join("")}</div>${pagerHtml("jobs", jobSliced, "jobs")}`
+    : `<div class="muted" style="margin-top:10px">No walk-forward jobs yet. Tier A starts from standby when a slot is free.</div>`;
+  return `<div class="card">
+    <h2>Research pipeline</h2>
+    <p class="muted">Catalog → standby → walk-forward (Tier A auto-starts). Paper-to-live is still a hard human gate. Hit%/PnL on employee cards are the wrong KPI until a pair is approved — use throughput below.</p>
+    ${nowBlock}
+    ${strip}
+    ${continuityPanel(pipe.continuity || {})}
+    ${jobRows}
+  </div>`;
+}
+
+function continuityPanel(c) {
+  const tickets = c.tickets || [];
+  const alarm = (c.open_invariant_violations || 0) > 0 || (c.dropped_event_count || 0) > 0;
+  const thr = c.thresholds || {};
+  const ticketRows = tickets.length
+    ? tickets.map(t => `<div class="feed-item">
+        <div><span class="badge ${t.severity === "critical" ? "bad" : "warn"}">${esc(t.owner || "")}</span>
+          <strong>${esc(t.invariant || t.id || "ticket")}</strong>
+          <span class="muted">SLA ${esc(t.sla || "")} · ×${esc(t.occurrence_count || 1)}</span>
+        </div>
+        <div class="muted">${esc(t.detail || "")}</div>
+        <div class="muted">Next: ${esc(t.next_action || "")}</div>
+      </div>`).join("")
+    : `<div class="muted">No open invariant tickets.</div>`;
+  return `<div class="${alarm ? "banner warn" : ""}" style="margin:12px 0;padding:10px;border-radius:10px">
+    <div class="meta-row">
+      <span>WF/week ${esc(c.families_entering_wf_per_week ?? 0)}</span>
+      <span>Running ${esc(c.running ?? 0)}</span>
+      <span>Standby ${esc(c.standby_depth ?? 0)}</span>
+      <span>Catalog ${esc(c.catalog_depth ?? 0)}</span>
+      <span>Dropped events ${esc(c.dropped_event_count ?? 0)}</span>
+      <span>Tickets ${esc(c.open_invariant_violations ?? 0)}</span>
+    </div>
+    <div class="muted" style="margin-top:6px">${esc(thr.note || "Acceptance: PF ≥ 1.15, fold stability, expectancy CI. 0/6 is a real reject.")}</div>
+    ${ticketRows}
+  </div>`;
+}
+
+function integrityCard() {
+  const pack = state.floor.integrity || {};
+  const jobs = pack.jobs || [];
+  const paper = pack.paper || {};
+  const bannerClass = pack.ok ? "ok" : "warn";
+  const status = filterVal("integrityStatus", "failed");
+  const whenWin = filterVal("integrityWhen", "all");
+  const q = (filterVal("integrityQ", "") || "").toLowerCase();
+  const stamped = jobs.map(j => ({ ...j, _at: j.occurred_at || j.finished_at || j.started_at || j.created_at }));
+  const failedN = jobs.filter(j => !j.ok).length;
+  const certifiedN = jobs.filter(j => j.ok).length;
+  const filtered = stamped
+    .filter(j => {
+      if (status === "failed" && j.ok) return false;
+      if (status === "certified" && !j.ok) return false;
+      if (!withinWindow(j._at, whenWin)) return false;
+      const hay = `${j.job_id} ${j.family || ""} ${j.clock || ""}`.toLowerCase();
+      return !q || hay.includes(q);
+    })
+    .sort((a, b) => (Date.parse(b._at || "") || 0) - (Date.parse(a._at || "") || 0));
+  const sliced = pageSlice("integrity", filtered);
+  const jobRows = sliced.items.length
+    ? sliced.items.map(j => {
+        const fails = (j.checks || []).filter(c => !c.ok);
+        const warn = (j.warnings || []).join(" ");
+        const detail = fails.length ? fails.map(c => c.name + ": " + c.detail).join(" · ") : (warn || "Family, clock, costs, and written verdicts match.");
+        return `<div class="feed-item">
+          <div><span class="badge ${j.ok ? "ok" : "bad"}">${j.ok ? "certified" : "failed"}</span>
+            <strong>job ${esc(j.job_id)} ${esc(j.family || "")}</strong>
+            <span class="muted">${esc(j.clock || "")}</span>
+            <span class="muted">${j.oos_pairs != null ? j.oos_pairs + " pairs" : ""}</span>
+            <span class="stamp" title="${esc(j._at || "")}">${esc(stamp(j._at))}</span>
+          </div>
+          <div class="muted clip" title="${esc(detail)}">${esc(detail)}</div>
+        </div>`;
+      }).join("")
+    : `<div class="muted">${jobs.length ? "No findings match these filters." : "No finished walk-forwards to certify yet."}</div>`;
+  const paperFails = (paper.checks || []).filter(c => !c.ok);
+  const impl = pack.implementation || {};
+  const implFails = (impl.checks || []).filter(c => !c.ok);
+  const paperOk = !!paper.ok;
+  const mandateOk = impl.ok !== false && !implFails.length;
+  const paperDetail = paperFails.length ? paperFails.map(c => c.detail).join(" · ") : "Paper is scanning the sleeve under test.";
+  const mandateDetail = implFails.length ? implFails.map(c => c.name + ": " + c.detail).join(" · ") : "Approved coding mandates have a registry file.";
+  return `<div class="card">
+    <h2>Integrity — Performance Auditor</h2>
+    <div class="banner ${bannerClass}" style="margin-bottom:12px">
+      <strong>${pack.ok ? "Setup certified" : "Integrity has findings"}</strong>
+      <div class="muted" style="margin-top:6px">${esc(pack.note || "Certifies that tests and paper ran the intended sleeve, clock, and costs.")}</div>
+    </div>
+    <div class="status-row">
+      <div class="status-chip">
+        <div class="row"><span class="badge ${paperOk ? "ok" : "bad"}">${paperOk ? "paper ok" : "paper mismatch"}</span>
+          <strong class="clip">${esc(paper.scan_family || "paper")}</strong>
+          <span class="muted clip">${esc(paper.clock || "")}</span>
+        </div>
+        <div class="muted clip" title="${esc(paperDetail)}">${esc(paperDetail)}</div>
+      </div>
+      <div class="status-chip">
+        <div class="row"><span class="badge ${mandateOk ? "ok" : "bad"}">${mandateOk ? "coding ok" : "coding missing"}</span>
+          <strong>mandates</strong>
+        </div>
+        <div class="muted clip" title="${esc(mandateDetail)}">${esc(mandateDetail)}</div>
+      </div>
+    </div>
+    <div class="toolbar filters">
+      <select class="field" id="integrityStatus" onchange="onFilterChange()">
+        <option value="failed" ${status === "failed" ? "selected" : ""}>Failed (${failedN})</option>
+        <option value="certified" ${status === "certified" ? "selected" : ""}>Certified (${certifiedN})</option>
+        <option value="all" ${status === "all" ? "selected" : ""}>All jobs (${jobs.length})</option>
+      </select>
+      <select class="field" id="integrityWhen" onchange="onFilterChange()">${recencyOptions(whenWin)}</select>
+      <input class="field" id="integrityQ" placeholder="Family, clock, or job #" oninput="onFilterChange()" value="${esc(q)}"/>
+      <span class="filter-count">${filtered.length} of ${jobs.length} · newest first</span>
+    </div>
+    <div id="integrityList" data-page-list="integrity">${jobRows}</div>
+    ${pagerHtml("integrity", sliced, "jobs")}
+  </div>`;
+}
+
+function prettyTask(row) {
+  const task = String((row && (row.current_task || row.task)) || "");
+  const agent = String((row && (row.agent || row.role)) || "").toLowerCase();
+  if (agent.includes("quant") && /weekly/i.test(task)) {
+    return "Propose next catalog family (when the pipeline is idle)";
+  }
+  return task || "Waiting for next cadence";
+}
+
+function empCard(e) {
+  const t = e.trust || {};
+  const status = (e.status || "never_run").toLowerCase();
+  const badge = status.includes("error") || status.includes("fail") ? "bad" : status === "ok" || status === "completed" || status === "success" ? "ok" : "l1";
+  const seat = e.model ? `${e.provider || ""} ${e.model}` : (e.tier || "");
+  const configured = e.tier === "deterministic" || e.llm_configured !== false;
+  return `<article class="card emp">
+    <div class="emp-top">
+      <div>
+        <div class="role">${esc(e.role || e.agent)}</div>
+        <div class="muted">${esc(e.agent || "")} · ${esc(e.cadence || "")} · ${esc(seat)}</div>
+      </div>
+      <div class="badge ${badge}">${esc(t.level_label || "L1 Advisor")}</div>
+    </div>
+    <div class="task">${esc(prettyTask(e))}</div>
+    ${e.does ? `<div style="margin-top:8px"><strong>Responsible for</strong><div class="muted">${esc(e.does)}</div></div>` : ""}
+    ${e.does_not ? `<div><strong>Not this seat</strong><div class="muted">${esc(e.does_not)}</div></div>` : ""}
+    ${e.mandate && !e.does ? `<div class="muted" style="margin-top:6px">${esc(e.mandate)}</div>` : ""}
+    ${e.goal ? `<div class="muted">Goal: ${esc(e.goal)}</div>` : ""}
+    ${e.target ? `<div class="muted">Target: ${esc(e.target)}</div>` : ""}
+    <div class="muted">${esc(e.last_reasoning || "No reasoning logged yet.")}</div>
+    ${e.last_error && !isStaleKeyError(e.last_error) ? `<div class="bad">${esc(String(e.last_error).slice(0, 180))}</div>` : ""}
+    ${configured ? "" : `<div class="warn">No API key for this seat — employee will skip.</div>`}
+    <div class="meta-row">
+      <span>Hit ${esc(t.hit_rate_pct ?? 0)}%</span>
+      <span class="${pnlClass(t.pnl_attribution)}">PnL ${money(t.pnl_attribution || 0)}</span>
+      <span>Today ${money(e.spend_today_usd || 0, 4)}</span>
+      <span>${esc(rel(e.last_run_at))}</span>
+    </div>
+  </article>`;
+}
+
+function isStaleKeyError(msg) {
+  const s = String(msg || "").toLowerCase();
+  return s.includes("api key") && (s.includes("deepseek") || s.includes("openai"));
+}
+
+function activityRow(a) {
+  const err = isStaleKeyError(a.error) ? "" : (a.error || "");
+  return `<div class="feed-item">
+    <div><strong>${esc(a.role || a.agent)}</strong> <span class="badge">${esc(a.status)}</span> <span class="muted">${esc(rel(a.started_at))}</span></div>
+    <div>${esc((a.reasoning || prettyTask(a) || "").slice(0, 180))}</div>
+    ${err ? `<div class="bad">${esc(err)}</div>` : ""}
+  </div>`;
+}
+
+function renderBlotter() {
+  const trades = state.trades || [];
+  const filters = `
+    <div class="toolbar">
+      <input class="field" id="blotterQ" placeholder="Filter symbol or reason" oninput="onFilterChange()"/>
+      <select class="field" id="blotterSide" onchange="onFilterChange()">
+        <option value="">All sides</option><option>LONG</option><option>SHORT</option>
+      </select>
+    </div>`;
+  if (!trades.length) {
+    const rejectSliced = pageSlice("rejects", state.rejections || []);
+    return `${filters}<div class="card">${empty("No fills yet", "The blotter stays empty until a signal clears risk and the paper (or live) broker fills it. If the strategy is rejected, that is expected — scanning does not mean trading.")}
+      ${rejectSliced.total ? `${rejectionList(rejectSliced.items)}${pagerHtml("rejects", rejectSliced, "rejections")}` : ""}</div>`;
+  }
+  const q = (document.getElementById("blotterQ")?.value || "").toLowerCase();
+  const side = document.getElementById("blotterSide")?.value || "";
+  const rows = trades.filter(t => {
+    const hay = (t.symbol + " " + (t.exit_reason || "") + " " + (t.strategy || "")).toLowerCase();
+    return (!q || hay.includes(q)) && (!side || t.side === side);
+  });
+  const sliced = pageSlice("blotter", rows);
+  const rejects = state.rejections || [];
+  const rejectSliced = pageSlice("rejects", rejects);
+  return `${filters}<div class="card">
+    <div data-page-list="blotter">
+    <table>
+      <thead><tr>
+        <th>Closed</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th>
+        <th>Gross</th><th>Fees</th><th>Net</th><th>Return</th><th>Why</th><th>Slip</th><th>Agents</th>
+      </tr></thead>
+      <tbody>${sliced.items.map(tradeRow).join("") || `<tr><td colspan="13">${empty("No rows match", "Clear the filter to see the full blotter.")}</td></tr>`}</tbody>
+    </table>
+    </div>
+    ${pagerHtml("blotter", sliced, "fills")}
+    ${rejects.length ? `<h2 style="margin-top:18px">Rejections</h2><div data-page-list="rejects">${rejectionList(rejectSliced.items)}</div>${pagerHtml("rejects", rejectSliced, "rejections")}` : ""}
+  </div>`;
+}
+
+function tradeRow(t) {
+  return `<tr>
+    <td class="muted">${esc(when(t.exit_time))}</td>
+    <td><strong>${esc(t.symbol)}</strong></td>
+    <td>${esc(t.side)}</td>
+    <td class="num">${esc(fmtQty(t.quantity))}</td>
+    <td class="num">${esc(fmtPx(t.entry_price))}</td>
+    <td class="num">${esc(fmtPx(t.exit_price))}</td>
+    <td class="num ${pnlClass(t.gross_pnl)}">${money(t.gross_pnl)}</td>
+    <td class="num muted">${money(t.fees)}</td>
+    <td class="num ${pnlClass(t.net_pnl)}">${money(t.net_pnl)}</td>
+    <td class="num ${pnlClass(t.return_pct)}">${pct(t.return_pct)}</td>
+    <td>${esc(prettyReason(t.exit_reason))}</td>
+    <td class="num muted">${t.entry_slippage_bps != null ? Number(t.entry_slippage_bps).toFixed(1) + " / " + Number(t.exit_slippage_bps || 0).toFixed(1) : "—"}</td>
+    <td class="muted">${esc((t.agents || []).join(", ") || "—")}</td>
+  </tr>`;
+}
+
+function prettyReason(r) {
+  return String(r || "—").replaceAll("_", " ");
+}
+function fmtQty(n) {
+  if (n == null) return "—";
+  const v = Number(n);
+  return v >= 1 ? v.toFixed(4) : v.toPrecision(4);
+}
+function fmtPx(n) {
+  if (n == null) return "—";
+  const v = Number(n);
+  return v >= 100 ? v.toFixed(2) : v >= 1 ? v.toFixed(4) : v.toPrecision(6);
+}
+
+function renderPositions() {
+  return `<div class="card">${positionsTable(state.risk.open_positions || [], true)}</div>`;
+}
+function positionsTable(rows, detailed = false, paged = true) {
+  if (!rows.length) return empty("Flat book", "No open positions. Size only appears here after a fill that has not yet hit stop, target, or time.");
+  const sliced = paged ? pageSlice("positions", rows) : { items: rows, total: rows.length, page: 1, max: 1, start: 0, shown: rows.length };
+  return `<div${paged ? ` data-page-list="positions"` : ""}>
+  <table>
+    <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Mark</th><th>Open P&amp;L</th><th>Notional</th><th>Stop</th><th>Target</th>${detailed ? "<th>Opened</th><th>Strategy</th><th>Agents</th>" : ""}</tr></thead>
+    <tbody>${sliced.items.map(p => `<tr>
+      <td><strong>${esc(p.symbol)}</strong></td>
+      <td>${esc(p.side)}${p.in_the_money === true ? ` <span class="badge ok">ITM</span>` : p.in_the_money === false ? ` <span class="badge bad">OTM</span>` : ""}</td>
+      <td class="num">${esc(fmtQty(p.quantity))}</td>
+      <td class="num">${esc(fmtPx(p.entry_price))}</td>
+      <td class="num">${esc(fmtPx(p.mark_price))}</td>
+      <td class="num ${pnlClass(p.unrealised_pnl)}">${money(p.unrealised_pnl)}${p.return_pct != null ? ` <span class="muted">${pct(p.return_pct)}</span>` : ""}</td>
+      <td class="num">${money(p.notional)}</td>
+      <td class="num">${esc(fmtPx(p.stop_loss))}</td>
+      <td class="num">${esc(fmtPx(p.take_profit))}</td>
+      ${detailed ? `<td class="muted">${esc(when(p.opened_at))}</td><td class="muted">${esc(p.strategy || "—")}</td><td class="muted">${esc((p.agents || []).join(", ") || "—")}</td>` : ""}
+    </tr>`).join("")}</tbody>
+  </table></div>${paged ? pagerHtml("positions", sliced, "positions") : ""}`;
+}
+
+function renderInbox() {
+  const inbox = state.floor.inbox || [];
+  const escals = state.floor.escalations || [];
+  const inboxQ = (filterVal("inboxQ", "") || "").toLowerCase();
+  const inboxWhen = filterVal("inboxWhen", "all");
+  const inboxRows = inbox
+    .filter(p => {
+      if (!withinWindow(p.created_at, inboxWhen)) return false;
+      const pay = p.payload || {};
+      const hay = `${p.title || ""} ${p.agent || ""} ${p.kind || ""} ${p.rationale || ""} ${pay.family || ""} ${pay.brief || ""}`.toLowerCase();
+      return !inboxQ || hay.includes(inboxQ);
+    })
+    .slice()
+    .sort((a, b) => {
+      const na = (a.payload && a.payload.novel) ? 1 : 0;
+      const nb = (b.payload && b.payload.novel) ? 1 : 0;
+      if (na !== nb) return nb - na;
+      return (Date.parse(b.created_at || "") || 0) - (Date.parse(a.created_at || "") || 0);
+    });
+  const escalQ = (filterVal("escalQ", "") || "").toLowerCase();
+  const escalWhen = filterVal("escalWhen", "all");
+  const escalSev = filterVal("escalSev", "all");
+  const escalRows = escals
+    .filter(e => {
+      if (escalSev !== "all" && (e.severity || "") !== escalSev && (e.lifecycle || "") !== escalSev) return false;
+      if (!withinWindow(e.created_at || e.last_seen_at, escalWhen)) return false;
+      const hay = `${e.title || ""} ${e.detail || ""} ${e.agent || ""} ${e.owner_seat || ""}`.toLowerCase();
+      return !escalQ || hay.includes(escalQ);
+    })
+    .slice()
+    .sort((a, b) => (Date.parse(b.created_at || b.last_seen_at || "") || 0) - (Date.parse(a.created_at || a.last_seen_at || "") || 0));
+  return `<div class="grid-2">
+    <div class="card">
+      <h2>Decision inbox</h2>
+      <div class="toolbar filters">
+        <input class="field" id="inboxQ" placeholder="Search title, agent, rationale" oninput="onFilterChange()" value="${esc(inboxQ)}"/>
+        <select class="field" id="inboxWhen" onchange="onFilterChange()">${recencyOptions(inboxWhen)}</select>
+        <span class="filter-count">${inboxRows.length} of ${inbox.length} · novel briefs first</span>
+      </div>
+      ${(() => {
+        const sliced = pageSlice("inbox", inboxRows);
+        return inboxRows.length ? `<div id="inboxList" data-page-list="inbox">${sliced.items.map(p => {
+          const pay = p.payload || {};
+          const brief = pay.brief || p.rationale || "";
+          const preview = String(brief).replace(/\s+/g, " ").slice(0, 280);
+          return `<div class="feed-item clickable" onclick="this.classList.toggle('open')">
+        <div><span class="badge">${esc(pay.novel ? "novel brief" : (p.kind || "proposal"))}</span> <strong>${esc(p.title)}</strong> <span class="muted">${esc(p.agent)}</span></div>
+        <div class="stamp" title="${esc(p.created_at || "")}">Logged ${esc(stamp(p.created_at))}${p.expires_at ? " · expires " + esc(when(p.expires_at)) : ""}</div>
+        <div>${esc(preview || "Click for the full brief.")}${brief && brief.length > 280 ? "…" : ""}</div>
+        <div class="research-why">
+          ${esc(brief || "No brief was stored on this proposal.")}
+          ${pay.brief_path ? `<div class="muted" style="margin-top:8px">${esc(pay.brief_path)}</div>` : ""}
+          ${pay.instruction ? `<div class="muted" style="margin-top:8px">${esc(pay.instruction)}</div>` : ""}
+        </div>
+        <div class="toolbar" style="margin-top:8px" onclick="event.stopPropagation()">
+          <button class="btn accent" onclick="decide(${p.id}, true)">Approve</button>
+          <button class="btn" onclick="decide(${p.id}, false)">Reject</button>
+        </div>
+      </div>`;
+        }).join("")}</div>${pagerHtml("inbox", sliced, "messages")}` : empty(inbox.length ? "No messages match these filters" : "Inbox is clear", inbox.length ? "Clear search or widen the time window." : "Novel coding briefs land here. Approve hands the instruction to Cursor. Tier A tests auto-start from standby.");
+      })()}
+    </div>
+    <div class="card">
+      <h2>Escalations</h2>
+      <div class="toolbar filters">
+        <select class="field" id="escalSev" onchange="onFilterChange()">
+          <option value="all" ${escalSev === "all" ? "selected" : ""}>All status</option>
+          <option value="open" ${escalSev === "open" ? "selected" : ""}>Open</option>
+          <option value="acknowledged" ${escalSev === "acknowledged" ? "selected" : ""}>Acknowledged</option>
+          <option value="warning" ${escalSev === "warning" ? "selected" : ""}>Warning</option>
+          <option value="critical" ${escalSev === "critical" ? "selected" : ""}>Critical</option>
+        </select>
+        <select class="field" id="escalWhen" onchange="onFilterChange()">${recencyOptions(escalWhen)}</select>
+        <input class="field" id="escalQ" placeholder="Search title or detail" oninput="onFilterChange()" value="${esc(escalQ)}"/>
+        <span class="filter-count">${escalRows.length} of ${escals.length}</span>
+      </div>
+      ${(() => {
+        const sliced = pageSlice("escal", escalRows);
+        return escalRows.length ? `<div id="escalList" data-page-list="escal">${sliced.items.map(e => `<div class="feed-item">
+        <div><span class="badge ${e.severity === "critical" ? "bad" : e.lifecycle === "acknowledged" ? "warn" : ""}">${esc(e.lifecycle || "open")}</span>
+          <strong>${esc(e.title || e.kind || "escalation")}</strong>
+          <span class="muted">${esc(e.owner_seat || e.agent || "")} · ×${esc(e.occurrence_count || 1)}</span>
+        </div>
+        <div class="stamp" title="${esc(e.created_at || "")}">Opened ${esc(stamp(e.created_at))}${e.last_seen_at && e.last_seen_at !== e.created_at ? " · last seen " + esc(rel(e.last_seen_at)) : ""}</div>
+        <div>${esc(e.detail || e.message || "")}</div>
+        <div class="toolbar" style="margin-top:8px">
+          ${e.lifecycle === "open" ? `<button class="btn" onclick="ack(${e.id})">Acknowledge</button>` : ""}
+          <button class="btn" onclick="resolveEscalation(${e.id})">Resolve</button>
+        </div>
+      </div>`).join("")}</div>${pagerHtml("escal", sliced, "tickets")}` : empty(escals.length ? "No escalations match these filters" : "Nothing escalated", escals.length ? "Clear search or widen the time window." : "Ops and the auditor raise items here when something needs you. Unresolved tickets age until resolved.");
+      })()}
+    </div>
+  </div>`;
+}
+
+function renderResearch() {
+  const plan = state.floor.research_plan || {};
+  const nextTests = plan.next_tests || [];
+  const toCode = plan.to_code || (plan.next_to_code ? [plan.next_to_code] : []);
+  const novelReady = plan.novel_ready || [];
+  const inFlight = plan.in_flight || [];
+  const families = plan.families || [];
+  const backlog = plan.backlog || [];
+  const lessons = plan.lessons || [];
+  const rows = state.floor.research || [];
+  const planBanner = `<div class="banner warn">
+      <strong>${esc(plan.note || "To code is uncoded families. Next tests are leftover walk-forwards of sleeves that already have a file.")}</strong>
+      <div class="muted" style="margin-top:6px">${esc(plan.method || "")}</div>
+    </div>`;
+  const toCodeCards = `<div class="card">
+      <h2>To code</h2>
+      <p class="muted">Each card is a written brief. Approve here or in Inbox — that click hands the instruction to Cursor. Sleeve Engineer does not write this Python.</p>
+      ${toCode.length ? `<section class="grid-3">${toCode.map(h => `<div class="card">
+        <h2>${h.novel ? "novel" : "template"} · ${esc(h.owner_label || h.owner || "")}</h2>
+        <div><strong>${esc(h.name || h.family || h.id)}</strong></div>
+        <div class="muted" style="margin-top:6px">${esc(h.family || "")} · ${esc(h.clock || "")} · ${esc(h.side || "BOTH")}</div>
+        <div style="margin-top:8px">${esc(h.coding_plan || h.summary || "")}</div>
+        ${h.brief ? `<div class="muted" style="margin-top:8px">${esc(h.brief)}</div>` : ""}
+        <div class="toolbar" style="margin-top:10px">
+          ${h.proposal_id ? `<button class="btn accent" onclick="decide(${h.proposal_id}, true)">Approve in Inbox</button>` : ""}
+          <button class="btn accent" onclick="codeFamily(${JSON.stringify(String(h.family || h.id || ""))})">Approve &amp; start</button>
+        </div>
+      </div>`).join("")}</section>` : `<div class="muted">Nothing waiting to be coded. Next tests below are walk-forwards of sleeves that already have a file. funding_fade still needs a feed.</div>`}
+    </div>`;
+  const novelReadyCard = `<div class="card">
+      <h2>Novel strategies ready (${novelReady.length} of 10 required)</h2>
+      <p class="muted">This is the list. Each family already has a written proposal + coding brief in Inbox. Approve that Inbox item (or Approve &amp; start above) — that click is what sends the instruction to Cursor. Do not paste it into chat.</p>
+      ${novelReady.length ? `<section class="grid-3">${novelReady.map(h => `<div class="card">
+        <h2>cursor</h2>
+        <div><strong>${esc(h.family)}</strong></div>
+        <div class="muted" style="margin-top:6px">${esc(h.clock || "")} · ${esc(h.side || "BOTH")}</div>
+        <div style="margin-top:8px">${esc(h.name || "")}</div>
+        <div class="muted" style="margin-top:8px">${esc(h.novel_reason || "")}</div>
+        ${h.brief ? `<div class="muted" style="margin-top:8px">${esc(h.brief)}</div>` : ""}
+      </div>`).join("")}</section>` : `<div class="muted">Novel list is empty — Quant missed the floor of 10.</div>`}
+    </div>`;
+  const nextCards = `<div class="card">
+      <h2>Next tests</h2>
+      <p class="muted">Walk-forward queue of <strong>already coded</strong> leftovers. This is not the coding list. Tier A auto-starts when a slot is free; integrity flags belong to Performance Auditor.</p>
+      ${inFlight.length ? `<div class="feed" style="margin-bottom:12px">${inFlight.map(j => `<div class="feed-item">
+        <div><span class="badge ${j.status === "running" || j.status === "queued" ? "ok" : "warn"}">${esc(j.status)}</span>
+          <strong>${esc(j.family)} ${esc(j.clock || "")} ${esc(j.side || "")}</strong>
+          <span class="muted">${esc(j.blocked_by || "")}</span>
+        </div>
+      </div>`).join("")}</div>` : ""}
+      ${nextTests.length ? `<section class="grid-3">${nextTests.map(h => `<div class="card">
+        <h2>rank ${esc(h.rank)} · tier ${esc(h.tier || "?")}</h2>
+        <div><strong>${esc(h.name || h.id)}</strong></div>
+        <div class="muted" style="margin-top:6px">${esc(h.family)} · ${esc(h.clock)} · ${esc(h.side)}${h.auto ? " · auto" : ""}</div>
+        <div class="muted" style="margin-top:6px">${esc(h.owner_label || h.owner || "")}</div>
+        <div style="margin-top:8px">${esc(h.justification || "")}</div>
+        ${(h.reasons || []).length ? `<div class="muted" style="margin-top:8px">${esc((h.reasons || []).join(" · "))}</div>` : ""}
+      </div>`).join("")}</section>` : `<div class="muted">Catalog is empty — Quant should replenish clock/side variants of coded sleeves.</div>`}
+    </div>`;
+  const lessonCard = lessons.length ? `<div class="card">
+      <h2>What the finished tests taught us</h2>
+      <div class="feed">${lessons.map(l => `<div class="feed-item">${esc(l)}</div>`).join("")}</div>
+    </div>` : "";
+  const familyCards = families.length ? `<div class="card">
+      <h2>Finished family verdicts</h2>
+      <p class="muted">These posters are not the queue. A rejected family can still have untested clocks/sides above.</p>
+    </div><section class="grid-3">${families.map(f => `<div class="card">
+      <h2>${esc(f.status)}</h2>
+      <div><strong>${esc(f.name)}</strong></div>
+      <div class="muted" style="margin-top:6px">${esc(f.summary || "")}</div>
+      <div class="meta-row" style="margin-top:10px">
+        <span>${f.coded ? "coded" : "not coded yet"}</span>
+        <span>${esc(f.next_step || "")}</span>
+      </div>
+    </div>`).join("")}</section>` : "";
+  const backlogSliced = pageSlice("backlog", backlog);
+  const backlogTable = backlog.length ? `<div class="card">
+      <h2>Ranked backlog — queue, do not spray</h2>
+      <p class="muted">These are the next families most likely to survive our gates given RSI and Donchian. Quant may propose one. None trade until coded and walk-forwarded.</p>
+      <table data-page-list="backlog">
+        <thead><tr><th>#</th><th>Family</th><th>Clock</th><th>Why this next</th><th>Needs</th></tr></thead>
+        <tbody>${backlogSliced.items.map(b => `<tr>
+          <td class="num">${esc(b.rank ?? "")}</td>
+          <td><strong>${esc(b.name)}</strong></td>
+          <td class="muted">${esc(b.clock || "—")}</td>
+          <td>${esc(b.why_this_next || "")}</td>
+          <td class="muted">${esc(b.needs || "")}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+      ${pagerHtml("backlog", backlogSliced, "families")}
+    </div>` : "";
+  const hypSliced = pageSlice("hypotheses", rows);
+  const list = rows.length
+    ? `<div class="card">
+        <h2>Proposed hypotheses</h2>
+        <p class="muted">Click a row for one or two sentences on why it was proposed.</p>
+        <div data-page-list="hypotheses">
+        ${hypSliced.items.map(r => {
+          const why = r.rationale || (r.metrics && (r.metrics.rationale || r.metrics.why_it_might_work)) || "";
+          const fail = r.why_it_might_fail || (r.metrics && r.metrics.why_it_might_fail) || "";
+          return `<div class="feed-item clickable" onclick="this.classList.toggle('open')">
+            <div><span class="badge">${esc(r.status)}</span> <strong>${esc((r.hypothesis || "").slice(0, 160))}</strong></div>
+            <div class="muted">${esc((r.verdict || "").slice(0, 220))}</div>
+            <div class="meta-row">
+              <span>${esc((r.symbols || []).join(", ") || "universe")}</span>
+              <span>${esc(when(r.created_at))}</span>
+              <span class="hint-click">${why || fail ? "click for rationale" : "no rationale stored"}</span>
+            </div>
+            <div class="research-why">
+              <div>${esc(why || "No rationale was stored for this row. New proposals keep one or two sentences here.")}</div>
+              ${fail ? `<div class="muted" style="margin-top:8px">Might fail: ${esc(fail)}</div>` : ""}
+            </div>
+          </div>`;
+        }).join("")}
+        </div>
+        ${pagerHtml("hypotheses", hypSliced, "hypotheses")}
+      </div>`
+    : `<div class="card">${empty("No hypotheses yet", "The quant researcher writes here after a cycle. The catalog above is the plan it must follow.")}</div>`;
+  return pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
+}
+
+function renderSentiment() {
+  const rows = state.floor.sentiment || [];
+  if (!rows.length) return `<div class="card">${empty("No sentiment readings", "The sentiment analyst needs an xAI key with search. Until then this panel stays dark on purpose.")}</div>`;
+  return `<section class="heat">${rows.map(s => {
+    const hue = 8 + (Number(s.score) + 1) * 56;
+    return `<div class="chip" style="background:hsla(${hue},55%,16%,.9)">
+      <div><strong>${esc(s.symbol)}</strong> <span class="num">${Number(s.score).toFixed(2)}</span></div>
+      <div class="muted">${esc(s.hype_stage || "unscored")}</div>
+      <div>${esc((s.narrative || "").slice(0, 120))}</div>
+    </div>`;
+  }).join("")}</section>`;
+}
+
+function renderHealth() {
+  const llm = state.llm || {};
+  const providers = llm.providers || {};
+  const cycleWrap = state.cycle || {};
+  const cycle = cycleWrap.cycle;
+  const reasons = cycleWrap.quiet_reasons || [];
+  const gemini = providers.gemini || {};
+  const xai = providers.xai || {};
+  const ping = state.llmPing;
+  return `
+    <div class="banner ${gemini.configured ? "ok" : "bad"}">
+      <strong>${gemini.configured ? "Gemini key is loaded" : "Gemini key is missing"}</strong>
+      <div class="muted" style="margin-top:6px">${esc(llm.catalogue_note || "Cheap, standard, and strong employees use Gemini.")}</div>
+    </div>
+    <section class="kpis">
+      ${kpi("Gemini", gemini.configured ? (gemini.prefix || "set") : "missing", gemini.configured ? "cheap / standard / strong" : "employees will skip", gemini.configured ? "ok" : "bad")}
+      ${kpi("xAI / Grok", xai.configured ? "set" : "missing", "sentiment search only", xai.configured ? "ok" : "warn")}
+      ${kpi("Last scan", cycle ? String(cycle.symbols_scanned || 0) : "—", cycle ? (cycle.signals_found || 0) + " signals · " + (cycle.orders_placed || 0) + " orders" : "paper has not written a cycle")}
+      ${kpi("Budget", money((llm.budget || {}).spent_usd || 0, 4), "of " + money((llm.budget || {}).budget_usd || 0) + " · " + ((llm.budget || {}).posture || "—"))}
+    </section>
+    <section class="grid-2">
+      <div class="card">
+        <h2>Seats</h2>
+        <table>
+          <thead><tr><th>Tier</th><th>Provider</th><th>Model</th><th>Key</th></tr></thead>
+          <tbody>${(llm.tiers || []).map(t => `<tr>
+            <td>${esc(t.tier)}</td>
+            <td>${esc(t.provider)}</td>
+            <td class="num">${esc(t.model)}</td>
+            <td class="${t.configured ? "ok" : "bad"}">${t.configured ? "ready" : "missing"}</td>
+          </tr>`).join("")}</tbody>
+        </table>
+        <div class="toolbar" style="margin-top:14px">
+          <button class="btn accent" onclick="pingGemini()">Test Gemini key</button>
+          ${ping ? `<span class="${ping.ok ? "ok" : "bad"}">${esc(ping.ok ? (ping.detail || "ok") : (ping.detail || "failed"))}</span>` : `<span class="muted">Sends a 1-token ping. Needs the API token saved under Controls.</span>`}
+        </div>
+      </div>
+      <div class="card">
+        <h2>Why the blotter is quiet</h2>
+        ${reasons.length ? `<div class="feed">${reasons.map(r => `<div class="feed-item">${esc(r)}</div>`).join("")}</div>` : empty("No diagnosis yet", "Load a cycle or start paper trading.")}
+        ${cycle && cycle.halted ? `<div class="bad" style="margin-top:10px">${esc(cycle.halt_reason || "halted")}</div>` : ""}
+      </div>
+    </section>
+    ${cycleScanPlanCard(cycle)}
+  `;
+}
+
+function paperOverrideRows() {
+  const listed = (state.strategies || {}).paper_overrides;
+  if (Array.isArray(listed) && listed.length) return listed;
+  return ((state.strategies || {}).pairs || []).filter(p => p.paper_override && !p.approved);
+}
+
+function paperOverrideCard() {
+  const rows = paperOverrideRows();
+  if (!rows.length) return "";
+  return `<div class="card">
+    <h2>On paper (operator veto)</h2>
+    <div class="muted" style="margin-bottom:8px">These sleeves still fail research, so they are not in Approved. Paper scans them for fills. Live stays locked.</div>
+    <table>
+      <thead><tr><th>Strategy</th><th>Pair</th><th>TF</th><th>OOS trades</th><th>PF</th></tr></thead>
+      <tbody>${rows.map(p => `<tr>
+        <td><strong>${esc(p.strategy || "—")}</strong></td>
+        <td><strong>${esc(p.symbol)}</strong> ${esc(p.side)}</td>
+        <td class="muted">${esc(p.timeframe || "—")}</td>
+        <td class="num">${esc(p.oos_trades ?? "—")}</td>
+        <td class="num">${p.oos_profit_factor != null ? Number(p.oos_profit_factor).toFixed(2) : "—"}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+function cycleScanPlanCard(cycle) {
+  const plan = (cycle && cycle.plan) || [];
+  if (!plan.length) return "";
+  return `<div class="card">
+    <h2>Last paper scan plan</h2>
+    <div class="muted" style="margin-bottom:8px">What the paper clock actually scanned. Operator vetoes show as paper, not approved.</div>
+    <table>
+      <thead><tr><th>Strategy</th><th>Pair</th><th>TF</th><th>Book</th></tr></thead>
+      <tbody>${plan.map(e => {
+        const book = e.paper_override ? "paper" : (e.paper_candidate ? "1h candidate" : (e.approved ? "approved" : "candidate"));
+        const klass = e.paper_override ? "warn" : (e.paper_candidate ? "warn" : (e.approved ? "ok" : "muted"));
+        return `<tr>
+          <td><strong>${esc(e.strategy || "—")}</strong></td>
+          <td><strong>${esc(e.symbol)}</strong> ${esc(e.side)}</td>
+          <td class="muted">${esc(e.timeframe || "—")}</td>
+          <td class="${klass}">${esc(book)}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderStrategies() {
+  const s = state.strategies || {};
+  const pairs = s.pairs || [];
+  const approved = pairs.filter(p => p.approved).length;
+  const paperN = pairs.filter(p => p.paper_override).length;
+  const legend = s.legend || {};
+  const names = [...new Set(pairs.map(p => p.strategy).filter(Boolean))].sort();
+  const status = filterVal("stratStatus", "all");
+  const family = filterVal("stratFamily", "all");
+  const whenWin = filterVal("stratWhen", "all");
+  const q = (filterVal("stratQ", "") || "").toLowerCase();
+  const filtered = pairs
+    .filter(p => {
+      if (status === "approved" && !p.approved) return false;
+      if (status === "paper" && !p.paper_override) return false;
+      if (status === "rejected" && (p.approved || p.paper_override)) return false;
+      if (family !== "all" && p.strategy !== family) return false;
+      if (!withinWindow(p.validated_at, whenWin)) return false;
+      const hay = `${p.strategy || ""} ${p.symbol || ""} ${p.side || ""} ${p.timeframe || ""} ${(p.failures || []).join(" ")}`.toLowerCase();
+      return !q || hay.includes(q);
+    })
+    .slice()
+    .sort((a, b) => (Date.parse(b.validated_at || "") || 0) - (Date.parse(a.validated_at || "") || 0));
+  const sliced = pageSlice("strat", filtered);
+  const groupKey = p => `${p.strategy || ""}|${p.timeframe || ""}|${String(p.validated_at || "").slice(0, 16)}`;
+  const groupedRows = [];
+  let lastGroup = "";
+  for (const p of sliced.items) {
+    const key = groupKey(p);
+    if (key !== lastGroup) {
+      lastGroup = key;
+      const members = filtered.filter(x => groupKey(x) === key);
+      const ok = members.filter(x => x.approved).length;
+      const paperG = members.filter(x => x.paper_override && !x.approved).length;
+      groupedRows.push({
+        kind: "group",
+        label: `${p.strategy || "—"} · ${p.timeframe || "—"} · ${members.length} pair${members.length === 1 ? "" : "s"} this run · ${ok} approved · ${paperG} paper`,
+        when: p.validated_at,
+      });
+    }
+    groupedRows.push({ kind: "pair", pair: p });
+  }
+  return `
+    <div class="banner ${approved ? "ok" : "warn"}">
+      <strong>${approved} research-approved (live gate) · ${paperN} on paper (operator veto)</strong>
+      <div class="muted" style="margin-top:6px">${esc(s.verdict || "")}${s.generated_at ? " · file " + stamp(s.generated_at) : ""}</div>
+      <div class="muted" style="margin-top:6px">${esc(s.note || "")}</div>
+    </div>
+    ${integrityCard()}
+    ${paperOverrideCard()}
+    <div class="muted">Tested in this file: ${names.map(esc).join(", ") || "—"} · coded but not in this table: ${(s.registered || []).filter(n => !names.includes(n)).map(esc).join(", ") || "none"}</div>
+    <div class="card">
+      <div class="toolbar filters">
+        <select class="field" id="stratStatus" onchange="onFilterChange()">
+          <option value="all" ${status === "all" ? "selected" : ""}>All verdicts (${pairs.length})</option>
+          <option value="approved" ${status === "approved" ? "selected" : ""}>Approved (${approved})</option>
+          <option value="paper" ${status === "paper" ? "selected" : ""}>Paper override (${paperN})</option>
+          <option value="rejected" ${status === "rejected" ? "selected" : ""}>Rejected (${pairs.length - approved - paperN})</option>
+        </select>
+        <select class="field" id="stratFamily" onchange="onFilterChange()">
+          <option value="all" ${family === "all" ? "selected" : ""}>All families</option>
+          ${names.map(n => `<option value="${esc(n)}" ${family === n ? "selected" : ""}>${esc(n)}</option>`).join("")}
+        </select>
+        <select class="field" id="stratWhen" onchange="onFilterChange()">${recencyOptions(whenWin)}</select>
+        <input class="field" id="stratQ" placeholder="Symbol, side, or failure" oninput="onFilterChange()" value="${esc(q)}"/>
+        <span class="filter-count">${filtered.length} of ${pairs.length} · grouped by run · newest first</span>
+      </div>
+      ${pairs.length ? `<div id="stratPane" data-page-list="strat">
+      <table>
+        <thead><tr>
+          <th>When</th><th>Strategy</th><th>Pair</th><th>TF</th><th>Verdict</th><th title="${esc(legend.oos_trades || "")}">OOS trades</th><th title="${esc(legend.win || "")}">Win</th><th title="${esc(legend.pf || "")}">PF</th><th title="${esc(legend.expectancy || "")}">Expectancy</th><th title="${esc(legend.dd || "")}">Max DD</th><th>Why</th>
+        </tr></thead>
+        <tbody>${groupedRows.map(row => row.kind === "group" ? `<tr class="job-group"><td colspan="11" title="${esc(row.when || "")}">${esc(row.label)}</td></tr>` : (() => {
+          const p = row.pair;
+          return `<tr>
+          <td class="stamp" title="${esc(p.validated_at || "")}">${esc(stamp(p.validated_at))}</td>
+          <td><strong>${esc(p.strategy || "—")}</strong></td>
+          <td><strong>${esc(p.symbol)}</strong> ${esc(p.side)}</td>
+          <td class="muted">${esc(p.timeframe || "—")}</td>
+          <td class="${p.approved ? "ok" : (p.paper_override ? "warn" : "bad")}">${p.approved ? "approved" : (p.paper_override ? "paper" : "rejected")}</td>
+          <td class="num">${esc(p.oos_trades ?? "—")}</td>
+          <td class="num">${p.oos_win_rate != null ? pct(p.oos_win_rate) : "—"}</td>
+          <td class="num">${p.oos_profit_factor != null ? Number(p.oos_profit_factor).toFixed(2) : "—"}</td>
+          <td class="num ${pnlClass(p.oos_expectancy_pct)}">${p.oos_expectancy_pct != null ? Number(p.oos_expectancy_pct).toFixed(3) + "%" : "—"}</td>
+          <td class="num">${p.oos_max_drawdown_pct != null ? pct(p.oos_max_drawdown_pct) : "—"}</td>
+          <td class="muted why" title="${esc((p.failures || []).join(" · ") || "—")}">${esc((p.failures || []).join(" · ") || "—")}</td>
+        </tr>`;
+        })()).join("") || `<tr><td colspan="11">${empty("No rows match", "Clear the filters to see every walk-forward verdict.")}</td></tr>`}</tbody>
+      </table></div>${pagerHtml("strat", sliced, "pairs")}` : empty("No validation file", "Run python scripts/validate_strategy.py to write research verdicts.")}
+    </div>
+    <div class="card">
+      <h2>How to read the columns</h2>
+      <div class="feed">
+        <div class="feed-item"><strong>When</strong> — when this pair's walk-forward wrote the verdict. A grey bar groups pairs from the same run (same family, timeframe, and minute) so three symbols are not three tests.</div>
+        <div class="feed-item"><strong>Strategy</strong> — which coded sleeve was walk-forwarded. Each data row is one family + pair + side + timeframe.</div>
+        <div class="feed-item"><strong>OOS trades</strong> — ${esc(legend.oos_trades || "Closed simulated round-trips on data the optimiser did not see.")} For BNBUSDT LONG that is 478 simulated rsi_trend trades, not live fills.</div>
+        <div class="feed-item"><strong>Verdict</strong> — ${esc(legend.verdict || "Approved only if every gate passes. Green PF and expectancy are not enough.")} The Why column lists every gate that failed.</div>
+        <div class="feed-item"><strong>Win / PF / Expectancy</strong> — ${esc(legend.win || "Win rate of those OOS trades.")} PF ${esc(legend.pf || "gross wins over gross losses.")} Expectancy ${esc(legend.expectancy || "average net % per trade.")} A green expectancy can still fail if the 95% confidence interval includes zero, or if random entries do as well (p >= 0.05).</div>
+        <div class="feed-item"><strong>Max DD</strong> — ${esc(legend.dd || "Maximum drawdown: the worst peak-to-trough drop in simulated equity, in percent.")}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderGates() {
+  const g = state.golive || {};
+  const gates = g.gates || [];
+  const passed = gates.filter(x => x.passed).length;
+  return `
+    <div class="banner ${g.ready ? "ok" : "warn"}">
+      <strong>${esc(g.verdict || "STAY IN PAPER")}</strong>
+      <div class="muted" style="margin-top:6px">${passed}/${gates.length} gates passed · evaluated ${esc(when(g.evaluated_at))}</div>
+    </div>
+    <div class="card">
+      ${gates.map(gate => `<div class="gate">
+        <div class="${gate.passed ? "ok" : "bad"}">${gate.passed ? "Pass" : "Fail"}</div>
+        <div><strong>${esc(prettyReason(gate.name))}</strong><div class="muted">${esc(gate.detail)}</div></div>
+      </div>`).join("") || empty("Gates unavailable", "The go-live evaluator did not return a report.")}
+    </div>
+  `;
+}
+
+function renderControls() {
+  const ks = state.risk.kill_switch || {};
+  return `<div class="grid-2">
+    <div class="card">
+      <h2>API token</h2>
+      <p class="muted">Needed for halt, reset, wake, and promotions — not for inbox approve on this machine. The desk seeds it automatically when you open localhost.</p>
+      <div class="toolbar">
+        <input class="field" id="tokenField" type="password" placeholder="X-API-Token" value="${esc(token())}" size="36"/>
+        <button class="btn accent" onclick="saveToken()">Save</button>
+      </div>
+      <div class="muted" style="margin-top:10px">${token() ? "Token is set on this device." : "No token saved yet — inbox approve still works on localhost; halt/wake will wait until this page seeds it."}</div>
+    </div>
+    <div class="card">
+      <h2>Kill switch</h2>
+      <div>Status: <strong class="${ks.tripped ? "bad" : "ok"}">${ks.tripped ? "TRIPPED" : "clear"}</strong></div>
+      <div class="muted">${esc(ks.detail || "Clear means the risk engine may still size trades.")}</div>
+      <div class="toolbar" style="margin-top:14px">
+        <button class="btn danger" onclick="openKill()">Trip halt</button>
+        <button class="btn" onclick="openReset()">Reset after investigation</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function rejectionList(rows) {
+  return rows.map(r => `<div class="feed-item">
+    <div><strong>${esc(r.symbol)}</strong> ${esc(r.side)} <span class="badge warn">${esc(r.verdict || "rejected")}</span> <span class="muted">${esc(when(r.occurred_at))}</span></div>
+    <div class="muted">${esc((r.reasons || []).join(" · ") || "no reason recorded")}</div>
+  </div>`).join("");
+}
+
+function drawSpark() {
+  const canvas = document.getElementById("equitySpark");
+  if (!canvas) return;
+  const values = (state.equity || []).map(p => Number(p.equity)).filter(n => !Number.isNaN(n));
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 320;
+  const h = canvas.clientHeight || 84;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  if (values.length < 2) {
+    ctx.fillStyle = "#5c594e";
+    ctx.font = "13px IBM Plex Sans";
+    ctx.fillText("Curve appears after the paper loop records equity.", 8, h / 2);
+    return;
+  }
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const last = values[values.length - 1];
+  const first = values[0];
+  ctx.beginPath();
+  values.forEach((v, i) => {
+    const x = (i / (values.length - 1)) * (w - 8) + 4;
+    const y = h - 8 - ((v - min) / range) * (h - 16);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.strokeStyle = last >= first ? "#3ee0a2" : "#ff6a5c";
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+}
+
+let lastRenderFp = "";
+function viewFingerprint(name) {
+  const floor = state.floor || {};
+  const slices = {
+    overview: { eq: state.equity, risk: state.risk, standup: floor.standup, pipeline: floor.pipeline, inboxN: (floor.inbox || []).length, golive: state.golive, paperN: (state.strategies || {}).paper_override_count, approvedN: (state.strategies || {}).approved_count },
+    health: { cycle: state.cycle, llm: state.llm, risk: state.risk },
+    floor: { employees: floor.employees, activity: floor.activity, org: floor.org },
+    blotter: { trades: state.trades, rejections: state.rejections },
+    positions: { pos: (state.risk || {}).open_positions, eq: state.equity },
+    strategies: { strategies: state.strategies, integrity: floor.integrity },
+    inbox: { inbox: floor.inbox, escalations: floor.escalations },
+    research: { pipeline: floor.pipeline, research: floor.research, plan: floor.research_plan },
+    sentiment: { sentiment: floor.sentiment, regime: floor.regime },
+    gates: { golive: state.golive },
+    controls: { llm: state.llm, budget: floor.budget },
+  };
+  return name + ":" + JSON.stringify(slices[name] || state);
+}
+function render(opts) {
+  const keepScroll = !opts || opts.keepScroll !== false;
+  const force = !!(opts && opts.force);
+  const name = viewName();
+  document.getElementById("pageTitle").textContent = (VIEWS.find(([id]) => id === name) || [])[1] || "Overview";
+  document.getElementById("pageKicker").textContent = KICKERS[name] || "";
+  renderNav();
+  const killed = !!(state.risk.kill_switch && state.risk.kill_switch.tripped);
+  document.getElementById("modePill").textContent = (state.risk.mode || "paper") + (killed ? " · HALTED" : "");
+  document.getElementById("liveDot").className = "dot " + (lastError ? "bad" : killed ? "warn" : "ok");
+  document.getElementById("liveLabel").textContent = lastError ? "API error" : killed ? "Halted" : "Live feed";
+  const fp = viewFingerprint(name);
+  const innerExisting = document.getElementById("viewInner");
+  if (!force && keepScroll && fp === lastRenderFp && innerExisting && innerExisting.firstChild) {
+    return;
+  }
+  lastRenderFp = fp;
+  const scrolls = keepScroll ? snapshotScroll() : { view: 0, windowX: 0, windowY: 0, doc: 0 };
+  const renderers = {
+    overview: renderOverview,
+    health: renderHealth,
+    floor: renderFloor,
+    blotter: renderBlotter,
+    positions: renderPositions,
+    strategies: renderStrategies,
+    inbox: renderInbox,
+    research: renderResearch,
+    sentiment: renderSentiment,
+    gates: renderGates,
+    controls: renderControls,
+  };
+  const blotterQ = document.getElementById("blotterQ")?.value;
+  const blotterSide = document.getElementById("blotterSide")?.value;
+  const filters = snapshotFilters();
+  const view = document.getElementById("view");
+  let inner = document.getElementById("viewInner");
+  if (!inner) {
+    view.innerHTML = '<div id="viewInner"></div>';
+    inner = document.getElementById("viewInner");
+  }
+  const active = document.activeElement;
+  const activeId = active && inner.contains(active) ? active.id : "";
+  const selStart = active && typeof active.selectionStart === "number" ? active.selectionStart : null;
+  const selEnd = active && typeof active.selectionEnd === "number" ? active.selectionEnd : null;
+  if (active && inner.contains(active) && typeof active.blur === "function") active.blur();
+  inner.innerHTML = (renderers[name] || renderOverview)();
+  restoreFilters(filters);
+  if (name === "blotter") {
+    if (blotterQ != null && document.getElementById("blotterQ")) document.getElementById("blotterQ").value = blotterQ;
+    if (blotterSide != null && document.getElementById("blotterSide")) document.getElementById("blotterSide").value = blotterSide;
+  }
+  if (activeId) {
+    const el = document.getElementById(activeId);
+    if (el && typeof el.focus === "function") {
+      el.focus({ preventScroll: true });
+      if (selStart != null && typeof el.setSelectionRange === "function") {
+        try { el.setSelectionRange(selStart, selEnd); } catch (err) {}
+      }
+    }
+  }
+  restoreScroll(scrolls);
+  requestAnimationFrame(drawSpark);
+}
+
+function openSettings() {
+  go("controls");
+  setTimeout(() => document.getElementById("tokenField")?.focus(), 50);
+}
+function saveToken() {
+  localStorage.setItem("firmApiToken", document.getElementById("tokenField").value.trim());
+  toast("Token saved on this device");
+  render();
+}
+function openKill() {
+  showModal(`<div class="modal">
+    <h3>Halt the firm</h3>
+    <p>This trips the kill switch. New entries stop until you investigate and reset with the exact phrase.</p>
+    <input class="field" id="killDetail" style="width:100%" value="manual halt from dashboard"/>
+    <div class="row">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn danger" onclick="doKill()">Trip kill switch</button>
+    </div>
+  </div>`);
+}
+async function doKill() {
+  try {
+    await post("/api/risk/kill", { detail: document.getElementById("killDetail").value, operator: "operator" });
+    closeModal();
+    toast("Kill switch tripped");
+    await load(true);
+  } catch (err) { toast(String(err.message || err)); }
+}
+function openReset() {
+  showModal(`<div class="modal">
+    <h3>Reset after investigation</h3>
+    <p>Type the acknowledgement exactly. A reset without a cause is how the last bot pretended it had risk controls.</p>
+    <input class="field" id="resetOp" style="width:100%;margin-bottom:8px" placeholder="Your name"/>
+    <input class="field" id="resetAck" style="width:100%" placeholder="${RESET_PHRASE}"/>
+    <div class="row">
+      <button class="btn ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn accent" onclick="doReset()">Reset</button>
+    </div>
+  </div>`);
+}
+async function doReset() {
+  try {
+    await post("/api/risk/reset", {
+      operator: document.getElementById("resetOp").value.trim() || "operator",
+      acknowledgement: document.getElementById("resetAck").value,
+    });
+    closeModal();
+    toast("Kill switch cleared");
+    await load(true);
+  } catch (err) { toast(String(err.message || err)); }
+}
+async function decide(id, approved) {
+  try {
+    const result = await post("/api/inbox/" + id + "/decide", { approved, decided_by: "operator", reason: "dashboard" });
+    toast(typeof result.next_step === "string" ? result.next_step : (approved ? "Approved" : "Rejected"), "", 9000);
+    await load(true);
+  } catch (err) { toast(String(err.message || err)); }
+}
+async function codeFamily(family) {
+  try {
+    const result = await post("/api/research/code-family", { family, reason: "research_tab" });
+    toast(result.next_step || "Coding started", "", 9000);
+    await load(true);
+  } catch (err) { toast(String(err.message || err)); }
+}
+async function ack(id) {
+  try {
+    await post("/api/escalations/" + id + "/ack", {});
+    toast("Acknowledged");
+    await load(true);
+  } catch (err) { toast(String(err.message || err)); }
+}
+async function resolveEscalation(id) {
+  try {
+    await post("/api/escalations/" + id + "/resolve", {});
+    toast("Resolved");
+    await load(true);
+  } catch (err) { toast(String(err.message || err)); }
+}
+
+async function pingGemini() {
+  try {
+    const result = await post("/api/llm/ping", { provider: "gemini" });
+    state.llmPing = result;
+    toast(result.ok ? "Gemini accepted the key" : (result.detail || "Gemini ping failed"));
+    render();
+  } catch (err) {
+    toast(String(err.message || err));
+  }
+}
+
+async function wakeFloor() {
+  toast("Waking the floor — Gemini calls take about a minute");
+  try {
+    const result = await post("/api/employees/wake", {});
+    const ok = (result.ran || []).filter(r => r.status === "success").length;
+    const fail = (result.ran || []).filter(r => r.status !== "success").length;
+    toast(`Floor ran ${ok} employee(s)` + (fail ? `, ${fail} did not finish` : "") + ((result.skipped || []).length ? `; skipped ${result.skipped.join(", ")}` : ""));
+    await load(true);
+  } catch (err) {
+    toast(String(err.message || err));
+  }
+}
+
+async function load(manual) {
+  try {
+    await ensureLocalToken();
+    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle] = await Promise.all([
+      get("/api/floor"),
+      get("/api/risk"),
+      get("/api/trades?limit=100"),
+      get("/api/go-live"),
+      get("/api/equity?limit=240"),
+      get("/api/rejections?limit=40"),
+      get("/api/llm"),
+      get("/api/strategies"),
+      get("/api/cycle"),
+    ]);
+    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, llmPing: state.llmPing };
+    lastError = "";
+    render({ keepScroll: true, force: !!manual });
+  } catch (err) {
+    lastError = String(err.message || err);
+    if (manual) toast(lastError);
+    renderNav();
+    document.getElementById("liveDot").className = "dot bad";
+    document.getElementById("liveLabel").textContent = "API error";
+  }
+}
+
+function tickClock() {
+  document.getElementById("clock").textContent = new Date().toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+window.addEventListener("hashchange", () => render({ keepScroll: false, force: true }));
+window.addEventListener("resize", drawSpark);
+tickClock();
+setInterval(tickClock, 1000);
+load();
+setInterval(load, 15000);
 </script>
 </body>
 </html>

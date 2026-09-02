@@ -1,0 +1,14 @@
+{
+  "family": "three_bar_play",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs a 3-bar play: trend bar, narrow rest bar inside it, then a break of the rest bar in the trend direction.",
+  "summary": "Break the rest bar of a 3-bar play.",
+  "justification": "Three-bar structure is not inside-bar and not Donchian.",
+  "written_at": "2026-08-31T18:54:04.865782+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/three_bar_play.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

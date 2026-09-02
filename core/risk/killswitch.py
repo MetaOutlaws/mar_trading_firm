@@ -53,6 +53,16 @@ class KillSwitchState:
     tripped_at: str | None = None
     tripped_by: str = ""
 
+    @property
+    def is_tripped(self) -> bool:
+        """Alias for `.tripped`.
+
+        `KillSwitch` exposes `is_tripped`; gather paths sometimes call the same
+        name on the state object returned by `read()`. Keep both so a tripped
+        check cannot crash an employee run.
+        """
+        return self.tripped
+
     def to_dict(self) -> dict[str, object]:
         return {
             "tripped": self.tripped,

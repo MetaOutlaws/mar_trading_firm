@@ -1,0 +1,14 @@
+{
+  "family": "twiggs_money_flow_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Twiggs Money Flow: true-range AD buffer into volume, then EMA ratio. Not MFI and not Chaikin.",
+  "summary": "Fade Twiggs Money Flow extremes.",
+  "justification": "TMF uses a TR buffer, not typical-price MFI.",
+  "written_at": "2026-09-01T12:58:20.209184+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/twiggs_money_flow_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

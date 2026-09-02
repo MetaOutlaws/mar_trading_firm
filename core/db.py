@@ -135,7 +135,47 @@ def init_db() -> None:
     from firm import memory_models  # noqa: F401
 
     Base.metadata.create_all(bind=get_engine())
+    _migrate_sqlite_columns()
     logger.info("Database schema ready (%d tables).", len(Base.metadata.tables))
+
+
+def _migrate_sqlite_columns() -> None:
+    """create_all does not add columns to existing SQLite tables."""
+    from sqlalchemy import inspect, text
+
+    engine = get_engine()
+    if engine.dialect.name != "sqlite":
+        return
+    wanted = {
+        "lifecycle": "VARCHAR(16) DEFAULT 'open'",
+        "owner_seat": "VARCHAR(48) DEFAULT ''",
+        "root_cause": "VARCHAR(128) DEFAULT ''",
+        "occurrence_count": "INTEGER DEFAULT 1",
+        "last_seen_at": "DATETIME",
+        "resolved_at": "DATETIME",
+        "timeout_hours": "FLOAT DEFAULT 24.0",
+        "severity_promoted": "BOOLEAN DEFAULT 0",
+    }
+    inspector = inspect(engine)
+    if "escalations" not in inspector.get_table_names():
+        return
+    existing = {col["name"] for col in inspector.get_columns("escalations")}
+    with engine.begin() as conn:
+        for name, ddl in wanted.items():
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE escalations ADD COLUMN {name} {ddl}"))
+                logger.info("Migrated escalations.%s", name)
+        # Title used to be VARCHAR(200); widen if SQLite stored it that way.
+        try:
+            conn.execute(text("UPDATE escalations SET lifecycle = 'open' WHERE lifecycle IS NULL OR lifecycle = ''"))
+            conn.execute(
+                text(
+                    "UPDATE escalations SET lifecycle = 'acknowledged' "
+                    "WHERE acknowledged = 1 AND (resolved_at IS NULL) AND lifecycle = 'open'"
+                )
+            )
+        except Exception:
+            logger.exception("Could not backfill escalation lifecycle")
 
 
 def reset_db() -> None:

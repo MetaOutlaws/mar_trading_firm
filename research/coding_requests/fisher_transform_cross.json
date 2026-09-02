@@ -1,0 +1,14 @@
+{
+  "family": "fisher_transform_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Fisher Transform of a normalized median price, then a trigger of the prior Fisher value. Not a z-score fade of close.",
+  "summary": "Trade Fisher Transform crossing its trigger.",
+  "justification": "Fisher maps prices onto a Gaussian; it is not RSI or DPO.",
+  "written_at": "2026-09-01T05:24:25.713028+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/fisher_transform_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

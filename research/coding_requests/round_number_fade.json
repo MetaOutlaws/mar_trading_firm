@@ -1,0 +1,14 @@
+{
+  "family": "round_number_fade",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs psychological round levels (100/1000 steps of price) and a rejection. Not floor pivots from H+L+C.",
+  "summary": "Fade a rejection of a round psychological price.",
+  "justification": "Round-number grid is not a pivot and not a channel.",
+  "written_at": "2026-08-31T18:53:47.135674+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/round_number_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

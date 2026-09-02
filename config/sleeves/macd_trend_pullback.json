@@ -1,0 +1,17 @@
+{
+  "name": "macd_trend_pullback",
+  "template": "pullback_trend",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "summary": "Trade with MACD histogram, enter on an RSI pullback not a breakout.",
+  "justification": "ema_adx_trend tags the fast EMA. This uses MACD for regime and RSI for the pullback so it is not a silent rename.",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "",
+  "channel": "atr",
+  "trend": "macd",
+  "stretch": "rsi",
+  "squeeze": false,
+  "volume_filter": false,
+  "defaults": {}
+}

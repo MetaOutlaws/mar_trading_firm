@@ -1,0 +1,14 @@
+{
+  "family": "vwap_volatility_band_fade",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Constructs dynamic bands around a rolling 20-period VWAP using a multiplier of the rolling standard deviation of price. When price touches the outer band on a 1h clock and the Bollinger Band Width is in the bottom 30% of its 100-bar range (indicating compression), it enters a reversion trade back to the VWAP.",
+  "summary": "Constructs dynamic bands around a rolling 20-period VWAP using a multiplier of the rolling standard deviation of price. When price touches the outer band on a 1h clock and the Bollinger Band Width is in the bottom 30% of its 100-bar range (",
+  "justification": "Exploits the mean-reverting nature of crypto assets when they stretch to statistical extremes during periods of low macro volatility.",
+  "written_at": "2026-09-01T12:07:07.898667+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/vwap_volatility_band_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

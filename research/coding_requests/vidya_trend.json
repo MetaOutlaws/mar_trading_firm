@@ -1,0 +1,14 @@
+{
+  "family": "vidya_trend",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs VIDYA: CMO-scaled EMA of close. Adaptive alpha from Chande momentum, not Kaufman ER and not MAMA Hilbert period.",
+  "summary": "Trade a VIDYA turn.",
+  "justification": "VIDYA uses CMO for alpha; KAMA uses efficiency ratio.",
+  "written_at": "2026-09-01T17:43:08.399493+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/vidya_trend.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -1,0 +1,14 @@
+{
+  "family": "utc_midnight_gap_fill",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs the gap from prior UTC day close to today's first hour open, then a fade toward the prior close. Not VWAP and not opening-range break.",
+  "summary": "Fade the UTC-midnight gap back toward the prior day's close.",
+  "justification": "Daily gap vs prior close is calendar math, not a channel.",
+  "written_at": "2026-08-31T17:25:17.171017+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/utc_midnight_gap_fill.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

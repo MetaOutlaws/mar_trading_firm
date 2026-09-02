@@ -1,0 +1,14 @@
+{
+  "family": "obv_break",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs On-Balance Volume cumulative signed volume, then a break of its own N-bar high/low. Not price Donchian.",
+  "summary": "Break the OBV channel, not the price channel.",
+  "justification": "Volume ledger break is not a price-channel clone.",
+  "written_at": "2026-09-01T03:59:46.530039+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/obv_break.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

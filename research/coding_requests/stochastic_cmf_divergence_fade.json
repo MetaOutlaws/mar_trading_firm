@@ -1,0 +1,14 @@
+{
+  "family": "stochastic_cmf_divergence_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Applies a 14-period Stochastic oscillator formula to the Chaikin Money Flow (CMF) indicator instead of raw price. It enters a reversal trade when price makes a new 20-bar high/low but the Stochastic CMF prints a clear divergence from the overbought (>80) or oversold (<20) thresholds.",
+  "summary": "Applies a 14-period Stochastic oscillator formula to the Chaikin Money Flow (CMF) indicator instead of raw price. It enters a reversal trade when price makes a new 20-bar high/low but the Stochastic CMF prints a clear divergence from the ov",
+  "justification": "By smoothing volume-weighted accumulation/distribution rather than raw price, it filters out low-volume price sweeps that lack institutional backing.",
+  "written_at": "2026-09-01T18:34:50.892515+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/stochastic_cmf_divergence_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -128,6 +128,8 @@ class Agent(ABC):
     #: Bump this whenever the prompt changes materially. It resets the agent's
     #: track record, which is the point: the old evidence no longer applies.
     prompt_version: str = "v1"
+    #: One-sentence job description shown on the Floor. Override per employee.
+    mandate: str = ""
     output_model: type[AgentOutput] = AgentOutput
     #: Whether this employee needs live X/web search (only Grok tiers can).
     uses_search: bool = False
@@ -255,6 +257,20 @@ class Agent(ABC):
         propagating: one broken employee must not stop the firm's schedule. The
         orchestrator decides what to do about repeated failures.
         """
+        if self.tier and not self.router.is_configured(self.tier):
+            spec = self.router.catalogue.get(self.tier)
+            provider = spec.provider.value if spec else "llm"
+            model = spec.model if spec else provider
+            error = f"Skipped: set {provider.upper()}_API_KEY. This seat uses {model}."
+            run_id = memory.start_run(
+                self.name, self.role, self.describe_task({}), prompt_version=self.prompt_version
+            )
+            memory.finish_run(run_id, RunStatus.SKIPPED, error=error)
+            logger.warning("%s %s", self.name, error)
+            return AgentResult(
+                agent=self.name, status=RunStatus.SKIPPED, run_id=run_id, error=error
+            )
+
         try:
             inputs = self.gather()
         except Exception as exc:
@@ -263,6 +279,7 @@ class Agent(ABC):
                 self.name, self.role, "gather inputs", prompt_version=self.prompt_version
             )
             memory.finish_run(run_id, RunStatus.FAILED, error=f"gather failed: {exc}")
+            _flag_failure(self.name, f"gather failed: {exc}")
             return AgentResult(
                 agent=self.name, status=RunStatus.FAILED, run_id=run_id,
                 error=f"gather failed: {exc}",
@@ -285,7 +302,7 @@ class Agent(ABC):
                 agent=self.name, status=RunStatus.SKIPPED, run_id=run_id, error=str(exc)
             )
         except LlmError as exc:
-            if "No API key" in str(exc):
+            if "No API key" in str(exc) or "cooling down" in str(exc):
                 logger.warning("%s skipped: %s", self.name, exc)
                 memory.finish_run(run_id, RunStatus.SKIPPED, error=str(exc))
                 return AgentResult(
@@ -293,12 +310,14 @@ class Agent(ABC):
                 )
             logger.exception("%s failed", self.name)
             memory.finish_run(run_id, RunStatus.FAILED, error=str(exc)[:1_000])
+            _flag_failure(self.name, str(exc))
             return AgentResult(
                 agent=self.name, status=RunStatus.FAILED, run_id=run_id, error=str(exc)
             )
         except Exception as exc:
             logger.exception("%s failed", self.name)
             memory.finish_run(run_id, RunStatus.FAILED, error=str(exc)[:1_000])
+            _flag_failure(self.name, str(exc))
             return AgentResult(
                 agent=self.name, status=RunStatus.FAILED, run_id=run_id, error=str(exc)
             )
@@ -348,14 +367,37 @@ class Agent(ABC):
     # -----------------------------------------------------------------
     def status_card(self) -> dict[str, Any]:
         """Everything the Employee Floor needs about this employee."""
+        from firm.org import EMPLOYEE_MANDATES
+
         record = trust.get(self.name)
         activity = memory.agent_activity(self.name)
+        seat = self.router.catalogue.get(self.tier) if self.tier else None
+        configured = self.router.is_configured(self.tier) if self.tier else True
+        last_error = activity.get("last_error") or ""
+        # Old DeepSeek/OpenAI skip rows stay in SQLite. Do not paint them on a
+        # seat that now has a working Gemini (or other) key.
+        if configured and seat and last_error:
+            lowered = last_error.lower()
+            if "api key" in lowered and seat.provider.value not in lowered:
+                last_error = ""
+        job = EMPLOYEE_MANDATES.get(self.name) or {}
+        spec_mandate = job.get("mandate", "")
         return {
             **activity,
+            "last_error": last_error,
             "role": self.role,
-            "cadence": self.cadence.value,
+            "cadence": job.get("cadence") or self.cadence.value,
             "tier": self.tier.value if self.tier else "deterministic",
+            "provider": seat.provider.value if seat else None,
+            "model": seat.model if seat else None,
+            "llm_configured": configured,
             "prompt_version": self.prompt_version,
+            "mandate": self.mandate or spec_mandate,
+            "does": job.get("does") or "",
+            "does_not": job.get("does_not") or "",
+            "goal": job.get("goal") or "",
+            "target": job.get("target") or "",
+            "kpi": job.get("kpi") or "",
             "trust": record.summary() if record else None,
             "spend_today_usd": round(memory.spend_today(self.name), 5),
         }
@@ -391,6 +433,16 @@ class DeterministicAgent(Agent):
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _flag_failure(agent: str, error: str) -> None:
+    """Tell Ops and the duty board. Never let a timeout die in SQLite alone."""
+    try:
+        from firm.accountability import notify_employee_failure
+
+        notify_employee_failure(agent, error)
+    except Exception:
+        logger.exception("Could not route %s failure to the duty board", agent)
 
 
 __all__ = [

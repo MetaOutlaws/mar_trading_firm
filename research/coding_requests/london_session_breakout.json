@@ -1,0 +1,14 @@
+{
+  "family": "london_session_breakout",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs the high/low of 08:00\u201316:00 UTC, published only after 16:00. Not Asian 00\u201308 and not the 1-hour opening range.",
+  "summary": "Break the completed London (08:00\u201316:00 UTC) range.",
+  "justification": "London cash hours are a different session box than Asia or ORB.",
+  "written_at": "2026-08-31T18:54:28.180265+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/london_session_breakout.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

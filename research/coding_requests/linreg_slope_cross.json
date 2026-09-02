@@ -1,0 +1,14 @@
+{
+  "family": "linreg_slope_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs least-squares slope of close over N bars, then a zero cross. Not EMA trend and not Coppock ROC.",
+  "summary": "Trade linear-regression slope crossing zero.",
+  "justification": "OLS slope is a fit, not a moving-average difference.",
+  "written_at": "2026-09-01T12:58:13.139650+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/linreg_slope_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -1,0 +1,14 @@
+{
+  "family": "trix_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs TRIX: rate of change of a triple EMA of close. Not a single EMA+ADX trend.",
+  "summary": "Trade TRIX crossing zero.",
+  "justification": "Triple-smoothed ROC is not ema_adx_trend.",
+  "written_at": "2026-09-01T04:42:53.562633+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/trix_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

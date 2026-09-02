@@ -77,6 +77,36 @@ class PaperBroker(Broker):
         if self._owns_data_source:
             self._data.close()
 
+    def hydrate(self, positions: list[object]) -> None:
+        """Restore the in-memory book from ledger rows after a process restart.
+
+        PaperBroker is RAM-only. Without this, a restart shows an empty book
+        against open SQLite rows and reconciliation trips the kill switch.
+        Cash is left at starting equity: paper never deducts notional, only fees,
+        and those fees already sit in the trade history.
+        """
+        restored = 0
+        for row in positions:
+            symbol = str(getattr(row, "symbol", "") or "")
+            if not symbol:
+                continue
+            opened = getattr(row, "opened_at", None)
+            self._positions[symbol] = PaperPosition(
+                symbol=symbol,
+                side=self._normalise_side(str(getattr(row, "side", "LONG"))),
+                quantity=float(getattr(row, "quantity", 0.0) or 0.0),
+                entry_price=float(getattr(row, "entry_price", 0.0) or 0.0),
+                take_profit=getattr(row, "take_profit_price", None),
+                stop_loss=getattr(row, "stop_loss_price", None),
+                opened_at=opened if isinstance(opened, datetime) else datetime.now(timezone.utc),
+            )
+            restored += 1
+        if restored:
+            logger.warning(
+                "Paper broker hydrated %d open position(s) from the ledger",
+                restored,
+            )
+
     # -- account -----------------------------------------------------------
     def get_balance(self) -> float:
         """Equity: cash plus unrealised P&L on open positions."""

@@ -1,0 +1,14 @@
+{
+  "family": "balance_of_power_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Balance of Power: (close-open)/(high-low), then SMA. Not Qstick of raw bodies and not RVI of those SMAs.",
+  "summary": "Trade BOP crossing zero.",
+  "justification": "BOP is a single-bar body/range ratio, not RVI's dual SMA.",
+  "written_at": "2026-09-01T12:58:17.965269+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/balance_of_power_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

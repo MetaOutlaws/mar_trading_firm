@@ -27,12 +27,70 @@ from firm.employees.quant_researcher import QuantResearcher
 from firm.employees.regime_analyst import RegimeAnalyst
 from firm.employees.risk_officer import RiskOfficer
 from firm.employees.sentiment_analyst import SentimentAnalyst
+from firm.employees.sleeve_engineer import SleeveEngineer
+from firm.employees.strategy_advisor import StrategyAdvisor
 from firm.llm import LlmRouter
 from firm.memory_models import ProposalKind
+from firm.integrity import integrity_snapshot
+from firm.org import org_snapshot
+from firm.research_catalog import research_plan
+from firm.research_jobs import pipeline_snapshot
+from firm.standup import build_standup
 from firm.runtime import Agent, AgentResult, Cadence
 from firm.trust import TrustLevel
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_integrity() -> dict[str, Any]:
+    try:
+        return integrity_snapshot()
+    except Exception:
+        logger.exception("Integrity pack failed to build")
+        return {
+            "ok": False,
+            "jobs": [],
+            "paper": {},
+            "note": "Integrity pack failed to load — check API logs.",
+        }
+
+
+def _safe_accountability() -> dict[str, Any]:
+    try:
+        from firm.accountability import accountability_snapshot
+
+        return accountability_snapshot()
+    except Exception:
+        logger.exception("Duty board failed to build")
+        return {"slips": [], "duties": [], "llm_failures": [], "note": "Duty board failed to load."}
+
+
+def _safe_standup() -> dict[str, Any]:
+    """Standup must never take the rest of the desk down with it."""
+    try:
+        return build_standup()
+    except Exception:
+        logger.exception("Daily standup failed to build")
+        return {
+            "headline": "Standup failed to load — check API logs.",
+            "happening_now": [],
+            "needs_you": ["Refresh after the next API restart."],
+            "taken": [],
+            "next": [],
+            "blockers": [],
+        }
+
+
+def _safe_positioning() -> dict[str, Any]:
+    """Last Bybit OI / funding / long-short snapshot. Never fetch on dashboard poll."""
+    try:
+        from core.data.positioning import load_last_positioning
+
+        blob = load_last_positioning()
+        return blob if isinstance(blob, dict) else {}
+    except Exception:
+        logger.exception("Positioning snapshot failed to load")
+        return {}
 
 
 #: How often each cadence is allowed to fire. PER_CYCLE is the trading engine's
@@ -80,6 +138,8 @@ class Orchestrator:
             OpsEngineer(self.router),
             SentimentAnalyst(self.router),
             DeskHead(self.router),
+            StrategyAdvisor(self.router),
+            SleeveEngineer(self.router),
             PerformanceAuditor(self.router),
             PortfolioManager(self.router),
             QuantResearcher(self.router),
@@ -99,13 +159,51 @@ class Orchestrator:
         raise KeyError(name)
 
     def due(self, now: datetime | None = None) -> list[Agent]:
-        """Employees whose cadence interval has elapsed."""
+        """Employees whose cadence interval has elapsed.
+
+        Quant also fires when the research pipeline is idle, so a finished
+        test does not sit for a week waiting for the weekly slot.
+        """
         now = now or datetime.now(timezone.utc)
         due: list[Agent] = []
+        from firm.research_jobs import quant_should_run_now
+        from firm.llm import model_cooldown_remaining
+
+        idle_quant = quant_should_run_now()
+        from firm.accountability import (
+            advisor_should_run_now,
+            gm_should_run_now,
+            ops_should_run_now,
+            sleeve_engineer_should_run_now,
+        )
+
         for employee in self.employees:
             interval = CADENCE_INTERVALS[employee.cadence]
             last = self._last_run.get(employee.name)
-            if last is None or now - last >= interval:
+            cadence_due = last is None or now - last >= interval
+            extra = False
+            if employee.name == "quant_researcher" and idle_quant:
+                extra = True
+            if employee.name == "desk_head" and gm_should_run_now(last):
+                extra = True
+            if employee.name == "strategy_advisor" and advisor_should_run_now(last):
+                extra = True
+            if employee.name == "ops_engineer" and ops_should_run_now(last):
+                extra = True
+            if employee.name == "sleeve_engineer" and sleeve_engineer_should_run_now(last):
+                extra = True
+            if extra or cadence_due:
+                # A timed-out Gemini model must not be re-called every extra-due
+                # tick. Leave the FAILED run on the board; walk-forward already
+                # started before this loop.
+                spec = employee.router.catalogue.get(employee.tier) if employee.tier else None
+                if spec and model_cooldown_remaining(spec.provider, spec.model) > 0:
+                    logger.info(
+                        "Skipping %s: %s cooling down after timeout",
+                        employee.name,
+                        spec.model,
+                    )
+                    continue
                 due.append(employee)
         return due
 
@@ -113,6 +211,12 @@ class Orchestrator:
         """Run every employee that is due. Failures stay isolated."""
         now = now or datetime.now(timezone.utc)
         memory.expire_stale_proposals()
+        try:
+            from firm.continuity import fill_walk_forward_slots
+
+            fill_walk_forward_slots(source="orchestrator")
+        except Exception:
+            logger.exception("Orchestrator could not fill walk-forward slots before LLM seats")
         results: list[AgentResult] = []
         for employee in self.due(now):
             logger.info("Running %s (%s)", employee.name, employee.cadence.value)
@@ -178,11 +282,18 @@ class Orchestrator:
         return {
             "employees": [e.status_card() for e in self.employees],
             "activity": memory.recent_runs(limit=40),
-            "inbox": memory.pending_proposals(limit=40),
+            "inbox": memory.pending_proposals(limit=100),
             "escalations": memory.open_escalations(limit=20),
             "regime": memory.latest_regime(),
             "sentiment": memory.latest_sentiment(limit=20),
             "research": memory.research_board(limit=20),
+            "research_plan": research_plan(),
+            "org": org_snapshot(),
+            "pipeline": pipeline_snapshot(),
+            "integrity": _safe_integrity(),
+            "accountability": _safe_accountability(),
+            "standup": _safe_standup(),
+            "positioning": _safe_positioning(),
             "budget": self.router.budget.snapshot(),
             "advice": {
                 "vetoes": advice.vetoes,

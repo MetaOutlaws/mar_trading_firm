@@ -1,0 +1,14 @@
+{
+  "family": "ppo_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Percentage Price Oscillator: 100*(EMA12-EMA26)/EMA26, signal EMA9 of PPO. Not MACD histogram in price units.",
+  "summary": "Trade PPO crossing its signal line.",
+  "justification": "PPO is a percent MACD, not ema_adx_trend.",
+  "written_at": "2026-09-01T04:53:13.164749+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/ppo_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

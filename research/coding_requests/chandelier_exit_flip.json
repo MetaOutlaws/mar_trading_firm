@@ -1,0 +1,14 @@
+{
+  "family": "chandelier_exit_flip",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Chandelier Exit: ATR trail from the extreme high/low since entry side, flip on a close through the trail. Not Parabolic SAR acceleration.",
+  "summary": "Trade a Chandelier Exit flip.",
+  "justification": "Chandelier trails ATR from HH/LL, not SAR AF steps.",
+  "written_at": "2026-09-02T04:27:31.444122+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/chandelier_exit_flip.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

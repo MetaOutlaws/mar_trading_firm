@@ -1,0 +1,14 @@
+{
+  "family": "chaikin_oscillator_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Chaikin Oscillator: EMA(ADL,3)-EMA(ADL,10) where ADL is cumulative CLV*volume. Not OBV and not MACD of close.",
+  "summary": "Trade Chaikin Oscillator crossing zero.",
+  "justification": "ADL uses close location in the bar, not close-to-close OBV.",
+  "written_at": "2026-09-01T04:42:38.775515+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/chaikin_oscillator_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

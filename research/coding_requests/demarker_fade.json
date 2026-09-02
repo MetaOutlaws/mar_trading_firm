@@ -1,0 +1,14 @@
+{
+  "family": "demarker_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs DeMarker: SMA of DeMax / (DeMax+DeMin) from high-to-high and low-to-low steps. Not Stochastic %K of close and not RSI.",
+  "summary": "Fade DeMarker extremes.",
+  "justification": "DeMarker uses bar-to-bar high/low steps, not a close oscillator.",
+  "written_at": "2026-09-01T11:21:03.690530+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/demarker_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

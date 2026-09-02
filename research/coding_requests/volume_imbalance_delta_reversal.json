@@ -1,0 +1,14 @@
+{
+  "family": "volume_imbalance_delta_reversal",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Calculates the ratio of buying volume to selling volume (volume imbalance) at the extreme highs and lows of a rolling 20-period window. When price sweeps a new high or low but the volume imbalance shows extreme exhaustion (buying volume is less than 20% of total volume at the high), it triggers a mean-reversion trade targeting the 20-period EMA.",
+  "summary": "Calculates the ratio of buying volume to selling volume (volume imbalance) at the extreme highs and lows of a rolling 20-period window. When price sweeps a new high or low but the volume imbalance shows extreme exhaustion (buying volume is ",
+  "justification": "It filters out low-volume retail sweeps that lack institutional backing, allowing high-probability fades at local extremes.",
+  "written_at": "2026-09-02T04:16:27.783904+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/volume_imbalance_delta_reversal.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

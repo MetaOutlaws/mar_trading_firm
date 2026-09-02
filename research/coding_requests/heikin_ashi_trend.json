@@ -1,0 +1,14 @@
+{
+  "family": "heikin_ashi_trend",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Heikin-Ashi open/close (HA close = OHLC/4, HA open = prior HA midpoint). Not raw candle direction.",
+  "summary": "Trade in the direction of a Heikin-Ashi run.",
+  "justification": "HA averaging is new bar math, not EMA trend.",
+  "written_at": "2026-09-01T03:39:44.463884+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/heikin_ashi_trend.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

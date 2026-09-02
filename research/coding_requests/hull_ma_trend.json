@@ -1,0 +1,14 @@
+{
+  "family": "hull_ma_trend",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Hull Moving Average: WMA(2*WMA(n/2) - WMA(n), sqrt(n)). Not EMA and not SMA.",
+  "summary": "Trade in the direction of a Hull MA turn.",
+  "justification": "HMA weighting is distinct from EMA/SMA trend sleeves.",
+  "written_at": "2026-09-01T05:26:53.570455+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/hull_ma_trend.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

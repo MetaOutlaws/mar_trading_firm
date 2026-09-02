@@ -1,0 +1,14 @@
+{
+  "family": "mcginley_dynamic_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs McGinley Dynamic: MD = MD_prev + (close-MD_prev) / (N * (close/MD_prev)^4). Not EMA and not VIDYA.",
+  "summary": "Trade McGinley Dynamic crossing price.",
+  "justification": "McGinley speed-adjusts with a fourth-power ratio, not CMO.",
+  "written_at": "2026-09-02T04:27:31.451586+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/mcginley_dynamic_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

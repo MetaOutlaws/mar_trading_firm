@@ -1,0 +1,14 @@
+{
+  "family": "kairi_relative_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Kairi Relative Index: 100*(close-SMA)/SMA. Percent-from-mean, not Bollinger z-score and not RSI.",
+  "summary": "Fade Kairi Relative Index extremes.",
+  "justification": "Kairi is percent from SMA, not a band of standard deviation.",
+  "written_at": "2026-09-01T12:58:11.899665+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/kairi_relative_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

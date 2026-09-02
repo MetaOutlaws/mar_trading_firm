@@ -1,0 +1,17 @@
+{
+  "name": "bb_squeeze_breakout",
+  "template": "channel_break",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "summary": "Break an ATR channel only after Bollinger width printed an N-bar low.",
+  "justification": "Donchian and raw ATR breakouts failed in chop. A squeeze filter requires volatility compression first — a different regime bet.",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "",
+  "channel": "atr",
+  "trend": "ema",
+  "stretch": "rsi",
+  "squeeze": true,
+  "volume_filter": false,
+  "defaults": {}
+}

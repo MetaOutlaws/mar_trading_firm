@@ -1,0 +1,14 @@
+{
+  "family": "session_order_block_mitigation_fade",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Identifies the high and low boundaries of the Asian session (00:00-08:00 UTC). If the London or NY session sweeps this range by less than 1.0% and immediately closes back inside the boundary on a 1h clock, it enters a reversal trade targeting the opposite side of the session range.",
+  "summary": "Identifies the high and low boundaries of the Asian session (00:00-08:00 UTC). If the London or NY session sweeps this range by less than 1.0% and immediately closes back inside the boundary on a 1h clock, it enters a reversal trade targeti",
+  "justification": "Exploits structural stop-hunting behavior and market maker inventory rebalancing at well-defined daily boundaries.",
+  "written_at": "2026-09-01T12:58:59.952159+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/session_order_block_mitigation_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

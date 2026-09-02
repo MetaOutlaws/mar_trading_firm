@@ -1,0 +1,14 @@
+{
+  "family": "mass_index_reversal",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Mass Index: EMA(high-low,9) / EMA of that EMA, then a 25-bar sum and a bulge-then-reversal. Not ATR and not BB width.",
+  "summary": "Reverse after a Mass Index bulge.",
+  "justification": "Mass Index is a range-ratio bulge, not a squeeze of Bollinger width.",
+  "written_at": "2026-09-01T11:21:03.577432+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/mass_index_reversal.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

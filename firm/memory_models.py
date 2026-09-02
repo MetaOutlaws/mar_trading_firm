@@ -307,9 +307,18 @@ class EscalationRecord(Base):
     )
     agent: Mapped[str] = mapped_column(String(48), default="")
     severity: Mapped[str] = mapped_column(String(16), default="info", index=True)
-    title: Mapped[str] = mapped_column(String(200))
+    title: Mapped[str] = mapped_column(String(400))
     detail: Mapped[str] = mapped_column(Text, default="")
     acknowledged: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     acknowledged_at: Mapped[datetime | None] = mapped_column(
         UtcDateTime, nullable=True
     )
+    #: open -> acknowledged -> resolved. Unresolved rows stay on the dashboard.
+    lifecycle: Mapped[str] = mapped_column(String(16), default="open", index=True)
+    owner_seat: Mapped[str] = mapped_column(String(48), default="")
+    root_cause: Mapped[str] = mapped_column(String(128), default="", index=True)
+    occurrence_count: Mapped[int] = mapped_column(Integer, default=1)
+    last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    timeout_hours: Mapped[float] = mapped_column(Float, default=24.0)
+    severity_promoted: Mapped[bool] = mapped_column(Boolean, default=False)

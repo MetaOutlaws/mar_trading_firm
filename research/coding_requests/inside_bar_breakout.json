@@ -1,0 +1,14 @@
+{
+  "family": "inside_bar_breakout",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs a mother-bar high/low: current bar range fully inside the prior bar, then a later close through that mother range. Not N-bar Donchian.",
+  "summary": "Break the mother bar after an inside bar.",
+  "justification": "Pattern is two-bar structure, not a channel lookback.",
+  "written_at": "2026-08-31T17:25:17.117295+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/inside_bar_breakout.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

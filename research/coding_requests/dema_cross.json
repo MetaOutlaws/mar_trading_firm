@@ -1,0 +1,14 @@
+{
+  "family": "dema_cross",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs double EMA (DEMA) crossing a slow DEMA. Distinct from zero-lag 2*EMA-EMA(EMA) used as a fast line versus a raw EMA.",
+  "summary": "Trade DEMA crossing a slow DEMA.",
+  "justification": "Two DEMAs, not ZLEMA versus a single EMA.",
+  "written_at": "2026-09-02T04:27:31.399564+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/dema_cross.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

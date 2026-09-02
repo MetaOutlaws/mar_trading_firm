@@ -1,0 +1,14 @@
+{
+  "family": "aroon_crossover",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Aroon up/down: bars since N-bar high vs low. Not Donchian break and not ADX.",
+  "summary": "Trade Aroon up crossing Aroon down.",
+  "justification": "Time-since-extreme is different from a channel break.",
+  "written_at": "2026-09-01T04:43:01.340630+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/aroon_crossover.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -300,3 +300,45 @@ def test_bybit_broker_refuses_paper_mode():
         from core.execution.bybit import BybitBroker
 
         BybitBroker(mode=TradingMode.PAPER)
+
+
+def test_last_cycle_is_persisted_for_the_desk(tmp_path, monkeypatch):
+    """The API process cannot see in-memory cycle reports; they must hit disk."""
+    from core.execution import engine as engine_mod
+
+    monkeypatch.setattr(engine_mod, "LAST_CYCLE_PATH", tmp_path / "last_cycle.json")
+    report = engine_mod.CycleReport()
+    report.symbols_scanned = 12
+    report.signals_found = 0
+    report.rejections.append(("BTCUSDT", "max positions"))
+    engine_mod.persist_last_cycle(report, plan=None)
+    loaded = engine_mod.load_last_cycle()
+    assert loaded is not None
+    assert loaded["symbols_scanned"] == 12
+    assert loaded["rejection_details"][0]["symbol"] == "BTCUSDT"
+    assert "sk-" not in str(loaded)
+
+
+def test_paper_broker_hydrates_ledger_rows_so_restart_does_not_ghost(free_broker) -> None:
+    """An empty RAM book against an open SQLite row trips the kill switch."""
+    from types import SimpleNamespace
+
+    free_broker.hydrate(
+        [
+            SimpleNamespace(
+                symbol="ETHUSDT",
+                side="LONG",
+                quantity=0.4,
+                entry_price=2472.35,
+                take_profit_price=2568.77,
+                stop_loss_price=2420.57,
+                opened_at=None,
+            )
+        ]
+    )
+    snaps = free_broker.get_positions()
+    assert len(snaps) == 1
+    assert snaps[0].symbol == "ETHUSDT"
+    assert snaps[0].quantity == pytest.approx(0.4)
+    assert snaps[0].stop_loss == pytest.approx(2420.57)
+    assert snaps[0].take_profit == pytest.approx(2568.77)

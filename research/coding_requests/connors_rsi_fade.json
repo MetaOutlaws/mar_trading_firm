@@ -1,0 +1,14 @@
+{
+  "family": "connors_rsi_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Connors RSI: average of RSI(3), streak RSI, and percentile rank of ROC. Not a single-period RSI fade.",
+  "summary": "Fade Connors RSI extremes.",
+  "justification": "Connors RSI mixes streak and rank; Wilder RSI does not.",
+  "written_at": "2026-09-01T12:58:31.697666+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/connors_rsi_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

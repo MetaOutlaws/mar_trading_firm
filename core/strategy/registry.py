@@ -9,9 +9,12 @@ later, or the result is meaningless.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from core.strategy.base import Strategy
 
 _REGISTRY: dict[str, type[Strategy]] = {}
+_SKIP_MODULES = frozenset({"__init__", "base", "registry", "indicators", "sleeve_spec"})
 
 
 def register_strategy(cls: type[Strategy]) -> type[Strategy]:
@@ -39,16 +42,43 @@ def list_strategies() -> list[str]:
 
 
 def _ensure_builtins_loaded() -> None:
-    """Import built-in strategies on first use.
+    """Import every strategy module on disk.
 
-    Deferred to avoid a circular import: strategy modules import from
-    `core.strategy`, which would otherwise need them at package import time.
+    A long-running paper loop used to keep the sleeve list it had at process
+    start. Scanning this folder means a new family file is importable on the
+    next cycle without restarting the process.
     """
-    if _REGISTRY:
-        return
-    from core.strategy.rsi_golden_cross import RsiTrendStrategy
+    import importlib
+    import inspect
+    import logging
 
-    register_strategy(RsiTrendStrategy)
+    log = logging.getLogger(__name__)
+    pkg = Path(__file__).parent
+    for path in sorted(pkg.glob("*.py")):
+        stem = path.stem
+        if stem in _SKIP_MODULES:
+            continue
+        try:
+            mod = importlib.import_module(f"core.strategy.{stem}")
+        except Exception:
+            log.exception("Could not import strategy module %s", stem)
+            continue
+        for _, cls in inspect.getmembers(mod, inspect.isclass):
+            if (
+                not issubclass(cls, Strategy)
+                or cls is Strategy
+                or not getattr(cls, "name", "")
+                or cls.name == "unnamed"
+            ):
+                continue
+            if cls.name not in _REGISTRY:
+                register_strategy(cls)
+    try:
+        from core.strategy.spec_sleeve import load_spec_sleeves
+
+        load_spec_sleeves()
+    except Exception:
+        log.exception("Could not load JSON sleeve specs")
 
 
 __all__: list[str] = ["get_strategy", "list_strategies", "register_strategy"]

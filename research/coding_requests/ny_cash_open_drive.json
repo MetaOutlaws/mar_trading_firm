@@ -1,0 +1,14 @@
+{
+  "family": "ny_cash_open_drive",
+  "template": "novel",
+  "clock": "1h/1h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs the 13:00\u201314:00 UTC (08:00\u201309:00 ET) cash-open hour as a drive bar. Not ORB and not a Donchian.",
+  "summary": "Trade in the direction of the US cash-open hour after it closes.",
+  "justification": "US cash open is a calendar hour the library does not isolate.",
+  "written_at": "2026-08-31T18:54:17.117524+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/ny_cash_open_drive.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

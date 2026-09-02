@@ -1,0 +1,20 @@
+{
+  "name": "atr_fade_chop",
+  "template": "fade_stretch",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "summary": "Fade ATR-channel extremes when ADX is weak.",
+  "justification": "atr_channel_breakout buys the break. This sells the same stretch in chop — the opposite bet on the same indicator.",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "",
+  "channel": "atr",
+  "trend": "ema",
+  "stretch": "atr",
+  "squeeze": false,
+  "volume_filter": false,
+  "defaults": {
+    "max_adx": 20.0,
+    "atr_k": 2.0
+  }
+}

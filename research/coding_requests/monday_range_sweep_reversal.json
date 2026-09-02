@@ -1,0 +1,14 @@
+{
+  "family": "monday_range_sweep_reversal",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Identifies the high and low boundaries established during the UTC weekend (Saturday 00:00 to Sunday 23:59). When the Monday London or NY session sweeps outside this range by less than 1.5% and closes back inside on a 4h clock, it enters a reversion trade targeting the weekend mid-point.",
+  "summary": "Identifies the high and low boundaries established during the UTC weekend (Saturday 00:00 to Sunday 23:59). When the Monday London or NY session sweeps outside this range by less than 1.5% and closes back inside on a 4h clock, it enters a r",
+  "justification": "Weekend ranges represent low-volume retail positioning that institutional algorithms frequently target for liquidity sweeps before establishing the true weekly direction.",
+  "written_at": "2026-09-01T12:07:07.251334+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/monday_range_sweep_reversal.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

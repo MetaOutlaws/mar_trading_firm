@@ -1,0 +1,14 @@
+{
+  "family": "stochrsi_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Stochastic RSI: %K of Wilder RSI over N. Not Stochastic of price and not a single RSI fade.",
+  "summary": "Fade Stochastic RSI extremes.",
+  "justification": "StochRSI ranks RSI, not close, inside its own window.",
+  "written_at": "2026-09-02T04:27:31.434333+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/stochrsi_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

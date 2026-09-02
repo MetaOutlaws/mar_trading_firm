@@ -1,0 +1,14 @@
+{
+  "family": "t3_trend",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Tillson T3: six cascaded EMAs with a volume factor. Not Hull MA and not a single EMA.",
+  "summary": "Trade in the direction of a T3 turn.",
+  "justification": "T3 is a six-pole EMA cascade, not HMA's WMA construction.",
+  "written_at": "2026-09-01T17:43:08.411488+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/t3_trend.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

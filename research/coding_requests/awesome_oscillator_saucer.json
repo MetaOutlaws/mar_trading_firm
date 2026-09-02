@@ -1,0 +1,14 @@
+{
+  "family": "awesome_oscillator_saucer",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Awesome Oscillator: SMA(HL2,5) - SMA(HL2,34). Saucer is three histogram bars, not MACD.",
+  "summary": "Enter on an Awesome Oscillator saucer.",
+  "justification": "AO uses midpoint SMAs, not close MACD.",
+  "written_at": "2026-09-01T04:42:59.201949+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/awesome_oscillator_saucer.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

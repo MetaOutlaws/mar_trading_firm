@@ -31,36 +31,75 @@ class DailyBriefing(AgentOutput):
 
 class DeskHead(Agent):
     name = "desk_head"
-    role = "Desk Head"
+    role = "Desk Head (GM)"
     cadence = Cadence.DAILY
     tier = ModelTier.STANDARD
-    prompt_version = "v1"
+    prompt_version = "v6"
     output_model = DailyBriefing
     max_tokens = 1_800
+    mandate = (
+        "Runs daily ops. Owns the research pipeline so work does not stop "
+        "when a test finishes. Briefs the operator and files the next gate."
+    )
 
     def system_prompt(self) -> str:
         return (
-            "You are the Desk Head of a systematic crypto trading firm. You "
-            "summarise the current state for the human operator. Be blunt. Do "
-            "not invent P&L or invent employee activity -- use only the briefing "
-            "pack. Flag contradictions between employees (e.g. Risk Officer "
-            "wants a halt while Regime Analyst is bullish). You cannot raise "
-            "risk limits or approve live trading."
+            "You are the Desk Head and general manager of a systematic crypto "
+            "trading firm. Your job is continuity with a human only at written "
+            "gates. Be blunt. Do not invent P&L. Use the briefing pack. "
+            "If the last walk-forward finished, name the next catalog family "
+            "(including backlog — coded-and-untested is still work) and whether "
+            "Inbox already has that gate. Idle with empty Inbox after a rejected "
+            "test is a miss; Strategy Advisor will flag you. If a family was approved "
+            "for coding and is NOT in the registry, that is a blocking miss — "
+            "do not say the floor is moving or that nothing waits on the "
+            "operator. If it IS coded, the floor starts the test — do not "
+            "ask for a second approve. Read duty_board.slips first: "
+            "those are deterministic misses (idle pipeline, uncoded mandate, "
+            "LLM timeout, paper mismatch). Name the owner. A Gemini timeout is Ops + Quant retry, "
+            "not a sit-out. Flag contradictions between employees. You cannot "
+            "raise risk limits or approve live trading. "
+            "llm_seats is the source of truth for providers. If "
+            "employee_seats_ok is true, Gemini is serving the floor. Do not "
+            "call missing DeepSeek or OpenAI keys degradation. A missing xAI "
+            "key only skips Sentiment. Ignore historical_noise, including "
+            "KillSwitchState.is_tripped (patched). Do not file a sit-out for "
+            "retired-provider skips, a single LLM timeout, or because research "
+            "is waiting on a test."
         )
 
     def gather(self) -> dict[str, Any]:
+        from firm.accountability import accountability_snapshot
+        from firm.health_filters import llm_seat_briefing, mark_superseded_failures
+        from firm.org import org_snapshot
+        from firm.research_catalog import research_plan
+        from firm.research_jobs import advance_pipeline, pipeline_snapshot
+
+        memory.clear_resolved_health_noise()
+        # GM function: keep the pipeline moving before writing the briefing.
+        advance_pipeline()
         return {
+            "llm_seats": llm_seat_briefing(),
+            "org": org_snapshot(),
+            "duty_board": accountability_snapshot(),
+            "pipeline": pipeline_snapshot(),
+            "research_plan": research_plan(),
             "regime": memory.latest_regime(),
             "sentiment": memory.latest_sentiment(limit=12),
             "pending_proposals": memory.pending_proposals(limit=20),
             "open_escalations": memory.open_escalations(limit=20),
-            "recent_activity": memory.recent_runs(limit=20),
+            "recent_activity": mark_superseded_failures(memory.recent_runs(limit=20)),
             "research": memory.research_board(limit=10),
             "trust": [r.summary() for r in all_records()],
         }
 
     def task_prompt(self, inputs: dict[str, Any]) -> str:
-        return f"Write today's desk briefing from this pack.\n{inputs}"
+        return (
+            "Write today's desk briefing. Lead with the duty board: is the "
+            "research pipeline moving, who is slipping, and what the next "
+            "operator gate is (if any). The rest of the pack is context.\n"
+            f"{inputs}"
+        )
 
     def on_output(self, output: AgentOutput, inputs: dict[str, Any], run_id: int) -> list[int]:
         del inputs

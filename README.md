@@ -33,8 +33,8 @@ python scripts/run_paper_trading.py --cycles 1
 python scripts/run_api.py
 ```
 
-Dashboard: http://127.0.0.1:8000 — employee cards, activity, inbox, risk/kill,
-research, sentiment, blotter, go-live gates.
+Dashboard: http://127.0.0.1:8000 — operator desk with equity, blotter, positions,
+employee floor, inbox, research, sentiment, and go-live gates.
 
 Go-live check (does not start live trading):
 

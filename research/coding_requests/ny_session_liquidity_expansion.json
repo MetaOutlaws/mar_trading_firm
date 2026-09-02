@@ -1,0 +1,14 @@
+{
+  "family": "ny_session_liquidity_expansion",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Identifies the high and low of the New York session (13:00 to 21:00 UTC). If the preceding London session had low volatility (ATR ratio < 1.0), it enters a breakout trade in the direction of the first 4h candle close outside the NY range, using a trailing ATR stop.",
+  "summary": "Identifies the high and low of the New York session (13:00 to 21:00 UTC). If the preceding London session had low volatility (ATR ratio < 1.0), it enters a breakout trade in the direction of the first 4h candle close outside the NY range, u",
+  "justification": "It capitalizes on the structural expansion of volatility that occurs when New York market participants break out of compressed ranges established during quieter sessions.",
+  "written_at": "2026-09-01T11:13:50.722651+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/ny_session_liquidity_expansion.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

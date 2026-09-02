@@ -1,0 +1,14 @@
+{
+  "family": "engulfing_reversal",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs a two-bar engulfing rule (current body fully covers prior body) plus close direction. Not RSI fade and not inside-bar.",
+  "summary": "Reverse when a bar's body fully engulfs the prior body.",
+  "justification": "Two-bar engulfing is pattern math, not a stretch template.",
+  "written_at": "2026-08-31T17:25:17.163724+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/engulfing_reversal.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

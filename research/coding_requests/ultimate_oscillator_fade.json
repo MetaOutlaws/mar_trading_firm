@@ -1,0 +1,14 @@
+{
+  "family": "ultimate_oscillator_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs Ultimate Oscillator: weighted average of 7/14/28 buying-pressure over true-range sums. Not RSI and not MFI.",
+  "summary": "Fade Ultimate Oscillator extremes.",
+  "justification": "UO mixes three BP/TR windows; it is not a single RSI period.",
+  "written_at": "2026-09-01T04:57:42.415858+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/ultimate_oscillator_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -1,0 +1,14 @@
+{
+  "family": "volume_force_divergence",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Calculates the cumulative Volume Force (signed volume based on close-to-close price change normalized by ATR). It triggers a mean-reversion trade when price makes a new 20-period high/low but the Volume Force fails to confirm (divergence), filtered by a low ADX to ensure a range-bound regime.",
+  "summary": "Calculates the cumulative Volume Force (signed volume based on close-to-close price change normalized by ATR). It triggers a mean-reversion trade when price makes a new 20-period high/low but the Volume Force fails to confirm (divergence), ",
+  "justification": "Exposes institutional distribution or accumulation that is hidden behind small price candles with massive volume.",
+  "written_at": "2026-09-01T10:58:21.061709+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/volume_force_divergence.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}
