@@ -1159,6 +1159,23 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
         summary="Trade volume-weighted MACD crossing its signal.",
         justification="VW-MACD weights by volume; standard MACD does not.",
     ),
+    SleeveSpec(
+        name="volume_force_divergence",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs cumulative Volume Force: signed volume of close-to-close change "
+            "normalized by ATR, then a fade when price makes a new N-bar high/low "
+            "that force does not confirm. Not Elder Force Index z-score fade and "
+            "not VPT percent-change volume."
+        ),
+        summary="Fade a price extreme that ATR-normalized volume force does not confirm.",
+        justification=(
+            "ATR-normalized cumulative force is a different ledger from EMA(ΔC*V) "
+            "and from VPT. Divergence plus a low-ADX chop filter is the bet."
+        ),
+    ),
 ]
 
 

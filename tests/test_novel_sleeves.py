@@ -87,6 +87,7 @@ APPROVED = [
     "laguerre_filter_cross",
     "gator_oscillator_cross",
     "williams_fractal_break",
+    "volume_force_divergence",
 ]
 
 
@@ -937,6 +938,67 @@ def test_gator_oscillator_cross_long_entry() -> None:
     candles = _ohlcv(_hourly(n), close, high=high, low=low)
     signals = _signals("gator_oscillator_cross", candles)
     assert int((signals["signal"] == 1).sum()) >= 1
+
+
+def _volume_force_chop(n: int = 160, seed: int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Quiet tape so ADX stays asleep, with room to plant a force extreme."""
+    rng = np.random.default_rng(seed)
+    close = 100.0 + rng.normal(0, 0.03, n)
+    close[:70] = 100.0 + rng.normal(0, 0.03, 70)
+    high = close + 0.08
+    low = close - 0.08
+    volume = np.full(n, 500.0)
+    return close, high, low, volume
+
+
+def test_volume_force_divergence_schema_and_long_entry() -> None:
+    n = 160
+    close, high, low, volume = _volume_force_chop(n, seed=0)
+    # Heavy-volume dip plants a Volume Force low inside the later 20-bar window.
+    close[72:76] = np.array([99.85, 99.70, 99.60, 99.75])
+    high[72:76] = close[72:76] + 0.06
+    low[72:76] = np.array([99.80, 99.62, 99.50, 99.68])
+    volume[72:76] = 40_000.0
+    close[76:130] = 100.0 + np.random.default_rng(1).normal(0, 0.03, 54)
+    high[76:130] = close[76:130] + 0.08
+    low[76:130] = close[76:130] - 0.08
+    volume[76:130] = 500.0
+    # New price low on tiny volume: force does not confirm.
+    close[132:136] = np.array([99.70, 99.40, 99.10, 98.90])
+    high[132:136] = close[132:136] + 0.06
+    low[132:136] = np.array([99.55, 99.20, 98.85, 98.60])
+    volume[132:136] = 60.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low)
+    candles["volume"] = volume
+    signals = _signals("volume_force_divergence", candles)
+    for column in ("signal", "side", "score", "reason", "volume_force", "adx"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+
+
+def test_volume_force_divergence_short_entry() -> None:
+    n = 160
+    close, high, low, volume = _volume_force_chop(n, seed=0)
+    # Heavy-volume rally plants a Volume Force high.
+    close[72:76] = np.array([100.15, 100.30, 100.40, 100.25])
+    high[72:76] = np.array([100.20, 100.38, 100.50, 100.32])
+    low[72:76] = close[72:76] - 0.06
+    volume[72:76] = 40_000.0
+    close[76:130] = 100.0 + np.random.default_rng(1).normal(0, 0.03, 54)
+    high[76:130] = close[76:130] + 0.08
+    low[76:130] = close[76:130] - 0.08
+    volume[76:130] = 500.0
+    # New price high on tiny volume: force does not confirm.
+    close[132:136] = np.array([100.15, 100.30, 100.50, 100.65])
+    high[132:136] = np.array([100.28, 100.48, 100.72, 100.90])
+    low[132:136] = close[132:136] - 0.06
+    volume[132:136] = 60.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low)
+    candles["volume"] = volume
+    signals = _signals("volume_force_divergence", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
 
 
 def test_williams_fractal_break_long_entry() -> None:
