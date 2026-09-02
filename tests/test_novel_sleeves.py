@@ -88,6 +88,7 @@ APPROVED = [
     "gator_oscillator_cross",
     "williams_fractal_break",
     "volume_force_divergence",
+    "session_liquidity_sweep",
 ]
 
 
@@ -999,6 +1000,59 @@ def test_volume_force_divergence_short_entry() -> None:
     signals = _signals("volume_force_divergence", candles, side=SignalSide.SHORT)
     assert int(signals["signal"].iloc[0]) == 0
     assert int((signals["signal"] == -1).sum()) >= 1
+
+
+def _asian_box_day(n: int = 48) -> tuple[pd.DatetimeIndex, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Two UTC days of a 99–101 Asian box so London/NY can sweep it."""
+    index = _hourly(n)
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    return index, close, high, low, open_
+
+
+def test_session_liquidity_sweep_schema_and_long_entry() -> None:
+    index, close, high, low, open_ = _asian_box_day()
+    # Bar 32 is 2024-01-03 08:00 UTC: Asian box is published, first London hour.
+    # Wick through 99 by <1% and close back inside.
+    low[32] = 98.15
+    close[32] = 99.40
+    open_[32] = 100.0
+    high[32] = 100.20
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("session_liquidity_sweep", candles)
+    for column in ("signal", "side", "score", "reason", "range_high", "range_low"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[7]) == 0
+    assert int(signals["signal"].iloc[32]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+
+
+def test_session_liquidity_sweep_short_entry() -> None:
+    index, close, high, low, open_ = _asian_box_day()
+    high[32] = 101.85
+    close[32] = 100.60
+    open_[32] = 100.0
+    low[32] = 99.80
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("session_liquidity_sweep", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[32]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+
+
+def test_session_liquidity_sweep_ignores_real_breakout() -> None:
+    """A poke of more than 1% is a break, not a failed sweep — do not fade it."""
+    index, close, high, low, open_ = _asian_box_day()
+    low[32] = 97.00
+    close[32] = 99.40
+    open_[32] = 100.0
+    high[32] = 100.20
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("session_liquidity_sweep", candles)
+    assert int(signals["signal"].iloc[32]) == 0
 
 
 def test_williams_fractal_break_long_entry() -> None:

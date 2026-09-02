@@ -782,6 +782,12 @@ def _novel_kit(name: str, side: SignalSide):
             "VolumeForceDivergenceStrategy",
             {"lookback": [20], "max_adx": [0.0, 20.0]},
         ),
+        "session_liquidity_sweep": (
+            "core.strategy.session_liquidity_sweep",
+            "SessionLiquiditySweepParams",
+            "SessionLiquiditySweepStrategy",
+            {"max_sweep_pct": [0.005, 0.01]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
