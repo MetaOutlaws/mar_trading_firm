@@ -91,6 +91,7 @@ APPROVED = [
     "session_liquidity_sweep",
     "bar_vwap_inflow_surge",
     "fib_retracement_bounce",
+    "fib_extension_break",
 ]
 
 
@@ -1229,6 +1230,103 @@ def test_fib_retracement_bounce_level_from_confirmed_swings_not_donchian() -> No
     assert signals.loc[bar, "fib_level"] != pytest.approx(float(donchian_618), abs=0.2)
     assert swing_low.loc[bar] == pytest.approx(80.0)
     assert swing_high.loc[bar] == pytest.approx(120.0)
+
+
+def _impulse_then_extension(
+    *,
+    long_side: bool,
+    n: int = 80,
+    origin: float = 80.0,
+    extreme: float = 120.0,
+    swing_a: int = 10,
+    swing_b: int = 25,
+    break_bar: int = 40,
+) -> pd.DataFrame:
+    """Plant two confirmed swings (left=3) then a 1.618 extension break.
+
+    Background highs and lows are strictly increasing so `confirmed_swings`
+    cannot mint a later 101/99 pivot that overwrites the impulse. The origin
+    sits more than 20 bars before the break so a Donchian-20 1.618 is a
+    different number than the two-swing extension.
+    """
+    drift = 0.01 * np.arange(n)
+    close = 100.0 + drift
+    high = 101.0 + drift
+    low = 99.0 + drift
+    open_ = 100.0 + drift
+    rng = extreme - origin
+    if long_side:
+        # Origin low then impulse high; break is H + 0.618*R, not a 0.618 bounce.
+        low[swing_a] = origin
+        close[swing_a] = min(close[swing_a], origin + 1.0)
+        high[swing_b] = extreme
+        close[swing_b] = extreme - 2.0
+        ext = extreme + 0.618 * rng
+        close[break_bar] = ext + 5.0
+        high[break_bar] = ext + 6.0
+        low[break_bar] = ext + 3.0
+        open_[break_bar] = ext + 1.0
+    else:
+        high[swing_a] = extreme
+        close[swing_a] = extreme - 2.0
+        low[swing_b] = origin
+        close[swing_b] = origin + 2.0
+        ext = origin - 0.618 * rng
+        close[break_bar] = ext - 5.0
+        high[break_bar] = ext - 3.0
+        low[break_bar] = ext - 6.0
+        open_[break_bar] = ext - 1.0
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+
+
+def test_fib_extension_break_schema_and_long_entry() -> None:
+    candles = _impulse_then_extension(long_side=True)
+    signals = _signals("fib_extension_break", candles)
+    for column in ("signal", "side", "score", "reason", "swing_high", "swing_low", "fib_ext"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+
+
+def test_fib_extension_break_short_entry() -> None:
+    candles = _impulse_then_extension(long_side=False)
+    signals = _signals("fib_extension_break", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+
+
+def test_fib_extension_break_ext_from_two_confirmed_swings() -> None:
+    """ext = end + 0.618*(end-start) from two confirmed swings, not Donchian."""
+    from core.strategy import indicators as ind
+
+    candles = _impulse_then_extension(long_side=True)
+    signals = _signals("fib_extension_break", candles)
+    fired = signals.index[signals["signal"] == 1]
+    assert len(fired) >= 1
+    bar = fired[0]
+    swing_high, swing_low = ind.confirmed_swings(candles["high"], candles["low"], left=3)
+    start = swing_low.loc[bar]
+    end = swing_high.loc[bar]
+    expected = end + 0.618 * (end - start)
+    assert signals.loc[bar, "fib_ext"] == pytest.approx(float(expected))
+    assert signals.loc[bar, "swing_high"] == pytest.approx(float(end))
+    assert signals.loc[bar, "swing_low"] == pytest.approx(float(start))
+    assert signals.loc[bar, "last_event"] == pytest.approx(1.0)
+    # Donchian 20 ending at this bar does not contain the origin low (bar 10).
+    prior = slice(None, bar)
+    donchian_high = candles.loc[prior, "high"].iloc[-20:].max()
+    donchian_low = candles.loc[prior, "low"].iloc[-20:].min()
+    donchian_ext = donchian_high + 0.618 * (donchian_high - donchian_low)
+    assert signals.loc[bar, "fib_ext"] != pytest.approx(float(donchian_ext), abs=0.2)
+    assert start == pytest.approx(80.0)
+    assert end == pytest.approx(120.0)
+    # 1.272 is the inner zone start of this family, not a 0.618 retracement bounce.
+    inner = end + 0.272 * (end - start)
+    assert signals.loc[bar, "fib_inner"] == pytest.approx(float(inner))
+    bounce_618 = end - 0.618 * (end - start)
+    assert signals.loc[bar, "fib_ext"] != pytest.approx(float(bounce_618), abs=0.2)
 
 
 def test_williams_fractal_break_long_entry() -> None:
