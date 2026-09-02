@@ -408,7 +408,11 @@ def _consume_matching_inbox(family: str, clock: str, decided_by: str) -> None:
 
 def stage_standby(source: str = "sleeve_engineer") -> list[int]:
     """Ensure launch-ready standby jobs exist. Does not start validators."""
-    from firm.research_catalog import promote_remaining_into_top5
+    from firm.research_catalog import (
+        auto_advance_grid_spent,
+        is_explicit_retest,
+        promote_remaining_into_top5,
+    )
     from firm.research_jobs import _record_job, list_jobs, stamp_job
 
     cfg = pipeline_config()
@@ -422,6 +426,10 @@ def stage_standby(source: str = "sleeve_engineer") -> list[int]:
                 h
                 for h in remaining
                 if classify_hypothesis(h, jobs=jobs).get("tier") == "A"
+                and (
+                    is_explicit_retest(h)
+                    or not auto_advance_grid_spent(h, jobs=jobs)
+                )
             ),
             None,
         )
@@ -438,6 +446,7 @@ def stage_standby(source: str = "sleeve_engineer") -> list[int]:
             hypothesis_id=str(hypo.get("id") or ""),
             envelope_tier=envelope["tier"],
             param_change=dict(hypo.get("param_change") or {}),
+            operator_queued=bool(hypo.get("operator_queued")),
             detail=(
                 f"Standby: {hypo.get('name')} ({hypo.get('clock')}). "
                 f"Tier {envelope['tier']}. Will start when a walk-forward slot frees."
@@ -523,7 +532,39 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
         family = str(job.get("family") or "")
         clock = str(job.get("clock") or "")
         side = str(job.get("side") or "BOTH")
-        from firm.research_catalog import family_blocked_from_replenish, family_primary_clock
+        hid = str(job.get("hypothesis_id") or "")
+        from firm.research_catalog import (
+            auto_advance_grid_spent,
+            family_blocked_from_replenish,
+            family_primary_clock,
+        )
+
+        # Paper book / history / finished jobs: never re-run a spent grid to
+        # keep a slot busy. Operator-queued frozen near-misses still start.
+        spent_row = {
+            "family": family,
+            "clock": clock,
+            "side": side,
+            "id": hid,
+            "hypothesis_id": hid,
+            "force_retest": job.get("force_retest"),
+            "operator_queued": job.get("operator_queued"),
+            "added_by": job.get("added_by") or job.get("last_updated_by") or "",
+            "disposition": job.get("disposition") or "",
+            "param_change": job.get("param_change") or {},
+        }
+        if auto_advance_grid_spent(spent_row, jobs=list_jobs()):
+            stamp_job(
+                int(job["id"]),
+                status="gated",
+                stage="standby",
+                updated_by="desk_head",
+                blocked_by="already_finished",
+                next_action="idle_or_queue_novel",
+                next_action_owner="desk_head",
+            )
+            skipped.append(f"{family} {clock} {side} already finished")
+            continue
 
         # Do not spend a slot on 1h clones of a sleeve whose first clock already
         # finished 0-for-6. Those rows used to sneak in as "still-open family".

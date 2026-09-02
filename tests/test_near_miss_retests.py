@@ -15,6 +15,15 @@ from firm.research_catalog import (
 from research.validate import merge_search_space, strategy_kit
 
 
+def _isolate_finished_grids(monkeypatch, tmp_path) -> None:
+    from firm import research_catalog, research_jobs
+
+    monkeypatch.setattr(research_catalog, "WALK_FORWARD_HISTORY_PATH", tmp_path / "wf_history.json")
+    monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
+    monkeypatch.setattr(research_catalog, "paper_book_finished_keys", lambda: set())
+    research_jobs._LAST_GOOD_JOBS = None
+
+
 def test_fifteen_near_misses_are_tagged_variants() -> None:
     ids = [str(row["id"]) for row in NEAR_MISS_RETESTS]
     assert len(ids) == 15
@@ -40,6 +49,7 @@ def test_remaining_keeps_variant_after_base_clock(tmp_path, monkeypatch) -> None
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     (tmp_path / "jobs.json").write_text(
         '{"jobs":[{"family":"bb_squeeze_breakout","status":"done","clock":"4h/4h",'
@@ -59,6 +69,7 @@ def test_rsi_variant_is_not_blocked_by_never_replenish(tmp_path, monkeypatch) ->
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     (tmp_path / "ranking.json").write_text(
@@ -112,6 +123,7 @@ def test_remaining_skips_seed_tags_that_are_not_near_misses(tmp_path, monkeypatc
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     (tmp_path / "ranking.json").write_text(
@@ -127,6 +139,7 @@ def test_overlay_added_param_variant_stays_in_remaining(tmp_path, monkeypatch) -
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     (tmp_path / "jobs.json").write_text(
         '{"jobs":[{"family":"bb_squeeze_breakout","status":"done","clock":"4h/4h",'
@@ -172,6 +185,7 @@ def test_today_close_retests_stay_in_remaining(tmp_path, monkeypatch) -> None:
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     (tmp_path / "jobs.json").write_text(
         '{"jobs":['
