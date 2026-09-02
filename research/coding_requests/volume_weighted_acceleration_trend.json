@@ -7,8 +7,8 @@
   "needs_new_indicator": true,
   "novel_reason": "Calculates the second derivative (acceleration) of a volume-weighted moving average (VWMA) of price. It enters trend-following positions on a 4h clock when the acceleration crosses zero, indicating that the trend is actively speeding up with volume support.",
   "summary": "Calculates the second derivative (acceleration) of a volume-weighted moving average (VWMA) of price. It enters trend-following positions on a 4h clock when the acceleration crosses zero, indicating that the trend is actively speeding up wit",
-  "justification": "Filters out late-stage grinding trends that are prone to sudden mean-reverting collapses, focusing only on high-velocity moves backed by volume.",
-  "written_at": "2026-09-02T07:16:26.928779+00:00",
+  "justification": "Ensures trend entries are backed by both volume expansion and momentum acceleration, avoiding late entries into exhausted trends.",
+  "written_at": "2026-09-02T09:08:24.115209+00:00",
   "owner": "sleeve_engineer",
   "instruction": "Write core/strategy/volume_weighted_acceleration_trend.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
 }

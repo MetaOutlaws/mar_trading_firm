@@ -2,7 +2,7 @@
 
 Identifies the Value Area High (VAH) and Value Area Low (VAL) of the preceding UTC session. When price sweeps outside these boundaries on below-average volume and immediately closes back inside the value area on a 1h clock, it enters a reve
 
-Passive limit orders at session extremes act as strong absorption barriers in range-bound regimes, trapping breakout traders.
+Exploits institutional limit order absorption at key structural boundaries where retail stop-losses are clustered.
 
 ## Coding brief (implement this after Inbox approve)
 

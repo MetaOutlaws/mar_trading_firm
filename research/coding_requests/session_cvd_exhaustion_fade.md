@@ -1,6 +1,6 @@
 # Proposal: `session_cvd_exhaustion_fade`
 
-Fades price extensions outside the rolling 24-hour session range when Cumulative Volume Delta (CVD) shows a clear divergence (price makes a new high/low but CVD fails to confirm), indicating aggressive market orders are being absorbed by pa
+Calculates a rolling Cumulative Volume Delta (CVD) over the current UTC session. When price sweeps the session high or low on a 1h clock but CVD fails to confirm (printing a lower high or higher low), it triggers a mean-reversion trade targ
 
 Directly targets institutional limit order absorption at key liquidity pools, which is highly effective in choppy, non-trending regimes.
 
@@ -8,7 +8,7 @@ Directly targets institutional limit order absorption at key liquidity pools, wh
 
 - Clock: `1h/1h`
 - Side: `BOTH`
-- Why this is novel: Fades price extensions outside the rolling 24-hour session range when Cumulative Volume Delta (CVD) shows a clear divergence (price makes a new high/low but CVD fails to confirm), indicating aggressive market orders are being absorbed by passive limit orders.
+- Why this is novel: Calculates a rolling Cumulative Volume Delta (CVD) over the current UTC session. When price sweeps the session high or low on a 1h clock but CVD fails to confirm (printing a lower high or higher low), it triggers a mean-reversion trade targeting the session VWAP, filtered by a low ADX to ensure a range-bound regime.
 
 ## What to write
 

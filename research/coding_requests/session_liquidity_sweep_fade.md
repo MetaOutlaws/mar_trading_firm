@@ -1,6 +1,6 @@
 # Proposal: `session_liquidity_sweep_fade`
 
-Identifies the high and low boundaries established during the Asian session (00:00-08:00 UTC). If the subsequent London or NY session sweeps outside this range by less than a threshold percentage (e.g., 1.0%) and immediately closes back ins
+Captures high-probability mean-reversion flows when breakout traders are trapped outside key structural ranges during low-volatility regimes.
 
 Exploits highly reliable daily liquidity-seeking behavior of market maker algorithms in range-bound regimes.
 
@@ -8,7 +8,7 @@ Exploits highly reliable daily liquidity-seeking behavior of market maker algori
 
 - Clock: `1h/1h`
 - Side: `BOTH`
-- Why this is novel: Identifies the high and low boundaries established during the Asian session (00:00-08:00 UTC). If the subsequent London or NY session sweeps outside this range by less than a threshold percentage (e.g., 1.0%) and immediately closes back inside the boundary on a 1h clock, it enters a reversal trade targeting the opposite side of the session range.
+- Why this is novel: Captures high-probability mean-reversion flows when breakout traders are trapped outside key structural ranges during low-volatility regimes.
 
 ## What to write
 

@@ -2,7 +2,7 @@
 
 Calculates the second derivative (acceleration) of a volume-weighted moving average (VWMA) of price. It enters trend-following positions on a 4h clock when the acceleration crosses zero, indicating that the trend is actively speeding up wit
 
-Filters out late-stage grinding trends that are prone to sudden mean-reverting collapses, focusing only on high-velocity moves backed by volume.
+Ensures trend entries are backed by both volume expansion and momentum acceleration, avoiding late entries into exhausted trends.
 
 ## Coding brief (implement this after Inbox approve)
 

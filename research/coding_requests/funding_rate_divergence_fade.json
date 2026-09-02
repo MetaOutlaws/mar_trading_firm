@@ -1,0 +1,14 @@
+{
+  "family": "funding_rate_divergence_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "SHORT",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Fades extreme perp positioning by identifying structural divergences between price action and funding rates. When price makes a higher high but the 8-hour funding rate makes a lower high (indicating spot-driven exhaustion or aggressive short hedging), the strategy enters a short position on a 4h clock, targeting a reversion to the 20-period EMA.",
+  "summary": "Fades extreme perp positioning by identifying structural divergences between price action and funding rates. When price makes a higher high but the 8-hour funding rate makes a lower high (indicating spot-driven exhaustion or aggressive shor",
+  "justification": "Exploits the structural lead-lag relationship between spot and perpetual swap markets during retail-driven FOMO phases.",
+  "written_at": "2026-09-02T08:52:53.771296+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/funding_rate_divergence_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

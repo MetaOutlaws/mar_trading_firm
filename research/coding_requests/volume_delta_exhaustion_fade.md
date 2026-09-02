@@ -1,6 +1,6 @@
 # Proposal: `volume_delta_exhaustion_fade`
 
-Fades price extremes on a 4h clock when price makes a new 20-bar high or low but Cumulative Volume Delta (CVD) fails to confirm, printing a clear divergence. This signals that aggressive market orders are being absorbed by passive limit ord
+Calculates a rolling Cumulative Volume Delta (CVD) over a 20-bar window. When price prints a new high but CVD prints a lower high (or price prints a new low but CVD prints a higher low), it triggers a mean-reversion trade targeting the 20-p
 
 Directly targets institutional limit order absorption at key liquidity pools, which is highly effective in choppy, non-trending regimes.
 
@@ -8,7 +8,7 @@ Directly targets institutional limit order absorption at key liquidity pools, wh
 
 - Clock: `4h/4h`
 - Side: `BOTH`
-- Why this is novel: Fades price extremes on a 4h clock when price makes a new 20-bar high or low but Cumulative Volume Delta (CVD) fails to confirm, printing a clear divergence. This signals that aggressive market orders are being absorbed by passive limit orders, indicating an impending reversal.
+- Why this is novel: Calculates a rolling Cumulative Volume Delta (CVD) over a 20-bar window. When price prints a new high but CVD prints a lower high (or price prints a new low but CVD prints a higher low), it triggers a mean-reversion trade targeting the 20-period EMA, filtered by a low ADX to ensure a range-bound regime.
 
 ## What to write
 

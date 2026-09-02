@@ -5,10 +5,10 @@
   "side": "BOTH",
   "needs_feed": false,
   "needs_new_indicator": true,
-  "novel_reason": "Fades price extensions outside the rolling 24-hour session range when Cumulative Volume Delta (CVD) shows a clear divergence (price makes a new high/low but CVD fails to confirm), indicating aggressive market orders are being absorbed by passive limit orders.",
-  "summary": "Fades price extensions outside the rolling 24-hour session range when Cumulative Volume Delta (CVD) shows a clear divergence (price makes a new high/low but CVD fails to confirm), indicating aggressive market orders are being absorbed by pa",
+  "novel_reason": "Calculates a rolling Cumulative Volume Delta (CVD) over the current UTC session. When price sweeps the session high or low on a 1h clock but CVD fails to confirm (printing a lower high or higher low), it triggers a mean-reversion trade targeting the session VWAP, filtered by a low ADX to ensure a range-bound regime.",
+  "summary": "Calculates a rolling Cumulative Volume Delta (CVD) over the current UTC session. When price sweeps the session high or low on a 1h clock but CVD fails to confirm (printing a lower high or higher low), it triggers a mean-reversion trade targ",
   "justification": "Directly targets institutional limit order absorption at key liquidity pools, which is highly effective in choppy, non-trending regimes.",
-  "written_at": "2026-09-01T18:50:14.680465+00:00",
+  "written_at": "2026-09-02T08:27:31.587596+00:00",
   "owner": "sleeve_engineer",
   "instruction": "Write core/strategy/session_cvd_exhaustion_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
 }

@@ -5,10 +5,10 @@
   "side": "BOTH",
   "needs_feed": false,
   "needs_new_indicator": true,
-  "novel_reason": "Fades price extremes on a 4h clock when price makes a new 20-bar high or low but Cumulative Volume Delta (CVD) fails to confirm, printing a clear divergence. This signals that aggressive market orders are being absorbed by passive limit orders, indicating an impending reversal.",
-  "summary": "Fades price extremes on a 4h clock when price makes a new 20-bar high or low but Cumulative Volume Delta (CVD) fails to confirm, printing a clear divergence. This signals that aggressive market orders are being absorbed by passive limit ord",
+  "novel_reason": "Calculates a rolling Cumulative Volume Delta (CVD) over a 20-bar window. When price prints a new high but CVD prints a lower high (or price prints a new low but CVD prints a higher low), it triggers a mean-reversion trade targeting the 20-period EMA, filtered by a low ADX to ensure a range-bound regime.",
+  "summary": "Calculates a rolling Cumulative Volume Delta (CVD) over a 20-bar window. When price prints a new high but CVD prints a lower high (or price prints a new low but CVD prints a higher low), it triggers a mean-reversion trade targeting the 20-p",
   "justification": "Directly targets institutional limit order absorption at key liquidity pools, which is highly effective in choppy, non-trending regimes.",
-  "written_at": "2026-09-02T04:27:31.523413+00:00",
+  "written_at": "2026-09-02T08:12:10.448005+00:00",
   "owner": "sleeve_engineer",
   "instruction": "Write core/strategy/volume_delta_exhaustion_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
 }
