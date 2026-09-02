@@ -1150,27 +1150,29 @@ def _impulse_then_retrace(
     n: int = 80,
     origin: float = 80.0,
     extreme: float = 120.0,
-    swing_a: int = 15,
-    swing_b: int = 40,
-    bounce: int = 50,
+    swing_a: int = 10,
+    swing_b: int = 25,
+    bounce: int = 36,
 ) -> pd.DataFrame:
-    """Plant two confirmed swings (left=3) and a 0.618 tag that closes back through."""
-    close = np.full(n, 100.0)
-    high = np.full(n, 101.0)
-    low = np.full(n, 99.0)
-    open_ = np.full(n, 100.0)
-    left = 3
-    # After each swing publishes, walk the opposite extreme away so confirmed_swings
-    # does not replace the planted origin with a later flat-tape pivot.
+    """Plant two confirmed swings (left=3) and a 0.618 tag that closes back through.
+
+    Background highs and lows are strictly increasing so `confirmed_swings`
+    cannot mint a later 101/99 pivot that overwrites the impulse. The origin
+    low sits more than 20 bars before the bounce so a Donchian-20 0.618 is
+    a different number than the two-swing 0.618.
+    """
+    drift = 0.01 * np.arange(n)
+    close = 100.0 + drift
+    high = 101.0 + drift
+    low = 99.0 + drift
+    open_ = 100.0 + drift
     if long_side:
+        # Only the origin low and impulse high are planted; the other side of
+        # those bars stays on the rising background so it cannot become a pivot.
         low[swing_a] = origin
-        high[swing_a] = 100.0
-        close[swing_a] = 99.0
+        close[swing_a] = min(close[swing_a], origin + 1.0)
         high[swing_b] = extreme
-        low[swing_b] = 99.0
-        close[swing_b] = 118.0
-        for i in range(swing_a + left + 1, bounce):
-            low[i] = 99.0 + 0.02 * (i - swing_a)
+        close[swing_b] = extreme - 2.0
         level = extreme - 0.618 * (extreme - origin)
         low[bounce] = level - 0.8
         high[bounce] = level + 2.0
@@ -1178,13 +1180,9 @@ def _impulse_then_retrace(
         open_[bounce] = level - 0.2
     else:
         high[swing_a] = extreme
-        low[swing_a] = 100.0
-        close[swing_a] = 101.0
+        close[swing_a] = extreme - 2.0
         low[swing_b] = origin
-        high[swing_b] = 101.0
-        close[swing_b] = 82.0
-        for i in range(swing_a + left + 1, bounce):
-            high[i] = 101.0 - 0.02 * (i - swing_a)
+        close[swing_b] = origin + 2.0
         level = origin + 0.618 * (extreme - origin)
         high[bounce] = level + 0.8
         low[bounce] = level - 2.0
@@ -1223,7 +1221,7 @@ def test_fib_retracement_bounce_level_from_confirmed_swings_not_donchian() -> No
     assert signals.loc[bar, "fib_level"] == pytest.approx(float(expected))
     assert signals.loc[bar, "swing_high"] == pytest.approx(float(swing_high.loc[bar]))
     assert signals.loc[bar, "swing_low"] == pytest.approx(float(swing_low.loc[bar]))
-    # Donchian 20 ending at this bar does not contain the origin low (bar 15).
+    # Donchian 20 ending at this bar does not contain the origin low (bar 10).
     prior = slice(None, bar)
     donchian_high = candles.loc[prior, "high"].iloc[-20:].max()
     donchian_low = candles.loc[prior, "low"].iloc[-20:].min()
