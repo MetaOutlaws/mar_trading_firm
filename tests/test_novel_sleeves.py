@@ -1297,6 +1297,87 @@ def test_fib_extension_break_short_entry() -> None:
     assert int((signals["signal"] == 1).sum()) == 0
 
 
+def test_fib_extension_break_skip_bull_suppresses_short_on_bull_bars() -> None:
+    """skip_bull=True drops SHORT entries on bull bars; default False keeps them."""
+    from core.strategy.fib_extension_break import (
+        FibExtensionBreakParams,
+        FibExtensionBreakStrategy,
+    )
+
+    candles = _impulse_then_extension(long_side=False)
+    candles = candles.copy()
+    candles["regime"] = "bull"
+    open_shorts = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT)
+    ).generate_signals(candles)
+    skipped = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=True)
+    ).generate_signals(candles)
+    assert int((open_shorts["signal"] == -1).sum()) >= 1
+    assert int((skipped["signal"] == -1).sum()) == 0
+    # Bear bars still allow the short when skip_bull is on.
+    bear = candles.copy()
+    bear["regime"] = "bear"
+    allowed = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=True)
+    ).generate_signals(bear)
+    assert int((allowed["signal"] == -1).sum()) >= 1
+
+
+def test_fib_extension_break_skip_bear_suppresses_long_on_bear_bars() -> None:
+    from core.strategy.fib_extension_break import (
+        FibExtensionBreakParams,
+        FibExtensionBreakStrategy,
+    )
+
+    candles = _impulse_then_extension(long_side=True)
+    candles = candles.copy()
+    candles["regime"] = "bear"
+    open_longs = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.LONG)
+    ).generate_signals(candles)
+    skipped = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.LONG, skip_bear=True)
+    ).generate_signals(candles)
+    assert int((open_longs["signal"] == 1).sum()) >= 1
+    assert int((skipped["signal"] == 1).sum()) == 0
+
+
+def test_fib_extension_break_1618_default_and_no_lookahead() -> None:
+    """Default ratio is 1.618; skip_bull SMA fallback does not peek past t."""
+    from core.strategy.fib_extension_break import (
+        FibExtensionBreakParams,
+        FibExtensionBreakStrategy,
+        REGIME_SMA,
+    )
+
+    assert FibExtensionBreakParams().fib_ratio == 1.618
+    candles = _impulse_then_extension(long_side=False, n=260, swing_a=210, swing_b=225, break_bar=240)
+    sleeve = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=True)
+    )
+    full = sleeve.generate_signals(candles)
+    cut = 250
+    truncated = sleeve.generate_signals(candles.iloc[:cut])
+    pd.testing.assert_series_equal(
+        full["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    shocked = candles.copy()
+    shocked.iloc[-1, shocked.columns.get_loc("close")] *= 0.5
+    shocked.iloc[-1, shocked.columns.get_loc("low")] *= 0.5
+    original = sleeve.generate_signals(candles)["signal"].iloc[:-1]
+    after = sleeve.generate_signals(shocked)["signal"].iloc[:-1]
+    pd.testing.assert_series_equal(original, after)
+    # SMA(200) is causal: last-bar shock must not move the prior SMA label.
+    from core.strategy import indicators as ind
+
+    mid_full = ind.sma(candles["close"], REGIME_SMA)
+    mid_shock = ind.sma(shocked["close"], REGIME_SMA)
+    pd.testing.assert_series_equal(mid_full.iloc[:-1], mid_shock.iloc[:-1], check_names=False)
+
+
 def test_fib_extension_break_ext_from_two_confirmed_swings() -> None:
     """ext = end + 0.618*(end-start) from two confirmed swings, not Donchian."""
     from core.strategy import indicators as ind

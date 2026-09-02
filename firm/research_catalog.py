@@ -1173,6 +1173,7 @@ def is_explicit_retest(row: dict[str, Any]) -> bool:
         return True
     near_miss_ids = {str(r.get("id") or "") for r in NEAR_MISS_RETESTS}
     near_miss_ids.update(str(r.get("id") or "") for r in TODAY_CLOSE_RETESTS)
+    near_miss_ids.update(str(r.get("id") or "") for r in FIB_EXTENSION_NEAR_MISS)
     if hid in near_miss_ids:
         return True
     if str(row.get("added_by") or "") in {"operator", "test"}:
@@ -2274,6 +2275,37 @@ TODAY_CLOSE_RETESTS: list[dict[str, Any]] = [
 ]
 
 
+# Job 84 fib_extension_break 4h/4h BOTH: BTC SHORT approved; other shorts
+# were PF-clear near-misses (AVAX only loses-in-bull). Same family, frozen
+# 1.618 + skip_bull so fold CV cannot hunt the ratio or the bull filter.
+FIB_EXTENSION_NEAR_MISS: list[dict[str, Any]] = [
+    {
+        "id": "fib_extension_break@4h/4h@SHORT@skip_bull_1618",
+        "family": "fib_extension_break",
+        "name": "Fib extension 4h shorts, skip bull, 1.618 locked",
+        "clock": "4h/4h",
+        "side": "SHORT",
+        "rank": 1,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "re-parameterise",
+        "justification": (
+            "Job 84 4h/4h BOTH: BTCUSDT SHORT PF 1.64 approved. AVAXUSDT SHORT "
+            "PF 1.77 rejected only loses-in-bull. ETH SHORT PF 1.29 failed only "
+            "CI-includes-zero. Other shorts PF 1.21-1.34 failed CI/random/bull. "
+            "Longs weaker. Freeze fib_ratio at 1.618 so fold CV cannot blame "
+            "two ratios. skip_bull=True so shorts do not fire on bull bars."
+        ),
+        "param_change": {
+            "side": "SHORT",
+            "clock": "4h/4h",
+            "fib_ratio": [1.618],
+            "skip_bull": [True],
+        },
+    },
+]
+
+
 def queue_near_miss_retests(*, added_by: str = "operator") -> list[dict[str, Any]]:
     """Land the 15 near-miss frozen-grid hypotheses. Does not start validators."""
     landed: list[dict[str, Any]] = []
@@ -2291,6 +2323,19 @@ def queue_today_close_retests(*, added_by: str = "operator") -> list[dict[str, A
     """Land today's PF/WR/expectancy close-calls as frozen trend-filter retests."""
     landed: list[dict[str, Any]] = []
     for row in TODAY_CLOSE_RETESTS:
+        payload = dict(row)
+        payload["operator_queued"] = True
+        item = append_hypothesis(payload, added_by=added_by)
+        if item is not None:
+            landed.append(item)
+    promote_remaining_into_top5()
+    return landed
+
+
+def queue_fib_extension_near_miss(*, added_by: str = "operator") -> list[dict[str, Any]]:
+    """Land the Job 84 SHORT skip_bull + locked-1.618 retest. Does not start WF."""
+    landed: list[dict[str, Any]] = []
+    for row in FIB_EXTENSION_NEAR_MISS:
         payload = dict(row)
         payload["operator_queued"] = True
         item = append_hypothesis(payload, added_by=added_by)

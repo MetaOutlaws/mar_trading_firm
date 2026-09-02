@@ -7,8 +7,10 @@ from datetime import datetime, timezone
 from core.strategy.base import SignalSide
 from firm.envelope import classify_family_clock
 from firm.research_catalog import (
+    FIB_EXTENSION_NEAR_MISS,
     NEAR_MISS_RETESTS,
     TODAY_CLOSE_RETESTS,
+    is_explicit_retest,
     is_param_variant,
     remaining_hypotheses,
 )
@@ -210,3 +212,58 @@ def test_today_close_retests_stay_in_remaining(tmp_path, monkeypatch) -> None:
     left_ids = [r["id"] for r in remaining_hypotheses(research_jobs.list_jobs())]
     assert "mass_index_reversal@4h/4h@LONG@trend_sma50" in left_ids
     assert "mama_fama_cross@4h/4h@SHORT@trend_sma50" in left_ids
+
+
+def test_fib_extension_kit_locks_1618() -> None:
+    """Default walk-forward grid searches only 1.618; 1.272 is not a free param."""
+    _factory, base, space = strategy_kit("fib_extension_break", SignalSide.SHORT)
+    assert base.fib_ratio == 1.618
+    assert base.skip_bull is False
+    assert base.skip_bear is False
+    assert space["fib_ratio"] == [1.618]
+    assert 1.272 not in space["fib_ratio"]
+    assert "skip_bull" not in space
+    assert "skip_bear" not in space
+
+
+def test_fib_extension_near_miss_overlay_sets_skip_bull() -> None:
+    """SHORT-only 4h near-miss can freeze skip_bull and lock 1.618."""
+    from dataclasses import replace
+
+    _factory, base, space = strategy_kit("fib_extension_break", SignalSide.SHORT)
+    row = FIB_EXTENSION_NEAR_MISS[0]
+    change = row["param_change"]
+    merged = merge_search_space(space, change)
+    assert merged["fib_ratio"] == [1.618]
+    assert merged["skip_bull"] == [True]
+    assert 1.272 not in merged["fib_ratio"]
+    frozen = replace(base, fib_ratio=merged["fib_ratio"][0], skip_bull=merged["skip_bull"][0])
+    assert frozen.skip_bull is True
+    assert frozen.fib_ratio == 1.618
+    assert row["side"] == "SHORT"
+    assert row["clock"] == "4h/4h"
+    assert is_param_variant(row)
+    assert is_explicit_retest(row)
+
+
+def test_fib_extension_near_miss_stays_in_remaining(tmp_path, monkeypatch) -> None:
+    from firm import research_catalog, research_jobs
+
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
+    (tmp_path / "jobs.json").write_text(
+        '{"jobs":[{"family":"fib_extension_break","status":"done","clock":"4h/4h",'
+        '"side":"BOTH","pairs_approved":1,'
+        '"hypothesis_id":"fib_extension_break@4h/4h"}]}',
+        encoding="utf-8",
+    )
+    (tmp_path / "ranking.json").write_text(
+        '{"added":[],"ranks":{},"retired":[],"justifications":{},"dispositions":{}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(research_catalog, "_family_peak_pf", lambda: {"fib_extension_break": 1.64})
+    landed = research_catalog.queue_fib_extension_near_miss(added_by="test")
+    assert {row["id"] for row in landed} == {row["id"] for row in FIB_EXTENSION_NEAR_MISS}
+    left_ids = [r["id"] for r in remaining_hypotheses(research_jobs.list_jobs())]
+    assert "fib_extension_break@4h/4h@SHORT@skip_bull_1618" in left_ids

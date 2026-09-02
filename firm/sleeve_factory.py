@@ -1245,8 +1245,9 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "ffill. LONG: up-impulse ready, close>ext, close>H. SHORT "
             "symmetric. ext=end+0.618*(end-start). Optional inner 1.272 as "
             "zone start, not a second family. Invalidation is close back "
-            "through impulse end. Ratios 1.272/1.618. Not Donchian, not "
-            "fib_retracement_bounce. Do not implement the 0.618 retracement bounce."
+            "through impulse end. Search 1.618 only; inner 1.272 is display. "
+            "Not Donchian, not fib_retracement_bounce. Do not implement the "
+            "0.618 retracement bounce."
         ),
         summary="Break a 1.618 extension of a completed confirmed-swing impulse.",
         justification=(

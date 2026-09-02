@@ -12,8 +12,17 @@ close through that extension and through the impulse end. SHORT is the
 mirror (last_event == -1). Invalidation is close back through the impulse
 end (H longs, L shorts) on the same impulse.
 
-Search ratios are 1.272 / 1.618. The inner 1.272 is a zone start in this
-family, not a second sleeve. This family does not trade the 0.618 bounce.
+The walk-forward kit searches only 1.618 so fold CV cannot blame two
+ratios. 1.272 stays as the inner zone start for display, not a searched
+grid value. This family does not trade the 0.618 bounce.
+
+skip_bull / skip_bear default False so the approved BTC SHORT path is
+unchanged unless a near-miss overlay freezes them. When a flag is on,
+SHORT skips bull bars and LONG skips bear bars. Prefer a `regime` column
+on the candle frame when a causal series is already there. The validator's
+quarterly BTC labels are not attached (they use the whole quarter's
+return and would leak future bars). Fallback is close versus a causal
+200-bar SMA: above = local bull, below = local bear.
 """
 
 from __future__ import annotations
@@ -25,14 +34,43 @@ import pandas as pd
 from core.strategy import indicators as ind
 from core.strategy.base import SignalSide, Strategy, StrategyParams
 
+# Local bull/bear stand-in when candles have no causal `regime` column.
+REGIME_SMA = 200
+
+
+def _as_flag(value: object) -> bool:
+    """Coerce a kit / JSON overlay into a boolean without treating 'false' as True."""
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes"}
+    return bool(value)
+
+
+def _bar_regime(candles: pd.DataFrame, close: pd.Series) -> pd.Series:
+    """Per-bar bull/bear/chop label with no lookahead.
+
+    ``regime`` on the frame wins (tests or a harness that already attached a
+    causal series). Otherwise close vs SMA(200) at t uses closes <= t only.
+    Unwarmed SMA rows stay empty so skip_* does not invent a regime.
+    """
+    if "regime" in candles.columns:
+        return candles["regime"].astype("string").str.lower().fillna("")
+    mid = ind.sma(close, REGIME_SMA)
+    labels = pd.Series("", index=close.index, dtype="object")
+    labels = labels.mask(close > mid, "bull")
+    labels = labels.mask(close < mid, "bear")
+    return labels.fillna("")
+
 
 @dataclass(frozen=True)
 class FibExtensionBreakParams(StrategyParams):
     side: SignalSide = SignalSide.LONG
     pivot_left: int = 3
-    # 1.272 / 1.618 extension of the completed impulse (from origin).
-    # 1.618 => end + 0.618 * range; 1.272 => end + 0.272 * range (zone start).
+    # Walk-forward searches only 1.618. 1.272 remains the inner zone start.
+    # 1.618 => end + 0.618 * range; 1.272 => end + 0.272 * range (display).
     fib_ratio: float = 1.618
+    # Near-miss overlay may freeze these. Defaults keep the approved BTC path.
+    skip_bull: bool = False
+    skip_bear: bool = False
     take_profit_pct: float = 0.04
     stop_loss_pct: float = 0.02
 
@@ -98,8 +136,8 @@ class FibExtensionBreakStrategy(Strategy):
         signals["last_event"] = last_event.fillna(0.0)
 
         if params.side is SignalSide.LONG:
-            # Break 1.618 (or 1.272) and the impulse end. Invalidation is
-            # close back through H after a break on this impulse.
+            # Break 1.618 (or a caller-set ratio) and the impulse end.
+            # Invalidation is close back through H after a break on this impulse.
             era = high_changed.astype("int64").cumsum()
             broke = up_ready & (close > long_ext) & (close > swing_high)
             had_break = broke.groupby(era).cummax()
@@ -121,6 +159,14 @@ class FibExtensionBreakStrategy(Strategy):
             signal_value, side_value = -1, SignalSide.SHORT.value
             level = short_ext
             end = swing_low
+
+        # Regime skip is opt-in. Unknown / unwarmed bars are not bull or bear.
+        regime = _bar_regime(candles, close)
+        signals["regime"] = regime
+        if params.side is SignalSide.SHORT and _as_flag(params.skip_bull):
+            entry = entry & ~regime.eq("bull")
+        if params.side is SignalSide.LONG and _as_flag(params.skip_bear):
+            entry = entry & ~regime.eq("bear")
 
         entry = entry.fillna(False)
         entry.iloc[: self.min_bars] = False
