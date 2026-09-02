@@ -334,6 +334,70 @@ tr.job-group:hover td { background: var(--surface-2); }
   white-space: nowrap;
 }
 #integrityList .feed-item:last-child { border-bottom: 0; padding-bottom: 2px; }
+/* Collapsible card header (click title row to roll a section up) */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  margin: -4px -4px 8px;
+  padding: 4px;
+  border-radius: 10px;
+}
+.card-head:hover { background: rgba(255,255,255,0.03); }
+.card-head-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.card-head-title h2 { margin: 0; }
+.card-head-meta { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.chev {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 13px;
+  transition: transform 150ms ease, color 150ms ease;
+  transform: rotate(0deg);
+}
+.chev.open { transform: rotate(90deg); color: var(--ink); }
+.card-collapsible.is-collapsed .card-head { margin-bottom: -4px; }
+/* Small inline expand/collapse row for reference lists (e.g. "tested in this file") */
+.mini-collapse { padding: 12px 16px; }
+.mini-collapse-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+}
+.mini-collapse-head:hover { color: var(--ink); }
+.mini-collapse .tag-list { display: none; }
+.mini-collapse.open .tag-list { display: flex; }
+.mini-collapse.open .chev { transform: rotate(90deg); color: var(--ink); }
+.tag-list { flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tag {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+.tag.missing { color: var(--warn); border-color: rgba(240,180,41,.32); }
+/* Fixed-width table so many columns fit without a horizontal scrollbar */
+.table-fixed { table-layout: fixed; }
+.table-fixed td, .table-fixed th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+}
+.table-fixed td.wrap { white-space: normal; max-width: none; overflow: visible; text-overflow: clip; }
 .field {
   background: var(--bg);
   color: var(--ink);
@@ -802,6 +866,38 @@ function filterVal(id, fallback) {
   const el = document.getElementById(id);
   return el ? el.value : fallback;
 }
+// --- Collapsible cards -------------------------------------------------
+// Collapse state is keyed by a stable card id and persisted so it survives
+// the 15s poll re-render and page reloads. Only cards the user has actually
+// toggled are stored; everything else falls back to its own default.
+let collapseState = {};
+try { collapseState = JSON.parse(localStorage.getItem("firmCollapse") || "{}"); } catch (_) { collapseState = {}; }
+function isCollapsed(id, defaultCollapsed = false) {
+  return Object.prototype.hasOwnProperty.call(collapseState, id) ? !!collapseState[id] : !!defaultCollapsed;
+}
+function toggleCollapse(id, defaultCollapsed = false) {
+  collapseState[id] = !isCollapsed(id, defaultCollapsed);
+  try { localStorage.setItem("firmCollapse", JSON.stringify(collapseState)); } catch (_) {}
+  render({ keepScroll: true, force: true });
+}
+// Wraps a card body behind a clickable header so dense sections (integrity
+// findings, reference tables, etc.) can be rolled up instead of always
+// taking full vertical space. `meta` is small right-aligned status HTML
+// shown even while collapsed, so the user can decide whether to expand.
+function collapsibleCard(id, title, bodyHtml, opts = {}) {
+  const defaultCollapsed = !!opts.defaultCollapsed;
+  const collapsed = isCollapsed(id, defaultCollapsed);
+  return `<div class="card card-collapsible${collapsed ? " is-collapsed" : ""}">
+    <div class="card-head" onclick="toggleCollapse('${id}', ${defaultCollapsed})">
+      <div class="card-head-title">
+        <span class="chev${collapsed ? "" : " open"}">&#8250;</span>
+        <h2>${esc(title)}</h2>
+      </div>
+      <div class="card-head-meta">${opts.meta || ""}</div>
+    </div>
+    ${collapsed ? "" : `<div class="card-body">${bodyHtml}</div>`}
+  </div>`;
+}
 function toast(msg, kind = "", ms = 4200) {
   const el = document.getElementById("toast");
   el.className = "toast show " + kind;
@@ -1182,15 +1278,21 @@ function integrityCard() {
     ? sliced.items.map(j => {
         const fails = (j.checks || []).filter(c => !c.ok);
         const warn = (j.warnings || []).join(" ");
-        const detail = fails.length ? fails.map(c => c.name + ": " + c.detail).join(" · ") : (warn || "Family, clock, costs, and written verdicts match.");
-        return `<div class="feed-item">
+        const summary = fails.length
+          ? `${fails.length} check${fails.length === 1 ? "" : "s"} failed — ${fails.map(c => c.name).join(", ")}`
+          : (warn || "Family, clock, costs, and written verdicts match.");
+        const detailLines = fails.length
+          ? fails.map(c => `<div style="margin-bottom:4px"><strong>${esc(c.name)}</strong> — ${esc(c.detail)}</div>`).join("")
+          : (warn ? `<div>${esc(warn)}</div>` : "");
+        return `<div class="feed-item${detailLines ? " clickable" : ""}" ${detailLines ? `onclick="this.classList.toggle('open')"` : ""}>
           <div><span class="badge ${j.ok ? "ok" : "bad"}">${j.ok ? "certified" : "failed"}</span>
             <strong>job ${esc(j.job_id)} ${esc(j.family || "")}</strong>
             <span class="muted">${esc(j.clock || "")}</span>
             <span class="muted">${j.oos_pairs != null ? j.oos_pairs + " pairs" : ""}</span>
             <span class="stamp" title="${esc(j._at || "")}">${esc(stamp(j._at))}</span>
           </div>
-          <div class="muted clip" title="${esc(detail)}">${esc(detail)}</div>
+          <div class="muted clip">${esc(summary)}${detailLines ? ` <span class="hint-click">· click for detail</span>` : ""}</div>
+          ${detailLines ? `<div class="research-why">${detailLines}</div>` : ""}
         </div>`;
       }).join("")
     : `<div class="muted">${jobs.length ? "No findings match these filters." : "No finished walk-forwards to certify yet."}</div>`;
@@ -1201,8 +1303,8 @@ function integrityCard() {
   const mandateOk = impl.ok !== false && !implFails.length;
   const paperDetail = paperFails.length ? paperFails.map(c => c.detail).join(" · ") : "Paper is scanning the sleeve under test.";
   const mandateDetail = implFails.length ? implFails.map(c => c.name + ": " + c.detail).join(" · ") : "Approved coding mandates have a registry file.";
-  return `<div class="card">
-    <h2>Integrity — Performance Auditor</h2>
+  const meta = `<span class="badge ${pack.ok ? "ok" : "bad"}">${pack.ok ? "certified" : failedN + " failed"}</span>`;
+  const body = `
     <div class="banner ${bannerClass}" style="margin-bottom:12px">
       <strong>${pack.ok ? "Setup certified" : "Integrity has findings"}</strong>
       <div class="muted" style="margin-top:6px">${esc(pack.note || "Certifies that tests and paper ran the intended sleeve, clock, and costs.")}</div>
@@ -1234,7 +1336,8 @@ function integrityCard() {
     </div>
     <div id="integrityList" data-page-list="integrity">${jobRows}</div>
     ${pagerHtml("integrity", sliced, "jobs")}
-  </div>`;
+  `;
+  return collapsibleCard("integrity", "Integrity — Performance Auditor", body, { meta });
 }
 
 function prettyTask(row) {
@@ -1674,11 +1777,12 @@ function paperOverrideCard() {
   return `<div class="card">
     <h2>On paper (operator veto)</h2>
     <div class="muted" style="margin-bottom:8px">These sleeves still fail research, so they are not in Approved. Paper scans them for fills. Live stays locked.</div>
-    <table>
+    <table class="table-fixed">
+      <colgroup><col style="width:38%"/><col style="width:26%"/><col style="width:12%"/><col style="width:12%"/><col style="width:12%"/></colgroup>
       <thead><tr><th>Strategy</th><th>Pair</th><th>TF</th><th>OOS trades</th><th>PF</th></tr></thead>
       <tbody>${rows.map(p => `<tr>
-        <td><strong>${esc(p.strategy || "—")}</strong></td>
-        <td><strong>${esc(p.symbol)}</strong> ${esc(p.side)}</td>
+        <td title="${esc(p.strategy || "—")}"><strong>${esc(p.strategy || "—")}</strong></td>
+        <td title="${esc(p.symbol)} ${esc(p.side)}"><strong>${esc(p.symbol)}</strong> ${esc(p.side)}</td>
         <td class="muted">${esc(p.timeframe || "—")}</td>
         <td class="num">${esc(p.oos_trades ?? "—")}</td>
         <td class="num">${p.oos_profit_factor != null ? Number(p.oos_profit_factor).toFixed(2) : "—"}</td>
@@ -1693,19 +1797,36 @@ function cycleScanPlanCard(cycle) {
   return `<div class="card">
     <h2>Last paper scan plan</h2>
     <div class="muted" style="margin-bottom:8px">What the paper clock actually scanned. Operator vetoes show as paper, not approved.</div>
-    <table>
+    <table class="table-fixed">
+      <colgroup><col style="width:40%"/><col style="width:28%"/><col style="width:14%"/><col style="width:18%"/></colgroup>
       <thead><tr><th>Strategy</th><th>Pair</th><th>TF</th><th>Book</th></tr></thead>
       <tbody>${plan.map(e => {
         const book = e.paper_override ? "paper" : (e.paper_candidate ? "1h candidate" : (e.approved ? "approved" : "candidate"));
         const klass = e.paper_override ? "warn" : (e.paper_candidate ? "warn" : (e.approved ? "ok" : "muted"));
         return `<tr>
-          <td><strong>${esc(e.strategy || "—")}</strong></td>
-          <td><strong>${esc(e.symbol)}</strong> ${esc(e.side)}</td>
+          <td title="${esc(e.strategy || "—")}"><strong>${esc(e.strategy || "—")}</strong></td>
+          <td title="${esc(e.symbol)} ${esc(e.side)}"><strong>${esc(e.symbol)}</strong> ${esc(e.side)}</td>
           <td class="muted">${esc(e.timeframe || "—")}</td>
           <td class="${klass}">${esc(book)}</td>
         </tr>`;
       }).join("")}</tbody>
     </table>
+  </div>`;
+}
+
+// Collapsed by default: as more families/pairs get coded this line would
+// otherwise grow into one unreadable comma-separated wall of text.
+function testedNamesPanel(s, names) {
+  const untested = (s.registered || []).filter(n => !names.includes(n));
+  return `<div class="card mini-collapse" onclick="this.classList.toggle('open')">
+    <div class="mini-collapse-head">
+      <span class="chev">&#8250;</span>
+      <span>Tested in this file: <strong>${names.length}</strong> ${names.length === 1 ? "family" : "families"} · coded but not in this table: <strong>${untested.length}</strong></span>
+    </div>
+    <div class="tag-list">
+      ${names.map(n => `<span class="tag">${esc(n)}</span>`).join("") || `<span class="muted">—</span>`}
+      ${untested.map(n => `<span class="tag missing">${esc(n)}</span>`).join("")}
+    </div>
   </div>`;
 }
 
@@ -1759,7 +1880,7 @@ function renderStrategies() {
     </div>
     ${integrityCard()}
     ${paperOverrideCard()}
-    <div class="muted">Tested in this file: ${names.map(esc).join(", ") || "—"} · coded but not in this table: ${(s.registered || []).filter(n => !names.includes(n)).map(esc).join(", ") || "none"}</div>
+    ${testedNamesPanel(s, names)}
     <div class="card">
       <div class="toolbar filters">
         <select class="field" id="stratStatus" onchange="onFilterChange()">
@@ -1777,16 +1898,22 @@ function renderStrategies() {
         <span class="filter-count">${filtered.length} of ${pairs.length} · grouped by run · newest first</span>
       </div>
       ${pairs.length ? `<div id="stratPane" data-page-list="strat">
-      <table>
+      <table class="table-fixed">
+        <colgroup>
+          <col style="width:9%"/><col style="width:15%"/><col style="width:11%"/><col style="width:5%"/><col style="width:8%"/>
+          <col style="width:7%"/><col style="width:6%"/><col style="width:6%"/><col style="width:8%"/><col style="width:7%"/><col style="width:18%"/>
+        </colgroup>
         <thead><tr>
           <th>When</th><th>Strategy</th><th>Pair</th><th>TF</th><th>Verdict</th><th title="${esc(legend.oos_trades || "")}">OOS trades</th><th title="${esc(legend.win || "")}">Win</th><th title="${esc(legend.pf || "")}">PF</th><th title="${esc(legend.expectancy || "")}">Expectancy</th><th title="${esc(legend.dd || "")}">Max DD</th><th>Why</th>
         </tr></thead>
         <tbody>${groupedRows.map(row => row.kind === "group" ? `<tr class="job-group"><td colspan="11" title="${esc(row.when || "")}">${esc(row.label)}</td></tr>` : (() => {
           const p = row.pair;
+          const pairLabel = `${p.symbol} ${p.side}`;
+          const why = (p.failures || []).join(" · ") || "—";
           return `<tr>
           <td class="stamp" title="${esc(p.validated_at || "")}">${esc(stamp(p.validated_at))}</td>
-          <td><strong>${esc(p.strategy || "—")}</strong></td>
-          <td><strong>${esc(p.symbol)}</strong> ${esc(p.side)}</td>
+          <td title="${esc(p.strategy || "—")}"><strong>${esc(p.strategy || "—")}</strong></td>
+          <td title="${esc(pairLabel)}"><strong>${esc(p.symbol)}</strong> ${esc(p.side)}</td>
           <td class="muted">${esc(p.timeframe || "—")}</td>
           <td class="${p.approved ? "ok" : (p.paper_override ? "warn" : "bad")}">${p.approved ? "approved" : (p.paper_override ? "paper" : "rejected")}</td>
           <td class="num">${esc(p.oos_trades ?? "—")}</td>
@@ -1794,13 +1921,12 @@ function renderStrategies() {
           <td class="num">${p.oos_profit_factor != null ? Number(p.oos_profit_factor).toFixed(2) : "—"}</td>
           <td class="num ${pnlClass(p.oos_expectancy_pct)}">${p.oos_expectancy_pct != null ? Number(p.oos_expectancy_pct).toFixed(3) + "%" : "—"}</td>
           <td class="num">${p.oos_max_drawdown_pct != null ? pct(p.oos_max_drawdown_pct) : "—"}</td>
-          <td class="muted why" title="${esc((p.failures || []).join(" · ") || "—")}">${esc((p.failures || []).join(" · ") || "—")}</td>
+          <td class="muted why" title="${esc(why)}">${esc(why)}</td>
         </tr>`;
         })()).join("") || `<tr><td colspan="11">${empty("No rows match", "Clear the filters to see every walk-forward verdict.")}</td></tr>`}</tbody>
       </table></div>${pagerHtml("strat", sliced, "pairs")}` : empty("No validation file", "Run python scripts/validate_strategy.py to write research verdicts.")}
     </div>
-    <div class="card">
-      <h2>How to read the columns</h2>
+    ${collapsibleCard("stratLegend", "How to read the columns", `
       <div class="feed">
         <div class="feed-item"><strong>When</strong> — when this pair's walk-forward wrote the verdict. A grey bar groups pairs from the same run (same family, timeframe, and minute) so three symbols are not three tests.</div>
         <div class="feed-item"><strong>Strategy</strong> — which coded sleeve was walk-forwarded. Each data row is one family + pair + side + timeframe.</div>
@@ -1809,7 +1935,7 @@ function renderStrategies() {
         <div class="feed-item"><strong>Win / PF / Expectancy</strong> — ${esc(legend.win || "Win rate of those OOS trades.")} PF ${esc(legend.pf || "gross wins over gross losses.")} Expectancy ${esc(legend.expectancy || "average net % per trade.")} A green expectancy can still fail if the 95% confidence interval includes zero, or if random entries do as well (p >= 0.05).</div>
         <div class="feed-item"><strong>Max DD</strong> — ${esc(legend.dd || "Maximum drawdown: the worst peak-to-trough drop in simulated equity, in percent.")}</div>
       </div>
-    </div>
+    `, { defaultCollapsed: true })}
   `;
 }
 
