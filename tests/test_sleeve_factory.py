@@ -22,6 +22,8 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "kama_trend" not in names
     assert "volume_force_divergence" not in names
     assert "session_liquidity_sweep" not in names
+    assert "bar_vwap_inflow_surge" not in names
+    assert "fib_retracement_bounce" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

@@ -1,0 +1,14 @@
+{
+  "family": "bar_vwap_inflow_surge",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs per-bar VWAP from unused turnover/volume, then pulse = volume*(close-bar_vwap)/ATR versus the prior-20 |pulse| baseline (current bar excluded). LONG surge>2, SHORT<-2. Optional same-direction body. Not OBV/VPT/Force/volume_force_divergence/ADL/CMF/Klinger/climax fade. Do not cumsum. Do not fade. Do not invent taker/CVD/netflow/on-chain/funding columns.",
+  "summary": "Follow a per-bar VWAP inflow surge from unused turnover.",
+  "justification": "Turnover/volume is a bar VWAP the other volume ledgers never use. A one-bar pulse versus its own prior |pulse| is not a cumulative force and not a fade of a price extreme.",
+  "written_at": "2026-09-02T16:40:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/bar_vwap_inflow_surge.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

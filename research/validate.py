@@ -788,6 +788,18 @@ def _novel_kit(name: str, side: SignalSide):
             "SessionLiquiditySweepStrategy",
             {"max_sweep_pct": [0.005, 0.01]},
         ),
+        "bar_vwap_inflow_surge": (
+            "core.strategy.bar_vwap_inflow_surge",
+            "BarVwapInflowSurgeParams",
+            "BarVwapInflowSurgeStrategy",
+            {"surge_k": [2.0], "baseline_lookback": [20]},
+        ),
+        "fib_retracement_bounce": (
+            "core.strategy.fib_retracement_bounce",
+            "FibRetracementBounceParams",
+            "FibRetracementBounceStrategy",
+            {"fib_ratio": [0.5, 0.618, 0.786], "atr_buffer": [0.0, 0.15]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
