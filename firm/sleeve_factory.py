@@ -1256,6 +1256,28 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "the same impulse. Follow-on to fib_retracement_bounce, not a clone."
         ),
     ),
+    SleeveSpec(
+        name="measured_move_break",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs an AB=CD measured-move break of a completed impulse from "
+            "causal confirmed_swings. Same last-event impulse as "
+            "fib_extension_break. LONG: up-impulse ready, close>mm, close>H. "
+            "SHORT symmetric. mm=end+1.0*(end-start)=2*end-start. "
+            "Invalidation is close back through impulse end. Ratio locked at "
+            "1.0. Not Donchian, not H+0.618*R, not fib_extension_break. Do "
+            "not implement 1.618 or 0.618 in this family."
+        ),
+        summary="Break a 100% measured move (AB=CD) of a completed confirmed-swing impulse.",
+        justification=(
+            "The measured move projects 100% of two confirmed swings past the "
+            "impulse end. That is not a rolling Donchian and not the 1.618 "
+            "extension of the same impulse. Follow-on to fib_extension_break, "
+            "not a clone."
+        ),
+    ),
 ]
 
 

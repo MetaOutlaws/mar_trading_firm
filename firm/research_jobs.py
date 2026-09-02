@@ -138,6 +138,7 @@ CLOCK_BY_FAMILY = {
     "bar_vwap_inflow_surge": "4h/4h",
     "fib_retracement_bounce": "4h/4h",
     "fib_extension_break": "4h/4h",
+    "measured_move_break": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 

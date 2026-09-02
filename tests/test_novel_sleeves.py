@@ -92,6 +92,7 @@ APPROVED = [
     "bar_vwap_inflow_surge",
     "fib_retracement_bounce",
     "fib_extension_break",
+    "measured_move_break",
 ]
 
 
@@ -1408,6 +1409,118 @@ def test_fib_extension_break_ext_from_two_confirmed_swings() -> None:
     assert signals.loc[bar, "fib_inner"] == pytest.approx(float(inner))
     bounce_618 = end - 0.618 * (end - start)
     assert signals.loc[bar, "fib_ext"] != pytest.approx(float(bounce_618), abs=0.2)
+
+
+def _impulse_then_measured_move(
+    *,
+    long_side: bool,
+    n: int = 80,
+    origin: float = 80.0,
+    extreme: float = 120.0,
+    swing_a: int = 10,
+    swing_b: int = 25,
+    break_bar: int = 40,
+) -> pd.DataFrame:
+    """Plant two confirmed swings (left=3) then a 100% measured-move break.
+
+    Background highs and lows are strictly increasing so `confirmed_swings`
+    cannot mint a later 101/99 pivot that overwrites the impulse. The origin
+    sits more than 20 bars before the break so a Donchian-20 AB=CD is a
+    different number than the two-swing measured move. The break is past
+    2*end-start, which is also past H+0.618*R (fib_extension_break).
+    """
+    drift = 0.01 * np.arange(n)
+    close = 100.0 + drift
+    high = 101.0 + drift
+    low = 99.0 + drift
+    open_ = 100.0 + drift
+    rng = extreme - origin
+    if long_side:
+        # Origin low then impulse high; break is 2H-L, not H+0.618*R.
+        low[swing_a] = origin
+        close[swing_a] = min(close[swing_a], origin + 1.0)
+        high[swing_b] = extreme
+        close[swing_b] = extreme - 2.0
+        mm = extreme + 1.0 * rng
+        close[break_bar] = mm + 5.0
+        high[break_bar] = mm + 6.0
+        low[break_bar] = mm + 3.0
+        open_[break_bar] = mm + 1.0
+    else:
+        high[swing_a] = extreme
+        close[swing_a] = extreme - 2.0
+        low[swing_b] = origin
+        close[swing_b] = origin + 2.0
+        mm = origin - 1.0 * rng
+        close[break_bar] = mm - 5.0
+        high[break_bar] = mm - 3.0
+        low[break_bar] = mm - 6.0
+        open_[break_bar] = mm - 1.0
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+
+
+def test_measured_move_break_schema_and_long_entry() -> None:
+    candles = _impulse_then_measured_move(long_side=True)
+    signals = _signals("measured_move_break", candles)
+    for column in ("signal", "side", "score", "reason", "swing_high", "swing_low", "mm"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+
+
+def test_measured_move_break_short_entry() -> None:
+    candles = _impulse_then_measured_move(long_side=False)
+    signals = _signals("measured_move_break", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+
+
+def test_measured_move_break_mm_from_two_confirmed_swings() -> None:
+    """mm = end + 1.0*(end-start) from two confirmed swings, not Donchian, not 0.618R."""
+    from core.strategy import indicators as ind
+
+    candles = _impulse_then_measured_move(long_side=True)
+    signals = _signals("measured_move_break", candles)
+    fired = signals.index[signals["signal"] == 1]
+    assert len(fired) >= 1
+    bar = fired[0]
+    swing_high, swing_low = ind.confirmed_swings(candles["high"], candles["low"], left=3)
+    start = swing_low.loc[bar]
+    end = swing_high.loc[bar]
+    expected = end + 1.0 * (end - start)
+    assert signals.loc[bar, "mm"] == pytest.approx(float(expected))
+    assert signals.loc[bar, "swing_high"] == pytest.approx(float(end))
+    assert signals.loc[bar, "swing_low"] == pytest.approx(float(start))
+    assert signals.loc[bar, "last_event"] == pytest.approx(1.0)
+    # Donchian 20 ending at this bar does not contain the origin low (bar 10).
+    prior = slice(None, bar)
+    donchian_high = candles.loc[prior, "high"].iloc[-20:].max()
+    donchian_low = candles.loc[prior, "low"].iloc[-20:].min()
+    donchian_mm = donchian_high + 1.0 * (donchian_high - donchian_low)
+    assert signals.loc[bar, "mm"] != pytest.approx(float(donchian_mm), abs=0.2)
+    assert start == pytest.approx(80.0)
+    assert end == pytest.approx(120.0)
+    # Not the 1.618 extension of the same impulse (H + 0.618*R).
+    fib_1618 = end + 0.618 * (end - start)
+    assert signals.loc[bar, "mm"] != pytest.approx(float(fib_1618), abs=0.2)
+    assert expected == pytest.approx(160.0)
+
+
+def test_measured_move_break_ratio_locked_at_one() -> None:
+    """Walk-forward kit must not hunt 1.618 / 0.618 or skip_bull on this family."""
+    from core.strategy.measured_move_break import MM_RATIO
+    from research.validate import strategy_kit
+
+    assert MM_RATIO == 1.0
+    _factory, _base, space = strategy_kit("measured_move_break", SignalSide.LONG)
+    assert "fib_ratio" not in space
+    assert "mm_ratio" not in space
+    assert "skip_bull" not in space
+    assert "skip_bear" not in space
+    assert 1.618 not in space.get("take_profit_pct", [])
+    assert 0.618 not in space.get("take_profit_pct", [])
 
 
 def test_williams_fractal_break_long_entry() -> None:
