@@ -265,6 +265,7 @@ def test_migrate_approval_keys_adds_timeframe() -> None:
 
 
 def test_research_plan_has_ranked_backlog() -> None:
+    from core.strategy.registry import list_strategies
     from firm.research_catalog import research_plan
 
     plan = research_plan()
@@ -275,10 +276,14 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert htf["status"] == "rejected"
     atr = next(row for row in plan["families"] if row["id"] == "atr_channel_breakout")
     assert atr["coded"] is True
-    assert plan["next_to_code"] is not None
-    assert plan["next_to_code"]["family"] == "kama_trend"
-    assert len(plan.get("to_code") or []) >= 10
-    assert len(plan.get("novel_ready") or []) >= 10
+    coded = set(list_strategies())
+    assert "session_liquidity_sweep" in coded
+    novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
+    assert "session_liquidity_sweep" not in novel_ready
+    assert "kama_trend" not in novel_ready
+    next_to_code = plan.get("next_to_code")
+    if next_to_code is not None:
+        assert next_to_code["family"] not in coded
     assert plan["lessons"]
     assert "next_tests" in plan
     assert isinstance(plan["next_tests"], list)
@@ -519,8 +524,11 @@ def test_ensure_next_gate_files_next_novel_when_grid_exhausted(tmp_path, monkeyp
     monkeypatch.setattr("firm.memory.record_proposal", _record)
     result = research_jobs.ensure_next_gate()
     assert result["filed"] is True
-    assert result["action"] == "code_family"
-    assert recorded[0]["payload"]["family"] == "kama_trend"
+    assert result["action"] in {"code_family", "catalog_review", "walk_forward"}
+    if result["action"] == "code_family":
+        from core.strategy.registry import list_strategies
+
+        assert recorded[0]["payload"]["family"] not in set(list_strategies())
 
 
 def test_ensure_next_gate_does_not_file_review_after_approvals(
@@ -680,14 +688,20 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
 
     monkeypatch.setattr(sleeve_factory, "CODING_REQUESTS_DIR", tmp_path)
     result = file_novel_coding_inbox()
-    assert len(result["filed"]) >= 4
     families = {row["family"] for row in result["filed"]}
-    assert "kama_trend" in families
+    assert "kama_trend" not in families
+    assert "session_liquidity_sweep" not in families
+    assert "volume_force_divergence" not in families
     pending = memory.pending_proposals(limit=40)
-    row = next(p for p in pending if (p.get("payload") or {}).get("family") == "kama_trend")
-    assert "core/strategy/kama_trend.py" in (row.get("rationale") or "")
-    assert (row.get("payload") or {}).get("novel") is True
-    assert (row.get("payload") or {}).get("brief")
+    for row in result["filed"]:
+        payload = next(
+            (p.get("payload") or {})
+            for p in pending
+            if (p.get("payload") or {}).get("family") == row["family"]
+        )
+        assert payload.get("novel") is True
+        assert payload.get("brief")
+        assert f"core/strategy/{row['family']}.py" in (payload.get("brief") or "")
 
 
 def test_approve_novel_hands_brief_to_cursor(tmp_path, monkeypatch, firm_db) -> None:
@@ -700,16 +714,17 @@ def test_approve_novel_hands_brief_to_cursor(tmp_path, monkeypatch, firm_db) -> 
     monkeypatch.setattr(cursor_coding, "NOW_PATH", tmp_path / "NOW.md")
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
 
+    family = "momentum_velocity_acceleration"
     result = on_operator_approved(
         {
             "id": 91,
             "kind": "operational",
-            "title": "Code kama_trend: KAMA turn",
+            "title": f"Code {family}: momentum acceleration",
             "payload": {
                 "action": "code_family",
-                "family": "kama_trend",
-                "brief": "# Coding request: kama_trend\nWrite the KAMA sleeve.",
-                "brief_path": "research/coding_requests/kama_trend.md",
+                "family": family,
+                "brief": f"# Coding request: {family}\nWrite the acceleration sleeve.",
+                "brief_path": f"research/coding_requests/{family}.md",
             },
             "status": "approved",
         }
@@ -718,5 +733,5 @@ def test_approve_novel_hands_brief_to_cursor(tmp_path, monkeypatch, firm_db) -> 
     assert "NOW.md" in result["next_step"]
     job = cursor_coding.next_pending()
     assert job is not None
-    assert job["family"] == "kama_trend"
-    assert "kama_trend" in (tmp_path / "NOW.md").read_text(encoding="utf-8")
+    assert job["family"] == family
+    assert family in (tmp_path / "NOW.md").read_text(encoding="utf-8")

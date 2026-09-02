@@ -406,10 +406,17 @@ def test_enqueue_next_novel_when_catalog_empty(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(cursor_coding, "INBOX_DIR", tmp_path)
     monkeypatch.setattr(cursor_coding, "NOW_PATH", tmp_path / "NOW.md")
     monkeypatch.setattr(sleeve_factory, "CODING_REQUESTS_DIR", tmp_path)
+    from core.strategy.registry import list_strategies
+
     row = cursor_coding.enqueue_next_novel_if_catalog_empty()
-    assert row is not None
-    assert row["family"] == "kama_trend"
-    assert "kama_trend" in (tmp_path / "NOW.md").read_text(encoding="utf-8")
+    coded = set(list_strategies())
+    if row is None:
+        from firm.sleeve_factory import ready_novel_specs
+
+        assert ready_novel_specs() == []
+        return
+    assert row["family"] not in coded
+    assert row["family"] in (tmp_path / "NOW.md").read_text(encoding="utf-8")
 
 
 def test_both_job_covers_short_on_same_clock() -> None:

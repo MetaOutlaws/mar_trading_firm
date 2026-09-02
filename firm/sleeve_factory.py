@@ -1176,6 +1176,24 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "and from VPT. Divergence plus a low-ADX chop filter is the bet."
         ),
     ),
+    SleeveSpec(
+        name="session_liquidity_sweep",
+        template="novel",
+        clock="1h/1h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs the completed Asian (00:00–08:00 UTC) high/low, then a London/NY "
+            "bar that sweeps that box by less than 1% and closes back inside. "
+            "Opposite of asian_range_breakout; not wick-rejection without a session box."
+        ),
+        summary=(
+            "Fade a failed London/NY sweep of the completed Asian session range."
+        ),
+        justification=(
+            "Failed session-box stop-runs are a different bet from breaking the "
+            "Asian range and from a generic wick-rejection with no session clock."
+        ),
+    ),
 ]
 
 

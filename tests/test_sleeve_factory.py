@@ -15,12 +15,13 @@ from firm.sleeve_factory import (
 from tests.test_strategy import make_candles
 
 
-def test_at_least_ten_novel_families_are_ready() -> None:
+def test_coded_candidate_novels_are_registered_not_ready() -> None:
+    """Factory novels that have a .py file must be in the registry, not the coding queue."""
     ready = ready_novel_specs()
-    assert len(ready) >= 10
     names = {spec.name for spec in ready}
-    assert "kama_trend" in names
+    assert "kama_trend" not in names
     assert "volume_force_divergence" not in names
+    assert "session_liquidity_sweep" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

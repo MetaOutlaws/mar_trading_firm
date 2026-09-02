@@ -130,6 +130,7 @@ CLOCK_BY_FAMILY = {
     "squeeze_momentum_break": "4h/4h",
     "volume_weighted_macd_cross": "4h/4h",
     "volume_force_divergence": "4h/4h",
+    "session_liquidity_sweep": "1h/1h",
 }
 # Re-exported so callers that imported from this module keep working.
 
