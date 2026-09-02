@@ -632,6 +632,34 @@ def force_index(close: pd.Series, volume: pd.Series, period: int = 13) -> pd.Ser
     return ema(raw.fillna(0.0), period)
 
 
+def atr_normalized_volume_force(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    volume: pd.Series,
+    atr_period: int = 14,
+) -> pd.Series:
+    """Signed volume scaled by close-to-close change / ATR.
+
+    Not Elder Force Index (no EMA of raw ΔC*V) and not OBV (no ATR scale).
+    """
+    rng = atr(high, low, close, atr_period).replace(0, np.nan)
+    delta = close.astype("float64").diff()
+    raw = (delta / rng) * volume.astype("float64")
+    return raw.fillna(0.0)
+
+
+def cumulative_volume_force(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    volume: pd.Series,
+    atr_period: int = 14,
+) -> pd.Series:
+    """Running sum of ATR-normalized volume force. Bars ``<= t`` only."""
+    return atr_normalized_volume_force(high, low, close, volume, atr_period).cumsum()
+
+
 def awesome_oscillator(high: pd.Series, low: pd.Series) -> pd.Series:
     """SMA(HL2,5) - SMA(HL2,34)."""
     hl2 = (high + low) / 2.0

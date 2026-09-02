@@ -776,6 +776,12 @@ def _novel_kit(name: str, side: SignalSide):
             "VolumeWeightedMacdCrossStrategy",
             {"fast": [12], "slow": [26], "signal": [9]},
         ),
+        "volume_force_divergence": (
+            "core.strategy.volume_force_divergence",
+            "VolumeForceDivergenceParams",
+            "VolumeForceDivergenceStrategy",
+            {"lookback": [20], "max_adx": [0.0, 20.0]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

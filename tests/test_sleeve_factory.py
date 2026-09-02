@@ -20,6 +20,7 @@ def test_at_least_ten_novel_families_are_ready() -> None:
     assert len(ready) >= 10
     names = {spec.name for spec in ready}
     assert "kama_trend" in names
+    assert "volume_force_divergence" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names
