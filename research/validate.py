@@ -809,6 +809,13 @@ def _novel_kit(name: str, side: SignalSide):
             # stay off unless a near-miss overlay freezes them.
             {"fib_ratio": [1.618]},
         ),
+        "measured_move_break": (
+            "core.strategy.measured_move_break",
+            "MeasuredMoveBreakParams",
+            "MeasuredMoveBreakStrategy",
+            # AB=CD ratio is hardcoded at 1.0. Do not search 1.618 or 0.618.
+            {},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
