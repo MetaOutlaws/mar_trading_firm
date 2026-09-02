@@ -98,7 +98,8 @@ class MeasuredMoveBreakStrategy(Strategy):
             era = high_changed.astype("int64").cumsum()
             broke = up_ready & (close > long_mm) & (close > swing_high)
             had_break = broke.groupby(era).cummax()
-            invalidated = (had_break.shift(1).fillna(False) & (close <= swing_high)).groupby(
+            # shift+eq: first bar of an era has no prior break (NaN != True).
+            invalidated = (had_break.shift(1).eq(True) & (close <= swing_high)).groupby(
                 era
             ).cummax()
             entry = broke & ~invalidated
@@ -109,7 +110,7 @@ class MeasuredMoveBreakStrategy(Strategy):
             era = low_changed.astype("int64").cumsum()
             broke = down_ready & (close < short_mm) & (close < swing_low)
             had_break = broke.groupby(era).cummax()
-            invalidated = (had_break.shift(1).fillna(False) & (close >= swing_low)).groupby(
+            invalidated = (had_break.shift(1).eq(True) & (close >= swing_low)).groupby(
                 era
             ).cummax()
             entry = broke & ~invalidated
