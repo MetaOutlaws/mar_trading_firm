@@ -13,9 +13,10 @@ import logging
 import os
 import subprocess
 import sys
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from config.pipeline import APPROVED_RESEARCH_SYMBOLS
 from config.settings import PROJECT_ROOT
@@ -26,6 +27,9 @@ from firm.research_catalog import FAMILIES_NEEDING_FEED, RESEARCH_FAMILIES, next
 logger = logging.getLogger(__name__)
 
 JOBS_PATH = PROJECT_ROOT / "data" / "research_jobs.json"
+# Last successfully parsed ledger. A truncated rewrite must not look like a
+# greenfield start (ids 1-N) and then auto-advance CLOCK_BY_FAMILY leftovers.
+_LAST_GOOD_JOBS: list[dict[str, Any]] | None = None
 DEFAULT_MAJORS = list(APPROVED_RESEARCH_SYMBOLS)
 CLOCK_BY_FAMILY = {
     "donchian_breakout": "1h/4h",
@@ -172,22 +176,146 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
     return str((payload or {}).get("name") or "unknown")
 
 
-def _load() -> list[dict[str, Any]]:
-    if not JOBS_PATH.exists():
-        return []
+def _jobs_lock_path() -> Path:
+    return JOBS_PATH.with_suffix(JOBS_PATH.suffix + ".lock")
+
+
+@contextmanager
+def _jobs_file_lock() -> Iterator[None]:
+    """Serialize ledger reads/writes so two ticks cannot clobber the file."""
+    path = _jobs_lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+")
     try:
-        raw = json.loads(JOBS_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        try:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        except (ImportError, OSError):
+            pass
+        yield
+    finally:
+        try:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except (ImportError, OSError):
+            pass
+        handle.close()
+
+
+def _parse_jobs_blob(raw_text: str) -> list[dict[str, Any]] | None:
+    try:
+        raw = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    jobs = raw.get("jobs")
+    if jobs is None:
         return []
-    return list(raw.get("jobs") or [])
+    if not isinstance(jobs, list):
+        return None
+    return [row for row in jobs if isinstance(row, dict)]
+
+
+def _read_jobs_path(path: Path) -> list[dict[str, Any]] | None:
+    if not path.exists():
+        return None
+    try:
+        return _parse_jobs_blob(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+
+
+def _atomic_write_jobs(jobs: list[dict[str, Any]]) -> None:
+    JOBS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"updated_at": utcnow_iso(), "jobs": jobs}
+    tmp = JOBS_PATH.with_suffix(JOBS_PATH.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    bak = JOBS_PATH.with_suffix(JOBS_PATH.suffix + ".bak")
+    if JOBS_PATH.exists():
+        try:
+            os.replace(JOBS_PATH, bak)
+        except OSError:
+            logger.exception("Could not rotate research_jobs.bak")
+    os.replace(tmp, JOBS_PATH)
+
+
+def _merge_jobs_by_id(
+    incoming: list[dict[str, Any]], on_disk: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Never drop ledger rows. Incoming updates win for the same id."""
+    merged: dict[int, dict[str, Any]] = {}
+    for row in on_disk:
+        try:
+            jid = int(row.get("id") or 0)
+        except (TypeError, ValueError):
+            jid = 0
+        if jid:
+            merged[jid] = dict(row)
+    for row in incoming:
+        try:
+            jid = int(row.get("id") or 0)
+        except (TypeError, ValueError):
+            jid = 0
+        if jid:
+            merged[jid] = dict(row)
+    return [merged[k] for k in sorted(merged)]
+
+
+def _load() -> list[dict[str, Any]]:
+    global _LAST_GOOD_JOBS
+    with _jobs_file_lock():
+        parsed = _read_jobs_path(JOBS_PATH)
+        if parsed is not None:
+            _LAST_GOOD_JOBS = parsed
+            return parsed
+        if not JOBS_PATH.exists():
+            _LAST_GOOD_JOBS = None
+            return []
+        bak = _read_jobs_path(JOBS_PATH.with_suffix(JOBS_PATH.suffix + ".bak"))
+        if bak is not None:
+            logger.error("research_jobs.json unreadable; restored from .bak")
+            _LAST_GOOD_JOBS = bak
+            return bak
+        if _LAST_GOOD_JOBS is not None:
+            logger.error(
+                "research_jobs.json unreadable; keeping last good snapshot "
+                "(%s jobs) instead of resetting to empty",
+                len(_LAST_GOOD_JOBS),
+            )
+            return list(_LAST_GOOD_JOBS)
+        if JOBS_PATH.exists() and JOBS_PATH.stat().st_size > 0:
+            logger.error(
+                "research_jobs.json unreadable and no snapshot; refusing to "
+                "treat a non-empty file as an empty ledger"
+            )
+            return []
+        return []
 
 
 def _save(jobs: list[dict[str, Any]]) -> None:
-    JOBS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    JOBS_PATH.write_text(
-        json.dumps({"updated_at": utcnow_iso(), "jobs": jobs}, indent=2),
-        encoding="utf-8",
-    )
+    global _LAST_GOOD_JOBS
+    with _jobs_file_lock():
+        on_disk = _read_jobs_path(JOBS_PATH) or []
+        if not on_disk:
+            on_disk = _read_jobs_path(JOBS_PATH.with_suffix(JOBS_PATH.suffix + ".bak")) or []
+        if not jobs and on_disk:
+            logger.error("Refusing to wipe research_jobs.json (%s rows on disk)", len(on_disk))
+            return
+        merged = _merge_jobs_by_id(jobs, on_disk)
+        # A process that loaded a stale 32-row snapshot must not replace a
+        # 220-row ledger. Keep the larger id set; incoming updates still apply.
+        if on_disk and len(merged) < len(on_disk):
+            logger.error(
+                "Refusing jobs ledger shrink %s -> %s",
+                len(on_disk),
+                len(merged),
+            )
+            merged = _merge_jobs_by_id(jobs, on_disk)
+        _atomic_write_jobs(merged)
+        _LAST_GOOD_JOBS = merged
 
 
 def _pid_alive(pid: int | None) -> bool:
@@ -209,6 +337,12 @@ def refresh_job_liveness(jobs: list[dict[str, Any]] | None = None) -> list[dict[
                 job.get("detail") or ""
             ) + " Process exited before writing a verdict; check logs/research_jobs."
             changed = True
+            try:
+                from firm.research_catalog import record_finished_walk_forward
+
+                record_finished_walk_forward(job)
+            except Exception:
+                logger.exception("Could not record finished grid for dead job %s", job.get("id"))
     if changed:
         _save(rows)
     return rows
@@ -493,10 +627,16 @@ def on_strategy_approved(proposal: dict[str, Any]) -> dict[str, Any]:
 
 
 def _record_job(**fields: Any) -> dict[str, Any]:
+    from firm.research_catalog import history_max_job_id, note_job_id
+
     jobs = _load()
     now = utcnow_iso()
+    next_id = max(
+        max((int(j.get("id") or 0) for j in jobs), default=0),
+        history_max_job_id(),
+    ) + 1
     job = {
-        "id": (max((int(j.get("id") or 0) for j in jobs), default=0) + 1),
+        "id": next_id,
         "created_at": now,
         "finished_at": None,
         "pid": None,
@@ -513,6 +653,10 @@ def _record_job(**fields: Any) -> dict[str, Any]:
     }
     jobs.append(job)
     _save(jobs)
+    try:
+        note_job_id(int(job["id"]))
+    except Exception:
+        logger.exception("Could not persist walk-forward job id sequencer")
     return job
 
 
@@ -633,6 +777,12 @@ def finish_job(job_id: int, summary: str, ok: bool, pairs_approved: int | None =
 
     job = next((j for j in jobs if j.get("id") == job_id), None)
     if job:
+        try:
+            from firm.research_catalog import record_finished_walk_forward
+
+            record_finished_walk_forward(job)
+        except Exception:
+            logger.exception("Could not record finished walk-forward for job %s", job_id)
         if not ok:
             research_status = "rejected"
         elif pairs_approved == 0:
@@ -683,7 +833,13 @@ def _validator_timeframe(clock: str) -> str:
 
 
 def _clocks_tested(family: str) -> set[str]:
-    """Which timeframe clocks this family has already finished."""
+    """Which timeframe clocks this family has already finished.
+
+    Includes the durable history and paper book so a jobs-ledger reset cannot
+    make CLOCK_BY_FAMILY look like an untested default clock.
+    """
+    from firm.research_catalog import durable_tested_keys
+
     out: set[str] = set()
     for job in _load():
         if job.get("family") != family:
@@ -693,6 +849,13 @@ def _clocks_tested(family: str) -> set[str]:
         _backfill_clock(job)
         if job.get("clock"):
             out.add(str(job["clock"]))
+    prefix = f"{family}@"
+    for key in durable_tested_keys(_load()):
+        if not str(key).startswith(prefix):
+            continue
+        clock = str(key)[len(prefix) :].split("@")[0]
+        if clock:
+            out.add(clock)
     return out
 
 
@@ -746,21 +909,10 @@ def _next_step_spec(job: dict[str, Any]) -> dict[str, Any] | None:
             "hypothesis_id": row.get("id"),
             "rationale": str(row.get("justification") or ""),
         }
-    family = str(job.get("family") or "")
-    clocks = _clocks_tested(family)
-    if family == "donchian_breakout" and "1h/4h" not in clocks:
-        return {
-            "kind": "strategy",
-            "title": "Next: walk-forward Donchian at 1h/4h (catalog clock)",
-            "family": "donchian_breakout",
-            "action": "walk_forward",
-            "clock": "1h/4h",
-            "rationale": (
-                "The 15m Donchian test was rejected after costs. The catalog asked "
-                "for 1h/4h."
-            ),
-        }
+    # Do not invent a CLOCK_BY_FAMILY leftover (including Donchian 1h/4h)
+    # just because remaining is empty. Idle is the correct next step.
     tested = _tested_families()
+    family = str(job.get("family") or "")
     if family:
         tested.add(family)
     return next_catalog_step(tested=tested, coded=set(list_strategies()))
@@ -1005,6 +1157,16 @@ def catch_up_approved_proposals() -> dict[str, Any]:
             for j in _load()
         )
         if existing_done:
+            continue
+        payload = proposal.get("payload") if isinstance(proposal.get("payload"), dict) else {}
+        from firm.research_catalog import auto_advance_grid_spent
+
+        clock = str(payload.get("clock") or CLOCK_BY_FAMILY.get(family) or "4h/4h")
+        side = str(payload.get("side") or "BOTH")
+        if auto_advance_grid_spent(
+            {"family": family, "clock": clock, "side": side},
+            jobs=_load(),
+        ) and not payload.get("force_retest"):
             continue
         result = on_operator_approved(proposal)
         if result.get("job_id"):
