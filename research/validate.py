@@ -804,7 +804,10 @@ def _novel_kit(name: str, side: SignalSide):
             "core.strategy.fib_extension_break",
             "FibExtensionBreakParams",
             "FibExtensionBreakStrategy",
-            {"fib_ratio": [1.272, 1.618]},
+            # 1.272 is the inner-zone display only. Searching both ratios
+            # lets fold CV blame the grid; lock 1.618. skip_bull / skip_bear
+            # stay off unless a near-miss overlay freezes them.
+            {"fib_ratio": [1.618]},
         ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
