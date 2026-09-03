@@ -484,7 +484,8 @@ def test_remaining_hypotheses_skips_tested_clock(tmp_path, monkeypatch) -> None:
     left = remaining_hypotheses(research_jobs.list_jobs())
     ids = [r["id"] for r in left]
     assert "atr_channel_breakout@1h/1h" not in ids
-    assert left[0]["family"] == "opening_range_breakout"
+    # Advisor walk order: Inbox 6–8 first, leftovers after.
+    assert left[0]["family"] == "session_boundary_volume_fade"
 
 
 def test_replenish_catalog_fills_depth(tmp_path, monkeypatch) -> None:
@@ -644,6 +645,9 @@ def test_promote_remaining_into_top5_after_postmortem(tmp_path, monkeypatch) -> 
         json.dumps(
             {
                 "ranks": {
+                    "session_boundary_volume_fade@4h/4h": 16,
+                    "vwap_spread_exhaustion@4h/4h": 16,
+                    "vwap_volatility_band_fade@1h/1h": 16,
                     "opening_range_breakout@1h/1h": 16,
                     "atr_channel_breakout@1h/1h": 16,
                     "ema_adx_trend@1h/1h": 16,

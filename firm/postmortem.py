@@ -121,6 +121,8 @@ def write_postmortem(job: dict[str, Any], *, pair_blurbs: str = "") -> dict[str,
         disposition == "retest_under_different_regime"
         and (side or "BOTH").upper() == "BOTH"
         and shorts_were_near_miss(pair_blurbs)
+        # Advisor: no BNB/SHORT clone of monday_range_sweep_reversal.
+        and family != "monday_range_sweep_reversal"
     )
     report = {
         "job_id": job.get("id"),

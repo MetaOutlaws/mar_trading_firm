@@ -495,7 +495,7 @@ def test_already_tested_clock_does_not_spawn(tmp_path, monkeypatch) -> None:
     assert "already finished" in result["next_step"].lower()
 
 
-def test_next_step_after_htf_is_opening_range_walk_forward(tmp_path, monkeypatch) -> None:
+def test_next_step_after_htf_is_session_boundary_walk_forward(tmp_path, monkeypatch) -> None:
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
@@ -515,13 +515,14 @@ def test_next_step_after_htf_is_opening_range_walk_forward(tmp_path, monkeypatch
         {"family": "trend_pullback_htf", "status": "done", "pairs_approved": 0}
     )
     assert spec is not None
-    assert spec["family"] == "opening_range_breakout"
+    assert spec["family"] == "session_boundary_volume_fade"
     assert spec["action"] == "walk_forward"
-    assert spec["clock"] == "1h/1h"
+    assert spec["clock"] == "4h/4h"
+    assert spec["side"] == "BOTH"
     assert spec["family"] != "funding_fade"
 
 
-def test_next_step_prefers_uncoded_opening_range_before_atr_followup(tmp_path, monkeypatch) -> None:
+def test_next_step_prefers_session_boundary_before_atr_followup(tmp_path, monkeypatch) -> None:
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
@@ -537,8 +538,9 @@ def test_next_step_prefers_uncoded_opening_range_before_atr_followup(tmp_path, m
         {"family": "atr_channel_breakout", "status": "done", "clock": "4h/4h", "pairs_approved": 0}
     )
     assert spec is not None
-    assert spec["family"] == "opening_range_breakout"
-    assert spec["clock"] == "1h/1h"
+    assert spec["family"] == "session_boundary_volume_fade"
+    assert spec["clock"] == "4h/4h"
+    assert spec["side"] == "BOTH"
     assert spec["action"] == "walk_forward"
 
 

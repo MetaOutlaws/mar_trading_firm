@@ -31,6 +31,22 @@ WALK_FORWARD_HISTORY_PATH = PROJECT_ROOT / "data" / "walk_forward_history.json"
 FAMILIES_NEEDING_FEED = frozenset({"funding_fade"})
 # Legacy baseline. Walk-forward already measured it; replenish must not clone it.
 NEVER_REPLENISH_FAMILIES = frozenset({"rsi_trend", "rsi_golden_cross"})
+# Strategy Advisor: after Inbox 6–8 land, walk these BOTH grids first.
+# Do not invent a BNB SHORT clone of monday_range_sweep_reversal.
+INBOX_WALK_ORDER: tuple[str, ...] = (
+    "session_boundary_volume_fade",
+    "vwap_spread_exhaustion",
+    "vwap_volatility_band_fade",
+)
+# Inbox 6–8 plus the PR-10 turnover trio: six names, BOTH sides honest.
+INBOX_BOTH_FAMILIES: tuple[str, ...] = INBOX_WALK_ORDER + (
+    "up_down_turnover_imbalance",
+    "signed_range_turnover_trend",
+    "swing_anchored_vwap_pullback",
+)
+BANNED_SHORT_CLONES: frozenset[tuple[str, str]] = frozenset(
+    {("monday_range_sweep_reversal", "SHORT")}
+)
 # A family is done with auto clock clones once both of these have 0 approvals.
 RESEARCH_METHOD = (
     "Desk Head (GM) owns walk-forward slots. Sleeve Engineer owns coding and "
@@ -431,6 +447,57 @@ RESEARCH_BACKLOG: list[dict[str, Any]] = [
 # Ranked hypotheses: new coded families first, then near-miss param grids.
 # Unique key is family@clock@side. Do not re-queue an unchanged test.
 RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
+    {
+        "id": "session_boundary_volume_fade@4h/4h",
+        "family": "session_boundary_volume_fade",
+        "name": "session_boundary_volume_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 1,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox 6–8 walk first. Calendar UTC day box + weak-volume fade, "
+            "BOTH sides honest. Not a floor-pivot breakout and not an Asian sweep."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "vwap_spread_exhaustion@4h/4h",
+        "family": "vwap_spread_exhaustion",
+        "name": "vwap_spread_exhaustion 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 2,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox 6–8 walk second. Rolling VWAP−SMA / ATR extreme, BOTH sides "
+            "honest. Not a UTC-session VWAP stretch."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "vwap_volatility_band_fade@1h/1h",
+        "family": "vwap_volatility_band_fade",
+        "name": "vwap_volatility_band_fade 1h/1h BOTH",
+        "clock": "1h/1h",
+        "side": "BOTH",
+        "rank": 3,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox 6–8 walk third. Rolling VWAP ± σ inside a BB-width squeeze, "
+            "BOTH sides honest. Not a SMA Bollinger fade."
+        ),
+        "param_change": {"clock": "1h/1h"},
+        "needs_feed": False,
+    },
     {
         "id": "opening_range_breakout@1h/1h",
         "family": "opening_range_breakout",
@@ -1370,7 +1437,19 @@ def remaining_hypotheses(jobs: list[dict[str, Any]] | None = None) -> list[dict[
             if clock != primary:
                 continue
         out.append(row)
+    # Leftovers stay in the list. Inbox 6–8 walk first, in Advisor order.
+    out.sort(key=_inbox_walk_sort_key)
     return out
+
+
+def _inbox_walk_sort_key(row: dict[str, Any]) -> tuple[int, int, int, str]:
+    """session_boundary, then vwap_spread, then vwap_band; leftovers after."""
+    family = str(row.get("family") or "")
+    try:
+        return (0, INBOX_WALK_ORDER.index(family), 0, "")
+    except ValueError:
+        rank = int(row["rank"]) if row.get("rank") not in (None, "") else 99
+        return (1, rank, 0, str(row.get("id") or ""))
 
 
 def unqueued_hypotheses(jobs: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
@@ -1788,11 +1867,33 @@ def land_coded_candidate_specs(
     return added
 
 
+def is_banned_side_clone(row: dict[str, Any]) -> bool:
+    """True for a forced SHORT/symbol clone Strategy Advisor rejected.
+
+    monday_range_sweep_reversal stays BOTH. Do not overlay a BNB SHORT
+    clone of that family.
+    """
+    family = str(row.get("family") or "").strip().lower()
+    side = str(row.get("side") or "BOTH").strip().upper()
+    hid = str(row.get("id") or "").lower()
+    if (family, side) in BANNED_SHORT_CLONES:
+        return True
+    if family == "monday_range_sweep_reversal" and "short" in hid:
+        return True
+    blob = json.dumps(row, default=str).lower()
+    if family == "monday_range_sweep_reversal" and "bnbusdt" in blob and "short" in blob:
+        return True
+    return False
+
+
 def append_hypothesis(row: dict[str, Any], *, added_by: str) -> dict[str, Any] | None:
     """Add one ranked hypothesis. No-op if that id already exists. Does not start a test."""
     hid = str(row.get("id") or "")
     family = str(row.get("family") or "")
     if not hid or not family or family in FAMILIES_NEEDING_FEED:
+        return None
+    if is_banned_side_clone(row):
+        logger.warning("Refusing banned side clone %s", hid)
         return None
     existing_rows = ranked_hypotheses()
     existing = {str(r.get("id") or "") for r in existing_rows}
