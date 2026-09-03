@@ -31,6 +31,9 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "swing_anchored_vwap_pullback" not in names
     assert "monday_range_sweep_reversal" not in names
     assert "volume_imbalance_delta_reversal" not in names
+    assert "session_boundary_volume_fade" not in names
+    assert "vwap_spread_exhaustion" not in names
+    assert "vwap_volatility_band_fade" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

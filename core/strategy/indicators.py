@@ -339,6 +339,62 @@ def prior_day_floor_pivots(
     return pivot, r1, s1
 
 
+def prior_utc_day_range(high: pd.Series, low: pd.Series) -> tuple[pd.Series, pd.Series]:
+    """Prior completed UTC calendar day's high/low. Published after midnight.
+
+    Calendar day box, not floor pivots (P/R1/S1) and not an Asian session
+    window. Intraday bars never see the still-forming day's extrema: the
+    snapshot is taken on the first bar of the new UTC day, then ffilled.
+    """
+    if not high.index.equals(low.index):
+        raise ValueError("high and low must share an index")
+    day = utc_day_key(high.index)
+    new_day = day.ne(day.shift(1))
+    # Same causal snapshot as prior_day_floor_pivots, without the pivot math.
+    day_high = high.groupby(day).cummax()
+    day_low = low.groupby(day).cummin()
+    prev_h = day_high.shift(1).where(new_day).ffill()
+    prev_l = day_low.shift(1).where(new_day).ffill()
+    return prev_h, prev_l
+
+
+def rolling_vwap(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    volume: pd.Series,
+    period: int = 20,
+) -> pd.Series:
+    """Rolling typical-price VWAP. Does not reset at UTC midnight.
+
+    Distinct from `utc_session_vwap` (session reset) and from `vwma`
+    (close × volume, no typical price). Bar t uses bars ``t-period+1..t``
+    only.
+    """
+    if period <= 0:
+        raise ValueError(f"period must be positive, got {period}")
+    if not high.index.equals(low.index) or not high.index.equals(close.index):
+        raise ValueError("high, low, close must share an index")
+    if not high.index.equals(volume.index):
+        raise ValueError("volume must share the candle index")
+    typical = (
+        high.astype("float64") + low.astype("float64") + close.astype("float64")
+    ) / 3.0
+    pv = typical * volume.astype("float64")
+    num = pv.rolling(window=period, min_periods=period).sum()
+    den = volume.astype("float64").rolling(window=period, min_periods=period).sum()
+    return num / den.replace(0, np.nan)
+
+
+def bollinger_width(close: pd.Series, period: int = 20, k: float = 2.0) -> pd.Series:
+    """Relative Bollinger Band Width: (upper - lower) / mid.
+
+    Mid is the SMA. Zero/NaN mid is blanked. Bars ``<= t`` only.
+    """
+    mid, upper, lower = bollinger_bands(close, period, k)
+    return (upper - lower) / mid.replace(0, np.nan)
+
+
 def confirmed_swings(
     high: pd.Series,
     low: pd.Series,

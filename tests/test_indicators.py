@@ -323,6 +323,48 @@ def test_weekend_utc_range_truncation_matches_prefix():
     pd.testing.assert_series_equal(full_high.iloc[:cut], trunc_high, check_names=False)
 
 
+def test_prior_utc_day_range_publishes_after_midnight():
+    """Yesterday's H/L is blank until the first bar of the next UTC day."""
+    index = pd.date_range("2024-01-02", periods=30, freq="h", tz="UTC")
+    high = pd.Series(101.0, index=index)
+    low = pd.Series(99.0, index=index)
+    high.iloc[5] = 110.0
+    low.iloc[8] = 90.0
+    prev_h, prev_l = ind.prior_utc_day_range(high, low)
+    assert pd.isna(prev_h.iloc[5])
+    assert pd.isna(prev_h.iloc[23])
+    assert prev_h.iloc[24] == pytest.approx(110.0)
+    assert prev_l.iloc[24] == pytest.approx(90.0)
+    assert prev_h.iloc[29] == pytest.approx(110.0)
+
+
+def test_rolling_vwap_is_not_session_vwap_or_vwma():
+    """Typical-price rolling VWAP ≠ UTC session VWAP and ≠ close VWMA."""
+    index = pd.date_range("2024-01-02", periods=24, freq="h", tz="UTC")
+    close = pd.Series(100.0, index=index)
+    high = close + 2.0
+    low = close - 1.0
+    volume = pd.Series(100.0, index=index)
+    volume.iloc[20:] = 5_000.0
+    close.iloc[20:] = 110.0
+    high.iloc[20:] = 112.0
+    low.iloc[20:] = 109.0
+    rolled = ind.rolling_vwap(high, low, close, volume, period=20)
+    session = ind.utc_session_vwap(high, low, close, volume)
+    close_vwma = ind.vwma(close, volume, 20)
+    assert rolled.iloc[23] != pytest.approx(float(session.iloc[23]), abs=0.05)
+    assert rolled.iloc[23] != pytest.approx(float(close_vwma.iloc[23]), abs=0.05)
+
+
+def test_bollinger_width_is_relative():
+    close = pd.Series(np.linspace(100.0, 110.0, 40))
+    width = ind.bollinger_width(close, period=20, k=2.0)
+    mid, upper, lower = ind.bollinger_bands(close, 20, 2.0)
+    assert width.iloc[30] == pytest.approx(
+        float((upper.iloc[30] - lower.iloc[30]) / mid.iloc[30])
+    )
+
+
 def test_bar_buy_share_is_close_location_not_cumsum():
     index = pd.date_range("2024-01-02", periods=3, freq="h", tz="UTC")
     high = pd.Series([110.0, 110.0, 110.0], index=index)

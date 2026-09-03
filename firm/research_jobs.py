@@ -144,6 +144,9 @@ CLOCK_BY_FAMILY = {
     "swing_anchored_vwap_pullback": "4h/4h",
     "monday_range_sweep_reversal": "4h/4h",
     "volume_imbalance_delta_reversal": "4h/4h",
+    "session_boundary_volume_fade": "4h/4h",
+    "vwap_spread_exhaustion": "4h/4h",
+    "vwap_volatility_band_fade": "1h/1h",
 }
 # Re-exported so callers that imported from this module keep working.
 

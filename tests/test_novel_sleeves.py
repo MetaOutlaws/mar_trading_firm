@@ -98,6 +98,9 @@ APPROVED = [
     "swing_anchored_vwap_pullback",
     "monday_range_sweep_reversal",
     "volume_imbalance_delta_reversal",
+    "session_boundary_volume_fade",
+    "vwap_spread_exhaustion",
+    "vwap_volatility_band_fade",
 ]
 
 
@@ -2000,6 +2003,267 @@ def test_failed_lower_low_long() -> None:
     candles = _ohlcv(_hourly(n), close, high=high, low=low)
     signals = _signals("failed_higher_high", candles)
     assert int((signals["signal"] == 1).sum()) >= 1
+
+
+def _utc_day_box_tape(n: int = 72) -> tuple[pd.DatetimeIndex, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Two UTC days. Day 0 plants H=110 / L=90 / last close=90 so floor R1≠H."""
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    # Prior UTC day (Jan 2) box. Close the day at the low so P/R1/S1 ≠ H/L.
+    high[5] = 110.0
+    close[5] = 108.0
+    low[8] = 90.0
+    close[23] = 90.0
+    low[23] = 90.0
+    high[23] = 100.0
+    open_[23] = 100.0
+    return index, close, high, low, open_
+
+
+def _day1_sweep_iloc(index: pd.DatetimeIndex) -> int:
+    return int(index.get_loc(pd.Timestamp("2024-01-03 04:00", tz="UTC")))
+
+
+def test_session_boundary_volume_fade_schema_and_long_entry() -> None:
+    index, close, high, low, open_ = _utc_day_box_tape()
+    bar = _day1_sweep_iloc(index)
+    # Weak-volume sweep of prior day low. Close stays below daily VWAP.
+    low[bar] = 85.0
+    close[bar] = 88.0
+    open_[bar] = 95.0
+    high[bar] = 96.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles.loc[candles.index[bar], "volume"] = 100.0
+    signals = _signals("session_boundary_volume_fade", candles)
+    for column in ("signal", "side", "score", "reason", "prior_high", "prior_low", "daily_vwap"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert signals["prior_high"].iloc[bar] == pytest.approx(110.0)
+    assert signals["prior_low"].iloc[bar] == pytest.approx(90.0)
+
+
+def test_session_boundary_volume_fade_short_entry() -> None:
+    index, close, high, low, open_ = _utc_day_box_tape()
+    bar = _day1_sweep_iloc(index)
+    high[bar] = 115.0
+    close[bar] = 112.0
+    open_[bar] = 105.0
+    low[bar] = 104.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles.loc[candles.index[bar], "volume"] = 100.0
+    signals = _signals("session_boundary_volume_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+
+
+def test_session_boundary_volume_fade_requires_weak_volume() -> None:
+    """A high-volume sweep of the UTC day box is not this fade."""
+    index, close, high, low, open_ = _utc_day_box_tape()
+    bar = _day1_sweep_iloc(index)
+    low[bar] = 85.0
+    close[bar] = 88.0
+    open_[bar] = 95.0
+    high[bar] = 96.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles.loc[candles.index[bar], "volume"] = 8_000.0
+    signals = _signals("session_boundary_volume_fade", candles)
+    assert int(signals["signal"].iloc[bar]) == 0
+
+
+def test_session_boundary_volume_fade_is_day_box_not_floor_pivot() -> None:
+    """Entry tags prior UTC day H/L, not P/R1/S1 of prior_day_pivot_breakout."""
+    from core.strategy import indicators as ind
+
+    index, close, high, low, open_ = _utc_day_box_tape()
+    bar = _day1_sweep_iloc(index)
+    low[bar] = 85.0
+    close[bar] = 88.0
+    open_[bar] = 95.0
+    high[bar] = 96.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles.loc[candles.index[bar], "volume"] = 100.0
+    signals = _signals("session_boundary_volume_fade", candles)
+    pivot, r1, s1 = ind.prior_day_floor_pivots(candles["high"], candles["low"], candles["close"])
+    assert int(signals["signal"].iloc[bar]) == 1
+    assert "pivot" not in signals.columns
+    assert "r1" not in signals.columns
+    # Day close=90 makes S1 < prior_low, so 85 is a day-box sweep not an S1 break.
+    assert signals["prior_low"].iloc[bar] == pytest.approx(90.0)
+    assert float(s1.iloc[bar]) < 90.0
+    assert float(r1.iloc[bar]) != pytest.approx(110.0)
+
+
+def _vwap_spread_tape(*, pull_vwap_down: bool, n: int = 90) -> pd.DataFrame:
+    """Long flat range, then a short heavy-volume offset so VWAP leaves SMA."""
+    close = np.full(n, 100.0)
+    high = close + 1.0
+    low = close - 1.0
+    open_ = np.full(n, 100.0)
+    volume = np.full(n, 100.0)
+    level = 98.0 if pull_vwap_down else 102.0
+    for i in range(70, 76):
+        close[i] = level
+        high[i] = level + 1.0
+        low[i] = level - 1.0
+        open_[i] = level
+        volume[i] = 8_000.0
+    volume[75] = 12_000.0
+    if pull_vwap_down:
+        close[75] = 97.5
+        low[75] = 97.0
+        high[75] = 99.0
+    else:
+        close[75] = 102.5
+        high[75] = 103.0
+        low[75] = 101.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = volume * candles["close"].to_numpy()
+    return candles
+
+
+def test_vwap_spread_exhaustion_schema_and_long_entry() -> None:
+    candles = _vwap_spread_tape(pull_vwap_down=True)
+    signals = _signals("vwap_spread_exhaustion", candles)
+    for column in ("signal", "side", "score", "reason", "rolling_vwap", "sma", "spread"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+    fired = signals.index[signals["signal"] == 1]
+    assert len(fired) >= 1
+    bar = fired[0]
+    assert candles.loc[bar, "close"] < signals.loc[bar, "rolling_vwap"]
+    # Mean is rolling typical-price VWAP, not utc_session_vwap.
+    from core.strategy import indicators as ind
+
+    rolled = ind.rolling_vwap(
+        candles["high"], candles["low"], candles["close"], candles["volume"], 20
+    )
+    assert signals.loc[bar, "rolling_vwap"] == pytest.approx(float(rolled.loc[bar]))
+
+
+def test_vwap_spread_exhaustion_short_entry() -> None:
+    candles = _vwap_spread_tape(pull_vwap_down=False)
+    signals = _signals("vwap_spread_exhaustion", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+    fired = signals.index[signals["signal"] == -1]
+    assert candles.loc[fired[0], "close"] > signals.loc[fired[0], "rolling_vwap"]
+
+
+def test_vwap_spread_exhaustion_requires_expanding_volume() -> None:
+    candles = _vwap_spread_tape(pull_vwap_down=True)
+    candles["volume"] = 100.0
+    candles["turnover"] = 100.0 * candles["close"]
+    signals = _signals("vwap_spread_exhaustion", candles)
+    assert int((signals["signal"] == 1).sum()) == 0
+
+
+def test_vwap_spread_exhaustion_kit_has_two_free_params_no_skip_bull() -> None:
+    from research.validate import strategy_kit
+
+    _factory, _base, space = strategy_kit("vwap_spread_exhaustion", SignalSide.LONG)
+    extra = {k: v for k, v in space.items() if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert set(extra) == {"extreme_lookback", "max_adx"}
+    assert "skip_bull" not in space
+    assert "skip_bear" not in space
+
+
+def _vwap_band_squeeze_tape(*, long_side: bool, n: int = 160) -> pd.DataFrame:
+    """Wide oscillation, then a tight range with volume skew so VWAP ≠ SMA."""
+    idx = np.arange(n, dtype="float64")
+    close = np.where(idx < 90, 100.0 + 6.0 * np.sin(idx / 3.0), 100.0)
+    # Tight squeeze with a one-sided volume pulse so rolling VWAP leaves the SMA.
+    for i in range(90, n):
+        if i % 3 == 0:
+            close[i] = 101.2
+    high = close + 0.4
+    low = close - 0.4
+    open_ = close.copy()
+    volume = np.full(n, 100.0)
+    volume[90:] = np.where(np.arange(n)[90:] % 3 == 0, 8_000.0, 100.0)
+    poke = 140
+    if long_side:
+        close[poke] = 97.0
+        low[poke] = 96.0
+        high[poke] = 98.5
+        open_[poke] = 99.5
+        volume[poke] = 100.0
+    else:
+        close[poke] = 103.0
+        high[poke] = 104.0
+        low[poke] = 101.5
+        open_[poke] = 100.5
+        volume[poke] = 100.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = volume * candles["close"].to_numpy()
+    return candles
+
+
+def test_vwap_volatility_band_fade_schema_and_long_entry() -> None:
+    candles = _vwap_band_squeeze_tape(long_side=True)
+    signals = _signals("vwap_volatility_band_fade", candles)
+    for column in ("signal", "side", "score", "reason", "rolling_vwap", "vwap_upper", "vwap_lower", "bb_width"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+
+
+def test_vwap_volatility_band_fade_short_entry() -> None:
+    candles = _vwap_band_squeeze_tape(long_side=False)
+    signals = _signals("vwap_volatility_band_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+
+
+def test_vwap_volatility_band_fade_bands_are_vwap_not_bollinger() -> None:
+    """Outer bands are VWAP ± σ, not the SMA Bollinger bands of the book row."""
+    from core.strategy import indicators as ind
+
+    candles = _vwap_band_squeeze_tape(long_side=True)
+    signals = _signals("vwap_volatility_band_fade", candles)
+    fired = signals.index[signals["signal"] == 1]
+    assert len(fired) >= 1
+    bar = fired[0]
+    mid, bb_upper, bb_lower = ind.bollinger_bands(candles["close"], 20, 2.0)
+    assert abs(float(signals.loc[bar, "rolling_vwap"]) - float(mid.loc[bar])) > 0.15
+    assert abs(float(signals.loc[bar, "vwap_upper"]) - float(bb_upper.loc[bar])) > 0.15
+    assert abs(float(signals.loc[bar, "vwap_lower"]) - float(bb_lower.loc[bar])) > 0.15
+
+
+def test_vwap_volatility_band_fade_requires_bb_width_squeeze() -> None:
+    """A VWAP-band touch outside the bottom-30% BB-width window is not an entry."""
+    n = 160
+    close = 100.0 + 6.0 * np.sin(np.arange(n) / 3.0)
+    high = close + 0.4
+    low = close - 0.4
+    close[140] = 90.0
+    low[140] = 89.0
+    high[140] = 92.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low)
+    signals = _signals("vwap_volatility_band_fade", candles)
+    assert int(signals["signal"].iloc[140]) == 0
+
+
+def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
+    from research.validate import strategy_kit
+
+    for name, extra_keys in (
+        ("session_boundary_volume_fade", {"vol_period"}),
+        ("vwap_volatility_band_fade", {"band_k"}),
+    ):
+        _factory, _base, space = strategy_kit(name, SignalSide.LONG)
+        extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+        assert extra == extra_keys
+        assert "skip_bull" not in space
+        assert len(extra) <= 2
 
 
 @pytest.mark.parametrize("name", APPROVED)
