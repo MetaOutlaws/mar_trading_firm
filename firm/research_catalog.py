@@ -45,6 +45,9 @@ INBOX_WALK_ORDER: tuple[str, ...] = (
     "close_location_persistence",
     "open_in_prior_range_fail",
     "equal_high_low_restest_fade",
+    "double_bottom_neckline_break",
+    "double_top_neckline_break",
+    "ascending_triangle_break",
 )
 # Inbox walk-order families: BOTH sides honest, at most two free params.
 INBOX_BOTH_FAMILIES: tuple[str, ...] = INBOX_WALK_ORDER
@@ -657,6 +660,70 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
             "trades through and closes back inside. Family id is restest as "
             "spelled. BOTH sides honest. Not monday_range_sweep_reversal "
             "and not session_liquidity_sweep."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "double_bottom_neckline_break@4h/4h",
+        "family": "double_bottom_neckline_break",
+        "name": "double_bottom_neckline_break 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 12,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk twelfth. Two swing lows inside lookback match within "
+            "0.15*ATR(20); LONG is a confirmed close through the intervening "
+            "swing high (neckline). SHORT is close through the second low "
+            "(invalidation), not a two-high neckline break. BOTH sides honest. "
+            "Not equal_high_low_restest_fade (failed restest fade). Not "
+            "swing_failure_reversal, monday_range_sweep_reversal, or "
+            "failed_higher_high."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "double_top_neckline_break@4h/4h",
+        "family": "double_top_neckline_break",
+        "name": "double_top_neckline_break 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 13,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk thirteenth. Two swing highs inside lookback match "
+            "within 0.15*ATR(20); SHORT is a confirmed close through the "
+            "intervening swing low (neckline). LONG is close through the "
+            "second high (invalidation). High-high-neckline geometry, not a "
+            "sign-flipped double-bottom file. BOTH sides honest. Not "
+            "equal_high_low_restest_fade (failed restest fade)."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "ascending_triangle_break@4h/4h",
+        "family": "ascending_triangle_break",
+        "name": "ascending_triangle_break 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 14,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk fourteenth. LONG: rising swing lows into a flat "
+            "swing-high cap, close through the cap on volume above the "
+            "prior-20 mean. SHORT: descending-triangle inverse. Volume "
+            "baseline is locked. BOTH sides honest. Not NR7, not "
+            "range_compression_volume_thrust, not inside_bar_breakout, "
+            "not squeeze_momentum_break."
         ),
         "param_change": {"clock": "4h/4h"},
         "needs_feed": False,
@@ -1657,7 +1724,7 @@ def remaining_hypotheses(jobs: list[dict[str, Any]] | None = None) -> list[dict[
 
 
 def _inbox_walk_sort_key(row: dict[str, Any]) -> tuple[int, int, int, str]:
-    """Inbox walk-order families first (PR-12 through the latest three); leftovers after."""
+    """Inbox walk-order families first (PR-12 through the latest chart-pattern three); leftovers after."""
     family = str(row.get("family") or "")
     try:
         return (0, INBOX_WALK_ORDER.index(family), 0, "")

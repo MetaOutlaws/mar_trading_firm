@@ -1,0 +1,15 @@
+{
+  "family": "double_bottom_neckline_break",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "In lookback (default 40) identify two swing lows whose prices differ by <= 0.15*ATR(20) and an intervening swing high (neckline). LONG when close_t crosses above that neckline. SHORT when the second low is in place and close_t crosses below it (pattern invalidation), not a neckline break of two highs. Free params: lookback, atr_tol. Not equal_high_low_restest_fade (job 110, fades a failed restest without neckline break). Not swing_failure_reversal. Not monday_range_sweep_reversal. Not failed_higher_high. Not a rename of double_top.",
+  "summary": "Long a confirmed double-bottom neckline break; short the second-low invalidation.",
+  "justification": "A confirmed close through the intervening high of two matched swing lows is a different event from a failed equal-high/low restest fade.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T06:37:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/double_bottom_neckline_break.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

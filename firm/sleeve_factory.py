@@ -1650,6 +1650,75 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "Monday sweep and not the dead Asian-session liquidity sweep."
         ),
     ),
+    SleeveSpec(
+        name="double_bottom_neckline_break",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "In lookback (default 40) identify two swing lows whose prices "
+            "differ by <= 0.15*ATR(20) and an intervening swing high "
+            "(neckline). LONG when close_t crosses above that neckline. "
+            "SHORT when the second low is in place and close_t crosses below "
+            "it (pattern invalidation), not a neckline break of two highs. "
+            "Free params: lookback, atr_tol. Not equal_high_low_restest_fade "
+            "(job 110, fades a failed restest without neckline break). Not "
+            "swing_failure_reversal. Not monday_range_sweep_reversal. Not "
+            "failed_higher_high. Not a rename of double_top."
+        ),
+        summary="Long a confirmed double-bottom neckline break; short the second-low invalidation.",
+        justification=(
+            "A confirmed close through the intervening high of two matched "
+            "swing lows is a different event from a failed equal-high/low "
+            "restest fade."
+        ),
+    ),
+    SleeveSpec(
+        name="double_top_neckline_break",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "In lookback (default 40) identify two swing highs whose prices "
+            "differ by <= 0.15*ATR(20) and an intervening swing low "
+            "(neckline). SHORT when close_t crosses below that neckline. "
+            "LONG when the second high is in place and close_t crosses above "
+            "it (invalidation), not a neckline break of two lows. Free "
+            "params: lookback, atr_tol. High-high-neckline geometry, not a "
+            "sign-flipped double_bottom file. Distinct from 110: 110 fades "
+            "a failed restest; this trades the confirmed neckline break."
+        ),
+        summary="Short a confirmed double-top neckline break; long the second-high invalidation.",
+        justification=(
+            "Two matched swing highs and a close through the intervening low "
+            "is not a failed restest fade and not a flipped double-bottom file."
+        ),
+    ),
+    SleeveSpec(
+        name="ascending_triangle_break",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "LONG: at least two rising swing lows (each low > prior swing "
+            "low) into a flat swing-high cap (highs within 0.15*ATR(20)), "
+            "then close_t through the cap AND volume_t > mean(volume_"
+            "{t-20..t-1}). SHORT: descending-triangle inverse, at least two "
+            "falling swing highs into a flat swing-low floor, then close "
+            "through the floor on volume above prior-20 mean. Free params: "
+            "lookback (default 40), atr_tol. Volume threshold is fixed as "
+            "prior-20 mean, not a third param. Not NR7. Not "
+            "range_compression_volume_thrust (102, compression then thrust, "
+            "no triangle geometry). Not inside_bar_breakout. Not "
+            "squeeze_momentum_break (dead, do not recode)."
+        ),
+        summary="Break an ascending triangle on volume (descending-triangle inverse for shorts).",
+        justification=(
+            "Rising lows into a flat high cap, broken on volume, is triangle "
+            "geometry — not ATR-percentile compression, not NR7, and not an "
+            "inside-bar box."
+        ),
+    ),
 ]
 
 
