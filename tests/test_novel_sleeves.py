@@ -106,6 +106,9 @@ APPROVED = [
     "range_compression_volume_thrust",
     "turnover_climax_rejection_fade",
     "volume_dryup_range_break",
+    "body_efficiency_follow",
+    "week_open_reclaim",
+    "prior_session_mid_reclaim",
 ]
 
 
@@ -2651,6 +2654,276 @@ def test_volume_dryup_range_break_requires_three_dry_bars() -> None:
     assert int(signals["signal"].iloc[49]) == 0
 
 
+def test_body_efficiency_follow_schema_and_long_entry() -> None:
+    n = 24
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    volume = np.full(n, 1_000.0)
+    # Two consecutive efficient up-bodies; second volume is not smaller.
+    open_[12] = 100.0
+    close[12] = 110.0
+    high[12] = 111.0
+    low[12] = 99.5
+    volume[12] = 1_200.0
+    open_[13] = 110.0
+    close[13] = 121.0
+    high[13] = 122.0
+    low[13] = 109.5
+    volume[13] = 1_500.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    signals = _signals("body_efficiency_follow", candles)
+    for column in ("signal", "side", "score", "reason", "efficiency", "prev_efficiency"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[13]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert float(signals["efficiency"].iloc[13]) >= 0.7
+    assert float(signals["efficiency"].iloc[12]) >= 0.7
+
+
+def test_body_efficiency_follow_short_entry() -> None:
+    n = 24
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    volume = np.full(n, 1_000.0)
+    open_[12] = 100.0
+    close[12] = 90.0
+    high[12] = 100.5
+    low[12] = 89.0
+    volume[12] = 1_200.0
+    open_[13] = 90.0
+    close[13] = 79.0
+    high[13] = 90.5
+    low[13] = 78.0
+    volume[13] = 1_500.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    signals = _signals("body_efficiency_follow", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[13]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+
+
+def test_body_efficiency_follow_not_engulf_or_three_bar_or_exhaustion() -> None:
+    """Follow two efficient bodies. Not an engulf reverse, rest-break, or fade."""
+    n = 24
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    volume = np.full(n, 1_000.0)
+    # Two up-bodies that do not engulf (second open is above first open).
+    open_[12] = 100.0
+    close[12] = 110.0
+    high[12] = 111.0
+    low[12] = 99.5
+    volume[12] = 1_200.0
+    open_[13] = 110.0
+    close[13] = 121.0
+    high[13] = 122.0
+    low[13] = 109.5
+    volume[13] = 1_500.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    follow = _signals("body_efficiency_follow", candles)
+    engulf = _signals("engulfing_reversal", candles)
+    play = _signals("three_bar_play", candles)
+    fade = _signals("consecutive_bar_exhaustion", candles)
+    assert int(follow["signal"].iloc[13]) == 1
+    assert int(engulf["signal"].iloc[13]) == 0
+    assert int(play["signal"].iloc[13]) == 0
+    assert int(fade["signal"].iloc[13]) == 0
+    # Second volume below the first is not this follow.
+    quiet = candles.copy()
+    quiet.loc[quiet.index[13], "volume"] = 800.0
+    assert int(_signals("body_efficiency_follow", quiet)["signal"].iloc[13]) == 0
+
+
+def _week_open_tape(*, long_side: bool, n: int = 80) -> tuple[pd.DatetimeIndex, pd.DataFrame, int]:
+    """Monday 00:00 week open at 100, three wrong-side closes after vol warm-up, then reclaim."""
+    index = _hourly(n, start="2024-01-01")
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    volume = np.full(n, 200.0)
+    # Past the 20-bar volume mean and min_bars. Same ISO week as Monday 00:00.
+    wrong = [
+        int(index.get_loc(pd.Timestamp("2024-01-02 00:00", tz="UTC"))),
+        int(index.get_loc(pd.Timestamp("2024-01-02 04:00", tz="UTC"))),
+        int(index.get_loc(pd.Timestamp("2024-01-02 08:00", tz="UTC"))),
+    ]
+    reclaim = int(index.get_loc(pd.Timestamp("2024-01-02 12:00", tz="UTC")))
+    if long_side:
+        for i in wrong:
+            close[i] = 95.0
+            high[i] = 96.0
+            low[i] = 94.0
+            open_[i] = 96.0
+        close[reclaim] = 105.0
+        open_[reclaim] = 96.0
+        high[reclaim] = 106.0
+        low[reclaim] = 95.5
+    else:
+        for i in wrong:
+            close[i] = 105.0
+            high[i] = 106.0
+            low[i] = 104.0
+            open_[i] = 104.0
+        close[reclaim] = 95.0
+        open_[reclaim] = 104.0
+        high[reclaim] = 104.5
+        low[reclaim] = 94.0
+    volume[reclaim] = 8_000.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    return index, candles, reclaim
+
+
+def test_week_open_reclaim_schema_and_long_entry() -> None:
+    index, candles, reclaim = _week_open_tape(long_side=True)
+    signals = _signals("week_open_reclaim", candles)
+    for column in ("signal", "side", "score", "reason", "week_open", "below_count", "vol_mean"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[reclaim]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    monday = int(index.get_loc(pd.Timestamp("2024-01-01 00:00", tz="UTC")))
+    assert signals["week_open"].iloc[reclaim] == pytest.approx(float(candles["open"].iloc[monday]))
+    assert signals["week_open"].iloc[reclaim] == pytest.approx(100.0)
+
+
+def test_week_open_reclaim_short_entry() -> None:
+    _index, candles, reclaim = _week_open_tape(long_side=False)
+    signals = _signals("week_open_reclaim", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[reclaim]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+
+
+def test_week_open_reclaim_needs_three_wrong_side_closes() -> None:
+    index, candles, reclaim = _week_open_tape(long_side=True)
+    # Only two wrong-side closes: wipe the 04:00 print back to the week open.
+    first_wrong = int(index.get_loc(pd.Timestamp("2024-01-02 00:00", tz="UTC")))
+    candles.loc[candles.index[first_wrong], "close"] = 100.0
+    candles.loc[candles.index[first_wrong], "high"] = 101.0
+    candles.loc[candles.index[first_wrong], "low"] = 99.0
+    signals = _signals("week_open_reclaim", candles)
+    assert int(signals["signal"].iloc[reclaim]) == 0
+
+
+def test_week_open_reclaim_is_monday_open_not_weekend_or_prior_week() -> None:
+    """Anchor is this week's Monday 00:00 open, not weekend H/L or prior-week high."""
+    index, candles, reclaim = _week_open_tape(long_side=True)
+    signals = _signals("week_open_reclaim", candles)
+    monday = _signals("monday_range_sweep_reversal", candles)
+    prior_week = _signals("prior_week_high_break", candles)
+    assert int(signals["signal"].iloc[reclaim]) == 1
+    assert int(monday["signal"].iloc[reclaim]) == 0
+    assert int(prior_week["signal"].iloc[reclaim]) == 0
+    assert "weekend_mid" not in signals.columns
+    assert "week_high" not in signals.columns
+
+
+def _session_mid_tape(*, long_side: bool, n: int = 72) -> tuple[pd.DatetimeIndex, pd.DataFrame, int]:
+    """Day-1 00-08 session through one side of mid=100; reclaim after 08:00 on heavy volume."""
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    volume = np.full(n, 200.0)
+    # Session 00-08 on Jan 3 (after vol warm-up): H=110 / L=90 → mid=100.
+    for hour in range(8):
+        i = int(index.get_loc(pd.Timestamp(f"2024-01-03 {hour:02d}:00", tz="UTC")))
+        high[i] = 110.0
+        low[i] = 90.0
+        close[i] = 100.0
+    last = int(index.get_loc(pd.Timestamp("2024-01-03 07:00", tz="UTC")))
+    reclaim = int(index.get_loc(pd.Timestamp("2024-01-03 10:00", tz="UTC")))
+    if long_side:
+        close[last] = 92.0
+        high[last] = 110.0
+        low[last] = 90.0
+        close[reclaim] = 105.0
+        open_[reclaim] = 96.0
+        high[reclaim] = 106.0
+        low[reclaim] = 95.0
+    else:
+        close[last] = 108.0
+        high[last] = 110.0
+        low[last] = 90.0
+        close[reclaim] = 95.0
+        open_[reclaim] = 104.0
+        high[reclaim] = 105.0
+        low[reclaim] = 94.0
+    volume[reclaim] = 8_000.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    return index, candles, reclaim
+
+
+def test_prior_session_mid_reclaim_schema_and_long_entry() -> None:
+    index, candles, reclaim = _session_mid_tape(long_side=True)
+    signals = _signals("prior_session_mid_reclaim", candles)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "session_high",
+        "session_low",
+        "session_mid",
+        "session_close",
+    ):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[reclaim]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert signals["session_mid"].iloc[reclaim] == pytest.approx(100.0)
+    assert signals["session_high"].iloc[reclaim] == pytest.approx(110.0)
+    assert signals["session_low"].iloc[reclaim] == pytest.approx(90.0)
+    # During 00-08 the published box is the prior 16-24 session, not this one.
+    during = int(index.get_loc(pd.Timestamp("2024-01-03 04:00", tz="UTC")))
+    assert int(signals["signal"].iloc[during]) == 0
+    assert signals["session_high"].iloc[during] == pytest.approx(101.0)
+    assert signals["session_low"].iloc[during] == pytest.approx(99.0)
+
+
+def test_prior_session_mid_reclaim_short_entry() -> None:
+    _index, candles, reclaim = _session_mid_tape(long_side=False)
+    signals = _signals("prior_session_mid_reclaim", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[reclaim]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+
+
+def test_prior_session_mid_reclaim_not_vwap_or_day_box_or_first4h() -> None:
+    """8h session mid, not session VWAP, not UTC-day H/L, not first-4h fail."""
+    index, candles, reclaim = _session_mid_tape(long_side=True)
+    signals = _signals("prior_session_mid_reclaim", candles)
+    boundary = _signals("session_boundary_volume_fade", candles)
+    vwap = _signals("utc_session_vwap_reversion", candles)
+    first4 = _signals("utc_open_fail_reversion", candles)
+    assert int(signals["signal"].iloc[reclaim]) == 1
+    assert int(boundary["signal"].iloc[reclaim]) == 0
+    assert int(vwap["signal"].iloc[reclaim]) == 0
+    assert int(first4["signal"].iloc[reclaim]) == 0
+    assert "daily_vwap" not in signals.columns
+    assert "box_high" not in signals.columns
+    # Weak volume on the reclaim bar is not this family.
+    quiet = candles.copy()
+    quiet.loc[quiet.index[reclaim], "volume"] = 50.0
+    assert int(_signals("prior_session_mid_reclaim", quiet)["signal"].iloc[reclaim]) == 0
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -2660,6 +2933,9 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("range_compression_volume_thrust", {"compress_pct", "thrust_mult"}),
         ("turnover_climax_rejection_fade", {"lookback", "reject_frac"}),
         ("volume_dryup_range_break", {"dry_bars", "vol_lookback"}),
+        ("body_efficiency_follow", {"min_efficiency"}),
+        ("week_open_reclaim", {"min_wrong_closes", "vol_lookback"}),
+        ("prior_session_mid_reclaim", {"vol_lookback"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -2690,6 +2966,8 @@ def test_novel_no_lookahead_truncation(name: str) -> None:
         candles = _ohlcv(_hourly(120, start="2024-01-04"), np.full(120, 100.0))
     if name == "monday_range_sweep_reversal":
         candles = _ohlcv(_hourly(120, start="2024-01-04"), np.full(120, 100.0))
+    if name == "week_open_reclaim":
+        candles = _ohlcv(_hourly(120, start="2024-01-01"), np.full(120, 100.0))
     if name == "prior_week_high_break":
         candles = _ohlcv(_hourly(24 * 10, start="2024-01-01"), np.full(24 * 10, 100.0))
     if name == "connors_rsi_fade":
@@ -2714,6 +2992,8 @@ def test_novel_future_shock_does_not_change_past(name: str) -> None:
         candles = _ohlcv(_hourly(120, start="2024-01-04"), np.full(120, 100.0))
     if name == "monday_range_sweep_reversal":
         candles = _ohlcv(_hourly(120, start="2024-01-04"), np.full(120, 100.0))
+    if name == "week_open_reclaim":
+        candles = _ohlcv(_hourly(120, start="2024-01-01"), np.full(120, 100.0))
     if name == "prior_week_high_break":
         candles = _ohlcv(_hourly(24 * 10, start="2024-01-01"), np.full(24 * 10, 100.0))
     if name == "connors_rsi_fade":

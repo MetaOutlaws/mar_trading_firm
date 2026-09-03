@@ -152,6 +152,9 @@ CLOCK_BY_FAMILY = {
     "range_compression_volume_thrust": "4h/4h",
     "turnover_climax_rejection_fade": "4h/4h",
     "volume_dryup_range_break": "4h/4h",
+    "body_efficiency_follow": "4h/4h",
+    "week_open_reclaim": "4h/4h",
+    "prior_session_mid_reclaim": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 

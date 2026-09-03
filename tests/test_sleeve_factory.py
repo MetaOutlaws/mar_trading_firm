@@ -39,6 +39,9 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "range_compression_volume_thrust" not in names
     assert "turnover_climax_rejection_fade" not in names
     assert "volume_dryup_range_break" not in names
+    assert "body_efficiency_follow" not in names
+    assert "week_open_reclaim" not in names
+    assert "prior_session_mid_reclaim" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

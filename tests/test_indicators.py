@@ -375,6 +375,48 @@ def test_prior_rolling_mean_excludes_current_bar():
     assert mean.iloc[5] == pytest.approx(10.0)
 
 
+def test_body_efficiency_is_body_over_true_range():
+    index = pd.date_range("2024-01-02", periods=3, freq="h", tz="UTC")
+    open_ = pd.Series([100.0, 100.0, 100.0], index=index)
+    close = pd.Series([100.0, 110.0, 100.0], index=index)
+    high = pd.Series([101.0, 112.0, 101.0], index=index)
+    low = pd.Series([99.0, 99.0, 99.0], index=index)
+    eff = ind.body_efficiency(open_, high, low, close)
+    # Bar 1: body 10, TR = max(13, |112-100|, |99-100|) = 13 → 10/13.
+    assert eff.iloc[1] == pytest.approx(10.0 / 13.0)
+    assert eff.iloc[0] == pytest.approx(0.0)
+
+
+def test_iso_week_open_is_monday_0000_not_midweek():
+    index = pd.date_range("2024-01-01", periods=48, freq="h", tz="UTC")
+    open_ = pd.Series(100.0, index=index)
+    open_.iloc[0] = 80.0
+    open_.iloc[10] = 120.0
+    week_open = ind.iso_week_open(open_)
+    assert week_open.iloc[0] == pytest.approx(80.0)
+    assert week_open.iloc[10] == pytest.approx(80.0)
+    assert week_open.iloc[36] == pytest.approx(80.0)
+
+
+def test_prior_utc_8h_session_publishes_after_session_ends():
+    index = pd.date_range("2024-01-02", periods=24, freq="h", tz="UTC")
+    high = pd.Series(101.0, index=index)
+    low = pd.Series(99.0, index=index)
+    close = pd.Series(100.0, index=index)
+    high.iloc[3] = 110.0
+    low.iloc[5] = 90.0
+    close.iloc[7] = 92.0
+    prev_h, prev_l, prev_c, mid, ready = ind.prior_utc_8h_session(high, low, close)
+    assert bool(ready.iloc[7]) is False
+    assert pd.isna(mid.iloc[7])
+    assert bool(ready.iloc[8]) is True
+    assert prev_h.iloc[8] == pytest.approx(110.0)
+    assert prev_l.iloc[8] == pytest.approx(90.0)
+    assert prev_c.iloc[8] == pytest.approx(92.0)
+    assert mid.iloc[8] == pytest.approx(100.0)
+    assert mid.iloc[12] == pytest.approx(100.0)
+
+
 def test_rolling_vwap_is_not_session_vwap_or_vwma():
     """Typical-price rolling VWAP ≠ UTC session VWAP and ≠ close VWMA."""
     index = pd.date_range("2024-01-02", periods=24, freq="h", tz="UTC")
