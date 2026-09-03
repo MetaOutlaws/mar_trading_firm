@@ -848,6 +848,28 @@ def _novel_kit(name: str, side: SignalSide):
             "VolumeImbalanceDeltaReversalStrategy",
             {"lookback": [20], "exhaust_share": [0.20]},
         ),
+        "session_boundary_volume_fade": (
+            "core.strategy.session_boundary_volume_fade",
+            "SessionBoundaryVolumeFadeParams",
+            "SessionBoundaryVolumeFadeStrategy",
+            # Volume MA period is locked at 20. Do not search a sweep-pct
+            # close-back-inside (that is session_liquidity_sweep / monday).
+            {"vol_period": [20]},
+        ),
+        "vwap_spread_exhaustion": (
+            "core.strategy.vwap_spread_exhaustion",
+            "VwapSpreadExhaustionParams",
+            "VwapSpreadExhaustionStrategy",
+            # VWAP/SMA/ATR stay at 20. Search N-bar extreme + chop filter.
+            {"extreme_lookback": [10, 20], "max_adx": [0.0, 20.0]},
+        ),
+        "vwap_volatility_band_fade": (
+            "core.strategy.vwap_volatility_band_fade",
+            "VwapVolatilityBandFadeParams",
+            "VwapVolatilityBandFadeStrategy",
+            # Squeeze locked at bottom 30% of 100 bars. Search band_k only.
+            {"band_k": [1.5, 2.0]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

@@ -1382,6 +1382,64 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "not a cumulative force ledger and not Elder Force / OBV / VPT."
         ),
     ),
+    SleeveSpec(
+        name="session_boundary_volume_fade",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs the prior UTC calendar day's high/low, then a 4h bar "
+            "that sweeps that box on volume below the 20-period volume MA, "
+            "fading toward daily VWAP. Calendar UTC day box + weak-volume "
+            "filter. Not prior_day_pivot_breakout (floor P/R1/S1 breakout, "
+            "rejected OOS). Not session_liquidity_sweep (Asian 00:00–08:00 "
+            "failed-sweep close). Not session_volume_profile_*. Do not "
+            "require close back inside."
+        ),
+        summary="Fade a weak-volume 4h sweep of the prior UTC day high/low toward daily VWAP.",
+        justification=(
+            "A calendar UTC day box faded on weak volume is not a floor-pivot "
+            "breakout and not an Asian-session failed sweep."
+        ),
+    ),
+    SleeveSpec(
+        name="vwap_spread_exhaustion",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs abs(rolling 20 VWAP − 20 SMA) / 20 ATR. When that "
+            "spread is an N-bar extreme and volume is expanding, fade "
+            "back to the rolling VWAP, filtered by low ADX. Rolling VWAP "
+            "vs SMA dislocation, not a session VWAP "
+            "(utc_session_vwap_reversion is a book row). Do not reset at "
+            "UTC midnight."
+        ),
+        summary="Fade an N-bar extreme of rolling-VWAP vs SMA, scaled by ATR, in low ADX.",
+        justification=(
+            "A rolling VWAP−SMA gap / ATR is not a UTC-session VWAP stretch "
+            "and not a Bollinger fade of close versus SMA."
+        ),
+    ),
+    SleeveSpec(
+        name="vwap_volatility_band_fade",
+        template="novel",
+        clock="1h/1h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs bands around rolling 20 VWAP using stdev of close. Fade "
+            "when price touches the outer band on 1h AND Bollinger Band "
+            "Width is in the bottom 30% of its 100-bar range, targeting "
+            "VWAP. VWAP ± σ only inside a BB-width squeeze. Not "
+            "bollinger_mean_reversion (book-row SMA bands). Do not use "
+            "BB mid as the mean."
+        ),
+        summary="Fade a rolling-VWAP ± σ band only inside a Bollinger-width squeeze.",
+        justification=(
+            "VWAP ± σ gated by BB-width compression is not a raw Bollinger "
+            "fade of close versus the SMA."
+        ),
+    ),
 ]
 
 
