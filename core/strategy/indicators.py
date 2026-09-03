@@ -443,6 +443,61 @@ def prior_utc_week_range(high: pd.Series, low: pd.Series) -> tuple[pd.Series, pd
     return prev_h, prev_l
 
 
+def weekend_utc_range(
+    high: pd.Series, low: pd.Series
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Sat 00:00–Sun 23:59 UTC high/low, published on the following Monday only.
+
+    Calendar weekend box, not the Asian 00:00–08:00 session and not the
+    Mon–Sun prior-week range. Saturday bars see Saturday extrema only
+    (groupby cummax). Monday reads Sunday's last print via ffill, and only
+    when that Sunday is yesterday and a Sunday bar actually printed.
+    """
+    if not high.index.equals(low.index):
+        raise ValueError("high and low must share an index")
+    utc_index = _as_utc_index(high.index)
+    weekday = pd.Series(utc_index.dayofweek, index=high.index)
+    in_weekend = weekday.isin([5, 6])
+    dates = pd.Series(utc_index.normalize(), index=high.index)
+    # Saturday belongs to the next calendar Sunday; Sunday keeps its own date.
+    sunday = dates + pd.to_timedelta(weekday.eq(5).astype("int64"), unit="D")
+    weekend_id = sunday.where(in_weekend)
+    expanding_high = high.where(in_weekend).groupby(weekend_id).cummax()
+    expanding_low = low.where(in_weekend).groupby(weekend_id).cummin()
+    # Sunday-seen flag so a Saturday-only sample cannot publish as "complete".
+    saw_sunday = (
+        weekday.eq(6).astype("float64").where(in_weekend).groupby(weekend_id).cummax()
+    )
+    carried_high = expanding_high.ffill()
+    carried_low = expanding_low.ffill()
+    carried_sunday = weekend_id.ffill()
+    expected_sunday = dates - pd.Timedelta(days=1)
+    ready = (
+        weekday.eq(0)
+        & carried_sunday.eq(expected_sunday)
+        & saw_sunday.ffill().eq(1.0)
+        & carried_high.notna()
+        & carried_low.notna()
+    )
+    return carried_high.where(ready), carried_low.where(ready), ready
+
+
+def bar_buy_share(
+    high: pd.Series, low: pd.Series, close: pd.Series
+) -> pd.Series:
+    """This bar's buying-volume share: (close - low) / (high - low).
+
+    1.0 = close at the high (all buying), 0.0 = close at the low (all selling).
+    Zero-range bars are 0.5. One bar only — do not cumsum. Not Elder Force,
+    not OBV/VPT, and not the A/D running CLV ledger.
+    """
+    if not high.index.equals(low.index) or not high.index.equals(close.index):
+        raise ValueError("high, low, close must share an index")
+    span = high.astype("float64") - low.astype("float64")
+    buy = (close.astype("float64") - low.astype("float64")) / span.replace(0, np.nan)
+    return buy.where(span > 0, 0.5)
+
+
 def psychological_round(price: pd.Series) -> pd.Series:
     """Nearest 1/10/100/1000 step from price magnitude. Not a floor pivot."""
     p = price.astype("float64")

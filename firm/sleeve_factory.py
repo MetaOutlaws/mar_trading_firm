@@ -1345,6 +1345,43 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "1.618 extension break."
         ),
     ),
+    SleeveSpec(
+        name="monday_range_sweep_reversal",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs the completed UTC weekend (Sat 00:00–Sun 23:59) high/low, "
+            "then a Monday London/NY bar that sweeps that box by less than "
+            "1.5% and closes back inside, fading toward the weekend mid. "
+            "Calendar weekend, not the Asian 00:00–08:00 session box "
+            "(session_liquidity_sweep is dead). Not weekend_gap_fill."
+        ),
+        summary="Fade a failed Monday London/NY sweep of the completed UTC weekend range.",
+        justification=(
+            "A Sat–Sun calendar box faded on Monday London/NY is a different "
+            "bet from the Asian session sweep and from fading Friday's close."
+        ),
+    ),
+    SleeveSpec(
+        name="volume_imbalance_delta_reversal",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs bar-level buy/sell volume share at a 20-bar high/low. "
+            "LONG: new 20-bar low and selling share < 20%. SHORT: new "
+            "20-bar high and buying share < 20%. Share is "
+            "(close-low)/(high-low) on this bar only. Target 20-EMA. Not "
+            "cumulative force (volume_force_divergence is dead). Do not "
+            "cumsum. Do not invent taker/CVD/netflow columns."
+        ),
+        summary="Fade a 20-bar extreme when that bar's buy/sell volume share is exhausted.",
+        justification=(
+            "One bar's close-location volume split at a rolling extreme is "
+            "not a cumulative force ledger and not Elder Force / OBV / VPT."
+        ),
+    ),
 ]
 
 

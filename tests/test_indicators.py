@@ -293,3 +293,45 @@ def test_prior_day_close_is_previous_session_last_bar():
     assert pd.isna(prev.iloc[0])
     assert prev.iloc[24] == pytest.approx(23.0)
     assert prev.iloc[25] == pytest.approx(23.0)
+
+
+def test_weekend_utc_range_publishes_monday_only():
+    """Sat–Sun box is blank until Monday; Saturday never sees Sunday's high."""
+    index = pd.date_range("2024-01-06", periods=80, freq="h", tz="UTC")
+    high = pd.Series(101.0, index=index)
+    low = pd.Series(99.0, index=index)
+    high.loc["2024-01-07 15:00+00:00"] = 108.0
+    range_high, range_low, ready = ind.weekend_utc_range(high, low)
+    sat = index.get_loc(pd.Timestamp("2024-01-06 12:00", tz="UTC"))
+    sun = index.get_loc(pd.Timestamp("2024-01-07 15:00", tz="UTC"))
+    mon = index.get_loc(pd.Timestamp("2024-01-08 08:00", tz="UTC"))
+    assert bool(ready.iloc[sat]) is False
+    assert pd.isna(range_high.iloc[sat])
+    assert bool(ready.iloc[sun]) is False
+    assert bool(ready.iloc[mon]) is True
+    assert range_high.iloc[mon] == pytest.approx(108.0)
+    assert range_low.iloc[mon] == pytest.approx(99.0)
+
+
+def test_weekend_utc_range_truncation_matches_prefix():
+    index = pd.date_range("2024-01-06", periods=80, freq="h", tz="UTC")
+    high = pd.Series(100.0, index=index) + np.arange(80)
+    low = high - 2.0
+    full_high, _, _ = ind.weekend_utc_range(high, low)
+    cut = 40
+    trunc_high, _, _ = ind.weekend_utc_range(high.iloc[:cut], low.iloc[:cut])
+    pd.testing.assert_series_equal(full_high.iloc[:cut], trunc_high, check_names=False)
+
+
+def test_bar_buy_share_is_close_location_not_cumsum():
+    index = pd.date_range("2024-01-02", periods=3, freq="h", tz="UTC")
+    high = pd.Series([110.0, 110.0, 110.0], index=index)
+    low = pd.Series([100.0, 100.0, 100.0], index=index)
+    close = pd.Series([101.0, 109.0, 105.0], index=index)
+    share = ind.bar_buy_share(high, low, close)
+    assert share.iloc[0] == pytest.approx(0.10)
+    assert share.iloc[1] == pytest.approx(0.90)
+    assert share.iloc[2] == pytest.approx(0.50)
+    # Zero-range bar is 0.5, not a divide-by-zero.
+    flat_high = pd.Series([100.0], index=index[:1])
+    assert ind.bar_buy_share(flat_high, flat_high, flat_high).iloc[0] == pytest.approx(0.5)

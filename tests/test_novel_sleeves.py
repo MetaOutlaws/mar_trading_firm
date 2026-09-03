@@ -96,6 +96,8 @@ APPROVED = [
     "up_down_turnover_imbalance",
     "signed_range_turnover_trend",
     "swing_anchored_vwap_pullback",
+    "monday_range_sweep_reversal",
+    "volume_imbalance_delta_reversal",
 ]
 
 
@@ -1771,6 +1773,184 @@ def test_swing_anchored_vwap_pullback_from_confirmed_swings_not_fib() -> None:
         factory(base).generate_signals(candles.drop(columns=["turnover"]))
 
 
+def _weekend_then_monday(n: int = 80) -> tuple[pd.DatetimeIndex, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Sat–Sun 99–101 box starting 2024-01-06, then Monday room to sweep it."""
+    index = _hourly(n, start="2024-01-06")
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    return index, close, high, low, open_
+
+
+def _monday_london_iloc(index: pd.DatetimeIndex) -> int:
+    stamp = pd.Timestamp("2024-01-08 08:00", tz="UTC")
+    return int(index.get_loc(stamp))
+
+
+def test_monday_range_sweep_reversal_schema_and_long_entry() -> None:
+    index, close, high, low, open_ = _weekend_then_monday()
+    bar = _monday_london_iloc(index)
+    # Monday 08:00 London: wick through 99 by <1.5% and close back inside.
+    low[bar] = 97.70
+    close[bar] = 99.40
+    open_[bar] = 100.0
+    high[bar] = 100.20
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("monday_range_sweep_reversal", candles)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "range_high",
+        "range_low",
+        "weekend_mid",
+    ):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert signals.loc[index[bar], "weekend_mid"] == pytest.approx(100.0)
+
+
+def test_monday_range_sweep_reversal_short_entry() -> None:
+    index, close, high, low, open_ = _weekend_then_monday()
+    bar = _monday_london_iloc(index)
+    high[bar] = 102.30
+    close[bar] = 100.60
+    open_[bar] = 100.0
+    low[bar] = 99.80
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("monday_range_sweep_reversal", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+
+
+def test_monday_range_sweep_reversal_ignores_real_breakout() -> None:
+    """A poke of more than 1.5% is a break, not a failed sweep — do not fade it."""
+    index, close, high, low, open_ = _weekend_then_monday()
+    bar = _monday_london_iloc(index)
+    low[bar] = 96.00
+    close[bar] = 99.40
+    open_[bar] = 100.0
+    high[bar] = 100.20
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("monday_range_sweep_reversal", candles)
+    assert int(signals["signal"].iloc[bar]) == 0
+
+
+def test_monday_range_sweep_reversal_ignores_asian_monday_hour() -> None:
+    """Monday 00:00–08:00 is not the trade window. That is session_liquidity_sweep."""
+    index, close, high, low, open_ = _weekend_then_monday()
+    asian = int(index.get_loc(pd.Timestamp("2024-01-08 02:00", tz="UTC")))
+    low[asian] = 97.70
+    close[asian] = 99.40
+    open_[asian] = 100.0
+    high[asian] = 100.20
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("monday_range_sweep_reversal", candles)
+    assert int(signals["signal"].iloc[asian]) == 0
+
+
+def test_monday_range_sweep_reversal_calendar_weekend_not_asian_box() -> None:
+    """Range is Sat–Sun, not the 00:00–08:00 Asian box of the same Monday."""
+    index, close, high, low, open_ = _weekend_then_monday()
+    # Widen Saturday so the weekend high is 105, not the default 101.
+    sat = int(index.get_loc(pd.Timestamp("2024-01-06 12:00", tz="UTC")))
+    high[sat] = 105.0
+    close[sat] = 104.0
+    bar = _monday_london_iloc(index)
+    high[bar] = 106.40
+    close[bar] = 104.20
+    open_[bar] = 100.0
+    low[bar] = 100.00
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("monday_range_sweep_reversal", candles, side=SignalSide.SHORT)
+    assert signals.loc[index[bar], "range_high"] == pytest.approx(105.0)
+    assert int(signals["signal"].iloc[bar]) == -1
+    # Asian 00–08 Monday box would still be ~101; fading that would be the dead family.
+    assert signals.loc[index[bar], "range_high"] != pytest.approx(101.0)
+
+
+def _imbalance_tape(n: int = 60) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    return close, high, low, open_
+
+
+def test_volume_imbalance_delta_reversal_schema_and_long_entry() -> None:
+    n = 60
+    close, high, low, open_ = _imbalance_tape(n)
+    # New 20-bar low; close near the high → selling share = 0.10 < 0.20.
+    low[50] = 90.0
+    high[50] = 100.0
+    close[50] = 99.0
+    open_[50] = 100.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    signals = _signals("volume_imbalance_delta_reversal", candles)
+    for column in ("signal", "side", "score", "reason", "buy_share", "sell_share", "ema"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[50]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert signals["buy_share"].iloc[50] == pytest.approx(0.90)
+    assert signals["sell_share"].iloc[50] == pytest.approx(0.10)
+
+
+def test_volume_imbalance_delta_reversal_short_entry() -> None:
+    n = 60
+    close, high, low, open_ = _imbalance_tape(n)
+    # New 20-bar high; close near the low → buying share = 0.10 < 0.20.
+    high[50] = 110.0
+    low[50] = 100.0
+    close[50] = 101.0
+    open_[50] = 100.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    signals = _signals("volume_imbalance_delta_reversal", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[50]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert signals["buy_share"].iloc[50] == pytest.approx(0.10)
+
+
+def test_volume_imbalance_delta_reversal_requires_exhaustion() -> None:
+    """A new high with healthy buying share is not a fade."""
+    n = 60
+    close, high, low, open_ = _imbalance_tape(n)
+    high[50] = 110.0
+    low[50] = 100.0
+    close[50] = 109.0
+    open_[50] = 100.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    signals = _signals("volume_imbalance_delta_reversal", candles, side=SignalSide.SHORT)
+    assert signals["buy_share"].iloc[50] == pytest.approx(0.90)
+    assert int(signals["signal"].iloc[50]) == 0
+
+
+def test_volume_imbalance_delta_reversal_is_bar_level_not_cumsum() -> None:
+    """buy_share is this bar only. A prior heavy-buy print must not leak in."""
+    n = 60
+    close, high, low, open_ = _imbalance_tape(n)
+    # Prior bar looks like strong buying; current bar is the exhausted high.
+    high[49] = 101.0
+    low[49] = 99.0
+    close[49] = 100.9
+    high[50] = 110.0
+    low[50] = 100.0
+    close[50] = 101.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    signals = _signals("volume_imbalance_delta_reversal", candles, side=SignalSide.SHORT)
+    assert signals["buy_share"].iloc[50] == pytest.approx(0.10)
+    assert signals["buy_share"].iloc[49] == pytest.approx((100.9 - 99.0) / 2.0)
+    assert int(signals["signal"].iloc[50]) == -1
+    # Cumulative CLV would mix bar 49 into bar 50; this sleeve must not.
+    assert "volume_force" not in signals.columns
+
+
 def test_williams_fractal_break_long_entry() -> None:
     n = 24
     close = np.full(n, 100.0)
@@ -1828,6 +2008,8 @@ def test_novel_no_lookahead_truncation(name: str) -> None:
     cut = 50
     if name == "weekend_gap_fill":
         candles = _ohlcv(_hourly(120, start="2024-01-04"), np.full(120, 100.0))
+    if name == "monday_range_sweep_reversal":
+        candles = _ohlcv(_hourly(120, start="2024-01-04"), np.full(120, 100.0))
     if name == "prior_week_high_break":
         candles = _ohlcv(_hourly(24 * 10, start="2024-01-01"), np.full(24 * 10, 100.0))
     if name == "connors_rsi_fade":
@@ -1846,6 +2028,8 @@ def test_novel_no_lookahead_truncation(name: str) -> None:
 def test_novel_future_shock_does_not_change_past(name: str) -> None:
     candles = _ohlcv(_hourly(80), np.linspace(100, 110, 80))
     if name == "weekend_gap_fill":
+        candles = _ohlcv(_hourly(120, start="2024-01-04"), np.full(120, 100.0))
+    if name == "monday_range_sweep_reversal":
         candles = _ohlcv(_hourly(120, start="2024-01-04"), np.full(120, 100.0))
     if name == "prior_week_high_break":
         candles = _ohlcv(_hourly(24 * 10, start="2024-01-01"), np.full(24 * 10, 100.0))
