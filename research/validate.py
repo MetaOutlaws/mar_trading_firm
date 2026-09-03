@@ -945,6 +945,27 @@ def _novel_kit(name: str, side: SignalSide):
             # ATR period locked. Search lookback and ATR-tolerance multiple.
             {"lookback": [8, 12], "tol_atr": [0.10, 0.15]},
         ),
+        "double_bottom_neckline_break": (
+            "core.strategy.double_bottom_neckline_break",
+            "DoubleBottomNecklineBreakParams",
+            "DoubleBottomNecklineBreakStrategy",
+            # ATR(20) and pivot left locked. Search lookback and ATR tolerance.
+            {"lookback": [30, 40], "atr_tol": [0.10, 0.15]},
+        ),
+        "double_top_neckline_break": (
+            "core.strategy.double_top_neckline_break",
+            "DoubleTopNecklineBreakParams",
+            "DoubleTopNecklineBreakStrategy",
+            # High-high-neckline kit. Same two free params, own geometry.
+            {"lookback": [30, 40], "atr_tol": [0.10, 0.15]},
+        ),
+        "ascending_triangle_break": (
+            "core.strategy.ascending_triangle_break",
+            "AscendingTriangleBreakParams",
+            "AscendingTriangleBreakStrategy",
+            # Volume baseline locked at prior-20 mean. Search lookback + atr_tol.
+            {"lookback": [30, 40], "atr_tol": [0.10, 0.15]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

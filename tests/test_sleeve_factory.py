@@ -45,6 +45,9 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "close_location_persistence" not in names
     assert "open_in_prior_range_fail" not in names
     assert "equal_high_low_restest_fade" not in names
+    assert "double_bottom_neckline_break" not in names
+    assert "double_top_neckline_break" not in names
+    assert "ascending_triangle_break" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

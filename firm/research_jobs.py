@@ -158,6 +158,9 @@ CLOCK_BY_FAMILY = {
     "close_location_persistence": "4h/4h",
     "open_in_prior_range_fail": "4h/4h",
     "equal_high_low_restest_fade": "4h/4h",
+    "double_bottom_neckline_break": "4h/4h",
+    "double_top_neckline_break": "4h/4h",
+    "ascending_triangle_break": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 

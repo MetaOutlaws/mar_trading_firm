@@ -112,6 +112,9 @@ APPROVED = [
     "close_location_persistence",
     "open_in_prior_range_fail",
     "equal_high_low_restest_fade",
+    "double_bottom_neckline_break",
+    "double_top_neckline_break",
+    "ascending_triangle_break",
 ]
 
 
@@ -3151,6 +3154,201 @@ def test_equal_high_low_restest_fade_not_monday_or_session_sweep() -> None:
     ) == 0
 
 
+def _planted_swings_background(n: int) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Strictly rising background so confirmed_swings cannot mint 101/99 pivots."""
+    drift = 0.01 * np.arange(n)
+    close = 100.0 + drift
+    high = 101.0 + drift
+    low = 99.0 + drift
+    open_ = 100.0 + drift
+    return close, high, low, open_
+
+
+def _double_bottom_tape(*, invalidate: bool, n: int = 90) -> tuple[pd.DataFrame, int]:
+    """Two matched swing lows, intervening high, then neckline break or second-low fail."""
+    close, high, low, open_ = _planted_swings_background(n)
+    first_low, neck_bar, second_low, fire = 22, 34, 46, 58
+    low[first_low] = 90.0
+    close[first_low] = 91.0
+    high[neck_bar] = 110.0
+    close[neck_bar] = 108.0
+    low[second_low] = 90.1
+    close[second_low] = 91.0
+    if invalidate:
+        # Close through the second trough. Not a two-high neckline break.
+        close[fire] = 88.0
+        low[fire] = 87.0
+        high[fire] = 91.0
+        open_[fire] = 91.0
+    else:
+        # Confirmed close through the intervening high.
+        close[fire] = 111.0
+        high[fire] = 112.0
+        low[fire] = 108.0
+        open_[fire] = 108.0
+    candles = _ohlcv(_hourly(n, start="2024-01-03"), close, high=high, low=low, open_=open_)
+    return candles, fire
+
+
+def test_double_bottom_neckline_break_schema_and_long_entry() -> None:
+    candles, fire = _double_bottom_tape(invalidate=False)
+    signals = _signals("double_bottom_neckline_break", candles)
+    for column in ("signal", "side", "score", "reason", "first_low", "second_low", "neckline"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["neckline"].iloc[fire] == pytest.approx(110.0)
+    # Job 110 fades a failed restest. This bar closes through the neckline.
+    restest = _signals("equal_high_low_restest_fade", candles)
+    assert int(restest["signal"].iloc[fire]) == 0
+
+
+def test_double_bottom_neckline_break_short_invalidation() -> None:
+    candles, fire = _double_bottom_tape(invalidate=True)
+    signals = _signals("double_bottom_neckline_break", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["second_low"].iloc[fire] == pytest.approx(90.1)
+    # Invalidation is not a double-top neckline break of two highs.
+    double_top = _signals("double_top_neckline_break", candles, side=SignalSide.SHORT)
+    assert int(double_top["signal"].iloc[fire]) == 0
+
+
+def _double_top_tape(*, invalidate: bool, n: int = 90) -> tuple[pd.DataFrame, int]:
+    """Two matched swing highs, intervening low, then neckline break or second-high fail."""
+    close, high, low, open_ = _planted_swings_background(n)
+    first_high, neck_bar, second_high, fire = 22, 34, 46, 58
+    high[first_high] = 110.0
+    close[first_high] = 108.0
+    low[neck_bar] = 90.0
+    close[neck_bar] = 92.0
+    high[second_high] = 110.1
+    close[second_high] = 108.0
+    if invalidate:
+        # Close through the second peak. Not a two-low neckline break.
+        close[fire] = 112.0
+        high[fire] = 113.0
+        low[fire] = 108.0
+        open_[fire] = 108.0
+    else:
+        # Confirmed close through the intervening low.
+        close[fire] = 88.0
+        low[fire] = 87.0
+        high[fire] = 92.0
+        open_[fire] = 92.0
+    candles = _ohlcv(_hourly(n, start="2024-01-03"), close, high=high, low=low, open_=open_)
+    return candles, fire
+
+
+def test_double_top_neckline_break_schema_and_short_entry() -> None:
+    candles, fire = _double_top_tape(invalidate=False)
+    signals = _signals("double_top_neckline_break", candles, side=SignalSide.SHORT)
+    for column in ("signal", "side", "score", "reason", "first_high", "second_high", "neckline"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["neckline"].iloc[fire] == pytest.approx(90.0)
+    restest = _signals("equal_high_low_restest_fade", candles, side=SignalSide.SHORT)
+    assert int(restest["signal"].iloc[fire]) == 0
+    # Distinct file/geometry: double-bottom does not fire SHORT on two-high neckline.
+    bottom = _signals("double_bottom_neckline_break", candles, side=SignalSide.SHORT)
+    assert int(bottom["signal"].iloc[fire]) == 0
+
+
+def test_double_top_neckline_break_long_invalidation() -> None:
+    candles, fire = _double_top_tape(invalidate=True)
+    signals = _signals("double_top_neckline_break", candles)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["second_high"].iloc[fire] == pytest.approx(110.1)
+    # Invalidation is not a double-bottom neckline break of two lows.
+    bottom = _signals("double_bottom_neckline_break", candles)
+    assert int(bottom["signal"].iloc[fire]) == 0
+
+
+def _ascending_triangle_tape(*, long_side: bool, n: int = 90) -> tuple[pd.DataFrame, int]:
+    """Rising lows into a flat cap (LONG) or falling highs into a flat floor (SHORT)."""
+    close, high, low, open_ = _planted_swings_background(n)
+    a, b, c, d, fire = 24, 36, 48, 60, 66
+    volume = np.full(n, 1_000.0)
+    volume[fire] = 3_000.0
+    if long_side:
+        low[a] = 85.0
+        close[a] = 86.0
+        high[b] = 110.0
+        close[b] = 108.0
+        low[c] = 93.0
+        close[c] = 94.0
+        high[d] = 110.05
+        close[d] = 108.0
+        close[fire] = 111.5
+        high[fire] = 112.5
+        low[fire] = 108.0
+        open_[fire] = 108.0
+    else:
+        high[a] = 115.0
+        close[a] = 113.0
+        low[b] = 90.0
+        close[b] = 92.0
+        high[c] = 107.0
+        close[c] = 105.0
+        low[d] = 90.05
+        close[d] = 92.0
+        close[fire] = 88.0
+        low[fire] = 87.0
+        high[fire] = 92.0
+        open_[fire] = 92.0
+    candles = _ohlcv(_hourly(n, start="2024-01-03"), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = candles["volume"] * candles["close"]
+    return candles, fire
+
+
+def test_ascending_triangle_break_schema_and_long_entry() -> None:
+    candles, fire = _ascending_triangle_tape(long_side=True)
+    signals = _signals("ascending_triangle_break", candles)
+    for column in ("signal", "side", "score", "reason", "cap", "floor", "vol_mean"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["cap"].iloc[fire] == pytest.approx(110.05)
+    # Quiet volume on the break bar is not a triangle break.
+    quiet = candles.copy()
+    quiet.loc[quiet.index[fire], "volume"] = 500.0
+    quiet.loc[quiet.index[fire], "turnover"] = 500.0 * float(quiet["close"].iloc[fire])
+    assert int(_signals("ascending_triangle_break", quiet)["signal"].iloc[fire]) == 0
+    # Compression-then-thrust is a different family (no triangle geometry required).
+    thrust = _signals("range_compression_volume_thrust", candles)
+    assert int(thrust["signal"].iloc[fire]) == 0
+
+
+def test_ascending_triangle_break_short_descending_entry() -> None:
+    candles, fire = _ascending_triangle_tape(long_side=False)
+    signals = _signals("ascending_triangle_break", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["floor"].iloc[fire] == pytest.approx(90.0)
+    inside = _signals("inside_bar_breakout", candles, side=SignalSide.SHORT)
+    thrust = _signals("range_compression_volume_thrust", candles, side=SignalSide.SHORT)
+    assert int(inside["signal"].iloc[fire]) == 0
+    assert int(thrust["signal"].iloc[fire]) == 0
+    nr7 = _signals("nr7_breakout", candles, side=SignalSide.SHORT)
+    assert "nr7_high" not in signals.columns
+    assert "cap" not in nr7.columns
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -3166,6 +3364,9 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("close_location_persistence", {"lookback", "clv_threshold"}),
         ("open_in_prior_range_fail", set()),
         ("equal_high_low_restest_fade", {"lookback", "tol_atr"}),
+        ("double_bottom_neckline_break", {"lookback", "atr_tol"}),
+        ("double_top_neckline_break", {"lookback", "atr_tol"}),
+        ("ascending_triangle_break", {"lookback", "atr_tol"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

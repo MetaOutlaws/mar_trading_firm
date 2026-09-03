@@ -424,6 +424,55 @@ def test_rolling_second_max_min_are_causal():
     pd.testing.assert_series_equal(second_high.iloc[:-1], after.iloc[:-1])
 
 
+def test_published_swing_pivots_equal_prices_still_event():
+    """A second pivot at the same price still publishes; ffill would hide it."""
+    index = pd.date_range("2024-01-02", periods=40, freq="h", tz="UTC")
+    drift = 0.01 * np.arange(40)
+    high = pd.Series(101.0 + drift, index=index)
+    low = pd.Series(99.0 + drift, index=index)
+    low.iloc[10] = 90.0
+    high.iloc[18] = 110.0
+    low.iloc[26] = 90.0
+    pub_high, pub_low = ind.published_swing_pivots(high, low, left=3)
+    low_events = [i for i, flag in enumerate(pub_low.notna()) if flag]
+    high_events = [i for i, flag in enumerate(pub_high.notna()) if flag]
+    assert len(low_events) >= 2
+    assert len(high_events) >= 1
+    assert pub_low.iloc[low_events[0]] == pytest.approx(90.0)
+    assert pub_low.iloc[low_events[1]] == pytest.approx(90.0)
+    assert pub_high.iloc[high_events[0]] == pytest.approx(110.0)
+    # Publication is after confirmation: a future shock cannot rewrite prior events.
+    shocked_high = high.copy()
+    shocked_high.iloc[-1] = 200.0
+    _, after_low = ind.published_swing_pivots(shocked_high, low, left=3)
+    pd.testing.assert_series_equal(pub_low.iloc[:-1], after_low.iloc[:-1])
+
+
+def test_lookback_swing_structure_double_bottom_neckline_is_intervening_high():
+    index = pd.date_range("2024-01-02", periods=80, freq="h", tz="UTC")
+    drift = 0.01 * np.arange(80)
+    high = pd.Series(101.0 + drift, index=index)
+    low = pd.Series(99.0 + drift, index=index)
+    low.iloc[22] = 90.0
+    high.iloc[34] = 110.0
+    low.iloc[46] = 90.1
+    structure = ind.lookback_swing_structure(high, low, lookback=40, left=3)
+    # Second low publishes at 50; neckline must be the intervening high, not Donchian.
+    assert structure["double_bottom_neckline"].iloc[58] == pytest.approx(110.0)
+    assert structure["prev_low"].iloc[58] == pytest.approx(90.0)
+    assert structure["last_low"].iloc[58] == pytest.approx(90.1)
+    donchian_high = high.iloc[19:59].max()
+    assert structure["double_bottom_neckline"].iloc[58] == pytest.approx(110.0)
+    assert donchian_high == pytest.approx(110.0)
+    cut = 50
+    truncated = ind.lookback_swing_structure(high.iloc[:cut], low.iloc[:cut], lookback=40, left=3)
+    pd.testing.assert_series_equal(
+        structure["double_bottom_neckline"].iloc[:cut],
+        truncated["double_bottom_neckline"],
+        check_names=False,
+    )
+
+
 def test_iso_week_open_is_monday_0000_not_midweek():
     index = pd.date_range("2024-01-01", periods=48, freq="h", tz="UTC")
     open_ = pd.Series(100.0, index=index)

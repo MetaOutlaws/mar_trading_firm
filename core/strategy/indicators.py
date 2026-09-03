@@ -636,6 +636,148 @@ def confirmed_swings(
     return pivot_high.ffill().shift(1), pivot_low.ffill().shift(1)
 
 
+def published_swing_pivots(
+    high: pd.Series,
+    low: pd.Series,
+    *,
+    left: int = 3,
+) -> tuple[pd.Series, pd.Series]:
+    """New swing high/low published on this bar; NaN when no new pivot.
+
+    Same confirmation window as `confirmed_swings` (bars ``<= t`` only), but
+    not forward-filled. Equal-priced pivots still publish, so a flat triangle
+    cap or a matched double-bottom pair remains visible as two events.
+    """
+    if left <= 0:
+        raise ValueError(f"left must be positive, got {left}")
+    window = 2 * left + 1
+    roll_high = high.rolling(window=window, min_periods=window).max()
+    roll_low = low.rolling(window=window, min_periods=window).min()
+    pivot_high = high.shift(left).where(high.shift(left) >= roll_high)
+    pivot_low = low.shift(left).where(low.shift(left) <= roll_low)
+    # shift(1) then ffill equals ffill then shift(1); publish one bar after confirm.
+    return pivot_high.shift(1), pivot_low.shift(1)
+
+
+def lookback_swing_structure(
+    high: pd.Series,
+    low: pd.Series,
+    *,
+    lookback: int,
+    left: int = 3,
+) -> pd.DataFrame:
+    """Causal swing-window stats for classic chart patterns.
+
+    At bar ``t`` only pivots published in ``[t-lookback+1, t]`` are visible.
+    Double-bottom/top columns skip consecutive same-side pivots until an
+    opposite swing sits between them (the neckline). Triangle columns describe
+    the full window: rising lows, falling highs, and the high/low span.
+    """
+    if lookback < 2:
+        raise ValueError(f"lookback must be >= 2, got {lookback}")
+    pub_high, pub_low = published_swing_pivots(high, low, left=left)
+    n = len(high)
+    # Event lists stay in publication-bar order. Two-pointer drop keeps this O(n).
+    high_events: list[tuple[int, float]] = []
+    low_events: list[tuple[int, float]] = []
+    hi_start = 0
+    lo_start = 0
+    pub_h = pub_high.to_numpy(dtype="float64", copy=False)
+    pub_l = pub_low.to_numpy(dtype="float64", copy=False)
+
+    n_highs = np.full(n, np.nan)
+    n_lows = np.full(n, np.nan)
+    last_high = np.full(n, np.nan)
+    prev_high = np.full(n, np.nan)
+    last_low = np.full(n, np.nan)
+    prev_low = np.full(n, np.nan)
+    db_neck = np.full(n, np.nan)
+    dt_neck = np.full(n, np.nan)
+    highs_min = np.full(n, np.nan)
+    highs_max = np.full(n, np.nan)
+    lows_min = np.full(n, np.nan)
+    lows_max = np.full(n, np.nan)
+    lows_rising = np.zeros(n, dtype="bool")
+    highs_falling = np.zeros(n, dtype="bool")
+
+    def _separated_pair(
+        primary: list[tuple[int, float]],
+        opposite: list[tuple[int, float]],
+        *,
+        take_max_between: bool,
+    ) -> tuple[float, float, float]:
+        """Most recent primary pivot plus the nearest earlier one with an opposite between."""
+        if len(primary) < 2:
+            return np.nan, np.nan, np.nan
+        i2, p2 = primary[-1]
+        for k in range(len(primary) - 2, -1, -1):
+            i1, p1 = primary[k]
+            between = [price for (j, price) in opposite if i1 < j <= i2]
+            if not between:
+                continue
+            neck = max(between) if take_max_between else min(between)
+            return p1, p2, neck
+        return np.nan, np.nan, np.nan
+
+    for t in range(n):
+        if not np.isnan(pub_h[t]):
+            high_events.append((t, float(pub_h[t])))
+        if not np.isnan(pub_l[t]):
+            low_events.append((t, float(pub_l[t])))
+        window_start = t - lookback + 1
+        while hi_start < len(high_events) and high_events[hi_start][0] < window_start:
+            hi_start += 1
+        while lo_start < len(low_events) and low_events[lo_start][0] < window_start:
+            lo_start += 1
+        hs = high_events[hi_start:]
+        ls = low_events[lo_start:]
+        n_highs[t] = float(len(hs))
+        n_lows[t] = float(len(ls))
+        if hs:
+            prices = [p for _, p in hs]
+            highs_min[t] = min(prices)
+            highs_max[t] = max(prices)
+            last_high[t] = hs[-1][1]
+            highs_falling[t] = len(hs) >= 2 and all(
+                hs[k][1] < hs[k - 1][1] for k in range(1, len(hs))
+            )
+        if ls:
+            prices = [p for _, p in ls]
+            lows_min[t] = min(prices)
+            lows_max[t] = max(prices)
+            last_low[t] = ls[-1][1]
+            lows_rising[t] = len(ls) >= 2 and all(
+                ls[k][1] > ls[k - 1][1] for k in range(1, len(ls))
+            )
+        p1, p2, neck = _separated_pair(ls, hs, take_max_between=True)
+        prev_low[t], last_low[t] = p1, (p2 if not np.isnan(p2) else last_low[t])
+        db_neck[t] = neck
+        q1, q2, floor = _separated_pair(hs, ls, take_max_between=False)
+        prev_high[t], last_high[t] = q1, (q2 if not np.isnan(q2) else last_high[t])
+        dt_neck[t] = floor
+
+    frame = pd.DataFrame(
+        {
+            "n_highs": n_highs,
+            "n_lows": n_lows,
+            "last_high": last_high,
+            "prev_high": prev_high,
+            "last_low": last_low,
+            "prev_low": prev_low,
+            "double_bottom_neckline": db_neck,
+            "double_top_neckline": dt_neck,
+            "highs_min": highs_min,
+            "highs_max": highs_max,
+            "lows_min": lows_min,
+            "lows_max": lows_max,
+            "lows_rising": lows_rising,
+            "highs_falling": highs_falling,
+        },
+        index=high.index,
+    )
+    return frame
+
+
 def friday_utc_close(close: pd.Series) -> pd.Series:
     """Last completed Friday UTC close, published Sat/Sun/Mon only."""
     utc_index = _as_utc_index(close.index)
