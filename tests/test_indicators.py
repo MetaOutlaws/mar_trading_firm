@@ -297,7 +297,7 @@ def test_prior_day_close_is_previous_session_last_bar():
 
 def test_weekend_utc_range_publishes_monday_only():
     """Sat–Sun box is blank until Monday; Saturday never sees Sunday's high."""
-    index = pd.date_range("2024-01-06", periods=56, freq="h", tz="UTC")
+    index = pd.date_range("2024-01-06", periods=80, freq="h", tz="UTC")
     high = pd.Series(101.0, index=index)
     low = pd.Series(99.0, index=index)
     high.loc["2024-01-07 15:00+00:00"] = 108.0
