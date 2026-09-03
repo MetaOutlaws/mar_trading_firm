@@ -1278,6 +1278,73 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "not a clone."
         ),
     ),
+    SleeveSpec(
+        name="up_down_turnover_imbalance",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs up-bar vs down-bar turnover (close>prior close vs "
+            "close<prior close). imb=(sum_N up_to - sum_N down_to)/"
+            "(sum_N up_to + sum_N down_to). LONG imb>k, SHORT imb<-k. "
+            "Follow-the-money, not a fade. Not a close-only oscillator. "
+            "Not OBV/VPT/Force/bar_vwap_inflow_surge/ADL/CMF. Do not "
+            "cumsum. Do not invent taker/CVD/netflow/on-chain/funding "
+            "columns."
+        ),
+        summary="Follow the money via up-bar vs down-bar turnover.",
+        justification=(
+            "Turnover on up-closes versus down-closes is a participation "
+            "split the close-only oscillators never see. A rolling "
+            "imbalance of unused quote volume is not an OBV ledger and "
+            "not a per-bar VWAP pulse."
+        ),
+    ),
+    SleeveSpec(
+        name="signed_range_turnover_trend",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs pulse = (close-open)*turnover, then trend = sum_N pulse "
+            "/ (prior-N mean|pulse| * N) with the current bar excluded "
+            "from the baseline. LONG trend>k, SHORT trend<-k. Direction "
+            "plus participation. Not an EMA/ADX clone. Not Qstick, not "
+            "Force Index, not bar_vwap_inflow_surge, not BOP. Do not "
+            "invent taker/CVD/netflow/on-chain/funding columns."
+        ),
+        summary="Follow signed range times turnover (direction plus participation).",
+        justification=(
+            "The product of (close-open) and unused quote turnover is not "
+            "an EMA of close and not ADX. Qstick ignores participation; "
+            "Force Index uses Δclose × base volume. This is a rolling "
+            "trend of signed-range × turnover."
+        ),
+    ),
+    SleeveSpec(
+        name="swing_anchored_vwap_pullback",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs a pullback to VWAP anchored on causal confirmed_swings. "
+            "Same last-event impulse as fib_extension_break (+1 new swing "
+            "high, -1 new swing low, ffill). LONG: up-impulse ready, "
+            "end>avwap, low<=avwap, close>avwap, origin intact. SHORT "
+            "symmetric. avwap=Σturnover/Σvolume from origin publish. "
+            "Invalidation is close back through origin. Not "
+            "fib_retracement_bounce (dead 0.618). Not fib_extension_break "
+            "(already in the book). Do not implement 0.618 or 1.618 in "
+            "this family."
+        ),
+        summary="Pullback to VWAP anchored on confirmed_swings.",
+        justification=(
+            "Same swing engine as fib_extension_break, different path: "
+            "volume-weighted continuation. AVWAP is Σturnover/Σvolume "
+            "from the impulse origin, not a 0.618 fib tag and not a "
+            "1.618 extension break."
+        ),
+    ),
 ]
 
 

@@ -1,0 +1,14 @@
+{
+  "family": "swing_anchored_vwap_pullback",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs a pullback to VWAP anchored on causal confirmed_swings. Same last-event impulse as fib_extension_break (+1 new swing high, -1 new swing low, ffill). LONG: up-impulse ready, end>avwap, low<=avwap, close>avwap, origin intact. SHORT symmetric. avwap=Σturnover/Σvolume from origin publish. Invalidation is close back through origin. Not fib_retracement_bounce (dead 0.618). Not fib_extension_break (already in the book). Do not implement 0.618 or 1.618 in this family.",
+  "summary": "Pullback to VWAP anchored on confirmed_swings.",
+  "justification": "Same swing engine as fib_extension_break, different path: volume-weighted continuation. AVWAP is Σturnover/Σvolume from the impulse origin, not a 0.618 fib tag and not a 1.618 extension break.",
+  "written_at": "2026-09-03T03:30:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/swing_anchored_vwap_pullback.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

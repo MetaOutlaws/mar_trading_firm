@@ -139,6 +139,9 @@ CLOCK_BY_FAMILY = {
     "fib_retracement_bounce": "4h/4h",
     "fib_extension_break": "4h/4h",
     "measured_move_break": "4h/4h",
+    "up_down_turnover_imbalance": "4h/4h",
+    "signed_range_turnover_trend": "4h/4h",
+    "swing_anchored_vwap_pullback": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 

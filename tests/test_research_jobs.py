@@ -296,12 +296,18 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "fib_retracement_bounce" in coded
     assert "fib_extension_break" in coded
     assert "measured_move_break" in coded
+    assert "up_down_turnover_imbalance" in coded
+    assert "signed_range_turnover_trend" in coded
+    assert "swing_anchored_vwap_pullback" in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
     assert "bar_vwap_inflow_surge" not in novel_ready
     assert "fib_retracement_bounce" not in novel_ready
     assert "fib_extension_break" not in novel_ready
     assert "measured_move_break" not in novel_ready
+    assert "up_down_turnover_imbalance" not in novel_ready
+    assert "signed_range_turnover_trend" not in novel_ready
+    assert "swing_anchored_vwap_pullback" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -730,6 +736,9 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "fib_retracement_bounce" not in families
     assert "fib_extension_break" not in families
     assert "measured_move_break" not in families
+    assert "up_down_turnover_imbalance" not in families
+    assert "signed_range_turnover_trend" not in families
+    assert "swing_anchored_vwap_pullback" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

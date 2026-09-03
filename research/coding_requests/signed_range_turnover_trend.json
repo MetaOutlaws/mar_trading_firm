@@ -1,0 +1,14 @@
+{
+  "family": "signed_range_turnover_trend",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs pulse = (close-open)*turnover, then trend = sum_N pulse / (prior-N mean|pulse| * N) with the current bar excluded from the baseline. LONG trend>k, SHORT trend<-k. Direction plus participation. Not an EMA/ADX clone. Not Qstick, not Force Index, not bar_vwap_inflow_surge, not BOP. Do not invent taker/CVD/netflow/on-chain/funding columns.",
+  "summary": "Follow signed range times turnover (direction plus participation).",
+  "justification": "The product of (close-open) and unused quote turnover is not an EMA of close and not ADX. Qstick ignores participation; Force Index uses Δclose × base volume. This is a rolling trend of signed-range × turnover.",
+  "written_at": "2026-09-03T03:30:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/signed_range_turnover_trend.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}
