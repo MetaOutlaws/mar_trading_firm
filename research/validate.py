@@ -903,6 +903,27 @@ def _novel_kit(name: str, side: SignalSide):
             "VolumeDryupRangeBreakStrategy",
             {"dry_bars": [3], "vol_lookback": [20]},
         ),
+        "body_efficiency_follow": (
+            "core.strategy.body_efficiency_follow",
+            "BodyEfficiencyFollowParams",
+            "BodyEfficiencyFollowStrategy",
+            # Two-bar follow is locked. Search the efficiency floor only.
+            {"min_efficiency": [0.7]},
+        ),
+        "week_open_reclaim": (
+            "core.strategy.week_open_reclaim",
+            "WeekOpenReclaimParams",
+            "WeekOpenReclaimStrategy",
+            # Monday 00:00 open is locked. Search wrong-side count + volume.
+            {"min_wrong_closes": [3], "vol_lookback": [20]},
+        ),
+        "prior_session_mid_reclaim": (
+            "core.strategy.prior_session_mid_reclaim",
+            "PriorSessionMidReclaimParams",
+            "PriorSessionMidReclaimStrategy",
+            # 8h UTC slots locked. Search the volume lookback only.
+            {"vol_lookback": [20]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

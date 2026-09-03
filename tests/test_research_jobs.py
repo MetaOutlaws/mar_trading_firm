@@ -309,6 +309,9 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "range_compression_volume_thrust" in coded
     assert "turnover_climax_rejection_fade" in coded
     assert "volume_dryup_range_break" in coded
+    assert "body_efficiency_follow" in coded
+    assert "week_open_reclaim" in coded
+    assert "prior_session_mid_reclaim" in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
     assert "bar_vwap_inflow_surge" not in novel_ready
@@ -328,6 +331,9 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "range_compression_volume_thrust" not in novel_ready
     assert "turnover_climax_rejection_fade" not in novel_ready
     assert "volume_dryup_range_break" not in novel_ready
+    assert "body_efficiency_follow" not in novel_ready
+    assert "week_open_reclaim" not in novel_ready
+    assert "prior_session_mid_reclaim" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -771,6 +777,9 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "range_compression_volume_thrust" not in families
     assert "turnover_climax_rejection_fade" not in families
     assert "volume_dryup_range_break" not in families
+    assert "body_efficiency_follow" not in families
+    assert "week_open_reclaim" not in families
+    assert "prior_session_mid_reclaim" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

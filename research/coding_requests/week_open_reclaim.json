@@ -1,0 +1,15 @@
+{
+  "family": "week_open_reclaim",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs this week's UTC Monday 00:00 open (first 4h open of the ISO week). After at least 3 4h closes on the wrong side of that open, trade the reclaim: LONG when close crosses back above with volume above the prior-20 mean; SHORT when close crosses back below. Not monday_range_sweep_reversal. Not swing_anchored_vwap_pullback. Not prior_week_high_break.",
+  "summary": "Reclaim this week's UTC Monday 00:00 open after a wrong-side excursion.",
+  "justification": "A Monday-open reclaim after three wrong-side 4h closes is not a weekend-range fade, not a prior-week high break, and not an AVWAP pullback.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T05:52:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/week_open_reclaim.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

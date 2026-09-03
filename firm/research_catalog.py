@@ -39,8 +39,11 @@ INBOX_WALK_ORDER: tuple[str, ...] = (
     "range_compression_volume_thrust",
     "turnover_climax_rejection_fade",
     "volume_dryup_range_break",
+    "body_efficiency_follow",
+    "week_open_reclaim",
+    "prior_session_mid_reclaim",
 )
-# The five Inbox walk-order families: BOTH sides honest, at most two free params.
+# PR-12 five plus the next-three Inbox families: BOTH sides honest, at most two free params.
 INBOX_BOTH_FAMILIES: tuple[str, ...] = INBOX_WALK_ORDER
 BANNED_SHORT_CLONES: frozenset[tuple[str, str]] = frozenset(
     {("monday_range_sweep_reversal", "SHORT")}
@@ -538,12 +541,71 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "body_efficiency_follow@4h/4h",
+        "family": "body_efficiency_follow",
+        "name": "body_efficiency_follow 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 6,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk sixth. Follow two consecutive 4h bars with body "
+            "efficiency |close-open|/true_range >= 0.7, same close direction, "
+            "and second volume >= first. BOTH sides honest. Not three_bar_play, "
+            "engulfing_reversal, or consecutive_bar_exhaustion."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "week_open_reclaim@4h/4h",
+        "family": "week_open_reclaim",
+        "name": "week_open_reclaim 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 7,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk seventh. Reclaim this week's UTC Monday 00:00 open "
+            "after at least 3 4h closes on the wrong side, on volume above "
+            "the prior-20 mean. BOTH sides honest. Not monday_range_sweep_reversal, "
+            "swing_anchored_vwap_pullback, or prior_week_high_break."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "prior_session_mid_reclaim@4h/4h",
+        "family": "prior_session_mid_reclaim",
+        "name": "prior_session_mid_reclaim 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 8,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk eighth. After a completed UTC 8h session (00-08 / "
+            "08-16 / 16-24) closes through one side of its midpoint, reclaim "
+            "when a later 4h close crosses back through that mid on volume "
+            "above the prior-20 mean. BOTH sides honest. Not "
+            "session_boundary_volume_fade, utc_session_vwap_reversion, or "
+            "utc_open_fail_reversion."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
         "clock": "4h/4h",
         "side": "BOTH",
-        "rank": 6,
+        "rank": 9,
         "coded": True,
         "free_params": 1,
         "disposition": "new_family",
@@ -560,7 +622,7 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "name": "vwap_spread_exhaustion 4h/4h BOTH",
         "clock": "4h/4h",
         "side": "BOTH",
-        "rank": 7,
+        "rank": 10,
         "coded": True,
         "free_params": 2,
         "disposition": "new_family",
@@ -577,7 +639,7 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "name": "vwap_volatility_band_fade 1h/1h BOTH",
         "clock": "1h/1h",
         "side": "BOTH",
-        "rank": 8,
+        "rank": 11,
         "coded": True,
         "free_params": 1,
         "disposition": "new_family",
@@ -1533,7 +1595,7 @@ def remaining_hypotheses(jobs: list[dict[str, Any]] | None = None) -> list[dict[
 
 
 def _inbox_walk_sort_key(row: dict[str, Any]) -> tuple[int, int, int, str]:
-    """london_close, utc_open_fail, range_compression, climax, dryup; leftovers after."""
+    """PR-12 five, then body_efficiency, week_open, prior_session_mid; leftovers after."""
     family = str(row.get("family") or "")
     try:
         return (0, INBOX_WALK_ORDER.index(family), 0, "")

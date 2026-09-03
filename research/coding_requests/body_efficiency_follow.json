@@ -1,0 +1,15 @@
+{
+  "family": "body_efficiency_follow",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs two consecutive 4h bars with body efficiency |close-open|/true_range >= 0.7, the same close direction, and the second bar's volume >= the first. Follow that direction. Not three_bar_play. Not engulfing_reversal. Not consecutive_bar_exhaustion.",
+  "summary": "Follow two consecutive high body-efficiency 4h bars in the same direction.",
+  "justification": "Two efficient same-direction bodies with non-decreasing volume is a follow, not a 3-bar rest break, not an engulfing reverse, and not a consecutive-close fade.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T05:52:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/body_efficiency_follow.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

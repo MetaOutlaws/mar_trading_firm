@@ -362,6 +362,79 @@ def prior_rolling_mean(series: pd.Series, period: int) -> pd.Series:
     return series.astype("float64").shift(1).rolling(window=period, min_periods=period).mean()
 
 
+def body_efficiency(
+    open_: pd.Series, high: pd.Series, low: pd.Series, close: pd.Series
+) -> pd.Series:
+    """|close-open| / true_range. 1.0 is a full-range body; 0 is a doji.
+
+    Bar-local. True range includes the gap from the prior close, so a
+    wide-range bar that is mostly wick scores low. Not Kaufman ER (path
+    efficiency over N closes) and not a two-bar engulf.
+    """
+    if not open_.index.equals(close.index) or not high.index.equals(low.index):
+        raise ValueError("open, high, low, close must share an index")
+    tr = true_range(high, low, close)
+    body = (close.astype("float64") - open_.astype("float64")).abs()
+    return body / tr.replace(0, np.nan)
+
+
+def iso_week_key(index: pd.Index) -> pd.Series:
+    """ISO week id (Mon–Sun). Same W-SUN period as prior_utc_week_range."""
+    utc_index = _as_utc_index(index)
+    naive = utc_index.tz_localize(None) if utc_index.tz is not None else utc_index
+    return pd.Series(naive.to_period("W-SUN").astype(str), index=index)
+
+
+def iso_week_open(open_: pd.Series) -> pd.Series:
+    """This week's UTC Monday 00:00 open (first bar of the ISO week).
+
+    Published from that Monday 00:00 bar onward. A mid-week start stays NaN
+    until Monday prints. Next Monday overwrites. Not prior-week high/low and
+    not the Sat–Sun weekend box.
+    """
+    utc_index = _as_utc_index(open_.index)
+    hours_into = (utc_index - utc_index.normalize()) / pd.Timedelta(hours=1)
+    monday_open = (pd.Series(utc_index.dayofweek, index=open_.index) == 0) & (
+        pd.Series(hours_into, index=open_.index) == 0
+    )
+    return open_.astype("float64").where(monday_open).ffill()
+
+
+def utc_8h_session_key(index: pd.Index) -> pd.Series:
+    """UTC 8h session id: 00–08 / 08–16 / 16–24, unique per calendar day+slot."""
+    utc_index = _as_utc_index(index)
+    day = pd.Series(utc_index.normalize(), index=index)
+    hours = pd.Series(
+        (utc_index - utc_index.normalize()) / pd.Timedelta(hours=1), index=index
+    )
+    slot = (hours // 8.0).astype("int64")
+    return day.dt.strftime("%Y-%m-%d") + "-" + slot.astype(str)
+
+
+def prior_utc_8h_session(
+    high: pd.Series, low: pd.Series, close: pd.Series
+) -> tuple[pd.Series, pd.Series, pd.Series, pd.Series, pd.Series]:
+    """Prior completed UTC 8h session high/low/close/mid.
+
+    Published only after that session ends (first bar of the next 00–08 /
+    08–16 / 16–24 slot). Mid is (high+low)/2 of the completed session — not
+    session VWAP, not the first-4h box, not the prior UTC day H/L.
+    """
+    if not high.index.equals(low.index) or not high.index.equals(close.index):
+        raise ValueError("high, low, close must share an index")
+    sess = utc_8h_session_key(high.index)
+    new_sess = sess.ne(sess.shift(1))
+    sess_high = high.groupby(sess).cummax()
+    sess_low = low.groupby(sess).cummin()
+    # Snapshot the just-finished session on the first bar of the next one.
+    prev_h = sess_high.shift(1).where(new_sess).ffill()
+    prev_l = sess_low.shift(1).where(new_sess).ffill()
+    prev_c = close.shift(1).where(new_sess).ffill()
+    mid = (prev_h + prev_l) / 2.0
+    ready = prev_h.notna() & prev_l.notna() & prev_c.notna()
+    return prev_h, prev_l, prev_c, mid, ready
+
+
 def utc_session_range(
     high: pd.Series,
     low: pd.Series,

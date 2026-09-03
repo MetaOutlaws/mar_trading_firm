@@ -1533,6 +1533,66 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "not ATR-percentile compression and not NR7."
         ),
     ),
+    SleeveSpec(
+        name="body_efficiency_follow",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs two consecutive 4h bars with body efficiency "
+            "|close-open|/true_range >= 0.7, the same close direction, and "
+            "the second bar's volume >= the first. Follow that direction. "
+            "Not three_bar_play (trend + rest + break). Not "
+            "engulfing_reversal (body swallow, reverse). Not "
+            "consecutive_bar_exhaustion (fade after N closes)."
+        ),
+        summary="Follow two consecutive high body-efficiency 4h bars in the same direction.",
+        justification=(
+            "Two efficient same-direction bodies with non-decreasing volume "
+            "is a follow, not a 3-bar rest break, not an engulfing reverse, "
+            "and not a consecutive-close fade."
+        ),
+    ),
+    SleeveSpec(
+        name="week_open_reclaim",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs this week's UTC Monday 00:00 open (first 4h open of the "
+            "ISO week). After at least 3 4h closes on the wrong side of that "
+            "open, trade the reclaim: LONG when close crosses back above "
+            "with volume above the prior-20 mean; SHORT when close crosses "
+            "back below. Not monday_range_sweep_reversal (weekend H/L fade). "
+            "Not swing_anchored_vwap_pullback. Not prior_week_high_break."
+        ),
+        summary="Reclaim this week's UTC Monday 00:00 open after a wrong-side excursion.",
+        justification=(
+            "A Monday-open reclaim after three wrong-side 4h closes is not "
+            "a weekend-range fade, not a prior-week high break, and not an "
+            "AVWAP pullback."
+        ),
+    ),
+    SleeveSpec(
+        name="prior_session_mid_reclaim",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs UTC 8h sessions 00-08 / 08-16 / 16-24. After the session "
+            "closes through one side of its (high+low)/2 midpoint, a later "
+            "4h bar that closes back through that mid on volume above the "
+            "prior-20 mean trades the reclaim. Not session_boundary_volume_fade "
+            "(prior UTC day H/L). Not utc_session_vwap_reversion. Not "
+            "utc_open_fail_reversion (first-4h box fail)."
+        ),
+        summary="Reclaim the prior completed UTC 8h session midpoint.",
+        justification=(
+            "An 8h session-mid reclaim after the session closes through one "
+            "side is not a UTC-day box fade, not a session-VWAP stretch, and "
+            "not a first-4h opening-box fail."
+        ),
+    ),
 ]
 
 
