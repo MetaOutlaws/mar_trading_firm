@@ -147,6 +147,11 @@ CLOCK_BY_FAMILY = {
     "session_boundary_volume_fade": "4h/4h",
     "vwap_spread_exhaustion": "4h/4h",
     "vwap_volatility_band_fade": "1h/1h",
+    "london_close_inventory_fade": "4h/4h",
+    "utc_open_fail_reversion": "4h/4h",
+    "range_compression_volume_thrust": "4h/4h",
+    "turnover_climax_rejection_fade": "4h/4h",
+    "volume_dryup_range_break": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 

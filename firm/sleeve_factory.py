@@ -1440,6 +1440,99 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "fade of close versus the SMA."
         ),
     ),
+    SleeveSpec(
+        name="london_close_inventory_fade",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs the 4h bar covering 15:00–16:00 UTC and London-session "
+            "VWAP (08:00–16:00), not UTC-midnight VWAP. Fade when that close "
+            "is in the extreme 20% of the bar on volume above the prior-20 "
+            "mean. Calendar London-close inventory. Not london_session_breakout "
+            "(break the completed 08–16 box after 16:00). Not "
+            "session_boundary_volume_fade. Not monday_range_sweep_reversal."
+        ),
+        summary="Fade an extreme London-close 4h bar on high volume, back to London VWAP.",
+        justification=(
+            "The London cash-close 4h bar faded to London VWAP is not a "
+            "London-range breakout and not a UTC-day box fade."
+        ),
+    ),
+    SleeveSpec(
+        name="utc_open_fail_reversion",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs the UTC day's first 4h (00:00–04:00) as a box, then a "
+            "failed break on the second 4h (04:00–08:00) that closes back "
+            "inside, fading toward the first-4h mid. Not utc_midnight_gap_fill "
+            "(first-bar open vs prior close). Not asian_range_breakout "
+            "(break the 00–08 box after 08:00). Not session_liquidity_sweep."
+        ),
+        summary="Fade a failed break of the UTC day's first 4h box on the second 4h bar.",
+        justification=(
+            "A failed second-4h break of the first-4h UTC box is not a "
+            "midnight gap fill and not an Asian-range breakout."
+        ),
+    ),
+    SleeveSpec(
+        name="range_compression_volume_thrust",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs 20-bar ATR in the bottom 30% of its 100-bar range, then a "
+            "bar with true range > 1.5× ATR, close in the bar's direction, "
+            "and volume above the prior-20 mean. Compression is ATR "
+            "percentile only. Not squeeze_momentum_break (BB inside Keltner). "
+            "Not nr7_breakout. Not bb_squeeze_breakout."
+        ),
+        summary="Follow a volume-thrust bar that exits ATR compression.",
+        justification=(
+            "ATR-percentile compression plus a volume-confirmed range "
+            "expansion is not a BB-width squeeze and not NR7."
+        ),
+    ),
+    SleeveSpec(
+        name="turnover_climax_rejection_fade",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs unused quote turnover as a 20-bar high, then a fade when "
+            "that climax bar breaks the 20-bar price high and closes in the "
+            "lower 20% (SHORT) or breaks the 20-bar low and closes in the "
+            "upper 20% (LONG). Climax + rejection. Not volume_climax_fade "
+            "(RSI + base volume). Not bar_vwap_inflow_surge. Not "
+            "up_down_turnover_imbalance. Do not invent taker/CVD columns."
+        ),
+        summary="Fade a quote-turnover climax whose close rejects the 20-bar extreme.",
+        justification=(
+            "A 20-bar turnover climax with a rejected close is not an RSI "
+            "volume-climax fade and not a follow-the-money imbalance."
+        ),
+    ),
+    SleeveSpec(
+        name="volume_dryup_range_break",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs 3 consecutive bars with volume below the prior-20 mean "
+            "(current bar excluded), then a thrust bar with volume above that "
+            "mean that closes beyond the 3-bar high (LONG) or 3-bar low "
+            "(SHORT). Consecutive dry-up box then expansion. Not "
+            "range_compression_volume_thrust (ATR percentile). Not "
+            "nr7_breakout. Not squeeze_momentum_break."
+        ),
+        summary="Break a 3-bar dry-up box on the first volume-confirmed thrust.",
+        justification=(
+            "Three quiet-volume bars then a volume-confirmed range break is "
+            "not ATR-percentile compression and not NR7."
+        ),
+    ),
 ]
 
 

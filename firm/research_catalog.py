@@ -31,19 +31,17 @@ WALK_FORWARD_HISTORY_PATH = PROJECT_ROOT / "data" / "walk_forward_history.json"
 FAMILIES_NEEDING_FEED = frozenset({"funding_fade"})
 # Legacy baseline. Walk-forward already measured it; replenish must not clone it.
 NEVER_REPLENISH_FAMILIES = frozenset({"rsi_trend", "rsi_golden_cross"})
-# Strategy Advisor: after Inbox 6–8 land, walk these BOTH grids first.
+# Strategy Advisor: walk these Inbox-approved BOTH grids first, in this order.
 # Do not invent a BNB SHORT clone of monday_range_sweep_reversal.
 INBOX_WALK_ORDER: tuple[str, ...] = (
-    "session_boundary_volume_fade",
-    "vwap_spread_exhaustion",
-    "vwap_volatility_band_fade",
+    "london_close_inventory_fade",
+    "utc_open_fail_reversion",
+    "range_compression_volume_thrust",
+    "turnover_climax_rejection_fade",
+    "volume_dryup_range_break",
 )
-# Inbox 6–8 plus the PR-10 turnover trio: six names, BOTH sides honest.
-INBOX_BOTH_FAMILIES: tuple[str, ...] = INBOX_WALK_ORDER + (
-    "up_down_turnover_imbalance",
-    "signed_range_turnover_trend",
-    "swing_anchored_vwap_pullback",
-)
+# The five Inbox walk-order families: BOTH sides honest, at most two free params.
+INBOX_BOTH_FAMILIES: tuple[str, ...] = INBOX_WALK_ORDER
 BANNED_SHORT_CLONES: frozenset[tuple[str, str]] = frozenset(
     {("monday_range_sweep_reversal", "SHORT")}
 )
@@ -448,17 +446,109 @@ RESEARCH_BACKLOG: list[dict[str, Any]] = [
 # Unique key is family@clock@side. Do not re-queue an unchanged test.
 RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
     {
+        "id": "london_close_inventory_fade@4h/4h",
+        "family": "london_close_inventory_fade",
+        "name": "london_close_inventory_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 1,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk first. Fade the London-close 4h bar (covers 15:00–16:00 "
+            "UTC) when close is in the extreme 20% on high volume, back to "
+            "London VWAP. BOTH sides honest. Not london_session_breakout."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "utc_open_fail_reversion@4h/4h",
+        "family": "utc_open_fail_reversion",
+        "name": "utc_open_fail_reversion 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 2,
+        "coded": True,
+        "free_params": 0,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk second. Fade a failed break of the UTC first-4h box on "
+            "the second 4h bar, toward the first-4h mid. BOTH sides honest. "
+            "Not utc_midnight_gap_fill and not asian_range_breakout."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "range_compression_volume_thrust@4h/4h",
+        "family": "range_compression_volume_thrust",
+        "name": "range_compression_volume_thrust 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 3,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk third. Follow a volume-thrust bar that exits 20-ATR "
+            "compression (bottom 30% of 100-bar ATR). BOTH sides honest. "
+            "Not squeeze_momentum_break, nr7_breakout, or bb_squeeze_breakout."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "turnover_climax_rejection_fade@4h/4h",
+        "family": "turnover_climax_rejection_fade",
+        "name": "turnover_climax_rejection_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 4,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk fourth. Fade a 20-bar turnover climax whose close "
+            "rejects the 20-bar price extreme. BOTH sides honest. Not "
+            "volume_climax_fade, bar_vwap_inflow_surge, or "
+            "up_down_turnover_imbalance."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
+        "id": "volume_dryup_range_break@4h/4h",
+        "family": "volume_dryup_range_break",
+        "name": "volume_dryup_range_break 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 5,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Inbox walk fifth. Three dry bars (volume below prior-20 mean) then "
+            "a volume-confirmed close beyond that 3-bar box. BOTH sides honest. "
+            "Not range_compression_volume_thrust, nr7_breakout, or "
+            "squeeze_momentum_break."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
         "clock": "4h/4h",
         "side": "BOTH",
-        "rank": 1,
+        "rank": 6,
         "coded": True,
         "free_params": 1,
         "disposition": "new_family",
         "justification": (
-            "Inbox 6–8 walk first. Calendar UTC day box + weak-volume fade, "
+            "PR-11 leftover. Calendar UTC day box + weak-volume fade, "
             "BOTH sides honest. Not a floor-pivot breakout and not an Asian sweep."
         ),
         "param_change": {"clock": "4h/4h"},
@@ -470,12 +560,12 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "name": "vwap_spread_exhaustion 4h/4h BOTH",
         "clock": "4h/4h",
         "side": "BOTH",
-        "rank": 2,
+        "rank": 7,
         "coded": True,
         "free_params": 2,
         "disposition": "new_family",
         "justification": (
-            "Inbox 6–8 walk second. Rolling VWAP−SMA / ATR extreme, BOTH sides "
+            "PR-11 leftover. Rolling VWAP−SMA / ATR extreme, BOTH sides "
             "honest. Not a UTC-session VWAP stretch."
         ),
         "param_change": {"clock": "4h/4h"},
@@ -487,12 +577,12 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "name": "vwap_volatility_band_fade 1h/1h BOTH",
         "clock": "1h/1h",
         "side": "BOTH",
-        "rank": 3,
+        "rank": 8,
         "coded": True,
         "free_params": 1,
         "disposition": "new_family",
         "justification": (
-            "Inbox 6–8 walk third. Rolling VWAP ± σ inside a BB-width squeeze, "
+            "PR-11 leftover. Rolling VWAP ± σ inside a BB-width squeeze, "
             "BOTH sides honest. Not a SMA Bollinger fade."
         ),
         "param_change": {"clock": "1h/1h"},
@@ -1437,13 +1527,13 @@ def remaining_hypotheses(jobs: list[dict[str, Any]] | None = None) -> list[dict[
             if clock != primary:
                 continue
         out.append(row)
-    # Leftovers stay in the list. Inbox 6–8 walk first, in Advisor order.
+    # Leftovers stay in the list. Inbox walk-order families go first.
     out.sort(key=_inbox_walk_sort_key)
     return out
 
 
 def _inbox_walk_sort_key(row: dict[str, Any]) -> tuple[int, int, int, str]:
-    """session_boundary, then vwap_spread, then vwap_band; leftovers after."""
+    """london_close, utc_open_fail, range_compression, climax, dryup; leftovers after."""
     family = str(row.get("family") or "")
     try:
         return (0, INBOX_WALK_ORDER.index(family), 0, "")

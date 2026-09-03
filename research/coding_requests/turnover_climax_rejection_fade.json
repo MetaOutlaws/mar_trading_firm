@@ -1,0 +1,15 @@
+{
+  "family": "turnover_climax_rejection_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs unused quote turnover as a 20-bar high, then a fade when that climax bar breaks the 20-bar price high and closes in the lower 20% (SHORT) or breaks the 20-bar low and closes in the upper 20% (LONG). Climax + rejection. Not volume_climax_fade. Not bar_vwap_inflow_surge. Not up_down_turnover_imbalance.",
+  "summary": "Fade a quote-turnover climax whose close rejects the 20-bar extreme.",
+  "justification": "A 20-bar turnover climax with a rejected close is not an RSI volume-climax fade and not a follow-the-money imbalance.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T05:30:37.478399+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/turnover_climax_rejection_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

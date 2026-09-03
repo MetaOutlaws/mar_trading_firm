@@ -274,6 +274,94 @@ def utc_session_vwap(
     return cum_pv / cum_vol.replace(0, np.nan)
 
 
+def infer_bar_hours(index: pd.Index) -> float:
+    """Median bar width in hours. Regular clocks make any prefix return the same value."""
+    utc_index = _as_utc_index(index)
+    if len(utc_index) < 2:
+        return 4.0
+    delta = pd.Series(utc_index).diff().dropna().median()
+    hours = float(delta / pd.Timedelta(hours=1))
+    if hours <= 0 or pd.isna(hours):
+        return 4.0
+    return hours
+
+
+def bar_covers_utc_hour(index: pd.Index, hour: float, *, bar_hours: float | None = None) -> pd.Series:
+    """True when the bar's [open, open+width) interval contains `hour` UTC.
+
+    Open-labeled 4h at 12:00 covers 15:00 (the London-close hour). Open-labeled
+    1h at 15:00 covers 15:00. Uses only the index, so it is causal on a regular clock.
+    """
+    utc_index = _as_utc_index(index)
+    width = float(bar_hours if bar_hours is not None else infer_bar_hours(utc_index))
+    day = utc_index.normalize()
+    hours_into = (utc_index - day) / pd.Timedelta(hours=1)
+    covers = (hours_into <= float(hour)) & ((hours_into + width) > float(hour))
+    return pd.Series(covers, index=index)
+
+
+def last_bar_of_utc_slot(
+    index: pd.Index,
+    *,
+    slot_start: float,
+    slot_end: float,
+    bar_hours: float | None = None,
+) -> pd.Series:
+    """True on the last bar whose open sits in ``[slot_start, slot_end)`` UTC hours.
+
+    On 4h, the 04:00 bar is the last (only) bar of 04:00–08:00. On 1h, that is 07:00.
+    """
+    if slot_end <= slot_start:
+        raise ValueError(f"slot_end must be > slot_start, got {slot_start}-{slot_end}")
+    utc_index = _as_utc_index(index)
+    width = float(bar_hours if bar_hours is not None else infer_bar_hours(utc_index))
+    day = utc_index.normalize()
+    hours_into = (utc_index - day) / pd.Timedelta(hours=1)
+    in_slot = (hours_into >= float(slot_start)) & (hours_into < float(slot_end))
+    completes = (hours_into + width) >= float(slot_end)
+    return pd.Series(in_slot & completes, index=index)
+
+
+def utc_window_vwap(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    volume: pd.Series,
+    *,
+    start_hour: float,
+    end_hour: float,
+) -> pd.Series:
+    """Typical-price VWAP over ``[start_hour, end_hour)`` UTC, reset each UTC day.
+
+    Only in-window bars add. Bar t includes itself (bars ``<= t``). After the
+    window ends, the last in-window value is ffilled for the rest of that day
+    so a later reader can see the completed session VWAP. Before ``start_hour``
+    the value is NaN. This is not UTC-midnight session VWAP and not a rolling N.
+    """
+    if end_hour <= start_hour:
+        raise ValueError(f"end_hour must be > start_hour, got {start_hour}-{end_hour}")
+    if not high.index.equals(low.index) or not high.index.equals(close.index):
+        raise ValueError("high, low, close must share an index")
+    if not high.index.equals(volume.index):
+        raise ValueError("volume must share the candle index")
+    utc_index = _as_utc_index(high.index)
+    day = utc_day_key(high.index)
+    hours_into = (utc_index - utc_index.normalize()) / pd.Timedelta(hours=1)
+    in_window = (hours_into >= float(start_hour)) & (hours_into < float(end_hour))
+    typical = (high.astype("float64") + low.astype("float64") + close.astype("float64")) / 3.0
+    pv = typical * volume.astype("float64").where(in_window, 0.0)
+    vol = volume.astype("float64").where(in_window, 0.0)
+    vwap = pv.groupby(day).cumsum() / vol.groupby(day).cumsum().replace(0, np.nan)
+    return vwap.groupby(day).ffill()
+
+
+def prior_rolling_mean(series: pd.Series, period: int) -> pd.Series:
+    """Mean of the prior `period` bars. Current bar is excluded (no self-mean)."""
+    if period <= 0:
+        raise ValueError(f"period must be positive, got {period}")
+    return series.astype("float64").shift(1).rolling(window=period, min_periods=period).mean()
+
+
 def utc_session_range(
     high: pd.Series,
     low: pd.Series,

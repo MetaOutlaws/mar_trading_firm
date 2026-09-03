@@ -338,6 +338,43 @@ def test_prior_utc_day_range_publishes_after_midnight():
     assert prev_h.iloc[29] == pytest.approx(110.0)
 
 
+def test_utc_window_vwap_is_london_hours_not_utc_midnight():
+    """London 08–16 VWAP ignores the Asian session and is not UTC-day VWAP."""
+    index = pd.date_range("2024-01-02", periods=24, freq="h", tz="UTC")
+    close = pd.Series(100.0, index=index)
+    close.iloc[:8] = 80.0
+    close.iloc[8:16] = 100.0
+    close.iloc[16:] = 120.0
+    high = close + 1.0
+    low = close - 1.0
+    volume = pd.Series(1.0, index=index)
+    london = ind.utc_window_vwap(high, low, close, volume, start_hour=8.0, end_hour=16.0)
+    session = ind.utc_session_vwap(high, low, close, volume)
+    assert pd.isna(london.iloc[7])
+    assert london.iloc[15] == pytest.approx(100.0)
+    assert session.iloc[15] != pytest.approx(float(london.iloc[15]), abs=0.5)
+    assert london.iloc[20] == pytest.approx(100.0)
+
+
+def test_bar_covers_utc_hour_4h_and_1h():
+    hourly = pd.date_range("2024-01-02", periods=24, freq="h", tz="UTC")
+    covers_1h = ind.bar_covers_utc_hour(hourly, 15.0, bar_hours=1.0)
+    assert bool(covers_1h.iloc[15]) is True
+    assert bool(covers_1h.iloc[14]) is False
+    four = pd.date_range("2024-01-02", periods=6, freq="4h", tz="UTC")
+    covers_4h = ind.bar_covers_utc_hour(four, 15.0, bar_hours=4.0)
+    # 12:00 4h bar covers 15:00; 16:00 does not.
+    assert bool(covers_4h.loc[pd.Timestamp("2024-01-02 12:00", tz="UTC")]) is True
+    assert bool(covers_4h.loc[pd.Timestamp("2024-01-02 16:00", tz="UTC")]) is False
+
+
+def test_prior_rolling_mean_excludes_current_bar():
+    values = series([10.0] * 5 + [100.0])
+    mean = ind.prior_rolling_mean(values, 5)
+    assert pd.isna(mean.iloc[4])
+    assert mean.iloc[5] == pytest.approx(10.0)
+
+
 def test_rolling_vwap_is_not_session_vwap_or_vwma():
     """Typical-price rolling VWAP ≠ UTC session VWAP and ≠ close VWMA."""
     index = pd.date_range("2024-01-02", periods=24, freq="h", tz="UTC")

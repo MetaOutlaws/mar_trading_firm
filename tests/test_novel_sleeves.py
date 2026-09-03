@@ -101,6 +101,11 @@ APPROVED = [
     "session_boundary_volume_fade",
     "vwap_spread_exhaustion",
     "vwap_volatility_band_fade",
+    "london_close_inventory_fade",
+    "utc_open_fail_reversion",
+    "range_compression_volume_thrust",
+    "turnover_climax_rejection_fade",
+    "volume_dryup_range_break",
 ]
 
 
@@ -2252,6 +2257,417 @@ def test_vwap_volatility_band_fade_requires_bb_width_squeeze() -> None:
     assert int(signals["signal"].iloc[140]) == 0
 
 
+def _london_close_iloc(index: pd.DatetimeIndex, day: str = "2024-01-03") -> int:
+    return int(index.get_loc(pd.Timestamp(f"{day} 15:00", tz="UTC")))
+
+
+def test_london_close_inventory_fade_schema_and_long_entry() -> None:
+    n = 72
+    index = _hourly(n)
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    bar = _london_close_iloc(index)
+    low[bar] = 90.0
+    high[bar] = 110.0
+    close[bar] = 92.0
+    open_[bar] = 100.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = 200.0
+    candles.loc[candles.index[bar], "volume"] = 5_000.0
+    signals = _signals("london_close_inventory_fade", candles)
+    for column in ("signal", "side", "score", "reason", "london_vwap", "close_frac"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert float(signals["close_frac"].iloc[bar]) <= 0.20
+    assert candles["close"].iloc[bar] < float(signals["london_vwap"].iloc[bar])
+
+
+def test_london_close_inventory_fade_short_entry() -> None:
+    n = 72
+    index = _hourly(n)
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    bar = _london_close_iloc(index)
+    low[bar] = 90.0
+    high[bar] = 110.0
+    close[bar] = 108.0
+    open_[bar] = 100.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = 200.0
+    candles.loc[candles.index[bar], "volume"] = 5_000.0
+    signals = _signals("london_close_inventory_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+
+
+def test_london_close_inventory_fade_is_close_bar_not_london_breakout() -> None:
+    """16:00 is london_session_breakout, not the inventory-close fade."""
+    n = 72
+    index = _hourly(n)
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    after = int(index.get_loc(pd.Timestamp("2024-01-03 16:00", tz="UTC")))
+    close[after] = 120.0
+    high[after] = 121.0
+    candles = _ohlcv(index, close, high=high, low=low)
+    candles["volume"] = 200.0
+    candles.loc[candles.index[after], "volume"] = 5_000.0
+    signals = _signals("london_close_inventory_fade", candles)
+    assert int(signals["signal"].iloc[after]) == 0
+
+
+def test_london_close_inventory_fade_requires_heavy_volume() -> None:
+    n = 72
+    index = _hourly(n)
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    bar = _london_close_iloc(index)
+    low[bar] = 90.0
+    high[bar] = 110.0
+    close[bar] = 92.0
+    candles = _ohlcv(index, close, high=high, low=low)
+    candles["volume"] = 200.0
+    signals = _signals("london_close_inventory_fade", candles)
+    assert int(signals["signal"].iloc[bar]) == 0
+
+
+def test_london_close_inventory_fade_4h_bar_is_1200_utc() -> None:
+    """On 4h, the bar covering 15:00–16:00 is the open-labeled 12:00 bar."""
+    n = 40
+    index = pd.date_range("2024-01-02", periods=n, freq="4h", tz="UTC")
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    bar = int(index.get_loc(pd.Timestamp("2024-01-07 12:00", tz="UTC")))
+    low[bar] = 90.0
+    high[bar] = 110.0
+    close[bar] = 92.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = 200.0
+    candles.loc[candles.index[bar], "volume"] = 5_000.0
+    signals = _signals("london_close_inventory_fade", candles)
+    assert bar >= 24
+    assert int(signals["signal"].iloc[bar]) == 1
+    morning = int(index.get_loc(pd.Timestamp("2024-01-07 08:00", tz="UTC")))
+    assert int(signals["signal"].iloc[morning]) == 0
+
+
+def _utc_second_4h_iloc(index: pd.DatetimeIndex) -> int:
+    return int(index.get_loc(pd.Timestamp("2024-01-03 07:00", tz="UTC")))
+
+
+def test_utc_open_fail_reversion_schema_and_long_entry() -> None:
+    n = 72
+    index = _hourly(n)
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    # Day-1 first 4h box 90–110.
+    for hour in range(4):
+        i = int(index.get_loc(pd.Timestamp(f"2024-01-03 {hour:02d}:00", tz="UTC")))
+        high[i] = 110.0
+        low[i] = 90.0
+        close[i] = 100.0
+    bar = _utc_second_4h_iloc(index)
+    wick = int(index.get_loc(pd.Timestamp("2024-01-03 05:00", tz="UTC")))
+    low[wick] = 85.0
+    close[wick] = 95.0
+    high[wick] = 100.0
+    close[bar] = 100.0
+    high[bar] = 101.0
+    low[bar] = 99.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("utc_open_fail_reversion", candles)
+    for column in ("signal", "side", "score", "reason", "box_high", "box_low", "box_mid"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == 1
+    assert signals["box_high"].iloc[bar] == pytest.approx(110.0)
+    assert signals["box_low"].iloc[bar] == pytest.approx(90.0)
+    assert signals["box_mid"].iloc[bar] == pytest.approx(100.0)
+
+
+def test_utc_open_fail_reversion_short_entry() -> None:
+    n = 72
+    index = _hourly(n)
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    for hour in range(4):
+        i = int(index.get_loc(pd.Timestamp(f"2024-01-03 {hour:02d}:00", tz="UTC")))
+        high[i] = 110.0
+        low[i] = 90.0
+        close[i] = 100.0
+    bar = _utc_second_4h_iloc(index)
+    wick = int(index.get_loc(pd.Timestamp("2024-01-03 05:00", tz="UTC")))
+    high[wick] = 115.0
+    close[wick] = 105.0
+    low[wick] = 100.0
+    close[bar] = 100.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("utc_open_fail_reversion", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == -1
+
+
+def test_utc_open_fail_reversion_ignores_held_breakout() -> None:
+    """A second-4h close still outside the box is a break, not a fail."""
+    n = 72
+    index = _hourly(n)
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    for hour in range(4):
+        i = int(index.get_loc(pd.Timestamp(f"2024-01-03 {hour:02d}:00", tz="UTC")))
+        high[i] = 110.0
+        low[i] = 90.0
+    bar = _utc_second_4h_iloc(index)
+    low[bar] = 80.0
+    close[bar] = 84.0
+    high[bar] = 95.0
+    candles = _ohlcv(index, close, high=high, low=low)
+    signals = _signals("utc_open_fail_reversion", candles)
+    assert int(signals["signal"].iloc[bar]) == 0
+
+
+def test_utc_open_fail_reversion_not_asian_or_midnight() -> None:
+    """No entry on the first 4h bar or after 08:00 (Asian-range / midnight families)."""
+    n = 72
+    index = _hourly(n)
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    first = int(index.get_loc(pd.Timestamp("2024-01-03 00:00", tz="UTC")))
+    low[first] = 80.0
+    close[first] = 85.0
+    after = int(index.get_loc(pd.Timestamp("2024-01-03 08:00", tz="UTC")))
+    low[after] = 85.0
+    close[after] = 95.0
+    candles = _ohlcv(index, close, high=high, low=low)
+    signals = _signals("utc_open_fail_reversion", candles)
+    assert int(signals["signal"].iloc[first]) == 0
+    assert int(signals["signal"].iloc[after]) == 0
+
+
+def _compress_then_thrust(*, long_side: bool, n: int = 160, poke: int = 140) -> pd.DataFrame:
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 102.0)
+    low = np.full(n, 98.0)
+    # Wide early ranges lift ATR; later bars tighten so 20-ATR sits in the bottom 30%.
+    high[40:poke] = 100.15
+    low[40:poke] = 99.85
+    volume = np.full(n, 200.0)
+    if long_side:
+        open_[poke] = 100.0
+        close[poke] = 112.0
+        high[poke] = 113.0
+        low[poke] = 99.5
+    else:
+        open_[poke] = 100.0
+        close[poke] = 88.0
+        high[poke] = 100.5
+        low[poke] = 87.0
+    volume[poke] = 8_000.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    return candles
+
+
+def test_range_compression_volume_thrust_schema_and_long_entry() -> None:
+    candles = _compress_then_thrust(long_side=True)
+    signals = _signals("range_compression_volume_thrust", candles)
+    for column in ("signal", "side", "score", "reason", "atr", "true_range", "compressed"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+
+
+def test_range_compression_volume_thrust_short_entry() -> None:
+    candles = _compress_then_thrust(long_side=False)
+    signals = _signals("range_compression_volume_thrust", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+
+
+def test_range_compression_volume_thrust_requires_atr_squeeze() -> None:
+    """A thrust outside ATR-percentile compression is not this family."""
+    n = 160
+    close = 100.0 + 6.0 * np.sin(np.arange(n) / 3.0)
+    high = close + 2.0
+    low = close - 2.0
+    open_ = close.copy()
+    open_[-1] = close[-1] - 8.0
+    close[-1] = close[-1] + 8.0
+    high[-1] = close[-1] + 1.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = 8_000.0
+    signals = _signals("range_compression_volume_thrust", candles)
+    assert int(signals["signal"].iloc[-1]) == 0
+
+
+def test_range_compression_volume_thrust_not_nr7_or_bb_width() -> None:
+    """Kit does not search NR7 lookback or BB width; compression is ATR percentile."""
+    from research.validate import strategy_kit
+
+    _factory, _base, space = strategy_kit("range_compression_volume_thrust", SignalSide.LONG)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"compress_pct", "thrust_mult"}
+    assert "lookback" not in space
+    assert "band_k" not in space
+    assert "skip_bull" not in space
+
+
+def test_turnover_climax_rejection_fade_schema_and_long_entry() -> None:
+    n = 60
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    low[50] = 90.0
+    high[50] = 100.0
+    close[50] = 99.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["turnover"] = 1_000.0
+    candles.loc[candles.index[50], "turnover"] = 50_000.0
+    signals = _signals("turnover_climax_rejection_fade", candles)
+    for column in ("signal", "side", "score", "reason", "prior_high", "prior_low", "close_frac", "climax"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[50]) == 1
+    assert signals["close_frac"].iloc[50] == pytest.approx(0.90)
+    assert int((signals["signal"] == 1).sum()) >= 1
+
+
+def test_turnover_climax_rejection_fade_short_entry() -> None:
+    n = 60
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    high[50] = 110.0
+    low[50] = 100.0
+    close[50] = 101.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["turnover"] = 1_000.0
+    candles.loc[candles.index[50], "turnover"] = 50_000.0
+    signals = _signals("turnover_climax_rejection_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[50]) == -1
+    assert signals["close_frac"].iloc[50] == pytest.approx(0.10)
+
+
+def test_turnover_climax_rejection_fade_reads_turnover() -> None:
+    n = 60
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    low[50] = 90.0
+    high[50] = 100.0
+    close[50] = 99.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low)
+    candles["turnover"] = 1_000.0
+    candles.loc[candles.index[50], "turnover"] = 50_000.0
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("turnover_climax_rejection_fade", SignalSide.LONG)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "reject_frac"}
+    sleeve = factory(base)
+    with pytest.raises(ValueError, match="turnover"):
+        sleeve.generate_signals(candles.drop(columns=["turnover"]))
+    # Same price rejection without a turnover climax is not this fade.
+    quiet = candles.copy()
+    quiet["turnover"] = 1_000.0
+    assert int(sleeve.generate_signals(quiet)["signal"].iloc[50]) == 0
+
+
+def test_volume_dryup_range_break_schema_and_long_entry() -> None:
+    n = 60
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    close[49] = 108.0
+    high[49] = 109.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    volume = np.full(n, 1_000.0)
+    volume[46:49] = 50.0
+    volume[49] = 8_000.0
+    candles["volume"] = volume
+    signals = _signals("volume_dryup_range_break", candles)
+    for column in ("signal", "side", "score", "reason", "box_high", "box_low", "vol_mean"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[49]) == 1
+    assert signals["box_high"].iloc[49] == pytest.approx(101.0)
+
+
+def test_volume_dryup_range_break_short_entry() -> None:
+    n = 60
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    close[49] = 92.0
+    low[49] = 91.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    volume = np.full(n, 1_000.0)
+    volume[46:49] = 50.0
+    volume[49] = 8_000.0
+    candles["volume"] = volume
+    signals = _signals("volume_dryup_range_break", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[49]) == -1
+
+
+def test_volume_dryup_range_break_requires_three_dry_bars() -> None:
+    n = 60
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    close[49] = 108.0
+    high[49] = 109.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low)
+    volume = np.full(n, 1_000.0)
+    volume[48] = 50.0
+    volume[49] = 8_000.0
+    candles["volume"] = volume
+    signals = _signals("volume_dryup_range_break", candles)
+    assert int(signals["signal"].iloc[49]) == 0
+
+
+def test_inbox_walk_kits_max_two_free_params() -> None:
+    from research.validate import strategy_kit
+
+    for name, extra_keys in (
+        ("london_close_inventory_fade", {"extreme_frac", "vol_lookback"}),
+        ("utc_open_fail_reversion", set()),
+        ("range_compression_volume_thrust", {"compress_pct", "thrust_mult"}),
+        ("turnover_climax_rejection_fade", {"lookback", "reject_frac"}),
+        ("volume_dryup_range_break", {"dry_bars", "vol_lookback"}),
+    ):
+        _factory, _base, space = strategy_kit(name, SignalSide.LONG)
+        extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+        assert extra == extra_keys
+        assert "skip_bull" not in space
+        assert len(extra) <= 2
+
+
 def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
     from research.validate import strategy_kit
 
@@ -2279,6 +2695,9 @@ def test_novel_no_lookahead_truncation(name: str) -> None:
     if name == "connors_rsi_fade":
         candles = _ohlcv(_hourly(180), np.linspace(100, 110, 180))
         cut = 140
+    if name == "range_compression_volume_thrust":
+        candles = _ohlcv(_hourly(180), np.linspace(100, 110, 180))
+        cut = 140
     signals_full = _signals(name, candles)
     truncated = _signals(name, candles.iloc[:cut])
     pd.testing.assert_series_equal(
@@ -2298,6 +2717,8 @@ def test_novel_future_shock_does_not_change_past(name: str) -> None:
     if name == "prior_week_high_break":
         candles = _ohlcv(_hourly(24 * 10, start="2024-01-01"), np.full(24 * 10, 100.0))
     if name == "connors_rsi_fade":
+        candles = _ohlcv(_hourly(180), np.linspace(100, 110, 180))
+    if name == "range_compression_volume_thrust":
         candles = _ohlcv(_hourly(180), np.linspace(100, 110, 180))
     shocked = candles.copy()
     shocked.iloc[-1, shocked.columns.get_loc("close")] *= 1.5

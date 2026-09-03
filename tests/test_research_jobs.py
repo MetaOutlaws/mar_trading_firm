@@ -304,6 +304,11 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "session_boundary_volume_fade" in coded
     assert "vwap_spread_exhaustion" in coded
     assert "vwap_volatility_band_fade" in coded
+    assert "london_close_inventory_fade" in coded
+    assert "utc_open_fail_reversion" in coded
+    assert "range_compression_volume_thrust" in coded
+    assert "turnover_climax_rejection_fade" in coded
+    assert "volume_dryup_range_break" in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
     assert "bar_vwap_inflow_surge" not in novel_ready
@@ -318,6 +323,11 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "session_boundary_volume_fade" not in novel_ready
     assert "vwap_spread_exhaustion" not in novel_ready
     assert "vwap_volatility_band_fade" not in novel_ready
+    assert "london_close_inventory_fade" not in novel_ready
+    assert "utc_open_fail_reversion" not in novel_ready
+    assert "range_compression_volume_thrust" not in novel_ready
+    assert "turnover_climax_rejection_fade" not in novel_ready
+    assert "volume_dryup_range_break" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -495,7 +505,7 @@ def test_already_tested_clock_does_not_spawn(tmp_path, monkeypatch) -> None:
     assert "already finished" in result["next_step"].lower()
 
 
-def test_next_step_after_htf_is_session_boundary_walk_forward(tmp_path, monkeypatch) -> None:
+def test_next_step_after_htf_is_london_close_walk_forward(tmp_path, monkeypatch) -> None:
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
@@ -515,14 +525,14 @@ def test_next_step_after_htf_is_session_boundary_walk_forward(tmp_path, monkeypa
         {"family": "trend_pullback_htf", "status": "done", "pairs_approved": 0}
     )
     assert spec is not None
-    assert spec["family"] == "session_boundary_volume_fade"
+    assert spec["family"] == "london_close_inventory_fade"
     assert spec["action"] == "walk_forward"
     assert spec["clock"] == "4h/4h"
     assert spec["side"] == "BOTH"
     assert spec["family"] != "funding_fade"
 
 
-def test_next_step_prefers_session_boundary_before_atr_followup(tmp_path, monkeypatch) -> None:
+def test_next_step_prefers_london_close_before_atr_followup(tmp_path, monkeypatch) -> None:
     from firm import research_catalog, research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
@@ -538,7 +548,7 @@ def test_next_step_prefers_session_boundary_before_atr_followup(tmp_path, monkey
         {"family": "atr_channel_breakout", "status": "done", "clock": "4h/4h", "pairs_approved": 0}
     )
     assert spec is not None
-    assert spec["family"] == "session_boundary_volume_fade"
+    assert spec["family"] == "london_close_inventory_fade"
     assert spec["clock"] == "4h/4h"
     assert spec["side"] == "BOTH"
     assert spec["action"] == "walk_forward"
@@ -756,6 +766,11 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "session_boundary_volume_fade" not in families
     assert "vwap_spread_exhaustion" not in families
     assert "vwap_volatility_band_fade" not in families
+    assert "london_close_inventory_fade" not in families
+    assert "utc_open_fail_reversion" not in families
+    assert "range_compression_volume_thrust" not in families
+    assert "turnover_climax_rejection_fade" not in families
+    assert "volume_dryup_range_break" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

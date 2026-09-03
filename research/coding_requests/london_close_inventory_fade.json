@@ -1,0 +1,15 @@
+{
+  "family": "london_close_inventory_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs the 4h bar covering 15:00\u201316:00 UTC and London-session VWAP (08:00\u201316:00), not UTC-midnight VWAP. Fade when that close is in the extreme 20% of the bar on volume above the prior-20 mean. Calendar London-close inventory. Not london_session_breakout. Not session_boundary_volume_fade. Not monday_range_sweep_reversal.",
+  "summary": "Fade an extreme London-close 4h bar on high volume, back to London VWAP.",
+  "justification": "The London cash-close 4h bar faded to London VWAP is not a London-range breakout and not a UTC-day box fade.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T05:30:37.478399+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/london_close_inventory_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

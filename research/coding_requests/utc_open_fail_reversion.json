@@ -1,0 +1,15 @@
+{
+  "family": "utc_open_fail_reversion",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs the UTC day's first 4h (00:00\u201304:00) as a box, then a failed break on the second 4h (04:00\u201308:00) that closes back inside, fading toward the first-4h mid. Not utc_midnight_gap_fill. Not asian_range_breakout. Not session_liquidity_sweep.",
+  "summary": "Fade a failed break of the UTC day's first 4h box on the second 4h bar.",
+  "justification": "A failed second-4h break of the first-4h UTC box is not a midnight gap fill and not an Asian-range breakout.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T05:30:37.478399+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/utc_open_fail_reversion.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}
