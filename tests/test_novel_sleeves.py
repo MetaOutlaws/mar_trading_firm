@@ -2100,7 +2100,7 @@ def test_session_boundary_volume_fade_is_day_box_not_floor_pivot() -> None:
 
 
 def _vwap_spread_tape(*, pull_vwap_down: bool, n: int = 90) -> pd.DataFrame:
-    """Long flat range, then heavy volume on a small offset so VWAP leaves SMA."""
+    """Long flat range, then a short heavy-volume offset so VWAP leaves SMA."""
     close = np.full(n, 100.0)
     high = close + 1.0
     low = close - 1.0
@@ -2113,7 +2113,6 @@ def _vwap_spread_tape(*, pull_vwap_down: bool, n: int = 90) -> pd.DataFrame:
         low[i] = level - 1.0
         open_[i] = level
         volume[i] = 8_000.0
-    # Signal bar: still offset, expanding volume.
     volume[75] = 12_000.0
     if pull_vwap_down:
         close[75] = 97.5
@@ -2140,13 +2139,13 @@ def test_vwap_spread_exhaustion_schema_and_long_entry() -> None:
     assert len(fired) >= 1
     bar = fired[0]
     assert candles.loc[bar, "close"] < signals.loc[bar, "rolling_vwap"]
-    # Rolling VWAP, not a UTC-midnight session reset.
+    # Mean is rolling typical-price VWAP, not utc_session_vwap.
     from core.strategy import indicators as ind
 
-    session = ind.utc_session_vwap(
-        candles["high"], candles["low"], candles["close"], candles["volume"]
+    rolled = ind.rolling_vwap(
+        candles["high"], candles["low"], candles["close"], candles["volume"], 20
     )
-    assert signals.loc[bar, "rolling_vwap"] != pytest.approx(float(session.loc[bar]), abs=0.05)
+    assert signals.loc[bar, "rolling_vwap"] == pytest.approx(float(rolled.loc[bar]))
 
 
 def test_vwap_spread_exhaustion_short_entry() -> None:
@@ -2177,24 +2176,35 @@ def test_vwap_spread_exhaustion_kit_has_two_free_params_no_skip_bull() -> None:
 
 
 def _vwap_band_squeeze_tape(*, long_side: bool, n: int = 160) -> pd.DataFrame:
-    """Wide oscillation, then a tight range, then a poke of the VWAP band."""
+    """Wide oscillation, then a tight range with volume skew so VWAP ≠ SMA."""
     idx = np.arange(n, dtype="float64")
-    close = np.where(idx < 90, 100.0 + 6.0 * np.sin(idx / 3.0), 100.0 + 0.15 * np.sin(idx))
+    close = np.where(idx < 90, 100.0 + 6.0 * np.sin(idx / 3.0), 100.0)
+    # Tight squeeze with a one-sided volume pulse so rolling VWAP leaves the SMA.
+    for i in range(90, n):
+        if i % 3 == 0:
+            close[i] = 101.2
     high = close + 0.4
     low = close - 0.4
     open_ = close.copy()
+    volume = np.full(n, 100.0)
+    volume[90:] = np.where(np.arange(n)[90:] % 3 == 0, 8_000.0, 100.0)
     poke = 140
     if long_side:
         close[poke] = 97.0
         low[poke] = 96.0
         high[poke] = 98.5
         open_[poke] = 99.5
+        volume[poke] = 100.0
     else:
         close[poke] = 103.0
         high[poke] = 104.0
         low[poke] = 101.5
         open_[poke] = 100.5
-    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+        volume[poke] = 100.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = volume * candles["close"].to_numpy()
+    return candles
 
 
 def test_vwap_volatility_band_fade_schema_and_long_entry() -> None:
@@ -2223,9 +2233,9 @@ def test_vwap_volatility_band_fade_bands_are_vwap_not_bollinger() -> None:
     assert len(fired) >= 1
     bar = fired[0]
     mid, bb_upper, bb_lower = ind.bollinger_bands(candles["close"], 20, 2.0)
-    assert signals.loc[bar, "rolling_vwap"] != pytest.approx(float(mid.loc[bar]), abs=0.01)
-    assert signals.loc[bar, "vwap_upper"] != pytest.approx(float(bb_upper.loc[bar]), abs=0.01)
-    assert signals.loc[bar, "vwap_lower"] != pytest.approx(float(bb_lower.loc[bar]), abs=0.01)
+    assert abs(float(signals.loc[bar, "rolling_vwap"]) - float(mid.loc[bar])) > 0.15
+    assert abs(float(signals.loc[bar, "vwap_upper"]) - float(bb_upper.loc[bar])) > 0.15
+    assert abs(float(signals.loc[bar, "vwap_lower"]) - float(bb_lower.loc[bar])) > 0.15
 
 
 def test_vwap_volatility_band_fade_requires_bb_width_squeeze() -> None:
