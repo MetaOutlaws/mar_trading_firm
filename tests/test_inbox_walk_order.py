@@ -19,8 +19,8 @@ from firm.sleeve_factory import CANDIDATE_SPECS
 from research.validate import strategy_kit
 
 
-def test_inbox_walk_order_is_pr12_five_then_body_then_week_then_session_mid() -> None:
-    """Leftover walk order: PR-12 five, then body_efficiency, week_open, prior_session_mid."""
+def test_inbox_walk_order_is_pr13_three_then_clv_then_open_fail_then_restest() -> None:
+    """Leftover walk order: PR-12/13 eight, then close_location, open_in_prior, restest."""
     assert INBOX_WALK_ORDER == (
         "london_close_inventory_fade",
         "utc_open_fail_reversion",
@@ -30,11 +30,14 @@ def test_inbox_walk_order_is_pr12_five_then_body_then_week_then_session_mid() ->
         "body_efficiency_follow",
         "week_open_reclaim",
         "prior_session_mid_reclaim",
+        "close_location_persistence",
+        "open_in_prior_range_fail",
+        "equal_high_low_restest_fade",
     )
     leftover = remaining_hypotheses([])
     families = [str(row.get("family") or "") for row in leftover]
     first = [f for f in families if f in INBOX_WALK_ORDER]
-    assert first[:8] == list(INBOX_WALK_ORDER)
+    assert first[:11] == list(INBOX_WALK_ORDER)
     by_id = {str(row["id"]): row for row in leftover}
     for name in INBOX_WALK_ORDER:
         row = by_id[f"{name}@4h/4h"]
@@ -43,8 +46,8 @@ def test_inbox_walk_order_is_pr12_five_then_body_then_week_then_session_mid() ->
 
 
 def test_inbox_names_stay_both_max_two_free_params_no_skip_bull() -> None:
-    """Inbox walk-order families: eight names, BOTH honest, at most two free params."""
-    assert len(INBOX_BOTH_FAMILIES) == 8
+    """Inbox walk-order families: eleven names, BOTH honest, at most two free params."""
+    assert len(INBOX_BOTH_FAMILIES) == 11
     assert list(INBOX_BOTH_FAMILIES) == list(INBOX_WALK_ORDER)
     coded = set(list_strategies())
     specs = {spec.name: spec for spec in CANDIDATE_SPECS}

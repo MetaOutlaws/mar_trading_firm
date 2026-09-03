@@ -109,6 +109,9 @@ APPROVED = [
     "body_efficiency_follow",
     "week_open_reclaim",
     "prior_session_mid_reclaim",
+    "close_location_persistence",
+    "open_in_prior_range_fail",
+    "equal_high_low_restest_fade",
 ]
 
 
@@ -2924,6 +2927,230 @@ def test_prior_session_mid_reclaim_not_vwap_or_day_box_or_first4h() -> None:
     assert int(_signals("prior_session_mid_reclaim", quiet)["signal"].iloc[reclaim]) == 0
 
 
+def _clv_persistence_tape(*, long_side: bool, n: int = 50) -> pd.DataFrame:
+    """Upper-quartile closes persist; body efficiency stays low; not a 20-bar extreme.
+
+    Close sits in the top (bottom) 20% of a 2-point range so mean CLV is ~0.80
+    (0.20). Open sits near mid-range so the lower wick is 0.5 — below the
+    wick-rejection floor — and |close-open|/TR is well under 0.7.
+    """
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    if long_side:
+        # Keep this close high inside the 20-bar window of the persistence bars.
+        close[18] = 110.0
+        high[18] = 111.0
+        low[18] = 99.0
+        open_[18] = 100.0
+        for i in range(22, n):
+            open_[i] = 100.0
+            close[i] = 100.6
+            high[i] = 101.0
+            low[i] = 99.0
+    else:
+        close[18] = 90.0
+        high[18] = 101.0
+        low[18] = 89.0
+        open_[18] = 100.0
+        for i in range(22, n):
+            open_[i] = 100.0
+            close[i] = 99.4
+            high[i] = 101.0
+            low[i] = 99.0
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+
+
+def test_close_location_persistence_schema_and_long_entry() -> None:
+    candles = _clv_persistence_tape(long_side=True)
+    signals = _signals("close_location_persistence", candles)
+    for column in ("signal", "side", "score", "reason", "clv", "mean_clv", "close_high"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    fired = signals.index[signals["signal"] == 1]
+    assert float(signals.loc[fired[0], "mean_clv"]) >= 0.75
+    assert float(candles.loc[fired[0], "close"]) < float(signals.loc[fired[0], "close_high"])
+
+
+def test_close_location_persistence_short_entry() -> None:
+    candles = _clv_persistence_tape(long_side=False)
+    signals = _signals("close_location_persistence", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    fired = signals.index[signals["signal"] == -1]
+    assert float(signals.loc[fired[0], "mean_clv"]) <= 0.25
+
+
+def test_close_location_persistence_not_body_efficiency_or_wick() -> None:
+    """Mean CLV persist is not a two-bar efficient follow and not a wick fade."""
+    from core.strategy import indicators as ind
+
+    candles = _clv_persistence_tape(long_side=True)
+    persist = _signals("close_location_persistence", candles)
+    follow = _signals("body_efficiency_follow", candles)
+    wick = _signals("wick_rejection_reversal", candles)
+    fired = persist.index[persist["signal"] == 1]
+    assert len(fired) >= 1
+    bar = fired[0]
+    assert int(persist.loc[bar, "signal"]) == 1
+    assert int(follow.loc[bar, "signal"]) == 0
+    assert int(wick.loc[bar, "signal"]) == 0
+    clv = ind.close_location_value(candles["high"], candles["low"], candles["close"])
+    eff = ind.body_efficiency(
+        candles["open"], candles["high"], candles["low"], candles["close"]
+    )
+    assert float(clv.loc[bar]) >= 0.75
+    assert float(eff.loc[bar]) < 0.7
+    # A new 20-bar close high is not this family — that is a breakout.
+    blocked = candles.copy()
+    idx = blocked.index[30]
+    blocked.loc[idx, "close"] = 120.0
+    blocked.loc[idx, "high"] = 121.0
+    blocked.loc[idx, "low"] = 99.0
+    blocked.loc[idx, "open"] = 100.0
+    quiet = _signals("close_location_persistence", blocked)
+    assert int(quiet["signal"].iloc[30]) == 0
+
+
+def _prior_range_fail_tape(*, long_side: bool, n: int = 24) -> tuple[pd.DataFrame, int]:
+    """Mid-day adjacent-bar open-outside then close-back-inside. Not UTC 04:00."""
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    bar = 12  # 12:00 UTC on a 2024-01-02 hourly tape.
+    if long_side:
+        open_[bar] = 90.0
+        close[bar] = 100.0
+        high[bar] = 101.0
+        low[bar] = 89.0
+    else:
+        open_[bar] = 110.0
+        close[bar] = 100.0
+        high[bar] = 111.0
+        low[bar] = 99.0
+    candles = _ohlcv(_hourly(n, start="2024-01-02"), close, high=high, low=low, open_=open_)
+    return candles, bar
+
+
+def test_open_in_prior_range_fail_schema_and_long_entry() -> None:
+    candles, bar = _prior_range_fail_tape(long_side=True)
+    signals = _signals("open_in_prior_range_fail", candles)
+    for column in ("signal", "side", "score", "reason", "prior_high", "prior_low", "prior_mid"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["prior_high"].iloc[bar] == pytest.approx(101.0)
+    assert signals["prior_low"].iloc[bar] == pytest.approx(99.0)
+    assert signals["prior_mid"].iloc[bar] == pytest.approx(100.0)
+
+
+def test_open_in_prior_range_fail_short_entry() -> None:
+    candles, bar = _prior_range_fail_tape(long_side=False)
+    signals = _signals("open_in_prior_range_fail", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[bar]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+
+
+def test_open_in_prior_range_fail_not_utc_first4h_or_ny_drive() -> None:
+    """12:00 adjacent-bar fail is not the UTC first-4h box and not NY 13:00."""
+    candles, bar = _prior_range_fail_tape(long_side=True)
+    signals = _signals("open_in_prior_range_fail", candles)
+    utc_fail = _signals("utc_open_fail_reversion", candles)
+    ny = _signals("ny_cash_open_drive", candles)
+    assert int(signals["signal"].iloc[bar]) == 1
+    assert int(utc_fail["signal"].iloc[bar]) == 0
+    assert int(ny["signal"].iloc[bar]) == 0
+    assert "box_high" not in signals.columns
+    # Close still outside the prior range is a held break, not a fail.
+    held = candles.copy()
+    held.loc[held.index[bar], "close"] = 88.0
+    held.loc[held.index[bar], "low"] = 87.0
+    assert int(_signals("open_in_prior_range_fail", held)["signal"].iloc[bar]) == 0
+
+
+def _equal_restest_tape(*, long_side: bool, n: int = 50) -> tuple[pd.DataFrame, int]:
+    """Two matching prior highs/lows, then this bar pokes through and fails back."""
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    # Both touches sit inside the default lookback=12 prior window at `poke`.
+    first, second, poke = 30, 36, 42
+    if long_side:
+        for i in (first, second):
+            low[i] = 90.0
+            close[i] = 92.0
+            high[i] = 101.0
+            open_[i] = 100.0
+        low[poke] = 88.0
+        close[poke] = 92.0
+        high[poke] = 101.0
+        open_[poke] = 100.0
+    else:
+        for i in (first, second):
+            high[i] = 110.0
+            close[i] = 108.0
+            low[i] = 99.0
+            open_[i] = 100.0
+        high[poke] = 112.0
+        close[poke] = 108.0
+        low[poke] = 99.0
+        open_[poke] = 100.0
+    candles = _ohlcv(_hourly(n, start="2024-01-03"), close, high=high, low=low, open_=open_)
+    return candles, poke
+
+
+def test_equal_high_low_restest_fade_schema_and_long_entry() -> None:
+    candles, poke = _equal_restest_tape(long_side=True)
+    signals = _signals("equal_high_low_restest_fade", candles)
+    for column in ("signal", "side", "score", "reason", "equal_high", "equal_low", "tol"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[poke]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["equal_low"].iloc[poke] == pytest.approx(90.0)
+
+
+def test_equal_high_low_restest_fade_short_entry() -> None:
+    candles, poke = _equal_restest_tape(long_side=False)
+    signals = _signals("equal_high_low_restest_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[poke]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["equal_high"].iloc[poke] == pytest.approx(110.0)
+
+
+def test_equal_high_low_restest_fade_not_monday_or_session_sweep() -> None:
+    """Rolling equal-high restest on a Wednesday is not a weekend or Asian box."""
+    candles, poke = _equal_restest_tape(long_side=False)
+    signals = _signals("equal_high_low_restest_fade", candles, side=SignalSide.SHORT)
+    monday = _signals("monday_range_sweep_reversal", candles, side=SignalSide.SHORT)
+    asian = _signals("session_liquidity_sweep", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[poke]) == -1
+    assert int(monday["signal"].iloc[poke]) == 0
+    assert int(asian["signal"].iloc[poke]) == 0
+    assert "weekend_mid" not in signals.columns
+    assert "range_high" not in signals.columns
+    # One isolated high is not an equal-high cluster — no fade.
+    lonely = candles.copy()
+    lonely.loc[lonely.index[30], "high"] = 101.0
+    lonely.loc[lonely.index[30], "close"] = 100.0
+    assert int(
+        _signals("equal_high_low_restest_fade", lonely, side=SignalSide.SHORT)["signal"].iloc[poke]
+    ) == 0
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -2936,6 +3163,9 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("body_efficiency_follow", {"min_efficiency"}),
         ("week_open_reclaim", {"min_wrong_closes", "vol_lookback"}),
         ("prior_session_mid_reclaim", {"vol_lookback"}),
+        ("close_location_persistence", {"lookback", "clv_threshold"}),
+        ("open_in_prior_range_fail", set()),
+        ("equal_high_low_restest_fade", {"lookback", "tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

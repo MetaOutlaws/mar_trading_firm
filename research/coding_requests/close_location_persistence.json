@@ -1,0 +1,15 @@
+{
+  "family": "close_location_persistence",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs CLV=(close-low)/(high-low) averaged over lookback (default 8). LONG when mean CLV>=0.75 and current close is not a 20-bar high. SHORT when mean CLV<=0.25 and current close is not a 20-bar low. Free params: lookback, clv_threshold. Not body_efficiency_follow. Not wick_rejection_reversal. Not turnover, session/VWAP, or week-open.",
+  "summary": "Follow persistent close location (mean CLV) without a new 20-bar close extreme.",
+  "justification": "Auction location persistence across bars is not body occupancy, not a wick rejection, not turnover, not session/VWAP, and not week-open. A doji at the high has CLV near 1 and efficiency near 0.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T06:12:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/close_location_persistence.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

@@ -155,6 +155,9 @@ CLOCK_BY_FAMILY = {
     "body_efficiency_follow": "4h/4h",
     "week_open_reclaim": "4h/4h",
     "prior_session_mid_reclaim": "4h/4h",
+    "close_location_persistence": "4h/4h",
+    "open_in_prior_range_fail": "4h/4h",
+    "equal_high_low_restest_fade": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
