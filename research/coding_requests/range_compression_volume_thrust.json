@@ -1,0 +1,15 @@
+{
+  "family": "range_compression_volume_thrust",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs 20-bar ATR in the bottom 30% of its 100-bar range, then a bar with true range > 1.5\u00d7 ATR, close in the bar's direction, and volume above the prior-20 mean. Compression is ATR percentile only. Not squeeze_momentum_break. Not nr7_breakout. Not bb_squeeze_breakout.",
+  "summary": "Follow a volume-thrust bar that exits ATR compression.",
+  "justification": "ATR-percentile compression plus a volume-confirmed range expansion is not a BB-width squeeze and not NR7.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T05:30:37.478399+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/range_compression_volume_thrust.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

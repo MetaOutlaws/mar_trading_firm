@@ -34,6 +34,11 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "session_boundary_volume_fade" not in names
     assert "vwap_spread_exhaustion" not in names
     assert "vwap_volatility_band_fade" not in names
+    assert "london_close_inventory_fade" not in names
+    assert "utc_open_fail_reversion" not in names
+    assert "range_compression_volume_thrust" not in names
+    assert "turnover_climax_rejection_fade" not in names
+    assert "volume_dryup_range_break" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

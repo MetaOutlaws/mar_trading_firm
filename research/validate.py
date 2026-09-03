@@ -870,6 +870,39 @@ def _novel_kit(name: str, side: SignalSide):
             # Squeeze locked at bottom 30% of 100 bars. Search band_k only.
             {"band_k": [1.5, 2.0]},
         ),
+        "london_close_inventory_fade": (
+            "core.strategy.london_close_inventory_fade",
+            "LondonCloseInventoryFadeParams",
+            "LondonCloseInventoryFadeStrategy",
+            # Extreme 20% and prior-20 volume mean. At most two free params.
+            {"extreme_frac": [0.20], "vol_lookback": [20]},
+        ),
+        "utc_open_fail_reversion": (
+            "core.strategy.utc_open_fail_reversion",
+            "UtcOpenFailReversionParams",
+            "UtcOpenFailReversionStrategy",
+            # First-4h box and second-4h fail are locked. Do not search ORB hours.
+            {},
+        ),
+        "range_compression_volume_thrust": (
+            "core.strategy.range_compression_volume_thrust",
+            "RangeCompressionVolumeThrustParams",
+            "RangeCompressionVolumeThrustStrategy",
+            # ATR period / 100-bar lookback locked. Search compress + thrust.
+            {"compress_pct": [0.30], "thrust_mult": [1.5]},
+        ),
+        "turnover_climax_rejection_fade": (
+            "core.strategy.turnover_climax_rejection_fade",
+            "TurnoverClimaxRejectionFadeParams",
+            "TurnoverClimaxRejectionFadeStrategy",
+            {"lookback": [20], "reject_frac": [0.20]},
+        ),
+        "volume_dryup_range_break": (
+            "core.strategy.volume_dryup_range_break",
+            "VolumeDryupRangeBreakParams",
+            "VolumeDryupRangeBreakStrategy",
+            {"dry_bars": [3], "vol_lookback": [20]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
