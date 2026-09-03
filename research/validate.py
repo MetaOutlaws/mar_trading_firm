@@ -924,6 +924,27 @@ def _novel_kit(name: str, side: SignalSide):
             # 8h UTC slots locked. Search the volume lookback only.
             {"vol_lookback": [20]},
         ),
+        "close_location_persistence": (
+            "core.strategy.close_location_persistence",
+            "CloseLocationPersistenceParams",
+            "CloseLocationPersistenceStrategy",
+            # 20-bar extreme locked. Search lookback and CLV floor.
+            {"lookback": [5, 8], "clv_threshold": [0.70, 0.75]},
+        ),
+        "open_in_prior_range_fail": (
+            "core.strategy.open_in_prior_range_fail",
+            "OpenInPriorRangeFailParams",
+            "OpenInPriorRangeFailStrategy",
+            # Adjacent-bar open/fail is locked. Do not search UTC box hours.
+            {},
+        ),
+        "equal_high_low_restest_fade": (
+            "core.strategy.equal_high_low_restest_fade",
+            "EqualHighLowRestestFadeParams",
+            "EqualHighLowRestestFadeStrategy",
+            # ATR period locked. Search lookback and ATR-tolerance multiple.
+            {"lookback": [8, 12], "tol_atr": [0.10, 0.15]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

@@ -387,6 +387,43 @@ def test_body_efficiency_is_body_over_true_range():
     assert eff.iloc[0] == pytest.approx(0.0)
 
 
+def test_close_location_value_doji_at_high_is_one_efficiency_near_zero():
+    """A doji pinned at the high has CLV near 1 and body efficiency near 0."""
+    index = pd.date_range("2024-01-02", periods=2, freq="h", tz="UTC")
+    open_ = pd.Series([100.05, 100.05], index=index)
+    close = pd.Series([100.10, 100.10], index=index)
+    high = pd.Series([100.15, 100.15], index=index)
+    low = pd.Series([90.0, 90.0], index=index)
+    clv = ind.close_location_value(high, low, close)
+    eff = ind.body_efficiency(open_, high, low, close)
+    assert clv.iloc[1] == pytest.approx((100.10 - 90.0) / (100.15 - 90.0))
+    assert clv.iloc[1] > 0.99
+    assert eff.iloc[1] < 0.05
+    mean_clv = ind.mean_close_location(high, low, close, lookback=2)
+    assert mean_clv.iloc[1] == pytest.approx(float(clv.mean()))
+    # Zero-range bar is 0.5, not a divide-by-zero.
+    flat = pd.Series([100.0], index=index[:1])
+    assert ind.close_location_value(flat, flat, flat).iloc[0] == pytest.approx(0.5)
+
+
+def test_rolling_second_max_min_are_causal():
+    index = pd.date_range("2024-01-02", periods=5, freq="h", tz="UTC")
+    high = pd.Series([1.0, 3.0, 2.0, 5.0, 4.0], index=index)
+    low = pd.Series([10.0, 8.0, 9.0, 6.0, 7.0], index=index)
+    second_high = ind.rolling_second_max(high, 3)
+    second_low = ind.rolling_second_min(low, 3)
+    assert pd.isna(second_high.iloc[1])
+    assert second_high.iloc[2] == pytest.approx(2.0)
+    assert second_high.iloc[3] == pytest.approx(3.0)
+    assert second_low.iloc[2] == pytest.approx(9.0)
+    assert second_low.iloc[3] == pytest.approx(8.0)
+    # Last-bar shock cannot rewrite a prior second-extreme.
+    shocked = high.copy()
+    shocked.iloc[-1] = 100.0
+    after = ind.rolling_second_max(shocked, 3)
+    pd.testing.assert_series_equal(second_high.iloc[:-1], after.iloc[:-1])
+
+
 def test_iso_week_open_is_monday_0000_not_midweek():
     index = pd.date_range("2024-01-01", periods=48, freq="h", tz="UTC")
     open_ = pd.Series(100.0, index=index)

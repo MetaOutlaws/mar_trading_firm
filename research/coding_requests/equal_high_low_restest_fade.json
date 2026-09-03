@@ -1,0 +1,15 @@
+{
+  "family": "equal_high_low_restest_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Rolling equal high/low restest fail. If a 4h high (low) matches a prior high (low) within a small tick/ATR tolerance inside a lookback, then this bar trades through that level and closes back inside, fade the failed restest. Not monday_range_sweep_reversal (weekend box). Not session_liquidity_sweep (dead, do not recode).",
+  "summary": "Fade a failed restest of a rolling equal high or equal low.",
+  "justification": "A rolling equal-high/low restest fail is not a weekend-box Monday sweep and not the dead Asian-session liquidity sweep.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T06:12:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/equal_high_low_restest_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

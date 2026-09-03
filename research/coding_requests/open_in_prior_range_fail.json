@@ -1,0 +1,15 @@
+{
+  "family": "open_in_prior_range_fail",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "If this 4h opens outside the prior 4h high-low, then the close fails back inside that prior range, fade toward the prior-bar mid (SHORT if opened above prior high and closed back inside; LONG if opened below prior low and closed back inside). Not utc_open_fail_reversion (UTC first-4h box, 0/12). Not ny_cash_open_drive.",
+  "summary": "Fade a same-bar fail of an open that started outside the prior bar's range, toward the prior-bar mid.",
+  "justification": "An adjacent-bar open-outside then close-back-inside fail is not a UTC first-4h box fail and not a NY cash-open drive.",
+  "status": "inbox_approved",
+  "written_at": "2026-09-03T06:12:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/open_in_prior_range_fail.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

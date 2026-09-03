@@ -1593,6 +1593,63 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "not a first-4h opening-box fail."
         ),
     ),
+    SleeveSpec(
+        name="close_location_persistence",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Needs CLV=(close-low)/(high-low) averaged over lookback "
+            "(default 8). LONG when mean CLV>=0.75 and current close is not "
+            "a 20-bar high. SHORT when mean CLV<=0.25 and current close is "
+            "not a 20-bar low. Free params: lookback, clv_threshold. Not "
+            "body_efficiency_follow (body occupancy). Not "
+            "wick_rejection_reversal. Not turnover, session/VWAP, or week-open."
+        ),
+        summary="Follow persistent close location (mean CLV) without a new 20-bar close extreme.",
+        justification=(
+            "Auction location persistence across bars is not body occupancy, "
+            "not a wick rejection, not turnover, not session/VWAP, and not "
+            "week-open. A doji at the high has CLV near 1 and efficiency near 0."
+        ),
+    ),
+    SleeveSpec(
+        name="open_in_prior_range_fail",
+        template="novel",
+        clock="4h/4h",
+        novel_reason=(
+            "If this 4h opens outside the prior 4h high-low, then the close "
+            "fails back inside that prior range, fade toward the prior-bar "
+            "mid (SHORT if opened above prior high and closed back inside; "
+            "LONG if opened below prior low and closed back inside). Not "
+            "utc_open_fail_reversion (UTC first-4h box, 0/12). Not "
+            "ny_cash_open_drive."
+        ),
+        summary="Fade a same-bar fail of an open that started outside the prior bar's range, toward the prior-bar mid.",
+        justification=(
+            "An adjacent-bar open-outside then close-back-inside fail is not "
+            "a UTC first-4h box fail and not a NY cash-open drive."
+        ),
+    ),
+    SleeveSpec(
+        name="equal_high_low_restest_fade",
+        template="novel",
+        clock="4h/4h",
+        needs_new_indicator=True,
+        novel_reason=(
+            "Rolling equal high/low restest fail. If a 4h high (low) matches "
+            "a prior high (low) within a small tick/ATR tolerance inside a "
+            "lookback, then this bar trades through that level and closes "
+            "back inside, fade the failed restest. Family id is restest as "
+            "spelled, not retest. Not monday_range_sweep_reversal (weekend "
+            "box). Not session_liquidity_sweep (dead, do not recode)."
+        ),
+        summary="Fade a failed restest of a rolling equal high or equal low.",
+        justification=(
+            "A rolling equal-high/low restest fail is not a weekend-box "
+            "Monday sweep and not the dead Asian-session liquidity sweep."
+        ),
+    ),
 ]
 
 

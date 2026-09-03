@@ -378,6 +378,64 @@ def body_efficiency(
     return body / tr.replace(0, np.nan)
 
 
+def close_location_value(high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
+    """CLV = (close - low) / (high - low). 1.0 = close at the high, 0.0 at the low.
+
+    Bar-local auction location, not body occupancy. A doji pinned at the high
+    has CLV near 1 and body efficiency near 0. Zero-range bars are 0.5. Not
+    volume-weighted Chaikin CLV and not Kaufman ER.
+    """
+    if not high.index.equals(low.index) or not high.index.equals(close.index):
+        raise ValueError("high, low, close must share an index")
+    span = high.astype("float64") - low.astype("float64")
+    clv = (close.astype("float64") - low.astype("float64")) / span.replace(0, np.nan)
+    return clv.where(span > 0, 0.5)
+
+
+def mean_close_location(
+    high: pd.Series, low: pd.Series, close: pd.Series, lookback: int
+) -> pd.Series:
+    """Rolling mean of CLV over `lookback` bars ending at t (includes current)."""
+    if lookback <= 0:
+        raise ValueError(f"lookback must be positive, got {lookback}")
+    clv = close_location_value(high, low, close)
+    return clv.rolling(window=lookback, min_periods=lookback).mean()
+
+
+def rolling_second_max(series: pd.Series, window: int) -> pd.Series:
+    """Second-highest value in a causal rolling window of `window` bars ending at t."""
+    if window < 2:
+        raise ValueError(f"window must be >= 2, got {window}")
+
+    def _second(values: np.ndarray) -> float:
+        if len(values) < 2:
+            return np.nan
+        return float(np.partition(values, -2)[-2])
+
+    return (
+        series.astype("float64")
+        .rolling(window=window, min_periods=window)
+        .apply(_second, raw=True)
+    )
+
+
+def rolling_second_min(series: pd.Series, window: int) -> pd.Series:
+    """Second-lowest value in a causal rolling window of `window` bars ending at t."""
+    if window < 2:
+        raise ValueError(f"window must be >= 2, got {window}")
+
+    def _second(values: np.ndarray) -> float:
+        if len(values) < 2:
+            return np.nan
+        return float(np.partition(values, 1)[1])
+
+    return (
+        series.astype("float64")
+        .rolling(window=window, min_periods=window)
+        .apply(_second, raw=True)
+    )
+
+
 def iso_week_key(index: pd.Index) -> pd.Series:
     """ISO week id (Mon–Sun). Same W-SUN period as prior_utc_week_range."""
     utc_index = _as_utc_index(index)
