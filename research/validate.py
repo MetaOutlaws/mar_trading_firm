@@ -836,6 +836,18 @@ def _novel_kit(name: str, side: SignalSide):
             # search 0.618 / 1.618 — those are other families.
             {},
         ),
+        "monday_range_sweep_reversal": (
+            "core.strategy.monday_range_sweep_reversal",
+            "MondayRangeSweepReversalParams",
+            "MondayRangeSweepReversalStrategy",
+            {"max_sweep_pct": [0.01, 0.015]},
+        ),
+        "volume_imbalance_delta_reversal": (
+            "core.strategy.volume_imbalance_delta_reversal",
+            "VolumeImbalanceDeltaReversalParams",
+            "VolumeImbalanceDeltaReversalStrategy",
+            {"lookback": [20], "exhaust_share": [0.20]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

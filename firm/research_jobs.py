@@ -142,6 +142,8 @@ CLOCK_BY_FAMILY = {
     "up_down_turnover_imbalance": "4h/4h",
     "signed_range_turnover_trend": "4h/4h",
     "swing_anchored_vwap_pullback": "4h/4h",
+    "monday_range_sweep_reversal": "4h/4h",
+    "volume_imbalance_delta_reversal": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
