@@ -1,0 +1,14 @@
+{
+  "family": "up_down_turnover_imbalance",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": true,
+  "novel_reason": "Needs up-bar vs down-bar turnover (close>prior close vs close<prior close). imb=(sum_N up_to - sum_N down_to)/(sum_N up_to + sum_N down_to). LONG imb>k, SHORT imb<-k. Follow-the-money, not a fade. Not a close-only oscillator. Not OBV/VPT/Force/bar_vwap_inflow_surge/ADL/CMF. Do not cumsum. Do not invent taker/CVD/netflow/on-chain/funding columns.",
+  "summary": "Follow the money via up-bar vs down-bar turnover.",
+  "justification": "Turnover on up-closes versus down-closes is a participation split the close-only oscillators never see. A rolling imbalance of unused quote volume is not an OBV ledger and not a per-bar VWAP pulse.",
+  "written_at": "2026-09-03T03:30:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/up_down_turnover_imbalance.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file."
+}

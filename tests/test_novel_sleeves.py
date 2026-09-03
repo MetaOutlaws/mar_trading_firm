@@ -93,6 +93,9 @@ APPROVED = [
     "fib_retracement_bounce",
     "fib_extension_break",
     "measured_move_break",
+    "up_down_turnover_imbalance",
+    "signed_range_turnover_trend",
+    "swing_anchored_vwap_pullback",
 ]
 
 
@@ -1521,6 +1524,251 @@ def test_measured_move_break_ratio_locked_at_one() -> None:
     assert "skip_bear" not in space
     assert 1.618 not in space.get("take_profit_pct", [])
     assert 0.618 not in space.get("take_profit_pct", [])
+
+
+def _zigzag_turnover(
+    n: int = 80,
+    *,
+    up_mult: float = 1.0,
+    down_mult: float = 1.0,
+) -> pd.DataFrame:
+    """Oscillating close so up-bars and down-bars both exist.
+
+    Close 100, 101, 100, 101… keeps the price path identical while tests
+    reallocate turnover. A close-only oscillator cannot change side.
+    """
+    close = np.where(np.arange(n) % 2 == 0, 100.0, 101.0)
+    high = close + 0.4
+    low = close - 0.4
+    open_ = np.concatenate([[100.0], close[:-1]])
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    up = close > np.concatenate([[close[0]], close[:-1]])
+    down = close < np.concatenate([[close[0]], close[:-1]])
+    turnover = np.full(n, 1_000.0)
+    turnover[up] *= up_mult
+    turnover[down] *= down_mult
+    candles["turnover"] = turnover
+    return candles
+
+
+def test_up_down_turnover_imbalance_schema_and_long_entry() -> None:
+    candles = _zigzag_turnover(up_mult=12.0, down_mult=1.0)
+    signals = _signals("up_down_turnover_imbalance", candles)
+    for column in ("signal", "side", "score", "reason", "imbalance", "up_turnover", "down_turnover"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+
+
+def test_up_down_turnover_imbalance_short_entry() -> None:
+    candles = _zigzag_turnover(up_mult=1.0, down_mult=12.0)
+    signals = _signals("up_down_turnover_imbalance", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+
+
+def test_up_down_turnover_imbalance_reads_turnover_not_close_only() -> None:
+    """Same zigzag closes: only turnover allocation flips the side."""
+    from research.validate import strategy_kit
+
+    up_heavy = _zigzag_turnover(up_mult=12.0, down_mult=1.0)
+    down_heavy = _zigzag_turnover(up_mult=1.0, down_mult=12.0)
+    factory, base, _space = strategy_kit("up_down_turnover_imbalance", SignalSide.LONG)
+    sleeve = factory(base)
+    with pytest.raises(ValueError, match="turnover"):
+        sleeve.generate_signals(up_heavy.drop(columns=["turnover"]))
+    longs = sleeve.generate_signals(up_heavy)
+    quiet = sleeve.generate_signals(down_heavy)
+    assert int((longs["signal"] == 1).sum()) >= 1
+    assert int((quiet["signal"] == 1).sum()) == 0
+    short_factory, short_base, _ = strategy_kit(
+        "up_down_turnover_imbalance", SignalSide.SHORT
+    )
+    shorts = short_factory(short_base).generate_signals(down_heavy)
+    assert int((shorts["signal"] == -1).sum()) >= 1
+    # Equal turnover on the same path is a wash — no follow-the-money edge.
+    even = _zigzag_turnover(up_mult=1.0, down_mult=1.0)
+    flat = sleeve.generate_signals(even)
+    assert int((flat["signal"] == 1).sum()) == 0
+
+
+def _signed_range_tape(
+    n: int = 80,
+    *,
+    body: float = 0.2,
+    burst_body: float = 6.0,
+    burst_turnover: float = 20_000.0,
+    burst_start: int = 50,
+) -> pd.DataFrame:
+    """Quiet small bodies, then a same-sign body burst with heavy turnover."""
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0 - body)
+    high = close + 0.5
+    low = open_ - 0.5
+    volume = np.full(n, 1_000.0)
+    turnover = volume * 100.0
+    close[burst_start:] = 100.0 + burst_body
+    open_[burst_start:] = 100.0
+    high[burst_start:] = close[burst_start:] + 0.5
+    low[burst_start:] = open_[burst_start:] - 0.5
+    volume[burst_start:] = 2_000.0
+    turnover[burst_start:] = burst_turnover
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = turnover
+    return candles
+
+
+def test_signed_range_turnover_trend_schema_and_long_entry() -> None:
+    candles = _signed_range_tape()
+    signals = _signals("signed_range_turnover_trend", candles)
+    for column in ("signal", "side", "score", "reason", "signed_range", "pulse", "trend"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+
+
+def test_signed_range_turnover_trend_short_entry() -> None:
+    candles = _signed_range_tape(body=-0.2, burst_body=-6.0)
+    signals = _signals("signed_range_turnover_trend", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+
+
+def test_signed_range_turnover_trend_not_ema_adx_clone() -> None:
+    """Rising closes with red bodies go SHORT — EMA of close would stay long."""
+    from research.validate import strategy_kit
+
+    n = 80
+    close = np.linspace(90.0, 130.0, n)
+    # Quiet red bodies, then a heavy red burst. Close still rises, so an
+    # EMA-of-close trend would stay long; this family must go short.
+    open_ = close + 0.3
+    open_[50:] = close[50:] + 6.0
+    high = open_ + 0.3
+    low = close - 0.3
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    turnover = np.full(n, 1_000.0)
+    turnover[50:] = 20_000.0
+    candles["turnover"] = turnover
+    long_factory, long_base, space = strategy_kit(
+        "signed_range_turnover_trend", SignalSide.LONG
+    )
+    assert "ema_fast" not in space
+    assert "min_adx" not in space
+    longs = long_factory(long_base).generate_signals(candles)
+    assert int((longs["signal"] == 1).sum()) == 0
+    shorts = _signals("signed_range_turnover_trend", candles, side=SignalSide.SHORT)
+    assert int((shorts["signal"] == -1).sum()) >= 1
+    with pytest.raises(ValueError, match="turnover"):
+        long_factory(long_base).generate_signals(candles.drop(columns=["turnover"]))
+    # Same bodies, tiny turnover: participation is gone, trend stays asleep.
+    muted = candles.copy()
+    muted["turnover"] = 1.0
+    quiet = long_factory(long_base).generate_signals(muted)
+    assert int((quiet["signal"] == 1).sum()) == 0
+
+
+def _impulse_then_avwap_pullback(
+    *,
+    long_side: bool,
+    n: int = 80,
+    origin: float = 80.0,
+    extreme: float = 120.0,
+    swing_a: int = 10,
+    swing_b: int = 25,
+    pullback: int = 40,
+) -> pd.DataFrame:
+    """Plant two confirmed swings (left=3) then a pullback through AVWAP.
+
+    Background highs and lows are strictly increasing so `confirmed_swings`
+    cannot mint a later 101/99 pivot that overwrites the impulse. The
+    pullback tags a band wide enough to cross any AVWAP between origin
+    and extreme, which is also away from the 0.618 fib and the 1.618 ext.
+    """
+    drift = 0.01 * np.arange(n)
+    close = 100.0 + drift
+    high = 101.0 + drift
+    low = 99.0 + drift
+    open_ = 100.0 + drift
+    if long_side:
+        low[swing_a] = origin
+        close[swing_a] = min(close[swing_a], origin + 1.0)
+        high[swing_b] = extreme
+        close[swing_b] = extreme - 2.0
+        # Deep enough to tag AVWAP (~100) but not the origin (80).
+        low[pullback] = 92.0
+        high[pullback] = 108.0
+        close[pullback] = 106.0
+        open_[pullback] = 94.0
+    else:
+        high[swing_a] = extreme
+        close[swing_a] = extreme - 2.0
+        low[swing_b] = origin
+        close[swing_b] = origin + 2.0
+        high[pullback] = 108.0
+        low[pullback] = 92.0
+        close[pullback] = 94.0
+        open_[pullback] = 106.0
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+
+
+def test_swing_anchored_vwap_pullback_schema_and_long_entry() -> None:
+    candles = _impulse_then_avwap_pullback(long_side=True)
+    signals = _signals("swing_anchored_vwap_pullback", candles)
+    for column in ("signal", "side", "score", "reason", "swing_high", "swing_low", "avwap"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+
+
+def test_swing_anchored_vwap_pullback_short_entry() -> None:
+    candles = _impulse_then_avwap_pullback(long_side=False)
+    signals = _signals("swing_anchored_vwap_pullback", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+
+
+def test_swing_anchored_vwap_pullback_from_confirmed_swings_not_fib() -> None:
+    """AVWAP is Σturnover/Σvolume from the origin swing, not 0.618 or 1.618."""
+    from core.strategy import indicators as ind
+
+    candles = _impulse_then_avwap_pullback(long_side=True)
+    signals = _signals("swing_anchored_vwap_pullback", candles)
+    fired = signals.index[signals["signal"] == 1]
+    assert len(fired) >= 1
+    bar = fired[0]
+    swing_high, swing_low = ind.confirmed_swings(candles["high"], candles["low"], left=3)
+    start = swing_low.loc[bar]
+    end = swing_high.loc[bar]
+    low_changed = swing_low.notna() & swing_low.ne(swing_low.shift(1))
+    era = low_changed.astype("int64").cumsum()
+    expected = (
+        candles["turnover"].groupby(era).cumsum()
+        / candles["volume"].groupby(era).cumsum()
+    )
+    assert signals.loc[bar, "avwap"] == pytest.approx(float(expected.loc[bar]))
+    assert signals.loc[bar, "swing_high"] == pytest.approx(float(end))
+    assert signals.loc[bar, "swing_low"] == pytest.approx(float(start))
+    assert signals.loc[bar, "last_event"] == pytest.approx(1.0)
+    assert start == pytest.approx(80.0)
+    assert end == pytest.approx(120.0)
+    fib_618 = end - 0.618 * (end - start)
+    fib_1618 = end + 0.618 * (end - start)
+    assert signals.loc[bar, "avwap"] != pytest.approx(float(fib_618), abs=0.2)
+    assert signals.loc[bar, "avwap"] != pytest.approx(float(fib_1618), abs=0.2)
+    with pytest.raises(ValueError, match="turnover"):
+        from research.validate import strategy_kit
+
+        factory, base, space = strategy_kit("swing_anchored_vwap_pullback", SignalSide.LONG)
+        assert "fib_ratio" not in space
+        factory(base).generate_signals(candles.drop(columns=["turnover"]))
 
 
 def test_williams_fractal_break_long_entry() -> None:

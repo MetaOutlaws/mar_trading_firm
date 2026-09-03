@@ -816,6 +816,26 @@ def _novel_kit(name: str, side: SignalSide):
             # AB=CD ratio is hardcoded at 1.0. Do not search 1.618 or 0.618.
             {},
         ),
+        "up_down_turnover_imbalance": (
+            "core.strategy.up_down_turnover_imbalance",
+            "UpDownTurnoverImbalanceParams",
+            "UpDownTurnoverImbalanceStrategy",
+            {"lookback": [20], "imbalance_k": [0.30]},
+        ),
+        "signed_range_turnover_trend": (
+            "core.strategy.signed_range_turnover_trend",
+            "SignedRangeTurnoverTrendParams",
+            "SignedRangeTurnoverTrendStrategy",
+            {"lookback": [20], "trend_k": [1.0]},
+        ),
+        "swing_anchored_vwap_pullback": (
+            "core.strategy.swing_anchored_vwap_pullback",
+            "SwingAnchoredVwapPullbackParams",
+            "SwingAnchoredVwapPullbackStrategy",
+            # Same locked swing engine as fib_extension_break. Do not
+            # search 0.618 / 1.618 — those are other families.
+            {},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
