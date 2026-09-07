@@ -1015,6 +1015,13 @@ def _novel_kit(name: str, side: SignalSide):
             # min_touches locked at 3. No volume. Search lookback only.
             {"lookback": [30, 40]},
         ),
+        "engulfing_fail_reversion": (
+            "core.strategy.engulfing_fail_reversion",
+            "EngulfingFailReversionParams",
+            "EngulfingFailReversionStrategy",
+            # Close-inside and body_eff locked. No volume. Search fail window from the engulf only.
+            {"max_bars_since_engulf": [1, 2]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

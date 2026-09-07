@@ -666,6 +666,7 @@ def test_promote_remaining_into_top5_after_postmortem(tmp_path, monkeypatch) -> 
                     "nr7_fail_reversion@4h/4h": 16,
                     "ib_fail_reversion@4h/4h": 16,
                     "converging_wedge_break@4h/4h": 16,
+                    "engulfing_fail_reversion@4h/4h": 16,
                     "session_boundary_volume_fade@4h/4h": 16,
                     "vwap_spread_exhaustion@4h/4h": 16,
                     "vwap_volatility_band_fade@1h/1h": 16,

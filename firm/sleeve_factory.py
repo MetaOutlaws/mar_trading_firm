@@ -1955,6 +1955,41 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "or session-inventory fade."
         ),
     ),
+    SleeveSpec(
+        name="engulfing_fail_reversion",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Fade a failed engulfing continuation: after a "
+            "bullish/bearish engulfing bar, price breaks the engulf "
+            "extreme then fails with a close back through the engulf "
+            "open (not a wick-only tag). SHORT: after a bullish engulf, "
+            "break above the engulf high then close back through the "
+            "engulf open within max_bars_since_engulf. LONG: after a "
+            "bearish engulf, break below the engulf low then close back "
+            "through the open. Quant-locked: require_close_inside=True, "
+            "body_eff locked OFF, max_bars_since_engulf [1, 2], no "
+            "volume. Not book engulfing_reversal (fires on the engulf "
+            "bar). Not failed_range_break_reversion (119 — rolling "
+            "N-bar). Not orb_fail_reversion (121 — UTC day ORB). Not "
+            "nr7_fail_reversion (123). Not ib_fail / asia_range / "
+            "prior_day / converging_wedge (125 spent n-starve). Not "
+            "H&S / asia_close / wyckoff."
+        ),
+        summary=(
+            "Fade a failed engulfing continuation: after a "
+            "bullish/bearish engulfing bar, price breaks the engulf "
+            "extreme then closes back through the engulf open."
+        ),
+        justification=(
+            "A close back through a two-bar body-engulf's open after a "
+            "failed continuation through that bar's extreme is not "
+            "trading the engulf bar itself, not a rolling N-bar "
+            "failed-range, not a UTC-day ORB fail, and not NR7."
+        ),
+    ),
 ]
 
 
