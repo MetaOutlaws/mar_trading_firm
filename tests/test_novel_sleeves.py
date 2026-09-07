@@ -116,6 +116,7 @@ APPROVED = [
     "double_top_neckline_break",
     "ascending_triangle_break",
     "prior_day_extreme_reject",
+    "failed_range_break_reversion",
 ]
 
 
@@ -3435,6 +3436,164 @@ def test_prior_day_extreme_reject_short_entry() -> None:
     assert "neckline" not in signals.columns
 
 
+def _failed_range_break_tape(
+    *,
+    long_side: bool,
+    held_break: bool = False,
+    blow_through: bool = False,
+    delay: int = 1,
+) -> tuple[pd.DataFrame, int, int]:
+    """Rolling 20-bar box 110/90 after a tight prior UTC day, then a close-through fail.
+
+    Prior UTC day stays ~101/99 so this is not ``prior_day_extreme_reject``.
+    Volume is flat so this is not a thrust / NR7-volume family.
+    """
+    n = 50
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    # Jan 3 onwards: a wide rolling box distinct from yesterday's UTC H/L.
+    high[24:] = 110.0
+    low[24:] = 90.0
+    break_i = 44
+    fire = break_i + delay
+    if long_side:
+        # Close through the 20-bar low, then back above it (still inside the box).
+        low[break_i] = 84.0
+        close[break_i] = 85.0
+        open_[break_i] = 92.0
+        high[break_i] = 93.0
+        # Stay through the low until `fire` so delay tests the fail window, not a first fade.
+        for j in range(break_i + 1, min(fire, n)):
+            close[j] = 84.0
+            high[j] = 88.0
+            low[j] = 82.0
+            open_[j] = 86.0
+        if fire < n:
+            if held_break:
+                close[fire] = 84.0
+                high[fire] = 88.0
+                low[fire] = 82.0
+                open_[fire] = 86.0
+            elif blow_through:
+                close[fire] = 112.0
+                high[fire] = 114.0
+                low[fire] = 88.0
+                open_[fire] = 88.0
+            else:
+                close[fire] = 95.0
+                high[fire] = 97.0
+                low[fire] = 88.0
+                open_[fire] = 86.0
+    else:
+        high[break_i] = 116.0
+        close[break_i] = 115.0
+        open_[break_i] = 108.0
+        low[break_i] = 107.0
+        for j in range(break_i + 1, min(fire, n)):
+            close[j] = 116.0
+            high[j] = 118.0
+            low[j] = 112.0
+            open_[j] = 114.0
+        if fire < n:
+            if held_break:
+                close[fire] = 116.0
+                high[fire] = 118.0
+                low[fire] = 112.0
+                open_[fire] = 114.0
+            elif blow_through:
+                close[fire] = 85.0
+                high[fire] = 108.0
+                low[fire] = 84.0
+                open_[fire] = 108.0
+            else:
+                close[fire] = 105.0
+                high[fire] = 114.0
+                low[fire] = 104.0
+                open_[fire] = 114.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    return candles, break_i, fire
+
+
+def test_failed_range_break_reversion_schema_and_long_entry() -> None:
+    from research.validate import strategy_kit
+
+    _factory, base, space = strategy_kit("failed_range_break_reversion", SignalSide.LONG)
+    assert base.require_close_inside is True
+    assert space["lookback"] == [16, 20]
+    assert space["max_bars_since_break"] == [2, 3]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "max_bars_since_break"}
+    assert "vol_lookback" not in extra
+    assert "thrust_mult" not in extra
+    candles, break_i, fire = _failed_range_break_tape(long_side=True)
+    signals = _signals("failed_range_break_reversion", candles)
+    for column in ("signal", "side", "score", "reason", "range_high", "range_low"):
+        assert column in signals.columns
+    assert "volume_ma" not in signals.columns
+    assert "prior_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[break_i]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["range_high"].iloc[break_i] == pytest.approx(110.0)
+    assert signals["range_low"].iloc[break_i] == pytest.approx(90.0)
+    held, _, held_fire = _failed_range_break_tape(long_side=True, held_break=True)
+    assert int(_signals("failed_range_break_reversion", held)["signal"].iloc[held_fire]) == 0
+    through, _, through_fire = _failed_range_break_tape(long_side=True, blow_through=True)
+    assert int(
+        _signals("failed_range_break_reversion", through)["signal"].iloc[through_fire]
+    ) == 0
+    late, _, late_fire = _failed_range_break_tape(long_side=True, delay=4)
+    assert int(_signals("failed_range_break_reversion", late)["signal"].iloc[late_fire]) == 0
+    # Heavy volume does not gate this family; thrust still needs compression.
+    heavy = candles.copy()
+    heavy.loc[heavy.index[fire], "volume"] = 50_000.0
+    heavy.loc[heavy.index[fire], "turnover"] = 50_000.0 * float(heavy["close"].iloc[fire])
+    assert int(_signals("failed_range_break_reversion", heavy)["signal"].iloc[fire]) == 1
+    assert int(_signals("range_compression_volume_thrust", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_day_extreme_reject", candles)["signal"].iloc[fire]) == 0
+    nr7 = _signals("nr7_breakout", candles)
+    assert "nr7_high" not in signals.columns
+    assert "box_high" not in nr7.columns
+
+
+def test_failed_range_break_reversion_short_entry() -> None:
+    candles, break_i, fire = _failed_range_break_tape(long_side=False)
+    signals = _signals("failed_range_break_reversion", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[break_i]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["range_high"].iloc[break_i] == pytest.approx(110.0)
+    held, _, held_fire = _failed_range_break_tape(long_side=False, held_break=True)
+    assert int(
+        _signals("failed_range_break_reversion", held, side=SignalSide.SHORT)["signal"].iloc[
+            held_fire
+        ]
+    ) == 0
+    through, _, through_fire = _failed_range_break_tape(long_side=False, blow_through=True)
+    assert int(
+        _signals("failed_range_break_reversion", through, side=SignalSide.SHORT)["signal"].iloc[
+            through_fire
+        ]
+    ) == 0
+    triangle = _signals("ascending_triangle_break", candles, side=SignalSide.SHORT)
+    prior_day = _signals("prior_day_extreme_reject", candles, side=SignalSide.SHORT)
+    donchian = _signals("donchian_breakout", candles, side=SignalSide.SHORT)
+    assert int(triangle["signal"].iloc[fire]) == 0
+    assert int(prior_day["signal"].iloc[fire]) == 0
+    # Donchian follows the break bar, not the fail-back-inside bar.
+    assert int(donchian["signal"].iloc[fire]) == 0
+    assert int(signals["signal"].iloc[break_i]) == 0
+    assert "neckline" not in signals.columns
+    assert "vol_mean" not in signals.columns
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -3454,6 +3613,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("double_top_neckline_break", {"lookback", "atr_tol"}),
         ("ascending_triangle_break", {"lookback", "atr_tol"}),
         ("prior_day_extreme_reject", {"touch_tol_atr"}),
+        ("failed_range_break_reversion", {"lookback", "max_bars_since_break"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -3469,6 +3629,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("session_boundary_volume_fade", {"vol_period"}),
         ("vwap_volatility_band_fade", {"band_k"}),
         ("prior_day_extreme_reject", {"touch_tol_atr"}),
+        ("failed_range_break_reversion", {"lookback", "max_bars_since_break"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

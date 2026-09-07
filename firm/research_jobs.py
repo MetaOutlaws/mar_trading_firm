@@ -162,6 +162,7 @@ CLOCK_BY_FAMILY = {
     "double_top_neckline_break": "4h/4h",
     "ascending_triangle_break": "4h/4h",
     "prior_day_extreme_reject": "4h/4h",
+    "failed_range_break_reversion": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
