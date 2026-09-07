@@ -116,6 +116,7 @@ APPROVED = [
     "double_top_neckline_break",
     "ascending_triangle_break",
     "prior_day_extreme_reject",
+    "squeeze_momentum_break",
 ]
 
 
@@ -3435,6 +3436,67 @@ def test_prior_day_extreme_reject_short_entry() -> None:
     assert "neckline" not in signals.columns
 
 
+def _squeeze_release_tape(*, long_side: bool) -> pd.DataFrame:
+    """Quiet BB-inside-KC squeeze, then a directional expansion that releases it.
+
+    Flat closes with a wide high/low keep ATR (Keltner) open while Bollinger
+    collapses, which is TTM squeeze-on — not a BB-width percentile alone.
+    """
+    n = 90
+    close = np.full(n, 100.0)
+    high = np.full(n, 102.0)
+    low = np.full(n, 98.0)
+    step = np.arange(1, n - 60 + 1) * 0.8
+    if long_side:
+        close[60:] = 100.0 + step
+    else:
+        close[60:] = 100.0 - step
+    high[60:] = close[60:] + 0.2
+    low[60:] = close[60:] - 0.2
+    return _ohlcv(_hourly(n), close, high=high, low=low)
+
+
+def test_squeeze_momentum_break_schema_and_long_entry() -> None:
+    from research.validate import strategy_kit
+
+    _factory, _base, space = strategy_kit("squeeze_momentum_break", SignalSide.LONG)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    # Free params are BB length and linreg length. Not BB-width, not NR7 lookback.
+    assert extra == {"bb_period", "mom_period"}
+    assert "band_k" not in space
+    assert "lookback" not in space
+    assert "skip_bull" not in space
+    candles = _squeeze_release_tape(long_side=True)
+    signals = _signals("squeeze_momentum_break", candles)
+    for column in ("signal", "side", "score", "reason", "squeeze", "squeeze_mom"):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    fire = int(signals.index.get_indexer(signals.index[signals["signal"] == 1])[0])
+    assert signals["squeeze"].iloc[fire - 1] == pytest.approx(1.0)
+    assert signals["squeeze"].iloc[fire] == pytest.approx(0.0)
+    assert float(signals["squeeze_mom"].iloc[fire]) > 0
+    # Quiet bars are BB-inside-KC, not a generic width squeeze family.
+    assert float(signals["squeeze"].iloc[50]) == pytest.approx(1.0)
+
+
+def test_squeeze_momentum_break_short_entry() -> None:
+    candles = _squeeze_release_tape(long_side=False)
+    signals = _signals("squeeze_momentum_break", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    fire = int(signals.index.get_indexer(signals.index[signals["signal"] == -1])[0])
+    assert signals["squeeze"].iloc[fire - 1] == pytest.approx(1.0)
+    assert signals["squeeze"].iloc[fire] == pytest.approx(0.0)
+    assert float(signals["squeeze_mom"].iloc[fire]) < 0
+    # LONG kit on this tape must not emit the short.
+    longs = _signals("squeeze_momentum_break", candles, side=SignalSide.LONG)
+    assert int((longs["signal"] == 1).sum()) == 0
+    assert int((longs["signal"] == -1).sum()) == 0
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -3454,6 +3516,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("double_top_neckline_break", {"lookback", "atr_tol"}),
         ("ascending_triangle_break", {"lookback", "atr_tol"}),
         ("prior_day_extreme_reject", {"touch_tol_atr"}),
+        ("squeeze_momentum_break", {"bb_period", "mom_period"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

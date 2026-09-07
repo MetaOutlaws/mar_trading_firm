@@ -1,4 +1,13 @@
-"""Break after a BB-inside-Keltner squeeze, then linreg momentum. Not BB-width only."""
+"""Break after a BB-inside-Keltner squeeze, then linreg momentum. Not BB-width only.
+
+Approved brief: 4h/4h BOTH. TTM-style squeeze (Bollinger nested inside Keltner),
+then a linreg-momentum release: mom > 0 long, mom < 0 short.
+
+Walk-forward instantiates LONG and SHORT as separate jobs. The backtester
+trades every non-zero `signal`, so this sleeve still filters to `params.side`
+or a LONG grid would silently include shorts. Both directions are computed
+from the same release; only the requested side is written.
+"""
 
 from __future__ import annotations
 
@@ -29,10 +38,14 @@ class SqueezeMomentumBreakStrategy(Strategy):
     def __init__(self, params: SqueezeMomentumBreakParams | None = None) -> None:
         super().__init__(params or SqueezeMomentumBreakParams())
         self.params: SqueezeMomentumBreakParams = self.params
-        self.min_bars = (
-            max(int(self.params.bb_period), int(self.params.kc_ema), int(self.params.mom_period))
-            + 6
+        # BB/KC need one window; linreg of (close - typical SMA) needs a second.
+        window = max(
+            int(self.params.bb_period),
+            int(self.params.kc_ema),
+            int(self.params.kc_atr),
+            int(self.params.mom_period),
         )
+        self.min_bars = 2 * window + 6
 
     def generate_signals(self, candles: pd.DataFrame) -> pd.DataFrame:
         self.validate_candles(candles)
@@ -51,18 +64,21 @@ class SqueezeMomentumBreakStrategy(Strategy):
             kc_ema=int(params.kc_ema),
             kc_atr=int(params.kc_atr),
             kc_k=float(params.kc_k),
-        )
+        ).fillna(False).astype(bool)
         mom = ind.squeeze_linreg_momentum(
             candles["high"], candles["low"], candles["close"], int(params.mom_period)
         )
         signals["squeeze"] = squeezed.astype("float64")
         signals["squeeze_mom"] = mom
-        released = squeezed.shift(1).fillna(False) & ~squeezed.fillna(False)
+        # Release = squeeze was on last bar and is off now. Not BB-width alone.
+        released = squeezed.shift(1, fill_value=False) & ~squeezed
+        long_entry = released & (mom > 0)
+        short_entry = released & (mom < 0)
         if params.side is SignalSide.LONG:
-            entry = released & (mom > 0)
+            entry = long_entry
             signal_value, side_value = 1, SignalSide.LONG.value
         else:
-            entry = released & (mom < 0)
+            entry = short_entry
             signal_value, side_value = -1, SignalSide.SHORT.value
         entry = entry.fillna(False)
         entry.iloc[: self.min_bars] = False
