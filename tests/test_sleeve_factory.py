@@ -51,6 +51,7 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "prior_day_extreme_reject" not in names
     assert "failed_range_break_reversion" not in names
     assert "asia_range_london_reject" not in names
+    assert "orb_fail_reversion" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

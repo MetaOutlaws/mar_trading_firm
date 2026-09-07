@@ -1,0 +1,15 @@
+{
+  "family": "orb_fail_reversion",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "Fade a failed UTC-day opening-range break: price breaks the day ORB then fails to hold and reverts back inside. SHORT: break above ORB high then close back below within max_bars_since_break. LONG: break below ORB low then close back above. Quant-locked: require_close_inside=True, orb_bars [1, 2], max_bars_since_break [2, 4], no volume. Not opening_range_breakout (finished leftover / breakout direction). Not failed_range_break_reversion (119 — rolling N-bar range). Not prior_day_extreme_reject (118 — prior UTC day H/L reject). Not asia_range_london_reject (120 — Asia box / London reject). Not nr7_fail_reversion (stays buffer). Not range_compression_volume_thrust (102). Not H&S / asia_close / wyckoff.",
+  "summary": "Fade a failed UTC-day opening-range break: price breaks the day ORB then fails to hold and reverts back inside.",
+  "justification": "A close-through of the UTC-day opening range that fails to hold and re-closes inside is not a successful ORB follow, not a rolling N-bar failed-range, not a prior UTC day H/L reject, and not an Asia-box London reject.",
+  "status": "Brian Inbox-approved for coding",
+  "written_at": "2026-09-07T09:40:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/orb_fail_reversion.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward."
+}

@@ -118,6 +118,7 @@ APPROVED = [
     "prior_day_extreme_reject",
     "failed_range_break_reversion",
     "asia_range_london_reject",
+    "orb_fail_reversion",
 ]
 
 
@@ -3771,6 +3772,212 @@ def test_asia_range_london_reject_4h_london_bar() -> None:
     assert signals["range_low"].iloc[london] == pytest.approx(90.0)
 
 
+def _orb_fail_iloc(index: pd.DatetimeIndex, stamp: str) -> int:
+    return int(index.get_loc(pd.Timestamp(stamp, tz="UTC")))
+
+
+def _orb_fail_tape(
+    *,
+    long_side: bool,
+    held_break: bool = False,
+    blow_through: bool = False,
+    delay: int = 1,
+    orb_bars: int = 1,
+) -> tuple[pd.DataFrame, int, int]:
+    """4h tape: Jan 4 first-4h ORB 110/90, then a same-day close-through that fails back inside.
+
+    Prior UTC day stays ~101/99 so this is not ``prior_day_extreme_reject``.
+    Break bar *closes through* the ORB (held vs utc_open_fail's same-bar wick fail).
+    Fail close 95 sits inside the ORB but not back through a rolling ~99 Donchian.
+    Volume is flat. Wednesday, not a Monday weekend sweep.
+    """
+    n = 24
+    index = pd.date_range("2024-01-02", periods=n, freq="4h", tz="UTC")
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    orb_00 = _orb_fail_iloc(index, "2024-01-04 00:00")
+    high[orb_00] = 110.0
+    low[orb_00] = 90.0
+    close[orb_00] = 100.0
+    open_[orb_00] = 100.0
+    if orb_bars >= 2:
+        orb_04 = _orb_fail_iloc(index, "2024-01-04 04:00")
+        high[orb_04] = 110.0
+        low[orb_04] = 90.0
+        close[orb_04] = 100.0
+        open_[orb_04] = 100.0
+        break_i = _orb_fail_iloc(index, "2024-01-04 08:00")
+    else:
+        break_i = _orb_fail_iloc(index, "2024-01-04 04:00")
+    fire = break_i + delay
+    if long_side:
+        # Close through the ORB low, then back above it (still inside the box).
+        low[break_i] = 84.0
+        close[break_i] = 85.0
+        open_[break_i] = 92.0
+        high[break_i] = 93.0
+        for j in range(break_i + 1, min(fire, n)):
+            close[j] = 84.0
+            high[j] = 88.0
+            low[j] = 82.0
+            open_[j] = 86.0
+        if fire < n:
+            if held_break:
+                close[fire] = 84.0
+                high[fire] = 88.0
+                low[fire] = 82.0
+                open_[fire] = 86.0
+            elif blow_through:
+                close[fire] = 112.0
+                high[fire] = 114.0
+                low[fire] = 88.0
+                open_[fire] = 88.0
+            else:
+                close[fire] = 95.0
+                high[fire] = 97.0
+                low[fire] = 88.0
+                open_[fire] = 86.0
+    else:
+        high[break_i] = 116.0
+        close[break_i] = 115.0
+        open_[break_i] = 108.0
+        low[break_i] = 107.0
+        for j in range(break_i + 1, min(fire, n)):
+            close[j] = 116.0
+            high[j] = 118.0
+            low[j] = 112.0
+            open_[j] = 114.0
+        if fire < n:
+            if held_break:
+                close[fire] = 116.0
+                high[fire] = 118.0
+                low[fire] = 112.0
+                open_[fire] = 114.0
+            elif blow_through:
+                close[fire] = 85.0
+                high[fire] = 108.0
+                low[fire] = 84.0
+                open_[fire] = 108.0
+            else:
+                close[fire] = 105.0
+                high[fire] = 108.0
+                low[fire] = 104.0
+                open_[fire] = 114.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    return candles, break_i, fire
+
+
+def test_orb_fail_reversion_schema_and_long_entry() -> None:
+    from research.validate import strategy_kit
+
+    from core.strategy.orb_fail_reversion import ORB_BAR_HOURS
+
+    _factory, base, space = strategy_kit("orb_fail_reversion", SignalSide.LONG)
+    assert base.require_close_inside is True
+    assert base.orb_bars == 1
+    assert space["orb_bars"] == [1, 2]
+    assert space["max_bars_since_break"] == [2, 4]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"orb_bars", "max_bars_since_break"}
+    assert "vol_lookback" not in extra
+    assert "lookback" not in extra
+    assert "touch_tol_atr" not in extra
+    assert ORB_BAR_HOURS == 4.0
+    candles, break_i, fire = _orb_fail_tape(long_side=True)
+    signals = _signals("orb_fail_reversion", candles)
+    for column in ("signal", "side", "score", "reason", "range_high", "range_low"):
+        assert column in signals.columns
+    assert "prior_high" not in signals.columns
+    assert "box_high" not in signals.columns
+    assert "lookback" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[break_i]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["range_high"].iloc[fire] == pytest.approx(110.0)
+    assert signals["range_low"].iloc[fire] == pytest.approx(90.0)
+    # Held breakdown (close stays through the ORB low) is not a fail-reversion.
+    held, _, held_fire = _orb_fail_tape(long_side=True, held_break=True)
+    assert int(_signals("orb_fail_reversion", held)["signal"].iloc[held_fire]) == 0
+    through, _, through_fire = _orb_fail_tape(long_side=True, blow_through=True)
+    assert int(_signals("orb_fail_reversion", through)["signal"].iloc[through_fire]) == 0
+    # 4h same-day window after 04:00 is only four bars; delay=3 with max_bars=2 is late.
+    late, _, late_fire = _orb_fail_tape(long_side=True, delay=3)
+    tight = _factory(
+        base.__class__(side=SignalSide.LONG, orb_bars=1, max_bars_since_break=2)
+    )
+    assert int(tight.generate_signals(late)["signal"].iloc[late_fire]) == 0
+    # Heavy volume does not gate this family.
+    heavy = candles.copy()
+    heavy.loc[heavy.index[fire], "volume"] = 50_000.0
+    heavy.loc[heavy.index[fire], "turnover"] = 50_000.0 * float(heavy["close"].iloc[fire])
+    assert int(_signals("orb_fail_reversion", heavy)["signal"].iloc[fire]) == 1
+    # Independence: ORB follow, rolling Donchian fail, prior-day H/L, Asia/London.
+    assert int(_signals("opening_range_breakout", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("utc_open_fail_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("failed_range_break_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_day_extreme_reject", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("asia_range_london_reject", candles)["signal"].iloc[fire]) == 0
+    # Breakout family follows the close-through bar, not the fail-back-inside bar.
+    assert int(_signals("opening_range_breakout", candles, side=SignalSide.SHORT)["signal"].iloc[break_i]) == -1
+    assert int(_signals("opening_range_breakout", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+
+
+def test_orb_fail_reversion_short_entry() -> None:
+    candles, break_i, fire = _orb_fail_tape(long_side=False)
+    signals = _signals("orb_fail_reversion", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[break_i]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["range_high"].iloc[fire] == pytest.approx(110.0)
+    held, _, held_fire = _orb_fail_tape(long_side=False, held_break=True)
+    assert int(
+        _signals("orb_fail_reversion", held, side=SignalSide.SHORT)["signal"].iloc[held_fire]
+    ) == 0
+    through, _, through_fire = _orb_fail_tape(long_side=False, blow_through=True)
+    assert int(
+        _signals("orb_fail_reversion", through, side=SignalSide.SHORT)["signal"].iloc[through_fire]
+    ) == 0
+    orb = _signals("opening_range_breakout", candles, side=SignalSide.LONG)
+    utc_fail = _signals("utc_open_fail_reversion", candles, side=SignalSide.SHORT)
+    failed = _signals("failed_range_break_reversion", candles, side=SignalSide.SHORT)
+    prior_day = _signals("prior_day_extreme_reject", candles, side=SignalSide.SHORT)
+    asia = _signals("asia_range_london_reject", candles, side=SignalSide.SHORT)
+    assert int(orb["signal"].iloc[fire]) == 0
+    assert int(orb["signal"].iloc[break_i]) == 1
+    assert int(utc_fail["signal"].iloc[fire]) == 0
+    assert int(failed["signal"].iloc[fire]) == 0
+    assert int(prior_day["signal"].iloc[fire]) == 0
+    assert int(asia["signal"].iloc[fire]) == 0
+    assert "nr7_high" not in signals.columns
+    assert "neckline" not in signals.columns
+    assert "vol_mean" not in signals.columns
+
+
+def test_orb_fail_reversion_orb_bars_two_not_first_4h() -> None:
+    """orb_bars=2 publishes at 08:00; a 04:00 close-through is still inside the forming window."""
+    from research.validate import strategy_kit
+
+    candles, break_i, fire = _orb_fail_tape(long_side=True, orb_bars=1)
+    factory, base, _space = strategy_kit("orb_fail_reversion", SignalSide.LONG)
+    two = factory(base.__class__(side=SignalSide.LONG, orb_bars=2, max_bars_since_break=4))
+    signals = two.generate_signals(candles)
+    # Default orb_bars=1 fires at 08:00. Two-bar ORB is not published at 04:00.
+    assert int(signals["signal"].iloc[break_i]) == 0
+    assert int(signals["signal"].iloc[fire]) == 0
+    wide, wide_break, wide_fire = _orb_fail_tape(long_side=True, orb_bars=2)
+    wide_signals = two.generate_signals(wide)
+    assert int(wide_signals["signal"].iloc[wide_break]) == 0
+    assert int(wide_signals["signal"].iloc[wide_fire]) == 1
+    assert wide_signals["range_high"].iloc[wide_fire] == pytest.approx(110.0)
+    assert wide_signals["range_low"].iloc[wide_fire] == pytest.approx(90.0)
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -3792,6 +3999,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("prior_day_extreme_reject", {"touch_tol_atr"}),
         ("failed_range_break_reversion", {"lookback", "max_bars_since_break"}),
         ("asia_range_london_reject", {"touch_tol_atr"}),
+        ("orb_fail_reversion", {"orb_bars", "max_bars_since_break"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -3809,6 +4017,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("prior_day_extreme_reject", {"touch_tol_atr"}),
         ("failed_range_break_reversion", {"lookback", "max_bars_since_break"}),
         ("asia_range_london_reject", {"touch_tol_atr"}),
+        ("orb_fail_reversion", {"orb_bars", "max_bars_since_break"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
