@@ -813,6 +813,27 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "nr7_fail_reversion@4h/4h",
+        "family": "nr7_fail_reversion",
+        "name": "nr7_fail_reversion 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 24,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a failed NR7 "
+            "break that reverts back inside the NR7 bar. Quant-locked "
+            "grid: NR7 definition fixed (lookback 7), "
+            "require_close_inside=True, max_bars_since_break [1, 3], "
+            "no volume. BOTH sides honest. Walk-forward is not started "
+            "from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

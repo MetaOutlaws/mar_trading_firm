@@ -994,6 +994,13 @@ def _novel_kit(name: str, side: SignalSide):
             # Close-inside locked. No volume. Search ORB window + fail window.
             {"orb_bars": [1, 2], "max_bars_since_break": [2, 4]},
         ),
+        "nr7_fail_reversion": (
+            "core.strategy.nr7_fail_reversion",
+            "Nr7FailReversionParams",
+            "Nr7FailReversionStrategy",
+            # NR7 lookback and close-inside locked. Search fail window only.
+            {"max_bars_since_break": [1, 3]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

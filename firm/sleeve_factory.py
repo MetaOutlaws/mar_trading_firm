@@ -1851,6 +1851,40 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "reject, and not an Asia-box London reject."
         ),
     ),
+    SleeveSpec(
+        name="nr7_fail_reversion",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Fade a failed NR7 break: after an NR7 bar (narrowest range "
+            "of last 7), price breaks the NR7 high/low then fails to "
+            "hold and reverts back inside. SHORT: break above NR7 high "
+            "then close back below within max_bars_since_break. LONG: "
+            "break below NR7 low then close back above. Quant-locked: "
+            "NR7 definition fixed, require_close_inside=True, "
+            "max_bars_since_break [1, 3], no volume. Not nr7_breakout "
+            "(breakout direction / leftover). Not expansion_fail_fade "
+            "(single ATR expansion). Not "
+            "range_compression_volume_thrust (102 — thrust). Not "
+            "failed_range_break_reversion (119 — rolling N-bar). Not "
+            "orb_fail_reversion (121/122 — UTC day ORB). Not "
+            "prior_day_extreme_reject (118), asia_range_london_reject "
+            "(120). Not H&S / asia_close / wyckoff."
+        ),
+        summary=(
+            "Fade a failed NR7 break: after an NR7 bar (narrowest range "
+            "of last 7), price breaks the NR7 high/low then fails to "
+            "hold and reverts back inside."
+        ),
+        justification=(
+            "A close-through of a locked NR7 bar that fails to hold and "
+            "re-closes inside is not a successful NR7 follow, not a "
+            "single ATR expansion fade, not a volume thrust, not a "
+            "rolling N-bar failed-range, and not a UTC-day ORB fail."
+        ),
+    ),
 ]
 
 
