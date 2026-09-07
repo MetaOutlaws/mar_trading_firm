@@ -311,13 +311,28 @@ def certify_paper() -> dict[str, Any]:
     # Research clock family + live-gated sleeves + operator paper vetoes
     # + named paper candidates (ATR 1h on BNB/XRP/AVAX).
     allowed = {family} | approved_names | override_names | {n for n, *_ in PAPER_SCAN_SLEEVES}
-    approved_pairs = set(universe.approved_pairs)
-    plan_pairs = {
-        (str(row.get("symbol") or ""), str(row.get("side") or "").upper())
+    # Every approved=True research key must be on the paper book — not unique
+    # (symbol, side). A second family on the same pair is a missing sleeve.
+    approved_sleeves = set()
+    for key, rec in universe.approved_records:
+        parsed = parse_approval_key(key)
+        if parsed is None:
+            continue
+        name, symbol, side = parsed
+        rec_name = str(rec.get("strategy") or name).strip() or name
+        rec_tf = str(rec.get("timeframe") or "")
+        approved_sleeves.add((rec_name, symbol, side, rec_tf))
+    plan_sleeves = {
+        (
+            str(row.get("strategy") or ""),
+            str(row.get("symbol") or ""),
+            str(row.get("side") or "").upper(),
+            str(row.get("timeframe") or ""),
+        )
         for row in plan
         if isinstance(row, dict)
     }
-    missing_approved = sorted(approved_pairs - plan_pairs)
+    missing_approved = sorted(approved_sleeves - plan_sleeves)
     sleeve_ok = bool(plan) and names <= allowed and not missing_approved
     checks.append(
         _check(

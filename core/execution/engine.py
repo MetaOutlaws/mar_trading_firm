@@ -171,7 +171,12 @@ def _named_strategy(name: str, symbol: str, side: SignalSide, params: dict | Non
 
 
 def _approved_record(symbol: str, side: SignalSide) -> tuple[str, dict] | None:
-    """Latest approved (strategy, record) for this pair, preferring non-RSI."""
+    """One approved (strategy, record) for this pair, preferring non-RSI.
+
+    Single-pair lookup only (`_entry_for`). The scan plan must iterate
+    ``universe.approved_records`` so a second family on the same pair is not
+    dropped. First non-RSI match used to win and hide later sleeves.
+    """
     from config.universe import parse_approval_key
 
     universe = get_universe()
@@ -189,6 +194,38 @@ def _approved_record(symbol: str, side: SignalSide) -> tuple[str, dict] | None:
         if name != "rsi_trend":
             return found
     return found
+
+
+def _entry_ident(entry: PlanEntry) -> tuple[str, str, str, str]:
+    """Plan-row identity: symbol, side, family, candle clock."""
+    return (entry.symbol, entry.side.value, entry.strategy.name, entry.timeframe)
+
+
+def _append_approved_sleeves(
+    plan: TradingPlan, universe, seen: set[tuple[str, str, str, str]]
+) -> set[tuple[str, str, str, str]]:
+    """Add one plan row per approved=True research key. No (symbol, side) collapse."""
+    added: set[tuple[str, str, str, str]] = set()
+    for key, record in universe.approved_records:
+        parsed = parse_approval_key(key)
+        if parsed is None:
+            continue
+        name, symbol, side_value = parsed
+        rec_name = str(record.get("strategy") or name).strip() or name
+        entry = _entry_from_record(rec_name, record, symbol, SignalSide(side_value))
+        if entry is None:
+            logger.error(
+                "%s is approved but could not be built into a plan entry; skipping.",
+                key,
+            )
+            continue
+        ident = _entry_ident(entry)
+        if ident in seen:
+            continue
+        plan.entries.append(entry)
+        seen.add(ident)
+        added.add(ident)
+    return added
 
 
 def _clock_timeframe(family: str, side: SignalSide) -> str:
@@ -305,6 +342,8 @@ def _entry_for(symbol: str, side: SignalSide, *, require_approval: bool = False)
         # Approval records carry their own clock. Do not require asset_params
         # shorts — that file is leftover RSI long-only config, and ETH/SOL
         # shorts already passed walk-forward without a row there.
+        # One pair may have several approved families; this helper returns
+        # a single row. `build_plan` walks approved_records for the full book.
         approved = _approved_record(symbol, side)
         if approved is None:
             return None
@@ -350,8 +389,9 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
 
     Args:
         require_approval: When True (live and testnet), only research-approved
-            pairs are included. Paper mode passes False so unapproved candidates
-            can be forward-tested, but approved pairs are still always scanned.
+            sleeves are included (every approved=True key). Paper mode passes
+            False so unapproved candidates can be forward-tested, but every
+            approved research key is still always scanned.
         candidates: Explicit symbol list for paper mode. Defaults to the
             symbols that have configured parameters.
     """
@@ -359,34 +399,18 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
     plan = TradingPlan()
 
     if require_approval:
-        for symbol, side_value in universe.approved_pairs:
-            entry = _entry_for(symbol, SignalSide(side_value), require_approval=True)
-            if entry is None:
-                logger.error(
-                    "%s:%s is approved but has no configured parameters; skipping.",
-                    symbol, side_value,
-                )
-                continue
-            plan.entries.append(entry)
-        logger.info("Trading plan: %d research-approved pairs.", len(plan.entries))
+        # Live/testnet: every approved=True research key, not unique (symbol, side).
+        # This does not enable live — only the go-live gates do that.
+        _append_approved_sleeves(plan, universe, set())
+        logger.info("Trading plan: %d research-approved sleeve(s).", len(plan.entries))
         return plan
 
-    # Paper always scans research-approved pairs first. Last night the clock
-    # followed the latest rejected job and skipped BTC/ETH/SOL because those
-    # clocks had already failed, so the three approved pairs never traded.
+    # Paper always scans every research-approved sleeve first. Collapsing to
+    # unique (symbol, side) hid week_open_reclaim / orb_fail_reversion on the
+    # same XRP SHORT, and double_top on an already-approved BTC SHORT.
     approved_pairs = set(universe.approved_pairs)
     seen: set[tuple[str, str, str, str]] = set()
-    for symbol, side_value in universe.approved_pairs:
-        entry = _entry_for(symbol, SignalSide(side_value), require_approval=True)
-        if entry is None:
-            logger.error(
-                "%s:%s is approved but has no configured parameters; skipping.",
-                symbol,
-                side_value,
-            )
-            continue
-        plan.entries.append(entry)
-        seen.add((entry.symbol, entry.side.value, entry.strategy.name, entry.timeframe))
+    approved_idents = _append_approved_sleeves(plan, universe, seen)
 
     # Operator paper vetoes: scan this exact sleeve even though gates failed.
     # Live `require_approval=True` never reaches here.
@@ -398,7 +422,7 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
         entry = _entry_from_record(name, record, symbol, SignalSide(side_value))
         if entry is None:
             continue
-        ident = (entry.symbol, entry.side.value, entry.strategy.name, entry.timeframe)
+        ident = _entry_ident(entry)
         if ident in seen:
             continue
         plan.entries.append(entry)
@@ -419,7 +443,7 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
             entry = _entry_for(symbol, side)
             if entry is None:
                 continue
-            ident = (entry.symbol, entry.side.value, entry.strategy.name, entry.timeframe)
+            ident = _entry_ident(entry)
             if ident in seen:
                 continue
             plan.entries.append(entry)
@@ -436,7 +460,7 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
         )
         if entry is None:
             continue
-        ident = (entry.symbol, entry.side.value, entry.strategy.name, entry.timeframe)
+        ident = _entry_ident(entry)
         if ident in seen:
             continue
         plan.entries.append(entry)
@@ -447,10 +471,10 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
         for e in plan.entries
         if universe.has_paper_override(e.strategy.name, e.symbol, e.side.value, e.timeframe)
     )
-    approved_n = sum(1 for e in plan.entries if (e.symbol, e.side.value) in approved_pairs)
+    approved_n = sum(1 for e in plan.entries if _entry_ident(e) in approved_idents)
     extra_n = len(plan.entries) - approved_n
     logger.warning(
-        "Trading plan: %d research-approved pair(s) plus %d UNAPPROVED "
+        "Trading plan: %d research-approved sleeve(s) plus %d UNAPPROVED "
         "candidate pair(s) (%d operator paper override(s)). Candidates have NOT "
         "passed validation and must never run with real money.",
         approved_n,
