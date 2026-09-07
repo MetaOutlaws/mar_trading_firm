@@ -171,6 +171,7 @@ CLOCK_BY_FAMILY = {
     "engulfing_fail_reversion": "4h/4h",
     "wyckoff_spring_reclaim": "4h/4h",
     "prior_close_magnet_fade": "4h/4h",
+    "classic_floor_pivot_reject": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
