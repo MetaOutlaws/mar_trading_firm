@@ -736,14 +736,15 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "side": "BOTH",
         "rank": 20,
         "coded": True,
-        "free_params": 2,
+        "free_params": 1,
         "disposition": "new_family",
         "justification": (
             "Brian Inbox-approved for coding only. Fade a 4h tag of the "
             "prior UTC day high/low that closes back inside the day box. "
-            "BOTH sides honest. Not a weekend sweep, not a Monday-open "
-            "reclaim, not a rolling equal-H/L restest, not a neckline, "
-            "not P/R1/S1. Walk-forward is not started from this coding PR."
+            "Quant-locked grid: require_close_inside=True, touch_tol_atr "
+            "[0.0, 0.10], raw prior UTC day H/L (not R1/S1, not weekend "
+            "box). BOTH sides honest. Walk-forward is not started from "
+            "this coding PR."
         ),
         "param_change": {"clock": "4h/4h"},
         "needs_feed": False,

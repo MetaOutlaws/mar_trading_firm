@@ -3379,6 +3379,14 @@ def _prior_day_extreme_tape(*, long_side: bool, held_break: bool = False) -> tup
 
 
 def test_prior_day_extreme_reject_schema_and_long_entry() -> None:
+    from research.validate import strategy_kit
+
+    # Quant lock: close-inside is fixed True; only touch_tol_atr is searched.
+    _factory, base, space = strategy_kit("prior_day_extreme_reject", SignalSide.LONG)
+    assert base.require_close_inside is True
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
     candles, fire = _prior_day_extreme_tape(long_side=True)
     signals = _signals("prior_day_extreme_reject", candles)
     for column in ("signal", "side", "score", "reason", "prior_high", "prior_low"):
@@ -3445,7 +3453,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("double_bottom_neckline_break", {"lookback", "atr_tol"}),
         ("double_top_neckline_break", {"lookback", "atr_tol"}),
         ("ascending_triangle_break", {"lookback", "atr_tol"}),
-        ("prior_day_extreme_reject", {"touch_tol_atr", "require_close_inside"}),
+        ("prior_day_extreme_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -3460,7 +3468,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
     for name, extra_keys in (
         ("session_boundary_volume_fade", {"vol_period"}),
         ("vwap_volatility_band_fade", {"band_k"}),
-        ("prior_day_extreme_reject", {"touch_tol_atr", "require_close_inside"}),
+        ("prior_day_extreme_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

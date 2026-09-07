@@ -1,15 +1,16 @@
 """Fade a 4h tag of the prior UTC day's high or low that closes back inside.
 
 Prior UTC calendar day high/low is published after midnight. This 4h bar
-tags that extreme and closes back through it (preferably still inside the
-prior day's range):
+tags that extreme and closes back through it, still inside the prior day's
+range (Quant-locked ``require_close_inside=True``):
 
 - SHORT when ``high_t >= prior_day_high`` and ``close_t < prior_day_high``.
 - LONG when ``low_t <= prior_day_low`` and ``close_t > prior_day_low``.
 
-Free params are at most two: ``touch_tol_atr`` (default 0) and
-``require_close_inside`` (default True). OHLCV only. Causal: bars ``<= t``.
-The engine fills at ``t+1`` open.
+Levels are raw prior UTC day H/L, not floor P/R1/S1 and not a weekend box.
+The only searched free param is ``touch_tol_atr`` (default 0; grid
+``[0.0, 0.10]``). OHLCV only. Causal: bars ``<= t``. The engine fills at
+``t+1`` open.
 
 Not ``monday_range_sweep_reversal`` (weekend Sat–Sun box, Monday London/NY).
 Not ``week_open_reclaim`` (Monday 00:00 open reclaim).
@@ -29,16 +30,16 @@ import pandas as pd
 from core.strategy import indicators as ind
 from core.strategy.base import SignalSide, Strategy, StrategyParams
 
-# ATR period is locked. Walk-forward searches touch_tol_atr and the close-inside flag.
+# ATR period and close-inside are locked. Walk-forward searches touch_tol_atr only.
 ATR_PERIOD = 14
 
 
 @dataclass(frozen=True)
 class PriorDayExtremeRejectParams(StrategyParams):
     side: SignalSide = SignalSide.LONG
-    # Tag slack as a multiple of prior-bar ATR. 0 = must reach the extreme.
+    # Tag slack as a multiple of prior-bar ATR. Quant grid: [0.0, 0.10].
     touch_tol_atr: float = 0.0
-    # When True, close must sit inside the prior UTC day box, not only recross the tag.
+    # Quant-locked True: close must sit inside the prior UTC day box.
     require_close_inside: bool = True
     take_profit_pct: float = 0.04
     stop_loss_pct: float = 0.02

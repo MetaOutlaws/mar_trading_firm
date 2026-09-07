@@ -970,8 +970,8 @@ def _novel_kit(name: str, side: SignalSide):
             "core.strategy.prior_day_extreme_reject",
             "PriorDayExtremeRejectParams",
             "PriorDayExtremeRejectStrategy",
-            # ATR period locked. Search tag slack and the close-inside flag.
-            {"touch_tol_atr": [0.0, 0.15], "require_close_inside": [True, False]},
+            # Close-inside and ATR period locked. Search tag slack only.
+            {"touch_tol_atr": [0.0, 0.10]},
         ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
