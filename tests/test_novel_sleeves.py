@@ -125,6 +125,7 @@ APPROVED = [
     "engulfing_fail_reversion",
     "wyckoff_spring_reclaim",
     "prior_close_magnet_fade",
+    "classic_floor_pivot_reject",
 ]
 
 
@@ -5097,6 +5098,214 @@ def test_prior_close_magnet_fade_short_entry() -> None:
         assert int(_signals(name, candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
 
 
+def _classic_floor_pivot_tape(
+    *,
+    long_side: bool,
+    held_through_pivot: bool = False,
+    miss_tag: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Prior UTC day with R1/S1 ≠ raw H/L, then a next-day pivot reject.
+
+    Bullish prior close (LONG): S1 sits above yesterday's low so a S1 tag is
+    not a raw H/L reject. Bearish prior close (SHORT): R1 sits below
+    yesterday's high so an R1 tag is not a raw H/L reject. Volume stays
+    flat so session-mid / week-open reclaim families stay quiet.
+    """
+    n = 72
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    high = np.full(n, 102.0)
+    low = np.full(n, 98.0)
+    open_ = np.full(n, 100.0)
+    # Prior UTC day (Jan 2) box H=110 / L=90. Close away from the mid so
+    # floor R1/S1 separate from raw H/L.
+    high[5] = 110.0
+    low[8] = 90.0
+    if long_side:
+        # C=108 -> P=102.667, R1=115.333, S1=95.333 (S1 > L).
+        close[23] = 108.0
+        high[23] = 109.0
+        low[23] = 107.0
+        open_[23] = 107.5
+        # Keep day-1 prints near P so this is not a prior-close magnet fade.
+        day1 = (index.normalize() == pd.Timestamp("2024-01-03", tz="UTC")).to_numpy()
+        close[day1] = 103.0
+        high[day1] = 104.0
+        low[day1] = 102.0
+        open_[day1] = 103.0
+    else:
+        # C=90 -> P=96.667, R1=103.333, S1=83.333 (R1 < H).
+        close[23] = 90.0
+        high[23] = 91.0
+        low[23] = 90.0
+        open_[23] = 100.0
+        day1 = (index.normalize() == pd.Timestamp("2024-01-03", tz="UTC")).to_numpy()
+        close[day1] = 97.0
+        high[day1] = 98.0
+        low[day1] = 96.0
+        open_[day1] = 97.0
+    fire = _day1_sweep_iloc(index)
+    if long_side:
+        # Tag S1 (~95.33) without tagging prior-day low 90. Close back above P.
+        low[fire] = 95.5 if miss_tag else 95.0
+        close[fire] = 101.0 if held_through_pivot else 104.0
+        high[fire] = 104.5
+        open_[fire] = 103.0
+    else:
+        # Tag R1 (~103.33) without tagging prior-day high 110. Close back below P.
+        high[fire] = 103.2 if miss_tag else 104.0
+        close[fire] = 98.0 if held_through_pivot else 95.0
+        low[fire] = 94.5
+        open_[fire] = 97.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    return candles, fire
+
+
+def test_classic_floor_pivot_reject_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    # Quant lock: P/R1/S1 formula is fixed; only touch_tol_atr is searched.
+    factory, base, space = strategy_kit("classic_floor_pivot_reject", SignalSide.LONG)
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+    assert "pivot" not in space
+    assert "r1" not in space
+    assert "s1" not in space
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
+    candles, fire = _classic_floor_pivot_tape(long_side=True)
+    signals = _signals("classic_floor_pivot_reject", candles)
+    for column in ("signal", "side", "score", "reason", "pivot", "r1", "s1"):
+        assert column in signals.columns
+    assert "prior_high" not in signals.columns
+    assert "week_open" not in signals.columns
+    assert "session_mid" not in signals.columns
+    assert "prior_close" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    # Locked floor-trader formula from prior UTC day H=110, L=90, C=108.
+    pivot = (110.0 + 90.0 + 108.0) / 3.0
+    r1 = 2.0 * pivot - 90.0
+    s1 = 2.0 * pivot - 110.0
+    assert signals["pivot"].iloc[fire] == pytest.approx(pivot)
+    assert signals["r1"].iloc[fire] == pytest.approx(r1)
+    assert signals["s1"].iloc[fire] == pytest.approx(s1)
+    assert pivot == pytest.approx((110.0 + 90.0 + 108.0) / 3.0)
+    assert r1 == pytest.approx(2.0 * pivot - 90.0)
+    assert s1 == pytest.approx(2.0 * pivot - 110.0)
+    # Held through P (tagged S1 but close stays below P) is not a reject.
+    held, _ = _classic_floor_pivot_tape(long_side=True, held_through_pivot=True)
+    assert int(_signals("classic_floor_pivot_reject", held)["signal"].iloc[fire]) == 0
+    # Near-miss of S1 stays flat at locked touch_tol=0; 0.10 ATR slack can tag it.
+    miss, miss_fire = _classic_floor_pivot_tape(long_side=True, miss_tag=True)
+    miss_sig = _signals("classic_floor_pivot_reject", miss)
+    assert int(miss_sig["signal"].iloc[miss_fire]) == 0
+    slack = factory(replace(base, touch_tol_atr=0.10)).generate_signals(miss)
+    atr_prev = float(slack["atr"].iloc[miss_fire])
+    assert atr_prev > 0.0
+    s1_miss = float(slack["s1"].iloc[miss_fire])
+    low_miss = float(miss["low"].iloc[miss_fire])
+    if low_miss <= s1_miss + 0.10 * atr_prev:
+        assert int(slack["signal"].iloc[miss_fire]) == 1
+    # Neighbors stay flat: raw H/L reject, pivot breakout, session mid, week open, magnet.
+    assert int(_signals("prior_day_extreme_reject", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_day_pivot_breakout", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_session_mid_reclaim", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("week_open_reclaim", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_close_magnet_fade", candles)["signal"].iloc[fire]) == 0
+
+
+def test_classic_floor_pivot_reject_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("classic_floor_pivot_reject", SignalSide.SHORT)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+    candles, fire = _classic_floor_pivot_tape(long_side=False)
+    signals = _signals("classic_floor_pivot_reject", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    pivot = (110.0 + 90.0 + 90.0) / 3.0
+    r1 = 2.0 * pivot - 90.0
+    s1 = 2.0 * pivot - 110.0
+    assert signals["pivot"].iloc[fire] == pytest.approx(pivot)
+    assert signals["r1"].iloc[fire] == pytest.approx(r1)
+    assert signals["s1"].iloc[fire] == pytest.approx(s1)
+    held, _ = _classic_floor_pivot_tape(long_side=False, held_through_pivot=True)
+    assert int(
+        _signals("classic_floor_pivot_reject", held, side=SignalSide.SHORT)["signal"].iloc[fire]
+    ) == 0
+    miss, miss_fire = _classic_floor_pivot_tape(long_side=False, miss_tag=True)
+    assert int(
+        _signals("classic_floor_pivot_reject", miss, side=SignalSide.SHORT)["signal"].iloc[miss_fire]
+    ) == 0
+    slack = factory(replace(base, touch_tol_atr=0.10)).generate_signals(miss)
+    atr_prev = float(slack["atr"].iloc[miss_fire])
+    assert atr_prev > 0.0
+    r1_miss = float(slack["r1"].iloc[miss_fire])
+    high_miss = float(miss["high"].iloc[miss_fire])
+    if high_miss >= r1_miss - 0.10 * atr_prev:
+        assert int(slack["signal"].iloc[miss_fire]) == -1
+    assert int(
+        _signals("prior_day_extreme_reject", candles, side=SignalSide.SHORT)["signal"].iloc[fire]
+    ) == 0
+    assert int(
+        _signals("prior_day_pivot_breakout", candles, side=SignalSide.SHORT)["signal"].iloc[fire]
+    ) == 0
+    assert int(
+        _signals("prior_session_mid_reclaim", candles, side=SignalSide.SHORT)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("week_open_reclaim", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("prior_close_magnet_fade", candles, side=SignalSide.SHORT)["signal"].iloc[fire]
+    ) == 0
+    # Inverse: a raw prior-day H/L reject that closes back inside the day box
+    # but stays on the wrong side of P is not this family.
+    extreme, extreme_fire = _prior_day_extreme_tape(long_side=False)
+    assert int(
+        _signals("classic_floor_pivot_reject", extreme, side=SignalSide.SHORT)["signal"].iloc[
+            extreme_fire
+        ]
+    ) == 0
+
+
+def test_classic_floor_pivot_reject_no_lookahead() -> None:
+    candles, fire = _classic_floor_pivot_tape(long_side=True)
+    signals = _signals("classic_floor_pivot_reject", candles)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals("classic_floor_pivot_reject", candles.iloc[:cut])
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars of the fire day (and the next day) must not rewrite P/R1/S1.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 140.0
+    after = _signals("classic_floor_pivot_reject", shocked)
+    assert after["pivot"].iloc[fire] == pytest.approx(signals["pivot"].iloc[fire])
+    assert after["r1"].iloc[fire] == pytest.approx(signals["r1"].iloc[fire])
+    assert after["s1"].iloc[fire] == pytest.approx(signals["s1"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -5125,6 +5334,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("engulfing_fail_reversion", {"max_bars_since_engulf"}),
         ("wyckoff_spring_reclaim", {"lookback", "hold_bars"}),
         ("prior_close_magnet_fade", {"k"}),
+        ("classic_floor_pivot_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -5149,6 +5359,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("engulfing_fail_reversion", {"max_bars_since_engulf"}),
         ("wyckoff_spring_reclaim", {"lookback", "hold_bars"}),
         ("prior_close_magnet_fade", {"k"}),
+        ("classic_floor_pivot_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

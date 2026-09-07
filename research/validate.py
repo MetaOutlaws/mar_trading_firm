@@ -1036,6 +1036,13 @@ def _novel_kit(name: str, side: SignalSide):
             # atr_n locked at 20. No volume. Search stretch k only.
             {"k": [1.2, 1.4]},
         ),
+        "classic_floor_pivot_reject": (
+            "core.strategy.classic_floor_pivot_reject",
+            "ClassicFloorPivotRejectParams",
+            "ClassicFloorPivotRejectStrategy",
+            # P/R1/S1 formula and ATR period locked. Search tag slack only.
+            {"touch_tol_atr": [0.0, 0.10]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

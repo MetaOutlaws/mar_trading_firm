@@ -1,0 +1,15 @@
+{
+  "family": "classic_floor_pivot_reject",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "Classic daily floor-trader pivot reject from the prior UTC day H,L,C: P=(H+L+C)/3, R1=2P-L, S1=2P-H. SHORT when a 4h bar tags R1 (within touch_tol_atr) and closes back below P. LONG when a 4h bar tags S1 (within touch_tol_atr) and closes back above P. Quant-locked: P/R1/S1 formula FIXED (not searched), touch_tol_atr search [0.0, 0.10], max 2 free params (only touch_tol_atr is free), no volume. Not prior_session_mid_reclaim (107). Not week_open_reclaim. Not prior_close_magnet_fade (128). Not prior_day_extreme_reject raw H/L (118). Not prior_day_pivot_breakout (close-through R1/S1). Not H&S / asia_close / displacement_gap_follow. Do not recode spent families 118–128.",
+  "summary": "Fade a 4h tag of prior-UTC-day floor R1/S1 that closes back through the pivot P.",
+  "justification": "A failed 4h tag of yesterday's floor R1/S1 that closes back through P is not a raw prior-day H/L reject, not a close-through pivot breakout, not a session-mid or week-open reclaim, and not a prior-close magnet fade.",
+  "status": "Brian Inbox-approved for coding",
+  "written_at": "2026-09-07T17:10:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/classic_floor_pivot_reject.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward."
+}

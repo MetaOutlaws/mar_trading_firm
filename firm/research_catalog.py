@@ -938,6 +938,26 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "classic_floor_pivot_reject@4h/4h",
+        "family": "classic_floor_pivot_reject",
+        "name": "classic_floor_pivot_reject 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 30,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a 4h tag of "
+            "prior-UTC-day floor R1/S1 that closes back through P. "
+            "Quant-locked grid: P/R1/S1 formula fixed (not searched), "
+            "touch_tol_atr [0.0, 0.10], no volume. BOTH sides honest. "
+            "Walk-forward is not started from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
