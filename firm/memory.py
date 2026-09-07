@@ -735,23 +735,30 @@ def record_sentiment(
     sources: list[str],
     model: str,
     price_at_reading: float,
+    recorded_at: datetime | None = None,
 ) -> int:
     """Store one sentiment reading together with the price at the time.
 
     The price matters: without it forward returns cannot be computed later, and
     an unvalidatable sentiment signal can never earn authority.
+
+    `recorded_at` defaults to now. Luke snapshot imports pass the file `as_of`
+    so forward-return scoring is anchored to the scrape, not the dashboard poll.
     """
     with session_scope() as session:
-        record = SentimentScore(
-            symbol=symbol,
-            score=score,
-            narrative=narrative,
-            hype_stage=hype_stage,
-            confidence=confidence,
-            sources=sources,
-            model=model,
-            price_at_reading=price_at_reading,
-        )
+        kwargs: dict[str, Any] = {
+            "symbol": symbol,
+            "score": score,
+            "narrative": narrative,
+            "hype_stage": hype_stage,
+            "confidence": confidence,
+            "sources": sources,
+            "model": model,
+            "price_at_reading": price_at_reading,
+        }
+        if recorded_at is not None:
+            kwargs["recorded_at"] = recorded_at
+        record = SentimentScore(**kwargs)
         session.add(record)
         session.flush()
         return int(record.id)

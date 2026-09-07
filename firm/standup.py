@@ -219,12 +219,36 @@ def build_standup() -> dict[str, Any]:
         happening.append("Gemini seats are configured for cheap/standard/strong employees.")
 
     if not xai_ok:
-        blockers.append(
-            {
-                "level": "waiting",
-                "text": "No XAI_API_KEY — Sentiment stays dark. Paper and walk-forward do not need it.",
-            }
-        )
+        try:
+            from core.data.sentiment import load_last_sentiment, snapshot_is_fresh
+
+            luke = load_last_sentiment()
+            luke_fresh = snapshot_is_fresh(luke)
+        except Exception:
+            luke = None
+            luke_fresh = False
+        if luke_fresh:
+            happening.append("Luke CT sentiment snapshot is fresh — Sentiment tab does not need xAI.")
+        elif luke:
+            blockers.append(
+                {
+                    "level": "waiting",
+                    "text": (
+                        "Luke CT snapshot is stale (>30 min). Sentiment falls back to SQLite. "
+                        "Paper and walk-forward do not need xAI."
+                    ),
+                }
+            )
+        else:
+            blockers.append(
+                {
+                    "level": "waiting",
+                    "text": (
+                        "No data/last_sentiment.json yet — Sentiment waits on Luke's scraper. "
+                        "Paper and walk-forward do not need an X or xAI key."
+                    ),
+                }
+            )
 
     if approved_n == 0:
         happening.append("Live is locked: no pair has passed walk-forward.")

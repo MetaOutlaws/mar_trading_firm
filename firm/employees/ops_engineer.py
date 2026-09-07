@@ -50,8 +50,9 @@ class OpsEngineer(Agent):
             "LLM timeout (gemini call failed / timed out). A single timeout is "
             "enough — do not wait for three. Ignore rows marked historical_noise. "
             "Missing DeepSeek or OpenAI keys are not failures — those providers "
-            "are retired and employees use Gemini. A missing xAI key only darkens "
-            "Sentiment. Do not escalate a patched KillSwitchState.is_tripped error."
+            "are retired and employees use Gemini. A missing xAI key is fine: "
+            "Sentiment reads Luke's last_sentiment.json. Do not escalate a patched "
+            "KillSwitchState.is_tripped error."
         )
 
     def gather(self) -> dict[str, Any]:

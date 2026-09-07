@@ -1,18 +1,17 @@
 """
-Sentiment Analyst: batched X/Twitter narrative scoring via xAI Grok.
+Sentiment Analyst: Crypto Twitter narrative.
 
-Every four hours, one request covers the whole watchlist. That is not a
-convenience -- xAI bills search tools at $5 per 1,000 calls, so per-symbol
-requests would dominate the monthly budget. Citations are stored so a claim
-can be checked, and the price at the reading is stored so the signal can be
-validated against forward returns before it is granted any authority.
+Primary feed is Luke's file snapshot (`data/last_sentiment.json`), which the
+desk reads directly — no X API key and no XAI_API_KEY on the paper box.
 
-Until that validation exists, this employee's trust stays at L1: opinions are
-visible and logged, they never move size or block a trade on their own.
+This employee is the optional xAI Grok search fallback: it only spends search
+budget when the Luke file is missing or older than 30 minutes *and* an xAI key
+is configured. Until forward-return validation exists, trust stays at L1.
 """
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import Any
 
@@ -20,10 +19,13 @@ from pydantic import Field
 
 from config.universe import get_universe
 from core.data.ohlcv import BybitOHLCV
+from core.data.sentiment import load_last_sentiment, snapshot_is_fresh
 from firm import memory
 from firm.llm import ModelTier
-from firm.memory_models import ProposalKind
-from firm.runtime import Agent, AgentOutput, Cadence
+from firm.memory_models import ProposalKind, RunStatus
+from firm.runtime import Agent, AgentOutput, AgentResult, Cadence
+
+logger = logging.getLogger(__name__)
 
 
 class AssetSentiment(AgentOutput):
@@ -94,6 +96,37 @@ class SentimentAnalyst(Agent):
             f"Score current X sentiment for: {symbols}. "
             "One reading per symbol. Include source URLs."
         )
+
+    def run(self) -> AgentResult:
+        """Skip xAI when Luke's snapshot is fresh, or when no search key exists."""
+        blob = load_last_sentiment()
+        if snapshot_is_fresh(blob):
+            error = (
+                "Skipped: Luke CT snapshot is fresh. "
+                "xAI search is a fallback only."
+            )
+            run_id = memory.start_run(
+                self.name, self.role, self.describe_task({}), prompt_version=self.prompt_version
+            )
+            memory.finish_run(run_id, RunStatus.SKIPPED, error=error)
+            logger.info("%s %s", self.name, error)
+            return AgentResult(
+                agent=self.name, status=RunStatus.SKIPPED, run_id=run_id, error=error
+            )
+        if self.tier and not self.router.is_configured(self.tier):
+            error = (
+                "Skipped: no fresh data/last_sentiment.json and no XAI_API_KEY. "
+                "The Sentiment tab reads Luke's file; paper does not need xAI."
+            )
+            run_id = memory.start_run(
+                self.name, self.role, self.describe_task({}), prompt_version=self.prompt_version
+            )
+            memory.finish_run(run_id, RunStatus.SKIPPED, error=error)
+            logger.info("%s %s", self.name, error)
+            return AgentResult(
+                agent=self.name, status=RunStatus.SKIPPED, run_id=run_id, error=error
+            )
+        return super().run()
 
     def on_output(self, output: AgentOutput, inputs: dict[str, Any], run_id: int) -> list[int]:
         sweep = SentimentSweep.model_validate(output.model_dump())

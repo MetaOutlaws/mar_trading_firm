@@ -24,6 +24,9 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 data/cache/
+# Luke CT scraper snapshot (example file is committed).
+data/last_sentiment.json
+data/last_sentiment.json.tmp
 logs/*.log
 logs/*.log.*
 logs/archive/
