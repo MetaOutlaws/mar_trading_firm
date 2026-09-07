@@ -987,6 +987,13 @@ def _novel_kit(name: str, side: SignalSide):
             # Close-inside and session bounds locked. Search tag slack only.
             {"touch_tol_atr": [0.0, 0.10]},
         ),
+        "orb_fail_reversion": (
+            "core.strategy.orb_fail_reversion",
+            "OrbFailReversionParams",
+            "OrbFailReversionStrategy",
+            # Close-inside locked. No volume. Search ORB window + fail window.
+            {"orb_bars": [1, 2], "max_bars_since_break": [2, 4]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
