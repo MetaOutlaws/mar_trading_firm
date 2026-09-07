@@ -1001,6 +1001,13 @@ def _novel_kit(name: str, side: SignalSide):
             # NR7 lookback and close-inside locked. Search fail window only.
             {"max_bars_since_break": [1, 3]},
         ),
+        "ib_fail_reversion": (
+            "core.strategy.ib_fail_reversion",
+            "IbFailReversionParams",
+            "IbFailReversionStrategy",
+            # London first-4h mother and close-inside locked. Search fail window only.
+            {"max_bars_since_break": [2, 4]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

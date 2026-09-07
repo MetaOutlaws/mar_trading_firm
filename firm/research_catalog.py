@@ -834,6 +834,27 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "ib_fail_reversion@4h/4h",
+        "family": "ib_fail_reversion",
+        "name": "ib_fail_reversion 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 25,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a failed London "
+            "inside-bar break that reverts back inside the first London "
+            "4h mother. Quant-locked grid: first London 4h mother fixed "
+            "(desk 08:00–16:00), require_close_inside=True, "
+            "max_bars_since_break [2, 4], no volume. BOTH sides honest. "
+            "Walk-forward is not started from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
