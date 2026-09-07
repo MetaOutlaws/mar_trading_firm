@@ -117,6 +117,7 @@ APPROVED = [
     "ascending_triangle_break",
     "prior_day_extreme_reject",
     "failed_range_break_reversion",
+    "asia_range_london_reject",
 ]
 
 
@@ -3594,6 +3595,182 @@ def test_failed_range_break_reversion_short_entry() -> None:
     assert "vol_mean" not in signals.columns
 
 
+def _asia_london_iloc(index: pd.DatetimeIndex, stamp: str) -> int:
+    return int(index.get_loc(pd.Timestamp(stamp, tz="UTC")))
+
+
+def _asia_range_london_tape(
+    *,
+    long_side: bool,
+    held_break: bool = False,
+    ny_hour: bool = False,
+    asia_hour: bool = False,
+    london_0700: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Jan 3 Asia box 110/90 (00:00–08:00), then a London tag that closes back inside.
+
+    Prior UTC day stays ~101/99 so this is not ``prior_day_extreme_reject``.
+    The poke is deeper than 1% so ``session_liquidity_sweep`` does not fire.
+    Volume is flat. Wednesday, not a Monday weekend sweep.
+    """
+    n = 48
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    # Jan 3 Asia hours: a same-day session box distinct from yesterday's UTC H/L.
+    asia_start = _asia_london_iloc(index, "2024-01-03 00:00")
+    asia_end = _asia_london_iloc(index, "2024-01-03 08:00")
+    high[asia_start:asia_end] = 110.0
+    low[asia_start:asia_end] = 90.0
+    close[asia_start:asia_end] = 100.0
+    if asia_hour:
+        fire = _asia_london_iloc(index, "2024-01-03 04:00")
+    elif ny_hour:
+        fire = _asia_london_iloc(index, "2024-01-03 16:00")
+    elif london_0700:
+        fire = _asia_london_iloc(index, "2024-01-03 07:00")
+    else:
+        fire = _asia_london_iloc(index, "2024-01-03 08:00")
+    if long_side:
+        # Deep poke of Asia low, close back inside the Asia box (not a held breakdown).
+        low[fire] = 84.0
+        close[fire] = 95.0
+        open_[fire] = 96.0
+        high[fire] = 97.0
+        if held_break:
+            close[fire] = 84.0
+            high[fire] = 88.0
+            open_[fire] = 88.0
+    else:
+        high[fire] = 116.0
+        close[fire] = 105.0
+        open_[fire] = 104.0
+        low[fire] = 103.0
+        if held_break:
+            close[fire] = 116.0
+            low[fire] = 112.0
+            open_[fire] = 112.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    return candles, fire
+
+
+def test_asia_range_london_reject_schema_and_long_entry() -> None:
+    from research.validate import strategy_kit
+
+    from core.strategy.asia_range_london_reject import (
+        ASIA_END_HOUR,
+        ASIA_START_HOUR,
+        LONDON_END_HOUR,
+        LONDON_START_HOUR,
+    )
+
+    # Quant lock: close-inside and session bounds are fixed; only touch_tol_atr is searched.
+    _factory, base, space = strategy_kit("asia_range_london_reject", SignalSide.LONG)
+    assert base.require_close_inside is True
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
+    assert "vol_lookback" not in extra
+    assert "max_sweep_pct" not in extra
+    assert "end_hour" not in extra
+    assert ASIA_START_HOUR == 0.0
+    assert ASIA_END_HOUR == 8.0
+    assert LONDON_START_HOUR == 7.0
+    assert LONDON_END_HOUR == 16.0
+    candles, fire = _asia_range_london_tape(long_side=True)
+    signals = _signals("asia_range_london_reject", candles)
+    for column in ("signal", "side", "score", "reason", "range_high", "range_low"):
+        assert column in signals.columns
+    assert "prior_high" not in signals.columns
+    assert "max_sweep_pct" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["range_high"].iloc[fire] == pytest.approx(110.0)
+    assert signals["range_low"].iloc[fire] == pytest.approx(90.0)
+    # Held breakdown (close stays through the Asia low) is not a reject.
+    held, _ = _asia_range_london_tape(long_side=True, held_break=True)
+    assert int(_signals("asia_range_london_reject", held)["signal"].iloc[fire]) == 0
+    # Deep poke is not session_liquidity_sweep (1% cap) and not an Asia close-through.
+    assert int(_signals("session_liquidity_sweep", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("asian_range_breakout", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_day_extreme_reject", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("failed_range_break_reversion", candles)["signal"].iloc[fire]) == 0
+    # Asia hours are still forming the box; 07:00 is in the London window but
+    # the Asia box is not published until 08:00. NY 16:00 is not London.
+    asia, asia_i = _asia_range_london_tape(long_side=True, asia_hour=True)
+    early, early_i = _asia_range_london_tape(long_side=True, london_0700=True)
+    ny, ny_i = _asia_range_london_tape(long_side=True, ny_hour=True)
+    assert int(_signals("asia_range_london_reject", asia)["signal"].iloc[asia_i]) == 0
+    assert int(_signals("asia_range_london_reject", early)["signal"].iloc[early_i]) == 0
+    assert int(_signals("asia_range_london_reject", ny)["signal"].iloc[ny_i]) == 0
+
+
+def test_asia_range_london_reject_short_entry() -> None:
+    candles, fire = _asia_range_london_tape(long_side=False)
+    signals = _signals("asia_range_london_reject", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["range_high"].iloc[fire] == pytest.approx(110.0)
+    held, _ = _asia_range_london_tape(long_side=False, held_break=True)
+    assert int(
+        _signals("asia_range_london_reject", held, side=SignalSide.SHORT)["signal"].iloc[fire]
+    ) == 0
+    # Wednesday tape is not a Monday weekend-box sweep. Held close-through is asian_range.
+    monday = _signals("monday_range_sweep_reversal", candles, side=SignalSide.SHORT)
+    asian = _signals("asian_range_breakout", candles, side=SignalSide.SHORT)
+    sweep = _signals("session_liquidity_sweep", candles, side=SignalSide.SHORT)
+    prior_day = _signals("prior_day_extreme_reject", candles, side=SignalSide.SHORT)
+    failed = _signals("failed_range_break_reversion", candles, side=SignalSide.SHORT)
+    assert int(monday["signal"].iloc[fire]) == 0
+    assert int(asian["signal"].iloc[fire]) == 0
+    assert int(sweep["signal"].iloc[fire]) == 0
+    assert int(prior_day["signal"].iloc[fire]) == 0
+    assert int(failed["signal"].iloc[fire]) == 0
+    # Held close through Asia high is asian_range_breakout LONG, not this fade.
+    held_asia = _asia_range_london_tape(long_side=False, held_break=True)[0]
+    assert int(_signals("asian_range_breakout", held_asia)["signal"].iloc[fire]) == 1
+    ny, ny_i = _asia_range_london_tape(long_side=False, ny_hour=True)
+    assert int(
+        _signals("asia_range_london_reject", ny, side=SignalSide.SHORT)["signal"].iloc[ny_i]
+    ) == 0
+    assert "weekend_mid" not in signals.columns
+    assert "neckline" not in signals.columns
+
+
+def test_asia_range_london_reject_4h_london_bar() -> None:
+    """Open-labeled 4h at 08:00 is London (07:00–16:00); 00:00/04:00 is still Asia."""
+    n = 24
+    index = pd.date_range("2024-01-02", periods=n, freq="4h", tz="UTC")
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    asia_00 = int(index.get_loc(pd.Timestamp("2024-01-04 00:00", tz="UTC")))
+    asia_04 = int(index.get_loc(pd.Timestamp("2024-01-04 04:00", tz="UTC")))
+    london = int(index.get_loc(pd.Timestamp("2024-01-04 08:00", tz="UTC")))
+    high[asia_00] = 110.0
+    high[asia_04] = 110.0
+    low[asia_00] = 90.0
+    low[asia_04] = 90.0
+    low[london] = 84.0
+    close[london] = 95.0
+    open_[london] = 96.0
+    high[london] = 97.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    signals = _signals("asia_range_london_reject", candles)
+    assert int(signals["signal"].iloc[asia_00]) == 0
+    assert int(signals["signal"].iloc[asia_04]) == 0
+    assert int(signals["signal"].iloc[london]) == 1
+    assert signals["range_high"].iloc[london] == pytest.approx(110.0)
+    assert signals["range_low"].iloc[london] == pytest.approx(90.0)
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -3614,6 +3791,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("ascending_triangle_break", {"lookback", "atr_tol"}),
         ("prior_day_extreme_reject", {"touch_tol_atr"}),
         ("failed_range_break_reversion", {"lookback", "max_bars_since_break"}),
+        ("asia_range_london_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -3630,6 +3808,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("vwap_volatility_band_fade", {"band_k"}),
         ("prior_day_extreme_reject", {"touch_tol_atr"}),
         ("failed_range_break_reversion", {"lookback", "max_bars_since_break"}),
+        ("asia_range_london_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
