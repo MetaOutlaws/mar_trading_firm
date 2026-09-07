@@ -966,6 +966,13 @@ def _novel_kit(name: str, side: SignalSide):
             # Volume baseline locked at prior-20 mean. Search lookback + atr_tol.
             {"lookback": [30, 40], "atr_tol": [0.10, 0.15]},
         ),
+        "prior_day_extreme_reject": (
+            "core.strategy.prior_day_extreme_reject",
+            "PriorDayExtremeRejectParams",
+            "PriorDayExtremeRejectStrategy",
+            # Close-inside and ATR period locked. Search tag slack only.
+            {"touch_tol_atr": [0.0, 0.10]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

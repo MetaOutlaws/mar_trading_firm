@@ -115,6 +115,7 @@ APPROVED = [
     "double_bottom_neckline_break",
     "double_top_neckline_break",
     "ascending_triangle_break",
+    "prior_day_extreme_reject",
 ]
 
 
@@ -3349,6 +3350,91 @@ def test_ascending_triangle_break_short_descending_entry() -> None:
     assert "cap" not in nr7.columns
 
 
+def _prior_day_extreme_tape(*, long_side: bool, held_break: bool = False) -> tuple[pd.DataFrame, int]:
+    """Prior UTC day box H=110 / L=90, then a next-day tag that closes back inside."""
+    index, close, high, low, open_ = _utc_day_box_tape()
+    bar = _day1_sweep_iloc(index)
+    if long_side:
+        # Tag prior-day low, close back inside the day box (not a held breakdown).
+        low[bar] = 85.0
+        close[bar] = 95.0
+        open_[bar] = 96.0
+        high[bar] = 97.0
+        if held_break:
+            close[bar] = 84.0
+            high[bar] = 88.0
+            open_[bar] = 88.0
+    else:
+        # Tag prior-day high, close back inside the day box (not a held breakout).
+        high[bar] = 115.0
+        close[bar] = 105.0
+        open_[bar] = 104.0
+        low[bar] = 103.0
+        if held_break:
+            close[bar] = 116.0
+            low[bar] = 112.0
+            open_[bar] = 112.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    return candles, bar
+
+
+def test_prior_day_extreme_reject_schema_and_long_entry() -> None:
+    from research.validate import strategy_kit
+
+    # Quant lock: close-inside is fixed True; only touch_tol_atr is searched.
+    _factory, base, space = strategy_kit("prior_day_extreme_reject", SignalSide.LONG)
+    assert base.require_close_inside is True
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
+    candles, fire = _prior_day_extreme_tape(long_side=True)
+    signals = _signals("prior_day_extreme_reject", candles)
+    for column in ("signal", "side", "score", "reason", "prior_high", "prior_low"):
+        assert column in signals.columns
+    assert "pivot" not in signals.columns
+    assert "r1" not in signals.columns
+    assert "s1" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["prior_high"].iloc[fire] == pytest.approx(110.0)
+    assert signals["prior_low"].iloc[fire] == pytest.approx(90.0)
+    # Held breakdown (close stays through the low) is not a reject.
+    held, _ = _prior_day_extreme_tape(long_side=True, held_break=True)
+    assert int(_signals("prior_day_extreme_reject", held)["signal"].iloc[fire]) == 0
+    # Weak-volume UTC-day fade is a different family (no close-inside required).
+    session = _signals("session_boundary_volume_fade", candles)
+    assert int(session["signal"].iloc[fire]) == 0
+    # Floor-pivot breakout trades P/R1/S1, not a failed H/L tag.
+    pivot = _signals("prior_day_pivot_breakout", candles)
+    assert int(pivot["signal"].iloc[fire]) == 0
+
+
+def test_prior_day_extreme_reject_short_entry() -> None:
+    candles, fire = _prior_day_extreme_tape(long_side=False)
+    signals = _signals("prior_day_extreme_reject", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["prior_high"].iloc[fire] == pytest.approx(110.0)
+    held, _ = _prior_day_extreme_tape(long_side=False, held_break=True)
+    assert int(
+        _signals("prior_day_extreme_reject", held, side=SignalSide.SHORT)["signal"].iloc[fire]
+    ) == 0
+    # Wednesday tape is not a Monday weekend-box sweep or a Monday-open reclaim.
+    monday = _signals("monday_range_sweep_reversal", candles, side=SignalSide.SHORT)
+    week_open = _signals("week_open_reclaim", candles, side=SignalSide.SHORT)
+    restest = _signals("equal_high_low_restest_fade", candles, side=SignalSide.SHORT)
+    assert int(monday["signal"].iloc[fire]) == 0
+    assert int(week_open["signal"].iloc[fire]) == 0
+    assert int(restest["signal"].iloc[fire]) == 0
+    assert "weekend_mid" not in signals.columns
+    assert "equal_high" not in signals.columns
+    assert "neckline" not in signals.columns
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -3367,6 +3453,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("double_bottom_neckline_break", {"lookback", "atr_tol"}),
         ("double_top_neckline_break", {"lookback", "atr_tol"}),
         ("ascending_triangle_break", {"lookback", "atr_tol"}),
+        ("prior_day_extreme_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -3381,6 +3468,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
     for name, extra_keys in (
         ("session_boundary_volume_fade", {"vol_period"}),
         ("vwap_volatility_band_fade", {"band_k"}),
+        ("prior_day_extreme_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
