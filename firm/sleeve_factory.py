@@ -1751,6 +1751,38 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "and not a floor-pivot R1/S1 fade."
         ),
     ),
+    SleeveSpec(
+        name="failed_range_break_reversion",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Fade a 4h close back inside a prior N-bar range after a "
+            "close-through that fails to hold. SHORT: a prior bar closed "
+            "above range_high, then close_t is back below range_high "
+            "(within max_bars_since_break). LONG: a prior bar closed below "
+            "range_low, then close_t is back above range_low. Quant-locked: "
+            "require_close_inside=True, lookback [16, 20], "
+            "max_bars_since_break [2, 3], no volume. Not "
+            "range_compression_volume_thrust (successful thrust). Not "
+            "expansion_fail_fade (single ATR expansion bar). Not nr7 / orb "
+            "fail. Not ascending_triangle_break / H&S neckline confirmed "
+            "breaks. Not prior_day_extreme_reject (prior UTC day H/L). Do "
+            "not recode asia_close_inventory_fade, wyckoff_spring_reclaim, "
+            "or the Garwe buffer three."
+        ),
+        summary=(
+            "Fade a 4h close back inside a prior N-bar range after a break "
+            "that fails to hold."
+        ),
+        justification=(
+            "A failed close-through of a rolling N-bar range that re-closes "
+            "inside is not a successful volume thrust, not a single ATR "
+            "expansion fade, not NR7/ORB, not a neckline break, and not a "
+            "prior UTC day H/L reject."
+        ),
+    ),
 ]
 
 

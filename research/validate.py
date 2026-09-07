@@ -973,6 +973,13 @@ def _novel_kit(name: str, side: SignalSide):
             # Close-inside and ATR period locked. Search tag slack only.
             {"touch_tol_atr": [0.0, 0.10]},
         ),
+        "failed_range_break_reversion": (
+            "core.strategy.failed_range_break_reversion",
+            "FailedRangeBreakReversionParams",
+            "FailedRangeBreakReversionStrategy",
+            # Close-inside locked. No volume. Search lookback + fail window.
+            {"lookback": [16, 20], "max_bars_since_break": [2, 3]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
