@@ -222,6 +222,11 @@ def test_three_part_approval_keys_are_readable() -> None:
     assert not universe.is_approved("SOLUSDT", "LONG")
     assert ("BTCUSDT", "LONG") in universe.approved_pairs
     assert ("ETHUSDT", "SHORT") in universe.approved_pairs
+    approved_keys = [key for key, _rec in universe.approved_records]
+    assert "donchian_breakout:BTCUSDT:LONG" in approved_keys
+    assert "ETHUSDT:SHORT" in approved_keys
+    assert "rsi_trend:SOLUSDT:LONG" not in approved_keys
+    assert "donchian_breakout:BTCUSDT:LONG:15m" not in approved_keys
 
 
 def test_write_approvals_keeps_separate_timeframes(tmp_path) -> None:

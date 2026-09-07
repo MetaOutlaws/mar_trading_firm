@@ -333,7 +333,7 @@ def strategies() -> dict[str, Any]:
         "verdict": verdict,
         "generated_at": generated_at,
         "registered": list_strategies(),
-        "approved_count": len(universe.approved_pairs),
+        "approved_count": len(universe.approved_records),
         "paper_override_count": len(paper_overrides),
         "paper_overrides": [
             {

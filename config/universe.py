@@ -246,13 +246,34 @@ class Universe:
         return out
 
     @property
+    def approved_records(self) -> list[tuple[str, dict[str, Any]]]:
+        """Every research key with ``approved=True``.
+
+        Identity is strategy+symbol+side+timeframe. Two families on the same
+        (symbol, side) are two sleeves. Paper-override-only rows
+        (``approved`` is not True) are excluded — those stay on
+        ``paper_override_records``.
+        """
+        out: list[tuple[str, dict[str, Any]]] = []
+        for key, record in sorted(self.approvals.items()):
+            if not isinstance(record, dict) or record.get("approved") is not True:
+                continue
+            if parse_approval_key(key) is None:
+                continue
+            out.append((key, record))
+        return out
+
+    @property
     def approved_pairs(self) -> list[tuple[str, str]]:
-        """All (symbol, side) pairs cleared for trading."""
+        """Unique (symbol, side) pairs with at least one approved=True sleeve.
+
+        Live gates (`is_approved`, go-live) still ask "may this pair have
+        orders?" Paper scan volume must use ``approved_records`` instead —
+        collapsing here is how a second family on the same pair never scanned.
+        """
         out: list[tuple[str, str]] = []
         seen: set[tuple[str, str]] = set()
-        for key, record in sorted(self.approvals.items()):
-            if record.get("approved") is not True:
-                continue
+        for key, record in self.approved_records:
             parsed = parse_approval_key(key)
             if parsed is None:
                 continue
@@ -326,11 +347,11 @@ def get_universe() -> Universe:
 
     logger.info(
         "Universe loaded: %d monitored symbols, %d LONG params, %d SHORT params, "
-        "%d research-approved, %d operator paper override(s).",
+        "%d research-approved sleeve(s), %d operator paper override(s).",
         len(universe.monitored_symbols),
         len(universe.long_params),
         len(universe.short_params),
-        len(universe.approved_pairs),
+        len(universe.approved_records),
         len(universe.paper_override_records),
     )
     return universe

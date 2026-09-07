@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from config.universe import LongParams, ShortParams, Universe
+from config.universe import LongParams, ShortParams, Universe, parse_approval_key
 from core.data.ohlcv import closed_candles
 from core.execution.engine import PlanEntry, TradingEngine, TradingPlan, _entry_for
 from core.strategy.base import SignalSide, Strategy
@@ -205,6 +205,147 @@ def test_paper_still_scans_while_that_family_job_is_running(monkeypatch) -> None
     assert entry.timeframe == "1h"
 
 
+def test_paper_plan_keeps_two_families_on_same_symbol_side(monkeypatch) -> None:
+    """A second approved family on the same pair must still scan.
+
+    Collapsing to unique (symbol, side) dropped week_open_reclaim and
+    orb_fail_reversion on XRPUSDT SHORT, and double_top on BTCUSDT SHORT.
+    """
+    from core.execution.engine import build_plan
+
+    universe = Universe(
+        long_params={"XRPUSDT": LongParams(symbol="XRPUSDT", timeframe="4h")},
+        short_params={
+            "BTCUSDT": ShortParams(symbol="BTCUSDT", timeframe="4h"),
+            "XRPUSDT": ShortParams(symbol="XRPUSDT", timeframe="4h"),
+        },
+        approvals={
+            "atr_channel_breakout:BTCUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "atr_channel_breakout",
+                "params": {"atr_k": 2.0},
+            },
+            "double_top_neckline_break:BTCUSDT:SHORT:1h": {
+                "approved": True,
+                "timeframe": "1h",
+                "strategy": "double_top_neckline_break",
+                "params": {},
+            },
+            "week_open_reclaim:XRPUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "week_open_reclaim",
+                "params": {},
+            },
+            "orb_fail_reversion:XRPUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "orb_fail_reversion",
+                "params": {},
+            },
+            "mama_fama_cross:BTCUSDT:SHORT:4h": {
+                "approved": False,
+                "paper_override": True,
+                "timeframe": "4h",
+                "strategy": "mama_fama_cross",
+                "params": {"fastlimit": 0.5, "slowlimit": 0.05},
+            },
+        },
+    )
+    monkeypatch.setattr("core.execution.engine.get_universe", lambda: universe)
+    monkeypatch.setattr("firm.research_jobs.paper_scan_family", lambda: "bb_squeeze_breakout")
+    monkeypatch.setattr("firm.research_jobs._active_job_for", lambda family: None)
+
+    assert len(universe.approved_records) == 4
+    assert len(universe.approved_pairs) == 2
+    assert set(universe.approved_pairs) == {("BTCUSDT", "SHORT"), ("XRPUSDT", "SHORT")}
+
+    paper = build_plan(require_approval=False, candidates=["BTCUSDT", "XRPUSDT"])
+    paper_ids = {
+        (e.strategy.name, e.symbol, e.side.value, e.timeframe) for e in paper.entries
+    }
+    assert ("atr_channel_breakout", "BTCUSDT", "SHORT", "4h") in paper_ids
+    assert ("double_top_neckline_break", "BTCUSDT", "SHORT", "1h") in paper_ids
+    assert ("week_open_reclaim", "XRPUSDT", "SHORT", "4h") in paper_ids
+    assert ("orb_fail_reversion", "XRPUSDT", "SHORT", "4h") in paper_ids
+    assert ("mama_fama_cross", "BTCUSDT", "SHORT", "4h") in paper_ids
+    approved_in_plan = [
+        e
+        for e in paper.entries
+        if any(
+            e.strategy.name == rec.get("strategy")
+            and e.symbol == parse_approval_key(key)[1]
+            and e.side.value == parse_approval_key(key)[2]
+            and e.timeframe == rec.get("timeframe")
+            for key, rec in universe.approved_records
+        )
+    ]
+    assert len(approved_in_plan) == len(universe.approved_records)
+
+    live = build_plan(require_approval=True)
+    live_ids = {
+        (e.strategy.name, e.symbol, e.side.value, e.timeframe) for e in live.entries
+    }
+    assert live_ids == {
+        ("atr_channel_breakout", "BTCUSDT", "SHORT", "4h"),
+        ("double_top_neckline_break", "BTCUSDT", "SHORT", "1h"),
+        ("week_open_reclaim", "XRPUSDT", "SHORT", "4h"),
+        ("orb_fail_reversion", "XRPUSDT", "SHORT", "4h"),
+    }
+    assert ("mama_fama_cross", "BTCUSDT", "SHORT", "4h") not in live_ids
+
+
+def test_approved_count_matches_approved_true_research_keys(monkeypatch) -> None:
+    """API approved_count is every approved=True key, not unique (symbol, side).
+
+    Paper-override-only rows stay out of the count.
+    """
+    from config.universe import parse_approval_key
+    from api.app import strategies
+
+    universe = Universe(
+        approvals={
+            "week_open_reclaim:XRPUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "week_open_reclaim",
+            },
+            "orb_fail_reversion:XRPUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "orb_fail_reversion",
+            },
+            "double_top_neckline_break:BTCUSDT:SHORT:1h": {
+                "approved": True,
+                "timeframe": "1h",
+                "strategy": "double_top_neckline_break",
+            },
+            "mama_fama_cross:ETHUSDT:SHORT:4h": {
+                "approved": False,
+                "paper_override": True,
+                "timeframe": "4h",
+                "strategy": "mama_fama_cross",
+            },
+        }
+    )
+    assert len(universe.approved_records) == 3
+    assert len(universe.approved_pairs) == 2
+    fake_get = lambda: universe  # noqa: E731
+    fake_get.cache_clear = lambda: None
+    monkeypatch.setattr("config.universe.get_universe", fake_get)
+    payload = strategies()
+    assert payload["approved_count"] == 3
+    assert payload["paper_override_count"] == 1
+    approved_keys = [p["key"] for p in payload["pairs"] if p.get("approved") is True]
+    assert set(approved_keys) == {
+        "week_open_reclaim:XRPUSDT:SHORT:4h",
+        "orb_fail_reversion:XRPUSDT:SHORT:4h",
+        "double_top_neckline_break:BTCUSDT:SHORT:1h",
+    }
+    assert all(parse_approval_key(k) is not None for k in approved_keys)
+
+
 def test_paper_plan_keeps_approved_pairs(monkeypatch) -> None:
     from core.execution.engine import build_plan
 
@@ -238,6 +379,29 @@ def test_paper_plan_keeps_approved_pairs(monkeypatch) -> None:
     }
     assert ("BTCUSDT", "SHORT", "atr_channel_breakout", "4h") in approved
     assert ("SOLUSDT", "SHORT", "doji_star_reversal", "1h") in approved
+
+
+def test_paper_plan_includes_every_disk_approved_research_key(monkeypatch) -> None:
+    """Whatever is approved=True on disk must appear in the paper scan plan."""
+    from config.universe import get_universe
+    from core.execution.engine import build_plan
+
+    get_universe.cache_clear()
+    universe = get_universe()
+    monkeypatch.setattr("core.execution.engine.get_universe", lambda: universe)
+    monkeypatch.setattr("firm.research_jobs.paper_scan_family", lambda: "bb_squeeze_breakout")
+    monkeypatch.setattr("firm.research_jobs._active_job_for", lambda family: None)
+    plan = build_plan(require_approval=False, candidates=["BTCUSDT"])
+    plan_ids = {
+        (e.strategy.name, e.symbol, e.side.value, e.timeframe) for e in plan.entries
+    }
+    for key, rec in universe.approved_records:
+        parsed = parse_approval_key(key)
+        assert parsed is not None
+        name, symbol, side = parsed
+        rec_name = str(rec.get("strategy") or name).strip() or name
+        tf = str(rec.get("timeframe") or "")
+        assert (rec_name, symbol, side, tf) in plan_ids, f"missing approved sleeve {key}"
 
 
 def test_approved_short_does_not_need_asset_params(monkeypatch) -> None:

@@ -191,6 +191,51 @@ def test_certify_paper_allows_operator_overrides(tmp_path, monkeypatch) -> None:
     assert sleeve["ok"] is True
 
 
+def test_certify_paper_requires_every_approved_family_on_same_pair(tmp_path, monkeypatch) -> None:
+    """Same (symbol, side) with two approved families: both must be on the book."""
+    from firm import integrity as integrity_mod
+
+    cycle_path = tmp_path / "last_cycle.json"
+    cycle_path.write_text(
+        json.dumps(
+            {
+                "plan": [
+                    {
+                        "symbol": "XRPUSDT",
+                        "side": "SHORT",
+                        "timeframe": "4h",
+                        "strategy": "week_open_reclaim",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    universe = Universe(
+        long_params={},
+        short_params={"XRPUSDT": ShortParams(symbol="XRPUSDT", timeframe="4h")},
+        approvals={
+            "week_open_reclaim:XRPUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "week_open_reclaim",
+            },
+            "orb_fail_reversion:XRPUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "orb_fail_reversion",
+            },
+        },
+    )
+    monkeypatch.setattr(integrity_mod, "LAST_CYCLE_PATH", cycle_path)
+    monkeypatch.setattr("config.universe.get_universe", lambda: universe)
+    monkeypatch.setattr("firm.research_jobs.paper_scan_family", lambda: "week_open_reclaim")
+    report = integrity_mod.certify_paper()
+    sleeve = next(c for c in report["checks"] if c["name"] == "paper_sleeve")
+    assert sleeve["ok"] is False
+    assert "orb_fail_reversion" in sleeve["detail"]
+
+
 def test_certify_paper_accepts_atr_1h_candidates(tmp_path, monkeypatch) -> None:
     from firm import integrity as integrity_mod
 
