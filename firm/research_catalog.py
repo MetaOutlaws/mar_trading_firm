@@ -785,7 +785,8 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
             "the completed Asia 00:00–08:00 UTC high/low that closes back "
             "inside the Asia box. Quant-locked grid: "
             "require_close_inside=True, touch_tol_atr [0.0, 0.10], fixed "
-            "Asia/London bounds, no volume. BOTH sides honest. "
+            "Asia 00:00–08:00 and London 07:00–16:00, raw Asia H/L only, "
+            "no volume. BOTH sides honest. "
             "Walk-forward is not started from this coding PR."
         ),
         "param_change": {"clock": "4h/4h"},

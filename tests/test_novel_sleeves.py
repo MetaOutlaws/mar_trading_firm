@@ -3605,6 +3605,7 @@ def _asia_range_london_tape(
     held_break: bool = False,
     ny_hour: bool = False,
     asia_hour: bool = False,
+    london_0700: bool = False,
 ) -> tuple[pd.DataFrame, int]:
     """Jan 3 Asia box 110/90 (00:00–08:00), then a London tag that closes back inside.
 
@@ -3628,6 +3629,8 @@ def _asia_range_london_tape(
         fire = _asia_london_iloc(index, "2024-01-03 04:00")
     elif ny_hour:
         fire = _asia_london_iloc(index, "2024-01-03 16:00")
+    elif london_0700:
+        fire = _asia_london_iloc(index, "2024-01-03 07:00")
     else:
         fire = _asia_london_iloc(index, "2024-01-03 08:00")
     if long_side:
@@ -3674,7 +3677,7 @@ def test_asia_range_london_reject_schema_and_long_entry() -> None:
     assert "end_hour" not in extra
     assert ASIA_START_HOUR == 0.0
     assert ASIA_END_HOUR == 8.0
-    assert LONDON_START_HOUR == 8.0
+    assert LONDON_START_HOUR == 7.0
     assert LONDON_END_HOUR == 16.0
     candles, fire = _asia_range_london_tape(long_side=True)
     signals = _signals("asia_range_london_reject", candles)
@@ -3696,10 +3699,13 @@ def test_asia_range_london_reject_schema_and_long_entry() -> None:
     assert int(_signals("asian_range_breakout", candles)["signal"].iloc[fire]) == 0
     assert int(_signals("prior_day_extreme_reject", candles)["signal"].iloc[fire]) == 0
     assert int(_signals("failed_range_break_reversion", candles)["signal"].iloc[fire]) == 0
-    # Asia hours are still forming the box; NY 16:00 is not London.
+    # Asia hours are still forming the box; 07:00 is in the London window but
+    # the Asia box is not published until 08:00. NY 16:00 is not London.
     asia, asia_i = _asia_range_london_tape(long_side=True, asia_hour=True)
+    early, early_i = _asia_range_london_tape(long_side=True, london_0700=True)
     ny, ny_i = _asia_range_london_tape(long_side=True, ny_hour=True)
     assert int(_signals("asia_range_london_reject", asia)["signal"].iloc[asia_i]) == 0
+    assert int(_signals("asia_range_london_reject", early)["signal"].iloc[early_i]) == 0
     assert int(_signals("asia_range_london_reject", ny)["signal"].iloc[ny_i]) == 0
 
 
@@ -3738,7 +3744,7 @@ def test_asia_range_london_reject_short_entry() -> None:
 
 
 def test_asia_range_london_reject_4h_london_bar() -> None:
-    """Open-labeled 4h at 08:00 is London; 00:00/04:00 is still Asia."""
+    """Open-labeled 4h at 08:00 is London (07:00–16:00); 00:00/04:00 is still Asia."""
     n = 24
     index = pd.date_range("2024-01-02", periods=n, freq="4h", tz="UTC")
     close = np.full(n, 100.0)

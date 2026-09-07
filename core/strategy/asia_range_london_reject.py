@@ -2,7 +2,7 @@
 
 Asia is the desk's 00:00–08:00 UTC box (same helper as ``asian_range_breakout``
 / ``session_liquidity_sweep``), published only after 08:00. A *London* bar
-(08:00–16:00 UTC open, not NY 16:00–21:00) tags that extreme within
+(07:00–16:00 UTC open, not NY 16:00–21:00) tags that extreme within
 ``touch_tol_atr * ATR`` and closes back inside the Asia range:
 
 - LONG when ``low_t`` tags/pierces Asia low and ``close_t`` is back above it.
@@ -35,8 +35,10 @@ ATR_PERIOD = 14
 # Desk standard Asia box. Not 00:00–07:00; 4h 00:00+04:00 bars are the same set.
 ASIA_START_HOUR = 0.0
 ASIA_END_HOUR = 8.0
-# London cash hours UTC. Open-labeled 4h at 08:00 and 12:00. Not NY 16:00–21:00.
-LONDON_START_HOUR = 8.0
+# Quant/Munha London window. Open-labeled 4h at 08:00 and 12:00 still match
+# (04:00 is Asia; 07:00 is inside London but the Asia box is not published yet).
+# Not NY 16:00–21:00.
+LONDON_START_HOUR = 7.0
 LONDON_END_HOUR = 16.0
 
 
