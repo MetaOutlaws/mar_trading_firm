@@ -778,6 +778,128 @@ def lookback_swing_structure(
     return frame
 
 
+def converging_wedge_rails(
+    high: pd.Series,
+    low: pd.Series,
+    *,
+    lookback: int,
+    min_touches: int = 3,
+    left: int = 3,
+) -> pd.DataFrame:
+    """OLS rails through the last ``min_touches`` published swing highs and lows.
+
+    Both rails must slope (strictly nonzero) and converge
+    (``upper_slope < lower_slope``, so width shrinks going forward).
+    Rising wedge = HH+HL both up. Falling wedge = LH+LL both down.
+    Causal: only pivots published on bars ``<= t``. Rail ``x`` is the original
+    pivot bar (``publication_index - left - 1``), not a future bar.
+    """
+    if lookback < 2:
+        raise ValueError(f"lookback must be >= 2, got {lookback}")
+    if min_touches < 2:
+        raise ValueError(f"min_touches must be >= 2, got {min_touches}")
+    pub_high, pub_low = published_swing_pivots(high, low, left=left)
+    n = len(high)
+    high_events: list[tuple[int, int, float]] = []
+    low_events: list[tuple[int, int, float]] = []
+    hi_start = 0
+    lo_start = 0
+    pub_h = pub_high.to_numpy(dtype="float64", copy=False)
+    pub_l = pub_low.to_numpy(dtype="float64", copy=False)
+    pivot_lag = int(left) + 1
+
+    n_highs = np.full(n, np.nan)
+    n_lows = np.full(n, np.nan)
+    upper_slope = np.full(n, np.nan)
+    lower_slope = np.full(n, np.nan)
+    upper_rail = np.full(n, np.nan)
+    lower_rail = np.full(n, np.nan)
+    highs_rising = np.zeros(n, dtype="bool")
+    lows_rising = np.zeros(n, dtype="bool")
+    highs_falling = np.zeros(n, dtype="bool")
+    lows_falling = np.zeros(n, dtype="bool")
+    rising_wedge = np.zeros(n, dtype="bool")
+    falling_wedge = np.zeros(n, dtype="bool")
+
+    def _ols(points: list[tuple[int, int, float]]) -> tuple[float, float]:
+        """Slope/intercept of price vs original pivot bar. NaN if degenerate."""
+        xs = [float(orig) for orig, _pub, _price in points]
+        ys = [price for _orig, _pub, price in points]
+        k = float(len(points))
+        sx = float(sum(xs))
+        sy = float(sum(ys))
+        sxy = float(sum(x * y for x, y in zip(xs, ys)))
+        sx2 = float(sum(x * x for x in xs))
+        den = k * sx2 - sx * sx
+        if den == 0.0:
+            return np.nan, np.nan
+        slope = (k * sxy - sx * sy) / den
+        intercept = (sy - slope * sx) / k
+        return float(slope), float(intercept)
+
+    for t in range(n):
+        if not np.isnan(pub_h[t]):
+            high_events.append((t - pivot_lag, t, float(pub_h[t])))
+        if not np.isnan(pub_l[t]):
+            low_events.append((t - pivot_lag, t, float(pub_l[t])))
+        window_start = t - lookback + 1
+        # Drop events whose *publication* bar has left the lookback window.
+        while hi_start < len(high_events) and high_events[hi_start][1] < window_start:
+            hi_start += 1
+        while lo_start < len(low_events) and low_events[lo_start][1] < window_start:
+            lo_start += 1
+        hs = high_events[hi_start:]
+        ls = low_events[lo_start:]
+        n_highs[t] = float(len(hs))
+        n_lows[t] = float(len(ls))
+        if len(hs) < min_touches or len(ls) < min_touches:
+            continue
+        hs_fit = hs[-min_touches:]
+        ls_fit = ls[-min_touches:]
+        h_prices = [p for _, _, p in hs_fit]
+        l_prices = [p for _, _, p in ls_fit]
+        hh = all(h_prices[k] > h_prices[k - 1] for k in range(1, len(h_prices)))
+        hl = all(l_prices[k] > l_prices[k - 1] for k in range(1, len(l_prices)))
+        lh = all(h_prices[k] < h_prices[k - 1] for k in range(1, len(h_prices)))
+        ll = all(l_prices[k] < l_prices[k - 1] for k in range(1, len(l_prices)))
+        highs_rising[t] = hh
+        lows_rising[t] = hl
+        highs_falling[t] = lh
+        lows_falling[t] = ll
+        u_s, u_b = _ols(hs_fit)
+        l_s, l_b = _ols(ls_fit)
+        if np.isnan(u_s) or np.isnan(l_s):
+            continue
+        u_rail = u_b + u_s * float(t)
+        l_rail = l_b + l_s * float(t)
+        upper_slope[t] = u_s
+        lower_slope[t] = l_s
+        upper_rail[t] = u_rail
+        lower_rail[t] = l_rail
+        # Width still open (rails have not crossed) and shrinking forward.
+        converge = (u_s < l_s) and (u_rail > l_rail)
+        rising_wedge[t] = hh and hl and (u_s > 0.0) and (l_s > 0.0) and converge
+        falling_wedge[t] = lh and ll and (u_s < 0.0) and (l_s < 0.0) and converge
+
+    return pd.DataFrame(
+        {
+            "n_highs": n_highs,
+            "n_lows": n_lows,
+            "upper_slope": upper_slope,
+            "lower_slope": lower_slope,
+            "upper_rail": upper_rail,
+            "lower_rail": lower_rail,
+            "highs_rising": highs_rising,
+            "lows_rising": lows_rising,
+            "highs_falling": highs_falling,
+            "lows_falling": lows_falling,
+            "rising_wedge": rising_wedge,
+            "falling_wedge": falling_wedge,
+        },
+        index=high.index,
+    )
+
+
 def friday_utc_close(close: pd.Series) -> pd.Series:
     """Last completed Friday UTC close, published Sat/Sun/Mon only."""
     utc_index = _as_utc_index(close.index)

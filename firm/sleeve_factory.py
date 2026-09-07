@@ -1924,6 +1924,37 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "London tag."
         ),
     ),
+    SleeveSpec(
+        name="converging_wedge_break",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        needs_new_indicator=True,
+        novel_reason=(
+            "Break a converging wedge where BOTH rails slope and converge. "
+            "Rising wedge (HH+HL both slope up, converge): SHORT on close "
+            "below the lower rail. Falling wedge (LH+LL both slope down, "
+            "converge): LONG on close above the upper rail. Quant-locked: "
+            "min_touches=3 (not searched), lookback [30, 40], no volume. "
+            "Not ascending_triangle_break (one rail flat). Not "
+            "ib_fail_reversion (124 — inside-bar fail). Not nr7 / orb_fail "
+            "/ asia_range / prior_day / failed_range (118–123). Not "
+            "engulfing_fail / prior_week_extreme. Not H&S / asia_close / "
+            "wyckoff."
+        ),
+        summary=(
+            "Break a converging wedge (both rails slope and converge): "
+            "SHORT a rising wedge below the lower rail, LONG a falling "
+            "wedge above the upper rail."
+        ),
+        justification=(
+            "A close through an OLS rail of a both-rails-sloping "
+            "converging wedge is not a flat-cap triangle, not an IB fail, "
+            "not NR7/ORB/Asia/prior-day/failed-range, and not a neckline "
+            "or session-inventory fade."
+        ),
+    ),
 ]
 
 

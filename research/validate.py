@@ -1008,6 +1008,13 @@ def _novel_kit(name: str, side: SignalSide):
             # London IB open 07:00–11:00 and close-inside locked. Search fail window only.
             {"max_bars_since_break": [2, 4]},
         ),
+        "converging_wedge_break": (
+            "core.strategy.converging_wedge_break",
+            "ConvergingWedgeBreakParams",
+            "ConvergingWedgeBreakStrategy",
+            # min_touches locked at 3. No volume. Search lookback only.
+            {"lookback": [30, 40]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

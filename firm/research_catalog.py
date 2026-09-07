@@ -855,6 +855,27 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "converging_wedge_break@4h/4h",
+        "family": "converging_wedge_break",
+        "name": "converging_wedge_break 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 26,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Break a converging "
+            "wedge where both rails slope and converge. Rising wedge "
+            "SHORT on close below the lower rail; falling wedge LONG on "
+            "close above the upper rail. Quant-locked grid: min_touches=3 "
+            "(not searched), lookback [30, 40], no volume. BOTH sides "
+            "honest. Walk-forward is not started from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
