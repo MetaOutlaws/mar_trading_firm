@@ -106,8 +106,9 @@ class Nr7FailReversionStrategy(Strategy):
 
         signals["nr7_high"] = nr_high
         signals["nr7_low"] = nr_low
-        signals["break_high"] = up_high
-        signals["break_low"] = dn_low
+        # Both rails of the NR7 box that broke, regardless of side.
+        signals["break_high"] = up_high.fillna(dn_high)
+        signals["break_low"] = up_low.fillna(dn_low)
         signals["bars_since_up_break"] = up_lag
         signals["bars_since_down_break"] = dn_lag
 
