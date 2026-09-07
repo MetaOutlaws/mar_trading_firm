@@ -166,6 +166,7 @@ CLOCK_BY_FAMILY = {
     "asia_range_london_reject": "4h/4h",
     "orb_fail_reversion": "4h/4h",
     "nr7_fail_reversion": "4h/4h",
+    "ib_fail_reversion": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
