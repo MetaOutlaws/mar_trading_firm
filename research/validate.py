@@ -980,6 +980,13 @@ def _novel_kit(name: str, side: SignalSide):
             # Close-inside locked. No volume. Search lookback + fail window.
             {"lookback": [16, 20], "max_bars_since_break": [2, 3]},
         ),
+        "asia_range_london_reject": (
+            "core.strategy.asia_range_london_reject",
+            "AsiaRangeLondonRejectParams",
+            "AsiaRangeLondonRejectStrategy",
+            # Close-inside and session bounds locked. Search tag slack only.
+            {"touch_tol_atr": [0.0, 0.10]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

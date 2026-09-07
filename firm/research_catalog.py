@@ -771,6 +771,27 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "asia_range_london_reject@4h/4h",
+        "family": "asia_range_london_reject",
+        "name": "asia_range_london_reject 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 22,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a London tag of "
+            "the completed Asia 00:00–08:00 UTC high/low that closes back "
+            "inside the Asia box. Quant-locked grid: "
+            "require_close_inside=True, touch_tol_atr [0.0, 0.10], fixed "
+            "Asia/London bounds, no volume. BOTH sides honest. "
+            "Walk-forward is not started from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

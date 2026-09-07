@@ -1,0 +1,15 @@
+{
+  "family": "asia_range_london_reject",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "London bar tags the completed Asia 00:00–08:00 UTC high/low then closes back inside that Asia range (failed hold of the Asia extreme). LONG: London low tags/pierces Asia low within touch_tol_atr*ATR, close back above Asia low / inside the box. SHORT: London high tags/pierces Asia high, close back below Asia high / inside the box. Quant-locked: require_close_inside=True, touch_tol_atr [0.0, 0.10], fixed Asia 00:00–08:00 and London 08:00–16:00, no volume. Not asia_close_inventory_fade (fade AT Asia close inventory). Not asian_range_breakout (close-through breakout). Not session_liquidity_sweep (1h London+NY, max_sweep_pct cap). Not prior_day_extreme_reject (prior UTC calendar day H/L). Not failed_range_break_reversion (rolling N-bar range). Not monday_range_sweep_reversal. Not range_compression_volume_thrust. Not orb / nr7 fail, H&S, or wyckoff.",
+  "summary": "Fade a London tag of the completed Asia session high/low that closes back inside that Asia range.",
+  "justification": "A London failed hold of the same-day Asia session extreme is not a close-through Asia breakout, not a 1h London+NY max_sweep_pct fade, not a prior UTC day H/L reject, and not a rolling N-bar failed-range reversion.",
+  "status": "Brian Inbox-approved for coding",
+  "written_at": "2026-09-07T09:00:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/asia_range_london_reject.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward."
+}
