@@ -5128,7 +5128,7 @@ def _classic_floor_pivot_tape(
         low[23] = 107.0
         open_[23] = 107.5
         # Keep day-1 prints near P so this is not a prior-close magnet fade.
-        day1 = (index.normalize() == pd.Timestamp("2024-01-03", tz="UTC")).to_numpy()
+        day1 = index.normalize() == pd.Timestamp("2024-01-03", tz="UTC")
         close[day1] = 103.0
         high[day1] = 104.0
         low[day1] = 102.0
@@ -5139,7 +5139,7 @@ def _classic_floor_pivot_tape(
         high[23] = 91.0
         low[23] = 90.0
         open_[23] = 100.0
-        day1 = (index.normalize() == pd.Timestamp("2024-01-03", tz="UTC")).to_numpy()
+        day1 = index.normalize() == pd.Timestamp("2024-01-03", tz="UTC")
         close[day1] = 97.0
         high[day1] = 98.0
         low[day1] = 96.0
