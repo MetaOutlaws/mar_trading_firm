@@ -2023,6 +2023,38 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "reject, and not a session-box or NR7/ORB/IB fail."
         ),
     ),
+    SleeveSpec(
+        name="prior_close_magnet_fade",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Fade / mean-reversion stretch away from the prior bar close "
+            "(magnet). Distance is (close_t - close_{t-1}) / ATR(atr_n). "
+            "LONG when stretched k ATR below the magnet; SHORT when "
+            "stretched k ATR above. Quant-locked: atr_n=20 (not "
+            "searched), k search [1.2, 1.4], max 2 free params (only k "
+            "is free), no volume. Not VWAP / session-VWAP band. Not "
+            "session mid. Not week-open reclaim. Not CLV persistence. "
+            "Not Wyckoff spring. Not prior_day_extreme_reject / "
+            "failed_range_break_reversion / asia_range_london_reject / "
+            "orb_fail_reversion / nr7_fail_reversion / ib_fail_reversion "
+            "/ converging_wedge_break / engulfing_fail_reversion / "
+            "wyckoff_spring_reclaim (118–127). Not H&S / "
+            "asia_close_inventory_fade."
+        ),
+        summary=(
+            "Fade a k-ATR stretch away from the prior bar close: LONG "
+            "below the magnet, SHORT above."
+        ),
+        justification=(
+            "A close stretched k ATR from the immediately prior close "
+            "is not a VWAP/session-mid/week-open magnet, not CLV "
+            "persistence, and not a Wyckoff spring or a spent 118–127 "
+            "fail/reject family."
+        ),
+    ),
 ]
 
 

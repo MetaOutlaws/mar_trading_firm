@@ -1029,6 +1029,13 @@ def _novel_kit(name: str, side: SignalSide):
             # No volume. Search lookback + spring hold window only.
             {"lookback": [16, 20], "hold_bars": [1, 2]},
         ),
+        "prior_close_magnet_fade": (
+            "core.strategy.prior_close_magnet_fade",
+            "PriorCloseMagnetFadeParams",
+            "PriorCloseMagnetFadeStrategy",
+            # atr_n locked at 20. No volume. Search stretch k only.
+            {"k": [1.2, 1.4]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
