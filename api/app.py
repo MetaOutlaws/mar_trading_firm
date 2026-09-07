@@ -178,8 +178,19 @@ def local_session(request: Request) -> dict[str, Any]:
 
 
 @app.get("/api/sentiment")
-def sentiment() -> list[dict[str, Any]]:
-    return memory.latest_sentiment()
+def sentiment() -> dict[str, Any]:
+    """Desk sentiment: Luke `data/last_sentiment.json` when fresh, else SQLite.
+
+    Also returns mood / market_narrative / trending / influencers from the file
+    whenever it parsed. Does not call xAI or X.
+    """
+    from core.data.sentiment import empty_desk_payload, sentiment_for_desk
+
+    try:
+        return sentiment_for_desk()
+    except Exception:
+        logger.exception("Sentiment desk payload failed")
+        return empty_desk_payload()
 
 
 @app.get("/api/regime")
@@ -208,7 +219,7 @@ def llm_status() -> dict[str, Any]:
     snapshot["budget"] = BudgetGuard().snapshot()
     snapshot["catalogue_note"] = (
         "Cheap, standard, and strong seats use Gemini. "
-        "Search (Sentiment Analyst) still requires XAI_API_KEY."
+        "Sentiment reads Luke's data/last_sentiment.json; xAI search is optional."
     )
     return snapshot
 
@@ -368,9 +379,26 @@ def _quiet_reasons(cycle: dict[str, Any] | None, employee_llm_ok: bool, xai_ok: 
             "No key for cheap/standard/strong seats (Gemini). Employees will skip LLM calls."
         )
     if not xai_ok:
-        reasons.append(
-            "XAI_API_KEY is missing, so the Sentiment Analyst (live X search) stays dark."
-        )
+        try:
+            from core.data.sentiment import load_last_sentiment, snapshot_is_fresh
+
+            luke = load_last_sentiment()
+            luke_fresh = snapshot_is_fresh(luke)
+        except Exception:
+            luke = None
+            luke_fresh = False
+        if luke_fresh:
+            pass
+        elif luke:
+            reasons.append(
+                "Luke CT sentiment snapshot is stale (>30 min). "
+                "The Sentiment tab falls back to last SQLite readings; xAI is optional."
+            )
+        else:
+            reasons.append(
+                "No Luke CT snapshot at data/last_sentiment.json yet. "
+                "xAI search is an optional fallback; paper does not need XAI_API_KEY."
+            )
     if cycle is None:
         reasons.append(
             "The paper clock has not completed a cycle yet, so there is no scan to explain."
@@ -812,7 +840,7 @@ def run_employees(body: RunBody, _: None = Depends(require_token)) -> list[dict[
 
 @app.post("/api/employees/wake")
 def wake_floor(_: None = Depends(require_token)) -> dict[str, Any]:
-    """Run every employee whose seat has a key. Sentiment stays dark without xAI."""
+    """Run every employee whose seat has a key. Sentiment prefers Luke's file."""
     orch = get_orchestrator()
     runnable = [
         employee.name

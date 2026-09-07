@@ -93,6 +93,20 @@ def _safe_positioning() -> dict[str, Any]:
         return {}
 
 
+def _safe_sentiment() -> dict[str, Any]:
+    """Luke CT snapshot (fresh file) or SQLite fallback. Never calls xAI/X."""
+    try:
+        from core.data.sentiment import empty_desk_payload, sentiment_for_desk
+
+        blob = sentiment_for_desk()
+        return blob if isinstance(blob, dict) else empty_desk_payload()
+    except Exception:
+        logger.exception("Sentiment snapshot failed to load")
+        from core.data.sentiment import empty_desk_payload
+
+        return empty_desk_payload()
+
+
 #: How often each cadence is allowed to fire. PER_CYCLE is the trading engine's
 #: own interval; the orchestrator treats it as "every time we are asked".
 CADENCE_INTERVALS: dict[Cadence, timedelta] = {
@@ -285,7 +299,7 @@ class Orchestrator:
             "inbox": memory.pending_proposals(limit=100),
             "escalations": memory.open_escalations(limit=20),
             "regime": memory.latest_regime(),
-            "sentiment": memory.latest_sentiment(limit=20),
+            "sentiment": _safe_sentiment(),
             "research": memory.research_board(limit=20),
             "research_plan": research_plan(),
             "org": org_snapshot(),

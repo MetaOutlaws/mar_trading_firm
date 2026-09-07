@@ -62,7 +62,7 @@ class DeskHead(Agent):
             "llm_seats is the source of truth for providers. If "
             "employee_seats_ok is true, Gemini is serving the floor. Do not "
             "call missing DeepSeek or OpenAI keys degradation. A missing xAI "
-            "key only skips Sentiment. Ignore historical_noise, including "
+            "key only skips the optional Sentiment search fallback. Ignore historical_noise, including "
             "KillSwitchState.is_tripped (patched). Do not file a sit-out for "
             "retired-provider skips, a single LLM timeout, or because research "
             "is waiting on a test."

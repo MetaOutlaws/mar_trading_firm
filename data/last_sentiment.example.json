@@ -1,0 +1,79 @@
+{
+  "as_of": "2026-09-07T08:00:00+00:00",
+  "source": "luke_ct_scraper",
+  "model": "ct-scraper",
+  "market_narrative": "BTC holds above a well-watched level while ETH lags; CT is rotating from meme-beta into majors with less leverage-cosplay than last week.",
+  "mood": "chop",
+  "readings": [
+    {
+      "symbol": "BTCUSDT",
+      "score": 0.35,
+      "hype_stage": "building",
+      "narrative": "Range-high defence, funding not crowded, still two-way.",
+      "confidence": 0.62,
+      "sources": ["https://x.com/example/status/1"],
+      "price_at_reading": 0
+    },
+    {
+      "symbol": "ETHUSDT",
+      "score": -0.12,
+      "hype_stage": "fading",
+      "narrative": "ETH/BTC grind lower; fewer 'ETH season' posts than the prior bounce.",
+      "confidence": 0.55,
+      "sources": ["https://x.com/example/status/2"],
+      "price_at_reading": 0
+    },
+    {
+      "symbol": "SOLUSDT",
+      "score": 0.18,
+      "hype_stage": "peaking",
+      "narrative": "SOL still mentioned with BTC, but replies are 'already up'.",
+      "confidence": 0.48,
+      "sources": [],
+      "price_at_reading": 0
+    }
+  ],
+  "trending": [
+    {
+      "token": "BTC",
+      "symbol": "BTCUSDT",
+      "rank": 1,
+      "mentions": 120,
+      "score": 0.4
+    },
+    {
+      "token": "ETH",
+      "symbol": "ETHUSDT",
+      "rank": 2,
+      "mentions": 64,
+      "score": -0.1
+    },
+    {
+      "token": "SOL",
+      "symbol": "SOLUSDT",
+      "rank": 3,
+      "mentions": 41,
+      "score": 0.2
+    }
+  ],
+  "influencers": [
+    {
+      "handle": "example_macro",
+      "bias": "bullish",
+      "followers": 412000,
+      "note": "Framing BTC as the bid; ignoring alts."
+    },
+    {
+      "handle": "example_perp",
+      "bias": "neutral",
+      "followers": 88000,
+      "note": "Calling it a chop tape until funding resets."
+    },
+    {
+      "handle": "example_bear",
+      "bias": "bearish",
+      "followers": 151000,
+      "note": "Still fading every bounce into resistance."
+    }
+  ]
+}

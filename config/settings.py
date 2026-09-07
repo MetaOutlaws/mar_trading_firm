@@ -57,9 +57,8 @@ class Settings(BaseSettings):
     bybit_live_api_secret: str = ""
 
     # ---- LLM providers ------------------------------------------------------
-    #: xAI is the only provider with live X/web search, which the Sentiment
-    #: Analyst depends on. Gemini serves cheap, standard, and strong tiers
-    #: (OpenAI is out of credit; DeepSeek is unused).
+    #: Optional. Sentiment prefers Luke's data/last_sentiment.json. xAI Grok
+    #: search is a fallback when that file is missing or stale.
     xai_api_key: str = ""
     deepseek_api_key: str = ""
     openai_api_key: str = ""

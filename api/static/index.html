@@ -421,6 +421,20 @@ tr.job-group:hover td { background: var(--surface-2); }
   padding: 12px;
   background: var(--surface-2);
 }
+.mood-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.mood-pill.risk_on, .mood-pill.greed { color: var(--good); border-color: rgba(62, 224, 162, 0.35); }
+.mood-pill.risk_off, .mood-pill.fear { color: var(--bad); border-color: rgba(255, 106, 92, 0.35); }
+.mood-pill.chop { color: var(--warn); border-color: rgba(240, 180, 41, 0.35); }
 .gate { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .gate:last-child { border: 0; }
 .banner {
@@ -657,7 +671,7 @@ const KICKERS = {
   strategies: "Research-approved (live gate) vs operator paper vetoes vs rejects",
   inbox: "Proposals that need a human, plus open escalations",
   research: "Ranked next tests (clock/side follow-ups), then finished family verdicts",
-  sentiment: "Latest Grok / X readings per symbol",
+  sentiment: "Luke CT snapshot — narrative, heatmap, trending, influencers",
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
 };
@@ -1162,7 +1176,7 @@ function renderFloor() {
   if (!employees.length) return empty("No employees loaded", "The orchestrator has not registered the floor yet.");
   return `<div class="toolbar">
       <button class="btn accent" onclick="wakeFloor()">Wake floor</button>
-      <span class="muted">Runs every employee whose seat has a key. Sentiment stays skipped until an xAI key is set.</span>
+      <span class="muted">Runs every employee whose seat has a key. Sentiment prefers Luke’s last_sentiment.json; xAI is optional.</span>
     </div>
     <section class="employees">${employees.map(empCard).join("")}</section>
     <div class="card"><h2>Activity</h2>${(() => {
@@ -1705,17 +1719,96 @@ function renderResearch() {
   return pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
 }
 
+function sentimentDesk() {
+  const raw = (state.floor || {}).sentiment;
+  if (Array.isArray(raw)) return { readings: raw, trending: [], influencers: [], market_narrative: "", mood: "" };
+  if (raw && typeof raw === "object") {
+    return {
+      readings: raw.readings || [],
+      trending: raw.trending || [],
+      influencers: raw.influencers || [],
+      market_narrative: raw.market_narrative || "",
+      mood: raw.mood || "",
+      as_of: raw.as_of,
+      source: raw.source || "",
+      model: raw.model || "",
+      fresh: !!raw.fresh,
+      stale: !!raw.stale,
+      empty_reason: raw.empty_reason || "",
+    };
+  }
+  return { readings: [], trending: [], influencers: [], market_narrative: "", mood: "", empty_reason: "missing" };
+}
+
 function renderSentiment() {
-  const rows = state.floor.sentiment || [];
-  if (!rows.length) return `<div class="card">${empty("No sentiment readings", "The sentiment analyst needs an xAI key with search. Until then this panel stays dark on purpose.")}</div>`;
-  return `<section class="heat">${rows.map(s => {
-    const hue = 8 + (Number(s.score) + 1) * 56;
-    return `<div class="chip" style="background:hsla(${hue},55%,16%,.9)">
-      <div><strong>${esc(s.symbol)}</strong> <span class="num">${Number(s.score).toFixed(2)}</span></div>
-      <div class="muted">${esc(s.hype_stage || "unscored")}</div>
-      <div>${esc((s.narrative || "").slice(0, 120))}</div>
+  const desk = sentimentDesk();
+  const rows = desk.readings || [];
+  const trending = desk.trending || [];
+  const influencers = desk.influencers || [];
+  const narrative = desk.market_narrative || "";
+  const mood = desk.mood || "";
+  const hasTape = rows.length || narrative || trending.length || influencers.length;
+  if (!hasTape) {
+    if (desk.empty_reason === "stale" || desk.stale) {
+      return `<div class="card">${empty("Luke feed stale", "data/last_sentiment.json is older than 30 minutes and there are no SQLite fallback readings. Re-run the CT scraper; xAI is optional.")}</div>`;
+    }
+    return `<div class="card">${empty("No snapshot yet", "Luke has not written data/last_sentiment.json. The paper box does not need an X API key or XAI_API_KEY.")}</div>`;
+  }
+  const staleBanner = desk.stale
+    ? `<div class="banner warn" style="margin-bottom:12px"><strong>Luke feed stale</strong><div class="muted" style="margin-top:6px">Snapshot is older than 30 minutes. Heatmap chips below are SQLite fallback; narrative / trending / influencers are the last file.</div></div>`
+    : "";
+  const asOf = desk.as_of ? stamp(desk.as_of) : "";
+  const moodClass = "mood-pill " + (mood || "");
+  const narrativeCard = `<div class="card" style="margin-bottom:12px">
+      <h2>Market narrative</h2>
+      <div class="meta-row" style="margin-bottom:10px">
+        ${mood ? `<span class="${moodClass}">${esc(String(mood).replace(/_/g, " "))}</span>` : `<span class="muted">no mood</span>`}
+        <span class="muted">${esc(desk.source || "unknown source")}${desk.model ? " · " + esc(desk.model) : ""}</span>
+        <span class="muted">${asOf ? esc(asOf) : "no as_of"}</span>
+      </div>
+      <div>${esc(narrative || "No market narrative in the latest snapshot.")}</div>
     </div>`;
-  }).join("")}</section>`;
+  const heat = rows.length
+    ? `<div class="card" style="margin-bottom:12px"><h2>Symbol heatmap</h2>
+        <section class="heat">${rows.map(s => {
+          const hue = 8 + (Number(s.score) + 1) * 56;
+          return `<div class="chip" style="background:hsla(${hue},55%,16%,.9)">
+            <div><strong>${esc(s.symbol)}</strong> <span class="num">${Number(s.score).toFixed(2)}</span></div>
+            <div class="muted">${esc(s.hype_stage || "unscored")}</div>
+            <div>${esc((s.narrative || "").slice(0, 120))}</div>
+          </div>`;
+        }).join("")}</section></div>`
+    : `<div class="card" style="margin-bottom:12px">${empty("No symbol readings", "The snapshot has a tape but no per-symbol scores yet.")}</div>`;
+  const trendRows = trending.length
+    ? trending.slice().sort((a, b) => (Number(a.rank) || 99) - (Number(b.rank) || 99)).map(t => `<tr>
+        <td class="num">${esc(t.rank ?? "—")}</td>
+        <td><strong>${esc(t.token || t.symbol)}</strong></td>
+        <td class="muted">${esc(t.symbol || "")}</td>
+        <td class="num">${esc(t.mentions ?? "—")}</td>
+        <td class="num">${t.score != null ? Number(t.score).toFixed(2) : "—"}</td>
+      </tr>`).join("")
+    : "";
+  const trendCard = `<div class="card">
+      <h2>Trending tokens</h2>
+      ${trendRows
+        ? `<table><thead><tr><th>Rank</th><th>Token</th><th>Symbol</th><th>Mentions</th><th>Score</th></tr></thead><tbody>${trendRows}</tbody></table>`
+        : empty("No trending tape", "Luke’s snapshot did not include a trending list.")}
+    </div>`;
+  const infRows = influencers.length
+    ? influencers.map(p => `<tr>
+        <td><strong>@${esc(String(p.handle || "").replace(/^@/, ""))}</strong></td>
+        <td>${esc(p.bias || "neutral")}</td>
+        <td class="num">${p.followers ? Number(p.followers).toLocaleString() : "—"}</td>
+        <td>${esc(p.note || "")}</td>
+      </tr>`).join("")
+    : "";
+  const infCard = `<div class="card">
+      <h2>Key influencers</h2>
+      ${infRows
+        ? `<table><thead><tr><th>Handle</th><th>Bias</th><th>Followers</th><th>Note</th></tr></thead><tbody>${infRows}</tbody></table>`
+        : empty("No influencer tape", "Luke’s snapshot did not include handles.")}
+    </div>`;
+  return staleBanner + narrativeCard + heat + `<section class="grid-2">${trendCard}${infCard}</section>`;
 }
 
 function renderHealth() {
@@ -1734,7 +1827,7 @@ function renderHealth() {
     </div>
     <section class="kpis">
       ${kpi("Gemini", gemini.configured ? (gemini.prefix || "set") : "missing", gemini.configured ? "cheap / standard / strong" : "employees will skip", gemini.configured ? "ok" : "bad")}
-      ${kpi("xAI / Grok", xai.configured ? "set" : "missing", "sentiment search only", xai.configured ? "ok" : "warn")}
+      ${kpi("xAI / Grok", xai.configured ? "set" : "missing", "optional CT fallback", xai.configured ? "ok" : "warn")}
       ${kpi("Last scan", cycle ? String(cycle.symbols_scanned || 0) : "—", cycle ? (cycle.signals_found || 0) + " signals · " + (cycle.orders_placed || 0) + " orders" : "paper has not written a cycle")}
       ${kpi("Budget", money((llm.budget || {}).spent_usd || 0, 4), "of " + money((llm.budget || {}).budget_usd || 0) + " · " + ((llm.budget || {}).posture || "—"))}
     </section>

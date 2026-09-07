@@ -134,8 +134,8 @@ def llm_seat_briefing() -> dict[str, Any]:
         }
         if row.get("tier") == ModelTier.SEARCH.value:
             entry["note"] = (
-                "Sentiment Analyst only. A missing xAI key is expected and "
-                "does not degrade cheap/standard/strong employees."
+                "Optional xAI fallback only. The Sentiment tab reads "
+                "data/last_sentiment.json from Luke; a missing xAI key is expected."
             )
             optional.append(entry)
         else:

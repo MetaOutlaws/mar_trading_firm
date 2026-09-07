@@ -189,14 +189,15 @@ EMPLOYEE_MANDATES: dict[str, dict[str, str]] = {
     "sentiment_analyst": {
         "title": "Sentiment Analyst",
         "cadence": "four-hourly",
-        "mandate": "Live search narrative. Dark without an xAI key, on purpose.",
+        "mandate": "Crypto Twitter narrative from Luke's file snapshot; xAI search is optional.",
         "does": (
-            "When an xAI key is set: post narrative for the book on the "
-            "four-hour cadence. Without a key, skip cleanly so research is not blocked."
+            "The desk reads data/last_sentiment.json (TTL 30 min) without an X or xAI key. "
+            "When an xAI key is set and the file is missing or stale: live X search on the "
+            "four-hour cadence. Otherwise skip cleanly so research is not blocked."
         ),
         "does_not": "Does not trade, size, or own the research queue. A missing xAI key is not an outage.",
-        "goal": "Narrative for the book when xAI is configured; stay dark if not.",
-        "target": "Skip cleanly without a key. Do not block research.",
+        "goal": "Keep the Sentiment tab fed from Luke's scraper; xAI only if the file is dark.",
+        "target": "Fresh last_sentiment.json. Skip xAI when the file is fresh or the key is absent.",
         "kpi": "false outages reported for a missing xAI key",
     },
 }
