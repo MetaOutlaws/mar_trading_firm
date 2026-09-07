@@ -1,0 +1,15 @@
+{
+  "family": "prior_day_extreme_reject",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "Fade a 4h tag of the prior UTC day's high or low that closes back inside that day's range. SHORT when high_t >= prior_day_high and close_t < prior_day_high (preferably close inside prior day range). LONG when low_t <= prior_day_low and close_t > prior_day_low. Free params: touch_tol_atr (default 0) and require_close_inside. Not monday_range_sweep_reversal (weekend Sat-Sun box). Not week_open_reclaim. Not equal_high_low_restest_fade (rolling equal H/L). Not double_top/double_bottom neckline. Not classic_floor_pivot_reject (R1/S1 from P). Not session_boundary_volume_fade (weak-volume sweep, no close-inside). Do not recode asia_close_inventory_fade or wyckoff_spring_reclaim.",
+  "summary": "Fade a 4h tag of the prior UTC day's high or low that closes back inside that day's range.",
+  "justification": "A failed 4h tag of yesterday's UTC high/low that closes back inside the day box is not a weekend sweep, not a Monday-open reclaim, not a rolling equal-H/L restest, not a neckline break, and not a floor-pivot R1/S1 fade.",
+  "status": "Brian Inbox-approved for coding",
+  "written_at": "2026-09-07T04:20:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/prior_day_extreme_reject.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward."
+}

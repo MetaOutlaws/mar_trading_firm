@@ -729,6 +729,26 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "prior_day_extreme_reject@4h/4h",
+        "family": "prior_day_extreme_reject",
+        "name": "prior_day_extreme_reject 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 20,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a 4h tag of the "
+            "prior UTC day high/low that closes back inside the day box. "
+            "BOTH sides honest. Not a weekend sweep, not a Monday-open "
+            "reclaim, not a rolling equal-H/L restest, not a neckline, "
+            "not P/R1/S1. Walk-forward is not started from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
