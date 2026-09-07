@@ -167,6 +167,7 @@ CLOCK_BY_FAMILY = {
     "orb_fail_reversion": "4h/4h",
     "nr7_fail_reversion": "4h/4h",
     "ib_fail_reversion": "4h/4h",
+    "converging_wedge_break": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 

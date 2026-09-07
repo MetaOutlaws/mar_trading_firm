@@ -473,6 +473,43 @@ def test_lookback_swing_structure_double_bottom_neckline_is_intervening_high():
     )
 
 
+def test_converging_wedge_rails_both_slope_and_no_lookahead():
+    """Falling-wedge rails both slope down and a future shock cannot rewrite t."""
+    index = pd.date_range("2024-01-02", periods=90, freq="h", tz="UTC")
+    drift = 0.01 * np.arange(90)
+    high = pd.Series(101.0 + drift, index=index)
+    low = pd.Series(99.0 + drift, index=index)
+    for i, px in zip((50, 58, 66), (120.0, 114.0, 109.0)):
+        high.iloc[i] = px
+    for i, px in zip((54, 62, 70), (92.0, 90.0, 88.5)):
+        low.iloc[i] = px
+    rails = ind.converging_wedge_rails(high, low, lookback=40, min_touches=3, left=3)
+    fire = 76
+    assert bool(rails["falling_wedge"].iloc[fire]) is True
+    assert float(rails["upper_slope"].iloc[fire]) < 0.0
+    assert float(rails["lower_slope"].iloc[fire]) < 0.0
+    assert float(rails["upper_slope"].iloc[fire]) < float(rails["lower_slope"].iloc[fire])
+    cut = 76
+    truncated = ind.converging_wedge_rails(
+        high.iloc[:cut], low.iloc[:cut], lookback=40, min_touches=3, left=3
+    )
+    pd.testing.assert_series_equal(
+        rails["upper_rail"].iloc[:cut],
+        truncated["upper_rail"],
+        check_names=False,
+    )
+    shocked_high = high.copy()
+    shocked_high.iloc[-1] = 200.0
+    after = ind.converging_wedge_rails(
+        shocked_high, low, lookback=40, min_touches=3, left=3
+    )
+    pd.testing.assert_series_equal(
+        rails["upper_slope"].iloc[:-1],
+        after["upper_slope"].iloc[:-1],
+        check_names=False,
+    )
+
+
 def test_iso_week_open_is_monday_0000_not_midweek():
     index = pd.date_range("2024-01-01", periods=48, freq="h", tz="UTC")
     open_ = pd.Series(100.0, index=index)

@@ -121,6 +121,7 @@ APPROVED = [
     "orb_fail_reversion",
     "nr7_fail_reversion",
     "ib_fail_reversion",
+    "converging_wedge_break",
 ]
 
 
@@ -4347,6 +4348,188 @@ def test_ib_fail_reversion_short_entry() -> None:
     ) == 0
 
 
+def _converging_wedge_tape(
+    *,
+    long_side: bool,
+    held_break: bool = False,
+    flat_upper: bool = False,
+    n: int = 90,
+) -> tuple[pd.DataFrame, int]:
+    """HH+HL rising wedge (SHORT) or LH+LL falling wedge (LONG), 3 touches/rail.
+
+    Pivots sit 8 bars apart so lookback 30 and 40 both see all six swings.
+    ``held_break`` keeps the prior close already through the rail so the
+    first-cross at ``fire`` does not print. ``flat_upper`` equalizes the
+    three highs so one rail has zero slope (triangle geometry, not a wedge).
+    """
+    close, high, low, open_ = _planted_swings_background(n)
+    h_i = (50, 58, 66)
+    l_i = (54, 62, 70)
+    fire = 76
+    if long_side:
+        for i, px in zip(h_i, (120.0, 114.0, 109.0)):
+            high[i] = px
+            close[i] = px - 2.0
+            open_[i] = px - 3.0
+        for i, px in zip(l_i, (92.0, 90.0, 88.5)):
+            low[i] = px
+            close[i] = px + 2.0
+            open_[i] = px + 3.0
+        if held_break:
+            # Already through the upper rail on the bar before fire.
+            close[fire - 1] = 104.5
+            high[fire - 1] = 105.5
+            low[fire - 1] = 103.5
+            open_[fire - 1] = 103.8
+            close[fire] = 105.0
+            high[fire] = 106.0
+            low[fire] = 104.0
+            open_[fire] = 104.5
+        else:
+            close[fire] = 103.5
+            high[fire] = 105.0
+            low[fire] = 100.0
+            open_[fire] = 100.8
+    else:
+        highs = (112.0, 112.0, 112.0) if flat_upper else (108.0, 112.0, 115.0)
+        for i, px in zip(h_i, highs):
+            high[i] = px
+            close[i] = px - 2.0
+            open_[i] = px - 3.0
+        for i, px in zip(l_i, (85.0, 92.0, 98.0)):
+            low[i] = px
+            close[i] = px + 2.0
+            open_[i] = px + 3.0
+        if held_break:
+            # Background close is already below the rising lower rail.
+            close[fire] = 100.0
+            high[fire] = 101.5
+            low[fire] = 99.0
+            open_[fire] = 100.8
+        else:
+            # Lift the prior bar inside the wedge, then close through the lower rail.
+            # Keep the break bar from engulfing the prior body (not engulfing_reversal).
+            close[fire - 1] = 110.0
+            high[fire - 1] = 111.0
+            low[fire - 1] = 109.0
+            open_[fire - 1] = 109.0
+            close[fire] = 101.5
+            high[fire] = 103.8
+            low[fire] = 100.5
+            open_[fire] = 103.2
+    candles = _ohlcv(_hourly(n, start="2024-01-03"), close, high=high, low=low, open_=open_)
+    return candles, fire
+
+
+def test_converging_wedge_break_schema_and_long_entry() -> None:
+    from research.validate import strategy_kit
+
+    from core.strategy.converging_wedge_break import MIN_TOUCHES, PIVOT_LEFT
+
+    _factory, base, space = strategy_kit("converging_wedge_break", SignalSide.LONG)
+    assert base.min_touches == MIN_TOUCHES == 3
+    assert PIVOT_LEFT == 3
+    assert space["lookback"] == [30, 40]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback"}
+    assert "min_touches" not in extra
+    assert "atr_tol" not in extra
+    assert "vol_lookback" not in extra
+    assert "max_bars_since_break" not in extra
+    candles, fire = _converging_wedge_tape(long_side=True)
+    signals = _signals("converging_wedge_break", candles)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "upper_rail",
+        "lower_rail",
+        "upper_slope",
+        "lower_slope",
+    ):
+        assert column in signals.columns
+    assert "cap" not in signals.columns
+    assert "vol_mean" not in signals.columns
+    assert "mother_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    # Both rails slope down and converge (upper steeper / more negative).
+    assert float(signals["upper_slope"].iloc[fire]) < 0.0
+    assert float(signals["lower_slope"].iloc[fire]) < 0.0
+    assert float(signals["upper_slope"].iloc[fire]) < float(signals["lower_slope"].iloc[fire])
+    assert float(signals["upper_rail"].iloc[fire]) > float(signals["lower_rail"].iloc[fire])
+    assert int(signals["n_highs"].iloc[fire]) >= 3
+    assert int(signals["n_lows"].iloc[fire]) >= 3
+    # Held breakout (already through on the prior bar) does not fire.
+    held, held_fire = _converging_wedge_tape(long_side=True, held_break=True)
+    assert int(_signals("converging_wedge_break", held)["signal"].iloc[held_fire]) == 0
+    # No volume gate: quiet or heavy volume still fires.
+    quiet = candles.copy()
+    quiet.loc[quiet.index[fire], "volume"] = 50.0
+    quiet.loc[quiet.index[fire], "turnover"] = 50.0 * float(quiet["close"].iloc[fire])
+    assert int(_signals("converging_wedge_break", quiet)["signal"].iloc[fire]) == 1
+    heavy = candles.copy()
+    heavy.loc[heavy.index[fire], "volume"] = 50_000.0
+    heavy.loc[heavy.index[fire], "turnover"] = 50_000.0 * float(heavy["close"].iloc[fire])
+    assert int(_signals("converging_wedge_break", heavy)["signal"].iloc[fire]) == 1
+    # Independence: not a flat-cap triangle, not IB/NR7/ORB/range fail.
+    triangle = _signals("ascending_triangle_break", candles)
+    assert int(triangle["signal"].iloc[fire]) == 0
+    assert int(_signals("ib_fail_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("nr7_fail_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("orb_fail_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("failed_range_break_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("asia_range_london_reject", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_day_extreme_reject", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("engulfing_reversal", candles)["signal"].iloc[fire]) == 0
+    # A two-touch flat-cap triangle is not a both-rails-sloping wedge.
+    tri_candles, tri_fire = _ascending_triangle_tape(long_side=True)
+    assert int(_signals("converging_wedge_break", tri_candles)["signal"].iloc[tri_fire]) == 0
+
+
+def test_converging_wedge_break_short_entry() -> None:
+    candles, fire = _converging_wedge_tape(long_side=False)
+    signals = _signals("converging_wedge_break", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    # Both rails slope up and converge (lows rising faster than highs).
+    assert float(signals["upper_slope"].iloc[fire]) > 0.0
+    assert float(signals["lower_slope"].iloc[fire]) > 0.0
+    assert float(signals["upper_slope"].iloc[fire]) < float(signals["lower_slope"].iloc[fire])
+    held, held_fire = _converging_wedge_tape(long_side=False, held_break=True)
+    assert int(
+        _signals("converging_wedge_break", held, side=SignalSide.SHORT)["signal"].iloc[held_fire]
+    ) == 0
+    # Flat upper rail is triangle geometry, not a rising wedge.
+    flat, flat_fire = _converging_wedge_tape(long_side=False, flat_upper=True)
+    assert int(
+        _signals("converging_wedge_break", flat, side=SignalSide.SHORT)["signal"].iloc[flat_fire]
+    ) == 0
+    triangle = _signals("ascending_triangle_break", candles, side=SignalSide.SHORT)
+    ib = _signals("ib_fail_reversion", candles, side=SignalSide.SHORT)
+    failed = _signals("failed_range_break_reversion", candles, side=SignalSide.SHORT)
+    orb = _signals("orb_fail_reversion", candles, side=SignalSide.SHORT)
+    prior_day = _signals("prior_day_extreme_reject", candles, side=SignalSide.SHORT)
+    asia = _signals("asia_range_london_reject", candles, side=SignalSide.SHORT)
+    engulf = _signals("engulfing_reversal", candles, side=SignalSide.SHORT)
+    assert int(triangle["signal"].iloc[fire]) == 0
+    assert int(ib["signal"].iloc[fire]) == 0
+    assert int(failed["signal"].iloc[fire]) == 0
+    assert int(orb["signal"].iloc[fire]) == 0
+    assert int(prior_day["signal"].iloc[fire]) == 0
+    assert int(asia["signal"].iloc[fire]) == 0
+    assert int(engulf["signal"].iloc[fire]) == 0
+    assert "cap" not in signals.columns
+    assert "vol_mean" not in signals.columns
+    assert "neckline" not in signals.columns
+    assert "nr7_high" not in signals.columns
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -4371,6 +4554,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("orb_fail_reversion", {"orb_bars", "max_bars_since_break"}),
         ("nr7_fail_reversion", {"max_bars_since_break"}),
         ("ib_fail_reversion", {"max_bars_since_break"}),
+        ("converging_wedge_break", {"lookback"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -4391,6 +4575,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("orb_fail_reversion", {"orb_bars", "max_bars_since_break"}),
         ("nr7_fail_reversion", {"max_bars_since_break"}),
         ("ib_fail_reversion", {"max_bars_since_break"}),
+        ("converging_wedge_break", {"lookback"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
