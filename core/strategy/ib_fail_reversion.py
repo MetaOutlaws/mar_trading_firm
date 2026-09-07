@@ -1,9 +1,9 @@
 """Fade a failed London inside-bar break that reverts back inside the mother.
 
-The mother is locked as the first London 4h bar of the UTC day (desk London
-window 08:00–16:00 UTC; the open-labeled 08:00–12:00 print). Bar t-1 is an
-inside bar when its range sits strictly inside that mother. A break is a
-*close* through the mother high/low on the first bar after the inside print,
+The mother is locked as the first 4h bar whose UTC open sits in 07:00–11:00
+(Quant lock; not searched). On the 4h clock that is the 08:00 print. Bar t-1
+is an inside bar when its range sits strictly inside that mother. A break is
+a *close* through the mother high/low on the first bar after the inside print,
 not a wick tag:
 
 - SHORT: the setup bar closed above the mother high, then close_t is back
@@ -13,7 +13,7 @@ not a wick tag:
 
 Quant-locked ``require_close_inside=True``: the fail close must still sit
 inside the mother. The only free param is ``max_bars_since_break``
-(grid ``[2, 4]``). London window and first-4h mother are not searched.
+(grid ``[2, 4]``). London IB open window 07:00–11:00 is not searched.
 No volume gate. OHLCV only. Causal: bars ``<= t``. The engine fills at
 ``t+1`` open.
 
@@ -39,18 +39,18 @@ import pandas as pd
 from core.strategy import indicators as ind
 from core.strategy.base import SignalSide, Strategy, StrategyParams
 
-# Desk London window. First 4h bar is the open-labeled 08:00 print.
-# Not searched — Quant lock. 07:00 is asia_range_london_reject only.
-LONDON_START_HOUR = 8.0
-LONDON_END_HOUR = 16.0
+# Quant lock: London IB mother = first 4h bar with open in UTC 07:00–11:00.
+# Not searched. On 4h that is uniquely the 08:00 print (04:00 is Asia).
+LONDON_IB_OPEN_START = 7.0
+LONDON_IB_OPEN_END = 11.0
 LONDON_FIRST_BAR_HOURS = 4.0
 
 
 def _first_london_4h_bar(index: pd.Index) -> pd.Series:
-    """True on the open-labeled first London 4h bar (08:00 UTC).
+    """True on the first 4h bar whose UTC open sits in [07:00, 11:00).
 
-    Desk London is 08:00–16:00. On the 4h clock that first print is the
-    08:00–12:00 bar. Hour is read from the index only, so this is causal.
+    Hour is read from the index only, so this is causal. Later same-day
+    bars in the window (1h 08:00/09:00/10:00) are not a second mother.
     """
     utc_index = index
     if not isinstance(utc_index, pd.DatetimeIndex):
@@ -60,7 +60,14 @@ def _first_london_4h_bar(index: pd.Index) -> pd.Series:
     else:
         utc_index = utc_index.tz_convert("UTC")
     hours_into = (utc_index - utc_index.normalize()) / pd.Timedelta(hours=1)
-    return pd.Series(hours_into == float(LONDON_START_HOUR), index=index)
+    in_window = (hours_into >= float(LONDON_IB_OPEN_START)) & (
+        hours_into < float(LONDON_IB_OPEN_END)
+    )
+    in_window = pd.Series(in_window, index=index)
+    day_key = ind.utc_day_key(index)
+    idx = pd.Series(range(len(index)), index=index, dtype="float64")
+    first = idx.where(in_window).groupby(day_key).transform("min")
+    return in_window & idx.eq(first)
 
 
 @dataclass(frozen=True)
@@ -100,7 +107,7 @@ class IbFailReversionStrategy(Strategy):
 
         # Classic two-bar IB: t-1 sits inside t-2. Published on the break bar.
         mother_high, mother_low, inside = ind.inside_bar_mother(high, low)
-        # Lock: the mother (t-2) must be the first London 4h bar.
+        # Lock: mother (t-2) is the first 4h bar with UTC open in 07:00–11:00.
         london_mother = _first_london_4h_bar(candles.index).shift(2).eq(True)
         setup = inside & london_mother & mother_high.notna() & mother_low.notna()
         # Close-through of that one mother, not a rolling Donchian / ORB / NR7.
@@ -180,8 +187,8 @@ class IbFailReversionStrategy(Strategy):
 
 
 __all__ = [
-    "LONDON_START_HOUR",
-    "LONDON_END_HOUR",
+    "LONDON_IB_OPEN_START",
+    "LONDON_IB_OPEN_END",
     "LONDON_FIRST_BAR_HOURS",
     "IbFailReversionParams",
     "IbFailReversionStrategy",

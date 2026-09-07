@@ -1893,12 +1893,13 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
         needs_feed=False,
         novel_reason=(
             "Fade a failed London inside-bar break: after an inside bar "
-            "whose mother is the first London 4h bar, price breaks the "
-            "mother/IB high/low then fails to hold and reverts back "
-            "inside. SHORT: break above mother high then close back "
-            "below within max_bars_since_break. LONG: break below "
-            "mother low then close back above. Quant-locked: first "
-            "London 4h mother fixed, require_close_inside=True, "
+            "whose mother is the first 4h bar with UTC open in "
+            "07:00–11:00, price breaks the mother/IB high/low then "
+            "fails to hold and reverts back inside. SHORT: break above "
+            "mother high then close back below within "
+            "max_bars_since_break. LONG: break below mother low then "
+            "close back above. Quant-locked: London IB open 07:00–11:00 "
+            "fixed, require_close_inside=True, "
             "max_bars_since_break [2, 4], no volume. Not "
             "nr7_fail_reversion (123 — narrowest-of-7). Not "
             "failed_range_break_reversion (119 — rolling N-bar). Not "
@@ -1910,12 +1911,14 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
         ),
         summary=(
             "Fade a failed London inside-bar break: after an inside bar "
-            "whose mother is the first London 4h bar, price breaks the "
-            "mother high/low then fails to hold and reverts back inside."
+            "whose mother is the first 4h bar with UTC open in "
+            "07:00–11:00, price breaks the mother high/low then fails "
+            "to hold and reverts back inside."
         ),
         justification=(
-            "A close-through of a locked first-London-4h mother after a "
-            "true inside bar that fails to hold and re-closes inside is "
+            "A close-through of a locked first-4h-open-in-07:00–11:00 "
+            "mother after a true inside bar that fails to hold and "
+            "re-closes inside is "
             "not a successful IB follow, not NR7, not a rolling N-bar "
             "failed-range, not a UTC-day ORB fail, and not an Asia-box "
             "London tag."

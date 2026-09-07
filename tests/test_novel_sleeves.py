@@ -4248,12 +4248,14 @@ def test_ib_fail_reversion_schema_and_long_entry() -> None:
 
     from core.strategy.ib_fail_reversion import (
         LONDON_FIRST_BAR_HOURS,
-        LONDON_START_HOUR,
+        LONDON_IB_OPEN_END,
+        LONDON_IB_OPEN_START,
     )
 
     _factory, base, space = strategy_kit("ib_fail_reversion", SignalSide.LONG)
     assert base.require_close_inside is True
-    assert LONDON_START_HOUR == 8.0
+    assert LONDON_IB_OPEN_START == 7.0
+    assert LONDON_IB_OPEN_END == 11.0
     assert LONDON_FIRST_BAR_HOURS == 4.0
     assert space["max_bars_since_break"] == [2, 4]
     extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

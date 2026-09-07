@@ -1005,7 +1005,7 @@ def _novel_kit(name: str, side: SignalSide):
             "core.strategy.ib_fail_reversion",
             "IbFailReversionParams",
             "IbFailReversionStrategy",
-            # London first-4h mother and close-inside locked. Search fail window only.
+            # London IB open 07:00–11:00 and close-inside locked. Search fail window only.
             {"max_bars_since_break": [2, 4]},
         ),
         "outside_bar_reversal": (

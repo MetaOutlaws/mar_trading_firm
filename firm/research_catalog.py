@@ -845,9 +845,9 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "disposition": "new_family",
         "justification": (
             "Brian Inbox-approved for coding only. Fade a failed London "
-            "inside-bar break that reverts back inside the first London "
-            "4h mother. Quant-locked grid: first London 4h mother fixed "
-            "(desk 08:00–16:00), require_close_inside=True, "
+            "inside-bar break that reverts back inside the first 4h "
+            "bar with UTC open in 07:00–11:00. Quant-locked grid: "
+            "London IB open 07:00–11:00 fixed, require_close_inside=True, "
             "max_bars_since_break [2, 4], no volume. BOTH sides honest. "
             "Walk-forward is not started from this coding PR."
         ),
