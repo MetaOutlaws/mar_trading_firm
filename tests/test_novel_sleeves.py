@@ -4561,21 +4561,22 @@ def _engulfing_fail_tape(
     prior_i = 15
     engulf_i = 16
     if long_side:
-        # Small bullish prior, then a wide bearish body-engulf (103/97).
+        # Small bullish *body* (so it can be engulfed) with background-width
+        # wicks — a 1-point prior range would be NR7 and collide with 123.
         open_[prior_i] = 99.8
         close[prior_i] = 100.4
-        high[prior_i] = 100.6
-        low[prior_i] = 99.6
+        high[prior_i] = 102.0
+        low[prior_i] = 98.0
         open_[engulf_i] = 101.0
         close[engulf_i] = 98.8
         high[engulf_i] = 103.0
         low[engulf_i] = 97.0
     else:
-        # Small bearish prior, then a wide bullish body-engulf (103/97).
+        # Small bearish *body*, same wide wicks so this is not NR7.
         open_[prior_i] = 100.4
         close[prior_i] = 99.8
-        high[prior_i] = 100.6
-        low[prior_i] = 99.6
+        high[prior_i] = 102.0
+        low[prior_i] = 98.0
         open_[engulf_i] = 98.8
         close[engulf_i] = 101.0
         high[engulf_i] = 103.0
