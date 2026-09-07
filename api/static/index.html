@@ -800,7 +800,6 @@ const PAGE_SIZES = {
   backlog: 10,
   hypotheses: 10,
   positions: 10,
-  inFlight: 5,
   nextTests: 5,
 };
 function pageSize(id) {
@@ -811,7 +810,7 @@ const VIEW_PAGE_KEYS = {
   strategies: ["strat", "integrity"],
   blotter: ["blotter", "rejects"],
   inbox: ["inbox", "escal"],
-  research: ["jobs", "backlog", "hypotheses", "inFlight", "nextTests"],
+  research: ["jobs", "backlog", "hypotheses", "nextTests"],
   positions: ["positions"],
   floor: ["activity", "jobs"],
 };
@@ -1683,30 +1682,41 @@ function renderResearch() {
       </div>`).join("")}</section>` : `<div class="muted">Novel list is empty — Quant missed the floor of 10.</div>`}
     </div>`;
   // Display-only pagination. Does not start, gate, or skip walk-forwards.
-  const flightSliced = pageSlice("inFlight", inFlight);
-  const nextSliced = pageSlice("nextTests", nextTests);
+  // In-flight (gated/running) and ranked leftovers share one 5-item pager so
+  // the section stays short; badges and tags are unchanged.
+  const nextQueue = [
+    ...inFlight.map(j => ({ ...j, kind: "flight" })),
+    ...nextTests.map(h => ({ ...h, kind: "test" })),
+  ];
+  const nextSliced = pageSlice("nextTests", nextQueue);
+  const nextItemHtml = (row) => {
+    if (row.kind === "flight") {
+      const badgeClass = row.status === "running" || row.status === "queued" ? "ok" : "warn";
+      return `<div class="feed-item">
+        <div class="next-row">
+          <div><span class="badge ${badgeClass}">${esc(row.status)}</span>
+            <strong>${esc(row.family)} ${esc(row.clock || "")} ${esc(row.side || "")}</strong>
+          </div>
+          ${row.blocked_by ? `<span class="tag">${esc(row.blocked_by)}</span>` : ""}
+        </div>
+      </div>`;
+    }
+    return `<div class="feed-item">
+      <div class="next-row">
+        <div>
+          <span class="badge">${esc(row.auto ? "auto" : ("tier " + (row.tier || "?")))}</span>
+          <strong>${esc(row.name || row.id)}</strong>
+          <span class="muted">${esc(row.clock || "")} ${esc(row.side || "")}</span>
+        </div>
+        <span class="tag">${esc(row.owner_label || row.owner || "")}</span>
+      </div>
+      ${row.justification ? `<div class="muted clip" style="margin-top:4px">${esc(row.justification)}</div>` : ""}
+    </div>`;
+  };
   const nextCards = `<div class="card">
       <h2>Next tests</h2>
       <p class="muted">Walk-forward queue of <strong>already coded</strong> leftovers. This is not the coding list. Tier A auto-starts when a slot is free; integrity flags belong to Performance Auditor.</p>
-      ${inFlight.length ? `<div class="feed" style="margin-bottom:12px" data-page-list="inFlight">${flightSliced.items.map(j => `<div class="feed-item">
-        <div class="next-row">
-          <div><span class="badge ${j.status === "running" || j.status === "queued" ? "ok" : "warn"}">${esc(j.status)}</span>
-            <strong>${esc(j.family)} ${esc(j.clock || "")} ${esc(j.side || "")}</strong>
-          </div>
-          ${j.blocked_by ? `<span class="tag">${esc(j.blocked_by)}</span>` : ""}
-        </div>
-      </div>`).join("")}</div>${pagerHtml("inFlight", flightSliced, "in flight")}` : ""}
-      ${nextTests.length ? `<div class="feed" data-page-list="nextTests">${nextSliced.items.map(h => `<div class="feed-item">
-        <div class="next-row">
-          <div>
-            <span class="badge">${esc(h.auto ? "auto" : ("tier " + (h.tier || "?")))}</span>
-            <strong>${esc(h.name || h.id)}</strong>
-            <span class="muted">${esc(h.clock || "")} ${esc(h.side || "")}</span>
-          </div>
-          <span class="tag">${esc(h.owner_label || h.owner || "")}</span>
-        </div>
-        ${h.justification ? `<div class="muted clip" style="margin-top:4px">${esc(h.justification)}</div>` : ""}
-      </div>`).join("")}</div>${pagerHtml("nextTests", nextSliced, "tests")}` : `<div class="muted">Catalog is empty — Quant should replenish clock/side variants of coded sleeves.</div>`}
+      ${nextQueue.length ? `<div class="feed" data-page-list="nextTests">${nextSliced.items.map(nextItemHtml).join("")}</div>${pagerHtml("nextTests", nextSliced, "tests")}` : `<div class="muted">Catalog is empty — Quant should replenish clock/side variants of coded sleeves.</div>`}
     </div>`;
   const lessonCard = lessons.length ? `<div class="card">
       <h2>What the finished tests taught us</h2>
@@ -1982,7 +1992,7 @@ function paperOverrideCard() {
         const tfLabel = g.tfs.length ? g.tfs.join(" · ") : "—";
         const pfLabel = paperFamilyPfLabel(g);
         const pairLabel = g.pairCount === 1 ? "1 pair" : `${g.pairCount} pairs`;
-        const famRow = `<tr class="fam-row" role="button" aria-expanded="${expanded ? "true" : "false"}" onclick="toggleCollapse(${JSON.stringify(famId)}, true)">
+        const famRow = `<tr class="fam-row" role="button" aria-expanded="${expanded ? "true" : "false"}" title="Click to show pairs" onclick='toggleCollapse(${JSON.stringify(famId)}, true)'>
           <td title="${esc(g.name)}"><span class="chev${expanded ? " open" : ""}">&#8250;</span><strong>${esc(g.name)}</strong></td>
           <td>${esc(pairLabel)}</td>
           <td class="muted" title="${esc(tfLabel)}">${esc(tfLabel)}</td>

@@ -20,12 +20,11 @@ def test_on_paper_groups_by_family_and_keeps_research_copy():
     assert "best PF" in html
     assert "These sleeves still fail research, so they are not in Approved. Paper scans them for fills. Live stays locked." in html
     assert "paperFamQ" in html
-    assert 'id="paperFam:"' not in html  # family ids are built in JS, not hardcoded
+    assert "onclick='toggleCollapse(" in html
 
 
 def test_next_tests_paginate_five_display_only():
     html = _html()
-    assert "inFlight: 5," in html
     assert "nextTests: 5," in html
     assert "Display-only pagination. Does not start, gate, or skip walk-forwards." in html
     assert "PIPELINE_AUTO_ADVANCE" not in html
