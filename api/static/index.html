@@ -363,6 +363,12 @@ tr.job-group:hover td { background: var(--surface-2); }
 }
 .chev.open { transform: rotate(90deg); color: var(--ink); }
 .card-collapsible.is-collapsed .card-head { margin-bottom: -4px; }
+.card-summary {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0 0 2px;
+}
 /* Small inline expand/collapse row for reference lists (e.g. "tested in this file") */
 .mini-collapse { padding: 12px 16px; }
 .mini-collapse-head {
@@ -398,6 +404,20 @@ tr.job-group:hover td { background: var(--surface-2); }
   max-width: 0;
 }
 .table-fixed td.wrap { white-space: normal; max-width: none; overflow: visible; text-overflow: clip; }
+tr.fam-row { cursor: pointer; }
+tr.fam-row td { background: var(--surface-2); }
+tr.fam-row:hover td { background: rgba(255,255,255,0.04); }
+tr.fam-row .chev { margin-right: 6px; vertical-align: middle; }
+tr.fam-child td:first-child { color: var(--faint); padding-left: 22px; }
+.next-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.next-row > div { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.next-row .tag, .next-row .badge { flex: 0 0 auto; }
 .field {
   background: var(--bg);
   color: var(--ink);
@@ -749,6 +769,7 @@ const FILTER_IDS = [
   "integrityStatus", "integrityWhen", "integrityQ",
   "stratStatus", "stratFamily", "stratWhen", "stratQ",
   "inboxQ", "inboxWhen", "escalQ", "escalWhen", "escalSev",
+  "paperFamQ",
 ];
 function snapshotFilters() {
   const out = {};
@@ -779,6 +800,8 @@ const PAGE_SIZES = {
   backlog: 10,
   hypotheses: 10,
   positions: 10,
+  inFlight: 5,
+  nextTests: 5,
 };
 function pageSize(id) {
   return PAGE_SIZES[id] || 10;
@@ -788,7 +811,7 @@ const VIEW_PAGE_KEYS = {
   strategies: ["strat", "integrity"],
   blotter: ["blotter", "rejects"],
   inbox: ["inbox", "escal"],
-  research: ["jobs", "backlog", "hypotheses"],
+  research: ["jobs", "backlog", "hypotheses", "inFlight", "nextTests"],
   positions: ["positions"],
   floor: ["activity", "jobs"],
 };
@@ -901,14 +924,18 @@ function toggleCollapse(id, defaultCollapsed = false) {
 function collapsibleCard(id, title, bodyHtml, opts = {}) {
   const defaultCollapsed = !!opts.defaultCollapsed;
   const collapsed = isCollapsed(id, defaultCollapsed);
+  // `summary` stays visible while collapsed (short blurb / slip line) so the
+  // operator can decide whether to expand without opening the full body.
+  const summary = collapsed && opts.summary ? `<div class="card-summary">${opts.summary}</div>` : "";
   return `<div class="card card-collapsible${collapsed ? " is-collapsed" : ""}">
-    <div class="card-head" onclick="toggleCollapse('${id}', ${defaultCollapsed})">
+    <div class="card-head" onclick="toggleCollapse('${id}', ${defaultCollapsed})" role="button" aria-expanded="${collapsed ? "false" : "true"}">
       <div class="card-head-title">
         <span class="chev${collapsed ? "" : " open"}">&#8250;</span>
         <h2>${esc(title)}</h2>
       </div>
       <div class="card-head-meta">${opts.meta || ""}</div>
     </div>
+    ${summary}
     ${collapsed ? "" : `<div class="card-body">${bodyHtml}</div>`}
   </div>`;
 }
@@ -1106,6 +1133,8 @@ function dutyCard() {
   const duties = acc.duties || [];
   const fails = acc.llm_failures || [];
   if (!duties.length && !slips.length) return "";
+  const onTrack = duties.filter(d => d.on_track).length;
+  const slipping = duties.length - onTrack;
   const slipRows = slips.length
     ? `<div class="banner warn" style="margin-bottom:12px"><strong>${slips.length} slip(s)</strong>
         <ul>${slips.map(s => `<li><strong>${esc(s.owner)}</strong> — ${esc(s.issue)} <span class="muted">${esc(s.expected || "")}</span></li>`).join("")}</ul>
@@ -1121,13 +1150,23 @@ function dutyCard() {
       <div class="muted">${esc(d.goal || "")}</div>
       <div class="muted">${esc(d.target || "")}</div>
     </div>`).join("");
-  return `<div class="card">
-    <h2>Duty board</h2>
+  const meta = slipping
+    ? `<span class="badge bad">${slipping} slipping</span><span class="badge ok">${onTrack} on track</span>`
+    : `<span class="badge ok">${duties.length} on track</span>`;
+  // Slips stay visible while collapsed so a rolled-up board cannot hide a miss.
+  const summary = slips.length
+    ? `<div>${slips.length} slip(s): ${esc(slips.map(s => s.owner || s.issue).join(", "))}</div>`
+    : "";
+  const body = `
     <p class="muted">${esc(acc.note || "Who owns the current stall. Trust-ladder P&L is not this KPI.")}</p>
     ${slipRows}
     ${failRows}
-    <div class="feed">${table}</div>
-  </div>`;
+    <div class="feed">${table}</div>`;
+  return collapsibleCard("dutyBoard", "Duty board", body, {
+    defaultCollapsed: true,
+    meta,
+    summary,
+  });
 }
 
 function orgCard() {
@@ -1139,15 +1178,19 @@ function orgCard() {
       ${e.does_not ? `<div class="muted">Not: ${esc(e.does_not)}</div>` : ""}
     </div>`).join("");
   const gates = (org.gates || []).map(g => `<li>${esc(g)}</li>`).join("");
-  return `<div class="card">
-    <h2>Who runs daily ops</h2>
-    <p class="muted">${esc(org.note || "")}</p>
+  const blurb = esc(org.note || "");
+  const body = `
+    <p class="muted">${blurb}</p>
     <div><strong>${esc(org.gm_title)}</strong> — ${esc(org.gm_mandate || "")}</div>
     <h3 style="margin-top:14px">Your gates</h3>
     <ul class="plain">${gates}</ul>
     <h3 style="margin-top:14px">The floor</h3>
-    <div class="feed">${seats}</div>
-  </div>`;
+    <div class="feed">${seats}</div>`;
+  return collapsibleCard("whoRunsOps", "Who runs daily ops", body, {
+    defaultCollapsed: true,
+    meta: `<span class="muted">${(org.employees || []).length} seats</span>`,
+    summary: blurb ? `<p class="muted" style="margin:0">${blurb}</p>` : "",
+  });
 }
 
 function standupCard() {
@@ -1639,23 +1682,31 @@ function renderResearch() {
         ${h.brief ? `<div class="muted" style="margin-top:8px">${esc(h.brief)}</div>` : ""}
       </div>`).join("")}</section>` : `<div class="muted">Novel list is empty — Quant missed the floor of 10.</div>`}
     </div>`;
+  // Display-only pagination. Does not start, gate, or skip walk-forwards.
+  const flightSliced = pageSlice("inFlight", inFlight);
+  const nextSliced = pageSlice("nextTests", nextTests);
   const nextCards = `<div class="card">
       <h2>Next tests</h2>
       <p class="muted">Walk-forward queue of <strong>already coded</strong> leftovers. This is not the coding list. Tier A auto-starts when a slot is free; integrity flags belong to Performance Auditor.</p>
-      ${inFlight.length ? `<div class="feed" style="margin-bottom:12px">${inFlight.map(j => `<div class="feed-item">
-        <div><span class="badge ${j.status === "running" || j.status === "queued" ? "ok" : "warn"}">${esc(j.status)}</span>
-          <strong>${esc(j.family)} ${esc(j.clock || "")} ${esc(j.side || "")}</strong>
-          <span class="muted">${esc(j.blocked_by || "")}</span>
+      ${inFlight.length ? `<div class="feed" style="margin-bottom:12px" data-page-list="inFlight">${flightSliced.items.map(j => `<div class="feed-item">
+        <div class="next-row">
+          <div><span class="badge ${j.status === "running" || j.status === "queued" ? "ok" : "warn"}">${esc(j.status)}</span>
+            <strong>${esc(j.family)} ${esc(j.clock || "")} ${esc(j.side || "")}</strong>
+          </div>
+          ${j.blocked_by ? `<span class="tag">${esc(j.blocked_by)}</span>` : ""}
         </div>
-      </div>`).join("")}</div>` : ""}
-      ${nextTests.length ? `<section class="grid-3">${nextTests.map(h => `<div class="card">
-        <h2>rank ${esc(h.rank)} · tier ${esc(h.tier || "?")}</h2>
-        <div><strong>${esc(h.name || h.id)}</strong></div>
-        <div class="muted" style="margin-top:6px">${esc(h.family)} · ${esc(h.clock)} · ${esc(h.side)}${h.auto ? " · auto" : ""}</div>
-        <div class="muted" style="margin-top:6px">${esc(h.owner_label || h.owner || "")}</div>
-        <div style="margin-top:8px">${esc(h.justification || "")}</div>
-        ${(h.reasons || []).length ? `<div class="muted" style="margin-top:8px">${esc((h.reasons || []).join(" · "))}</div>` : ""}
-      </div>`).join("")}</section>` : `<div class="muted">Catalog is empty — Quant should replenish clock/side variants of coded sleeves.</div>`}
+      </div>`).join("")}</div>${pagerHtml("inFlight", flightSliced, "in flight")}` : ""}
+      ${nextTests.length ? `<div class="feed" data-page-list="nextTests">${nextSliced.items.map(h => `<div class="feed-item">
+        <div class="next-row">
+          <div>
+            <span class="badge">${esc(h.auto ? "auto" : ("tier " + (h.tier || "?")))}</span>
+            <strong>${esc(h.name || h.id)}</strong>
+            <span class="muted">${esc(h.clock || "")} ${esc(h.side || "")}</span>
+          </div>
+          <span class="tag">${esc(h.owner_label || h.owner || "")}</span>
+        </div>
+        ${h.justification ? `<div class="muted clip" style="margin-top:4px">${esc(h.justification)}</div>` : ""}
+      </div>`).join("")}</div>${pagerHtml("nextTests", nextSliced, "tests")}` : `<div class="muted">Catalog is empty — Quant should replenish clock/side variants of coded sleeves.</div>`}
     </div>`;
   const lessonCard = lessons.length ? `<div class="card">
       <h2>What the finished tests taught us</h2>
@@ -1864,22 +1915,107 @@ function paperOverrideRows() {
   return ((state.strategies || {}).pairs || []).filter(p => p.paper_override && !p.approved);
 }
 
+// Collapse the flat veto table by family: one primary row (pair count, clocks,
+// summed OOS trades, best PF) instead of repeating the strategy name. Pair
+// rows stay one click away. Search is display-only.
+function groupPaperOverrides(rows) {
+  const byFam = new Map();
+  for (const p of rows) {
+    const name = p.strategy || "—";
+    if (!byFam.has(name)) byFam.set(name, []);
+    byFam.get(name).push(p);
+  }
+  return [...byFam.entries()].map(([name, pairs]) => {
+    const tfs = [...new Set(pairs.map(p => p.timeframe).filter(Boolean))];
+    let oosSum = 0;
+    let hasOos = false;
+    let bestPf = null;
+    let pfCount = 0;
+    for (const p of pairs) {
+      const oos = Number(p.oos_trades);
+      if (Number.isFinite(oos)) {
+        oosSum += oos;
+        hasOos = true;
+      }
+      const pf = Number(p.oos_profit_factor);
+      if (Number.isFinite(pf)) {
+        pfCount += 1;
+        if (bestPf == null || pf > bestPf) bestPf = pf;
+      }
+    }
+    return {
+      name,
+      pairs,
+      tfs,
+      pairCount: pairs.length,
+      oosSum: hasOos ? oosSum : null,
+      bestPf,
+      pfCount,
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function paperFamilyPfLabel(g) {
+  const pairBit = g.pairCount === 1 ? "1 pair" : `${g.pairCount} pairs`;
+  if (g.bestPf == null) return `no PF · ${pairBit}`;
+  return `best PF ${Number(g.bestPf).toFixed(2)} · ${pairBit}`;
+}
+
 function paperOverrideCard() {
   const rows = paperOverrideRows();
   if (!rows.length) return "";
+  const q = (filterVal("paperFamQ", "") || "").trim().toLowerCase();
+  const allGroups = groupPaperOverrides(rows);
+  const groups = allGroups.filter(g => {
+    if (!q) return true;
+    const hay = [
+      g.name,
+      ...g.pairs.map(p => `${p.symbol || ""} ${p.side || ""} ${p.timeframe || ""}`),
+    ].join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+  const visiblePairs = groups.reduce((n, g) => n + g.pairCount, 0);
+  const body = groups.length
+    ? groups.map(g => {
+        const famId = "paperFam:" + g.name;
+        const expanded = !isCollapsed(famId, true);
+        const tfLabel = g.tfs.length ? g.tfs.join(" · ") : "—";
+        const pfLabel = paperFamilyPfLabel(g);
+        const pairLabel = g.pairCount === 1 ? "1 pair" : `${g.pairCount} pairs`;
+        const famRow = `<tr class="fam-row" role="button" aria-expanded="${expanded ? "true" : "false"}" onclick="toggleCollapse(${JSON.stringify(famId)}, true)">
+          <td title="${esc(g.name)}"><span class="chev${expanded ? " open" : ""}">&#8250;</span><strong>${esc(g.name)}</strong></td>
+          <td>${esc(pairLabel)}</td>
+          <td class="muted" title="${esc(tfLabel)}">${esc(tfLabel)}</td>
+          <td class="num">${g.oosSum != null ? esc(g.oosSum) : "—"}</td>
+          <td class="num wrap" title="${esc(pfLabel)}">${esc(pfLabel)}</td>
+        </tr>`;
+        const childRows = expanded
+          ? g.pairs.map(p => {
+              const pair = `${p.symbol || ""} ${p.side || ""}`.trim() || "—";
+              const pf = p.oos_profit_factor != null ? Number(p.oos_profit_factor).toFixed(2) : "—";
+              return `<tr class="fam-child">
+                <td></td>
+                <td title="${esc(pair)}"><strong>${esc(p.symbol || "—")}</strong> ${esc(p.side || "")}</td>
+                <td class="muted">${esc(p.timeframe || "—")}</td>
+                <td class="num">${esc(p.oos_trades ?? "—")}</td>
+                <td class="num">${esc(pf)}</td>
+              </tr>`;
+            }).join("")
+          : "";
+        return famRow + childRows;
+      }).join("")
+    : `<tr><td colspan="5">${empty("No families match", "Clear the family filter to see every paper veto.")}</td></tr>`;
   return `<div class="card">
     <h2>On paper (operator veto)</h2>
     <div class="muted" style="margin-bottom:8px">These sleeves still fail research, so they are not in Approved. Paper scans them for fills. Live stays locked.</div>
+    <div class="toolbar filters">
+      <input class="field" id="paperFamQ" placeholder="Filter families or pairs" oninput="onFilterChange()" value="${esc(q)}"/>
+      <span class="filter-count">${groups.length} of ${allGroups.length} ${allGroups.length === 1 ? "family" : "families"} · ${visiblePairs} pairs</span>
+    </div>
     <table class="table-fixed">
       <colgroup><col style="width:38%"/><col style="width:26%"/><col style="width:12%"/><col style="width:12%"/><col style="width:12%"/></colgroup>
       <thead><tr><th>Strategy</th><th>Pair</th><th>TF</th><th>OOS trades</th><th>PF</th></tr></thead>
-      <tbody>${rows.map(p => `<tr>
-        <td title="${esc(p.strategy || "—")}"><strong>${esc(p.strategy || "—")}</strong></td>
-        <td title="${esc(p.symbol)} ${esc(p.side)}"><strong>${esc(p.symbol)}</strong> ${esc(p.side)}</td>
-        <td class="muted">${esc(p.timeframe || "—")}</td>
-        <td class="num">${esc(p.oos_trades ?? "—")}</td>
-        <td class="num">${p.oos_profit_factor != null ? Number(p.oos_profit_factor).toFixed(2) : "—"}</td>
-      </tr>`).join("")}</tbody>
+      <tbody>${body}</tbody>
     </table>
   </div>`;
 }
