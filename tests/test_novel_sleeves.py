@@ -124,6 +124,7 @@ APPROVED = [
     "converging_wedge_break",
     "engulfing_fail_reversion",
     "wyckoff_spring_reclaim",
+    "prior_close_magnet_fade",
 ]
 
 
@@ -4983,6 +4984,119 @@ def test_wyckoff_spring_reclaim_short_entry() -> None:
     assert "vol_mean" not in signals.columns
 
 
+def _prior_close_magnet_tape(*, long_side: bool, drop: float = 3.0) -> tuple[pd.DataFrame, int]:
+    """Flat 100-tape, then one close stretched ``drop`` away from the magnet."""
+    n = 50
+    fire = 40
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    if long_side:
+        close[fire] = 100.0 - drop
+        high[fire] = close[fire] + 0.5
+        low[fire] = close[fire] - 0.5
+    else:
+        close[fire] = 100.0 + drop
+        high[fire] = close[fire] + 0.5
+        low[fire] = close[fire] - 0.5
+    candles = _ohlcv(_hourly(n), close, high=high, low=low)
+    return candles, fire
+
+
+def test_prior_close_magnet_fade_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("prior_close_magnet_fade", SignalSide.LONG)
+    assert base.atr_n == 20
+    assert base.k == pytest.approx(1.2)
+    assert space["k"] == [1.2, 1.4]
+    assert "atr_n" not in space
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert "vol_lookback" not in extra
+    assert "lookback" not in extra
+    candles, fire = _prior_close_magnet_tape(long_side=True, drop=3.0)
+    signals = _signals("prior_close_magnet_fade", candles)
+    for column in ("signal", "side", "score", "reason", "prior_close", "atr", "stretch"):
+        assert column in signals.columns
+    assert "volume_ma" not in signals.columns
+    assert "rolling_vwap" not in signals.columns
+    assert "week_open" not in signals.columns
+    assert "mean_clv" not in signals.columns
+    assert "swing_low" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["prior_close"].iloc[fire] == pytest.approx(100.0)
+    assert float(signals["stretch"].iloc[fire]) <= -1.4
+    # A 1.35-ATR-ish dip clears k=1.2 but not k=1.4.
+    mild, mild_fire = _prior_close_magnet_tape(long_side=True, drop=1.35)
+    mild_sig = _signals("prior_close_magnet_fade", mild)
+    assert int(mild_sig["signal"].iloc[mild_fire]) == 1
+    tight = factory(replace(base, k=1.4)).generate_signals(mild)
+    assert int(tight["signal"].iloc[mild_fire]) == 0
+    # Sub-threshold drift is not a magnet fade.
+    tiny, tiny_fire = _prior_close_magnet_tape(long_side=True, drop=0.8)
+    assert int(_signals("prior_close_magnet_fade", tiny)["signal"].iloc[tiny_fire]) == 0
+    # Spent 118–127 families stay flat on a one-bar prior-close stretch.
+    spent = (
+        "prior_day_extreme_reject",
+        "failed_range_break_reversion",
+        "asia_range_london_reject",
+        "orb_fail_reversion",
+        "nr7_fail_reversion",
+        "ib_fail_reversion",
+        "converging_wedge_break",
+        "engulfing_fail_reversion",
+        "wyckoff_spring_reclaim",
+    )
+    for name in spent:
+        assert int(_signals(name, candles)["signal"].iloc[fire]) == 0
+    heavy = candles.copy()
+    heavy.loc[heavy.index[fire], "volume"] = 50_000.0
+    assert int(_signals("prior_close_magnet_fade", heavy)["signal"].iloc[fire]) == 1
+
+
+def test_prior_close_magnet_fade_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, _space = strategy_kit("prior_close_magnet_fade", SignalSide.SHORT)
+    candles, fire = _prior_close_magnet_tape(long_side=False, drop=3.0)
+    signals = _signals("prior_close_magnet_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["prior_close"].iloc[fire] == pytest.approx(100.0)
+    assert float(signals["stretch"].iloc[fire]) >= 1.4
+    mild, mild_fire = _prior_close_magnet_tape(long_side=False, drop=1.35)
+    mild_sig = _signals("prior_close_magnet_fade", mild, side=SignalSide.SHORT)
+    assert int(mild_sig["signal"].iloc[mild_fire]) == -1
+    tight = factory(replace(base, k=1.4)).generate_signals(mild)
+    assert int(tight["signal"].iloc[mild_fire]) == 0
+    tiny, tiny_fire = _prior_close_magnet_tape(long_side=False, drop=0.8)
+    assert int(
+        _signals("prior_close_magnet_fade", tiny, side=SignalSide.SHORT)["signal"].iloc[tiny_fire]
+    ) == 0
+    spent = (
+        "prior_day_extreme_reject",
+        "failed_range_break_reversion",
+        "asia_range_london_reject",
+        "orb_fail_reversion",
+        "nr7_fail_reversion",
+        "ib_fail_reversion",
+        "converging_wedge_break",
+        "engulfing_fail_reversion",
+        "wyckoff_spring_reclaim",
+    )
+    for name in spent:
+        assert int(_signals(name, candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -5010,6 +5124,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("converging_wedge_break", {"lookback"}),
         ("engulfing_fail_reversion", {"max_bars_since_engulf"}),
         ("wyckoff_spring_reclaim", {"lookback", "hold_bars"}),
+        ("prior_close_magnet_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -5033,6 +5148,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("converging_wedge_break", {"lookback"}),
         ("engulfing_fail_reversion", {"max_bars_since_engulf"}),
         ("wyckoff_spring_reclaim", {"lookback", "hold_bars"}),
+        ("prior_close_magnet_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
