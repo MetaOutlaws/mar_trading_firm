@@ -4794,8 +4794,9 @@ def _wyckoff_spring_tape(
 
     Unique low/high keeps this off equal_high_low_restest_fade. Same-bar
     wick reclaim is not a close-through, so failed_range_break_reversion
-    stays flat. Spring sits after the UTC-day ORB and outside London so
-    118–126 session/pattern fades do not share the fire bar.
+    stays flat. Setup is a held break (close stays through the old 95/105
+    rail) so it is not itself a spring. Grab sits after 16:00 UTC so
+    Asia/London session fades (118–126) do not share the fire bar.
     """
     n = 48
     index = _hourly(n, start="2024-01-02")
@@ -4803,17 +4804,18 @@ def _wyckoff_spring_tape(
     high = np.full(n, 105.0)
     low = np.full(n, 95.0)
     open_ = np.full(n, 100.0)
-    setup = 26
-    grab = 36
+    # Jan 3 18:00 / 21:00 UTC — after London 07:00–16:00.
+    setup = 42
+    grab = 45
     fire = grab + 1 if (next_bar_reclaim or late_reclaim) else grab
     if late_reclaim:
         fire = grab + 2
     if long_side:
-        # One unique range low. Other lows stay 95 so the cluster is not equal.
+        # Held breakdown print: unique range low, close stays below 95.
         low[setup] = 90.0
         high[setup] = 104.0
-        close[setup] = 98.0
-        open_[setup] = 100.0
+        close[setup] = 91.0
+        open_[setup] = 96.0
         if next_bar_reclaim or late_reclaim or held_break:
             low[grab] = 85.0
             close[grab] = 88.0
@@ -4842,10 +4844,11 @@ def _wyckoff_spring_tape(
             high[grab] = 97.0
             open_[grab] = 96.0
     else:
+        # Held breakout print: unique range high, close stays above 105.
         high[setup] = 110.0
         low[setup] = 96.0
-        close[setup] = 102.0
-        open_[setup] = 100.0
+        close[setup] = 109.0
+        open_[setup] = 104.0
         if next_bar_reclaim or late_reclaim or held_break:
             high[grab] = 115.0
             close[grab] = 112.0
