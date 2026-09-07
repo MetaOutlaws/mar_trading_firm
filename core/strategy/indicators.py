@@ -2167,20 +2167,27 @@ def squeeze_on(
 def squeeze_linreg_momentum(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 20
 ) -> pd.Series:
-    """TTM-style linreg of close minus typical-price mean. Bars ``<= t`` only."""
+    """TTM-style linreg of close minus typical-price mean. Bars ``<= t`` only.
+
+    Same OLS fit-end as a rolling window regression of ``src`` on 0..N-1.
+    Vectorized so a 4h walk-forward is not a Python UDF per bar.
+    """
+    if period <= 0:
+        raise ValueError(f"period must be positive, got {period}")
     typical = (high.astype("float64") + low.astype("float64") + close.astype("float64")) / 3.0
     basis = typical.rolling(period, min_periods=period).mean()
     src = close.astype("float64") - basis
-    x = np.arange(period, dtype="float64")
-    x_mean = float(x.mean())
-    x_c = x - x_mean
-    denom = float((x_c * x_c).sum()) or np.nan
-
-    def _fit_end(window: np.ndarray) -> float:
-        y_c = window - window.mean()
-        slope = float((x_c * y_c).sum() / denom)
-        intercept = float(window.mean() - slope * x_mean)
-        return intercept + slope * (period - 1)
-
-    return src.rolling(period, min_periods=period).apply(_fit_end, raw=True)
+    # x = 0..n-1, x_mean = (n-1)/2, denom = n(n^2-1)/12 = sum((x-x_mean)^2).
+    n = int(period)
+    x_mean = (n - 1) / 2.0
+    denom = n * (n * n - 1) / 12.0
+    pos = pd.Series(np.arange(len(src), dtype="float64"), index=src.index)
+    sum_y = src.rolling(n, min_periods=n).sum()
+    sum_pos_y = (pos * src).rolling(n, min_periods=n).sum()
+    # Window-local x is pos - pos_first. pos_first = pos - (n-1).
+    sum_x_y = sum_pos_y - (pos - (n - 1)) * sum_y
+    y_mean = sum_y / n
+    slope = (sum_x_y - x_mean * sum_y) / denom
+    # Fitted value at the last bar: y_mean + slope * x_mean.
+    return y_mean + slope * x_mean
 

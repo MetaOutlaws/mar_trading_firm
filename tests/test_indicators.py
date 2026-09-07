@@ -530,6 +530,43 @@ def test_bollinger_width_is_relative():
     )
 
 
+def test_squeeze_on_is_bb_inside_keltner_not_width_alone():
+    """TTM squeeze: Bollinger nested inside Keltner, not a BB-width percentile."""
+    n = 60
+    close = pd.Series(np.full(n, 100.0))
+    high = close + 2.0
+    low = close - 2.0
+    squeezed = ind.squeeze_on(high, low, close)
+    _, bb_up, bb_dn = ind.bollinger_bands(close, 20, 2.0)
+    _, kc_up, kc_dn = ind.keltner_channel(high, low, close, 20, 10, 1.5)
+    nested = (bb_up < kc_up) & (bb_dn > kc_dn)
+    pd.testing.assert_series_equal(squeezed, nested, check_names=False)
+    assert bool(squeezed.iloc[40]) is True
+    width = ind.bollinger_width(close, period=20, k=2.0)
+    # Nested BB/KC is a boolean nest, not a relative BB-width reading.
+    assert float(width.iloc[40]) != pytest.approx(1.0)
+
+
+def test_squeeze_linreg_momentum_matches_window_ols():
+    """Vectorized fit-end equals a hand OLS of the last 20 src bars."""
+    rng = np.random.default_rng(3)
+    n = 50
+    close = pd.Series(100.0 + np.cumsum(rng.normal(0, 0.4, n)))
+    high = close + 1.0
+    low = close - 1.0
+    mom = ind.squeeze_linreg_momentum(high, low, close, 20)
+    typical = (high + low + close) / 3.0
+    src = close - typical.rolling(20, min_periods=20).mean()
+    window = src.iloc[-20:].to_numpy(dtype="float64")
+    x = np.arange(20, dtype="float64")
+    x_c = x - x.mean()
+    y_c = window - window.mean()
+    slope = float((x_c * y_c).sum() / (x_c * x_c).sum())
+    intercept = float(window.mean() - slope * x.mean())
+    expected = intercept + slope * (20 - 1)
+    assert mom.iloc[-1] == pytest.approx(expected, rel=1e-12)
+
+
 def test_bar_buy_share_is_close_location_not_cumsum():
     index = pd.date_range("2024-01-02", periods=3, freq="h", tz="UTC")
     high = pd.Series([110.0, 110.0, 110.0], index=index)

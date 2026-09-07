@@ -49,6 +49,7 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "double_top_neckline_break" not in names
     assert "ascending_triangle_break" not in names
     assert "prior_day_extreme_reject" not in names
+    assert "squeeze_momentum_break" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names
