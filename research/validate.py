@@ -1019,7 +1019,7 @@ def _novel_kit(name: str, side: SignalSide):
             "core.strategy.engulfing_fail_reversion",
             "EngulfingFailReversionParams",
             "EngulfingFailReversionStrategy",
-            # Close-inside locked. No volume. Search fail window from the engulf only.
+            # Close-inside and body_eff locked. No volume. Search fail window from the engulf only.
             {"max_bars_since_engulf": [1, 2]},
         ),
         "outside_bar_reversal": (

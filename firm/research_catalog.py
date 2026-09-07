@@ -887,11 +887,11 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "disposition": "new_family",
         "justification": (
             "Brian Inbox-approved for coding only. Fade a failed "
-            "engulfing continuation that reverts back inside the "
-            "engulfing bar's high/low. Quant-locked grid: "
-            "require_close_inside=True, max_bars_since_engulf [1, 2], "
-            "no volume. BOTH sides honest. Walk-forward is not started "
-            "from this coding PR."
+            "engulfing continuation that closes back through the "
+            "engulfing bar's open (not wick-only). Quant-locked grid: "
+            "require_close_inside=True, body_eff locked OFF, "
+            "max_bars_since_engulf [1, 2], no volume. BOTH sides "
+            "honest. Walk-forward is not started from this coding PR."
         ),
         "param_change": {"clock": "4h/4h"},
         "needs_feed": False,

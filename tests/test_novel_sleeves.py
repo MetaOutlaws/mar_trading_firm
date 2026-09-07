@@ -4538,13 +4538,16 @@ def _engulfing_fail_tape(
     blow_through: bool = False,
     delay: int = 1,
     same_bar_fail: bool = False,
+    wick_only_fail: bool = False,
 ) -> tuple[pd.DataFrame, int, int, int]:
     """Hourly tape: two-bar body engulf, continuation through the extreme, fail.
 
-    Early UTC-day bars stay 110/90 so this is not an ORB fail, not a
-    rolling 16-bar Donchian fail, and not a prior-day / Asia tag.
-    The engulf bar is *wider* than the recent 4-point background so it
-    is not NR7. Volume is flat. Midday event, not a London IB mother.
+    Fail is a *close* back through the engulf open (not a wick tag of the
+    open, not merely back inside the high/low). Early UTC-day bars stay
+    110/90 so this is not an ORB fail, not a rolling 16-bar Donchian
+    fail, and not a prior-day / Asia tag. The engulf bar is *wider* than
+    the recent 4-point background so it is not NR7. Volume is flat.
+    Midday event, not a London IB mother. No body-efficiency gate.
     """
     n = 32
     index = _hourly(n, start="2024-01-02")
@@ -4584,11 +4587,11 @@ def _engulfing_fail_tape(
     break_i = engulf_i + 1
     fire = break_i if same_bar_fail else break_i + delay
     if long_side:
+        # Bearish engulf open is 101.0. Fail = close back above that open.
         if same_bar_fail:
-            # Wick through the engulf low, close back inside on the next bar.
             low[break_i] = 96.0
-            close[break_i] = 99.0
-            high[break_i] = 100.0
+            close[break_i] = 101.5
+            high[break_i] = 102.0
             open_[break_i] = 98.5
         else:
             low[break_i] = 96.0
@@ -4611,16 +4614,23 @@ def _engulfing_fail_tape(
                     high[fire] = 105.0
                     low[fire] = 99.0
                     open_[fire] = 97.5
-                else:
-                    close[fire] = 99.0
-                    high[fire] = 100.0
+                elif wick_only_fail:
+                    # Wick through the open, close still below it — not a fail.
+                    high[fire] = 101.5
+                    close[fire] = 99.5
                     low[fire] = 98.0
                     open_[fire] = 97.5
+                else:
+                    close[fire] = 101.5
+                    high[fire] = 102.5
+                    low[fire] = 100.0
+                    open_[fire] = 97.5
     else:
+        # Bullish engulf open is 98.8. Fail = close back below that open.
         if same_bar_fail:
             high[break_i] = 104.0
-            close[break_i] = 100.0
-            low[break_i] = 99.0
+            close[break_i] = 98.0
+            low[break_i] = 97.5
             open_[break_i] = 101.5
         else:
             high[break_i] = 104.0
@@ -4643,10 +4653,15 @@ def _engulfing_fail_tape(
                     high[fire] = 100.0
                     low[fire] = 95.5
                     open_[fire] = 102.0
-                else:
-                    close[fire] = 100.0
+                elif wick_only_fail:
+                    low[fire] = 98.0
+                    close[fire] = 99.5
                     high[fire] = 101.0
-                    low[fire] = 99.0
+                    open_[fire] = 102.0
+                else:
+                    close[fire] = 98.0
+                    high[fire] = 99.0
+                    low[fire] = 97.5
                     open_[fire] = 102.0
     candles = _ohlcv(index, close, high=high, low=low, open_=open_)
     return candles, engulf_i, break_i, fire
@@ -4657,17 +4672,20 @@ def test_engulfing_fail_reversion_schema_and_long_entry() -> None:
 
     _factory, base, space = strategy_kit("engulfing_fail_reversion", SignalSide.LONG)
     assert base.require_close_inside is True
+    assert base.min_efficiency == 0.0
     assert base.max_bars_since_engulf == 2
     assert space["max_bars_since_engulf"] == [1, 2]
     extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
     assert extra == {"max_bars_since_engulf"}
+    assert "min_efficiency" not in extra
+    assert "require_body_eff" not in extra
     assert "max_bars_since_break" not in extra
     assert "lookback" not in extra
     assert "orb_bars" not in extra
     assert "vol_lookback" not in extra
     candles, engulf_i, break_i, fire = _engulfing_fail_tape(long_side=True)
     signals = _signals("engulfing_fail_reversion", candles)
-    for column in ("signal", "side", "score", "reason", "engulf_high", "engulf_low"):
+    for column in ("signal", "side", "score", "reason", "engulf_high", "engulf_low", "engulf_open"):
         assert column in signals.columns
     assert "volume_ma" not in signals.columns
     assert "range_high" not in signals.columns
@@ -4681,6 +4699,7 @@ def test_engulfing_fail_reversion_schema_and_long_entry() -> None:
     assert int((signals["signal"] == -1).sum()) == 0
     assert signals["engulf_low"].iloc[fire] == pytest.approx(97.0)
     assert signals["engulf_high"].iloc[fire] == pytest.approx(103.0)
+    assert signals["engulf_open"].iloc[fire] == pytest.approx(101.0)
     assert signals["bars_since_engulf"].iloc[fire] == pytest.approx(2.0)
     # Book engulfing_reversal fires ON the bearish engulf, not on the fail.
     assert int(_signals("engulfing_reversal", candles, side=SignalSide.SHORT)["signal"].iloc[engulf_i]) == -1
@@ -4690,10 +4709,13 @@ def test_engulfing_fail_reversion_schema_and_long_entry() -> None:
     assert int(_signals("engulfing_fail_reversion", held)["signal"].iloc[held_fire]) == 0
     through, _, _, through_fire = _engulfing_fail_tape(long_side=True, blow_through=True)
     assert int(_signals("engulfing_fail_reversion", through)["signal"].iloc[through_fire]) == 0
+    # Wick through the engulf open without a close through it is not a fail.
+    wick, _, _, wick_fire = _engulfing_fail_tape(long_side=True, wick_only_fail=True)
+    assert int(_signals("engulfing_fail_reversion", wick)["signal"].iloc[wick_fire]) == 0
     late, _, _, late_fire = _engulfing_fail_tape(long_side=True, delay=3)
     tight = _factory(base.__class__(side=SignalSide.LONG, max_bars_since_engulf=2))
     assert int(tight.generate_signals(late)["signal"].iloc[late_fire]) == 0
-    # max_bars_since_engulf=1 is a same-bar wick-fail, not a later close-through.
+    # max_bars_since_engulf=1: same-bar extreme wick + close through the open.
     same, _, same_break, _ = _engulfing_fail_tape(long_side=True, same_bar_fail=True)
     one_bar = _factory(base.__class__(side=SignalSide.LONG, max_bars_since_engulf=1))
     assert int(one_bar.generate_signals(same)["signal"].iloc[same_break]) == 1
@@ -4724,6 +4746,7 @@ def test_engulfing_fail_reversion_short_entry() -> None:
     assert int((signals["signal"] == 1).sum()) == 0
     assert signals["engulf_high"].iloc[fire] == pytest.approx(103.0)
     assert signals["engulf_low"].iloc[fire] == pytest.approx(97.0)
+    assert signals["engulf_open"].iloc[fire] == pytest.approx(98.8)
     # Book engulfing_reversal fires ON the bullish engulf, not on the fail.
     assert int(_signals("engulfing_reversal", candles, side=SignalSide.LONG)["signal"].iloc[engulf_i]) == 1
     assert int(_signals("engulfing_reversal", candles, side=SignalSide.LONG)["signal"].iloc[fire]) == 0
@@ -4734,6 +4757,10 @@ def test_engulfing_fail_reversion_short_entry() -> None:
     through, _, _, through_fire = _engulfing_fail_tape(long_side=False, blow_through=True)
     assert int(
         _signals("engulfing_fail_reversion", through, side=SignalSide.SHORT)["signal"].iloc[through_fire]
+    ) == 0
+    wick, _, _, wick_fire = _engulfing_fail_tape(long_side=False, wick_only_fail=True)
+    assert int(
+        _signals("engulfing_fail_reversion", wick, side=SignalSide.SHORT)["signal"].iloc[wick_fire]
     ) == 0
     failed = _signals("failed_range_break_reversion", candles, side=SignalSide.SHORT)
     orb = _signals("orb_fail_reversion", candles, side=SignalSide.SHORT)
