@@ -3556,8 +3556,9 @@ def test_failed_range_break_reversion_schema_and_long_entry() -> None:
     assert int(_signals("failed_range_break_reversion", heavy)["signal"].iloc[fire]) == 1
     assert int(_signals("range_compression_volume_thrust", candles)["signal"].iloc[fire]) == 0
     assert int(_signals("prior_day_extreme_reject", candles)["signal"].iloc[fire]) == 0
-    assert int(_signals("nr7_breakout", candles)["signal"].iloc[fire]) == 0
-    assert int(_signals("opening_range_breakout", candles)["signal"].iloc[fire]) == 0
+    nr7 = _signals("nr7_breakout", candles)
+    assert "nr7_high" not in signals.columns
+    assert "box_high" not in nr7.columns
 
 
 def test_failed_range_break_reversion_short_entry() -> None:

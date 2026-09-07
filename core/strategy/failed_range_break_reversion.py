@@ -90,11 +90,11 @@ class FailedRangeBreakReversionStrategy(Strategy):
         dn_low = pd.Series(index=candles.index, dtype="float64")
         # Small max_bars (2 or 3). Nearest prior close-through wins.
         for lag in range(1, max_bars + 1):
-            hit_up = broke_up.shift(lag).fillna(False) & up_lag.isna()
+            hit_up = broke_up.shift(lag).eq(True) & up_lag.isna()
             up_lag = up_lag.mask(hit_up, float(lag))
             up_high = up_high.mask(hit_up, range_high.shift(lag))
             up_low = up_low.mask(hit_up, range_low.shift(lag))
-            hit_dn = broke_down.shift(lag).fillna(False) & dn_lag.isna()
+            hit_dn = broke_down.shift(lag).eq(True) & dn_lag.isna()
             dn_lag = dn_lag.mask(hit_dn, float(lag))
             dn_high = dn_high.mask(hit_dn, range_high.shift(lag))
             dn_low = dn_low.mask(hit_dn, range_low.shift(lag))
