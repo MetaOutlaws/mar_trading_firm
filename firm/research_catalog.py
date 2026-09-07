@@ -876,6 +876,27 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "engulfing_fail_reversion@4h/4h",
+        "family": "engulfing_fail_reversion",
+        "name": "engulfing_fail_reversion 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 27,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a failed "
+            "engulfing continuation that reverts back inside the "
+            "engulfing bar's high/low. Quant-locked grid: "
+            "require_close_inside=True, max_bars_since_engulf [1, 2], "
+            "no volume. BOTH sides honest. Walk-forward is not started "
+            "from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
