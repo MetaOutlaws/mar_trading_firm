@@ -897,6 +897,27 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "wyckoff_spring_reclaim@4h/4h",
+        "family": "wyckoff_spring_reclaim",
+        "name": "wyckoff_spring_reclaim 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 28,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Wyckoff spring / "
+            "failed-breakdown reclaim of a lookback range low, with "
+            "the upthrust mirror for shorts. Quant-locked grid: "
+            "lookback [16, 20], hold_bars [1, 2], no volume. BOTH "
+            "sides honest. Walk-forward is not started from this "
+            "coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

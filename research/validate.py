@@ -1022,6 +1022,13 @@ def _novel_kit(name: str, side: SignalSide):
             # Close-inside and body_eff locked. No volume. Search fail window from the engulf only.
             {"max_bars_since_engulf": [1, 2]},
         ),
+        "wyckoff_spring_reclaim": (
+            "core.strategy.wyckoff_spring_reclaim",
+            "WyckoffSpringReclaimParams",
+            "WyckoffSpringReclaimStrategy",
+            # No volume. Search lookback + spring hold window only.
+            {"lookback": [16, 20], "hold_bars": [1, 2]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

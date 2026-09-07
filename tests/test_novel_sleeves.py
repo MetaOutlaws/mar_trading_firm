@@ -123,6 +123,7 @@ APPROVED = [
     "ib_fail_reversion",
     "converging_wedge_break",
     "engulfing_fail_reversion",
+    "wyckoff_spring_reclaim",
 ]
 
 
@@ -4782,6 +4783,203 @@ def test_engulfing_fail_reversion_short_entry() -> None:
     assert "vol_mean" not in signals.columns
 
 
+def _wyckoff_spring_tape(
+    *,
+    long_side: bool,
+    held_break: bool = False,
+    next_bar_reclaim: bool = False,
+    late_reclaim: bool = False,
+) -> tuple[pd.DataFrame, int, int, int]:
+    """Flat range with one unique extreme, then a spring / upthrust.
+
+    Unique low/high keeps this off equal_high_low_restest_fade. Same-bar
+    wick reclaim is not a close-through, so failed_range_break_reversion
+    stays flat. Spring sits after the UTC-day ORB and outside London so
+    118–126 session/pattern fades do not share the fire bar.
+    """
+    n = 48
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    high = np.full(n, 105.0)
+    low = np.full(n, 95.0)
+    open_ = np.full(n, 100.0)
+    setup = 26
+    grab = 36
+    fire = grab + 1 if (next_bar_reclaim or late_reclaim) else grab
+    if late_reclaim:
+        fire = grab + 2
+    if long_side:
+        # One unique range low. Other lows stay 95 so the cluster is not equal.
+        low[setup] = 90.0
+        high[setup] = 104.0
+        close[setup] = 98.0
+        open_[setup] = 100.0
+        if next_bar_reclaim or late_reclaim or held_break:
+            low[grab] = 85.0
+            close[grab] = 88.0
+            high[grab] = 97.0
+            open_[grab] = 96.0
+            for j in range(grab + 1, min(fire, n)):
+                close[j] = 88.0
+                high[j] = 97.0
+                low[j] = 86.0
+                open_[j] = 88.5
+            if fire < n and fire != grab:
+                if held_break:
+                    close[fire] = 88.0
+                    high[fire] = 97.0
+                    low[fire] = 86.0
+                    open_[fire] = 88.5
+                else:
+                    close[fire] = 92.0
+                    high[fire] = 93.5
+                    low[fire] = 87.0
+                    open_[fire] = 88.5
+        else:
+            # Same-bar wick spring: trade below 90, close back above it.
+            low[grab] = 85.0
+            close[grab] = 92.0
+            high[grab] = 97.0
+            open_[grab] = 96.0
+    else:
+        high[setup] = 110.0
+        low[setup] = 96.0
+        close[setup] = 102.0
+        open_[setup] = 100.0
+        if next_bar_reclaim or late_reclaim or held_break:
+            high[grab] = 115.0
+            close[grab] = 112.0
+            low[grab] = 103.0
+            open_[grab] = 104.0
+            for j in range(grab + 1, min(fire, n)):
+                close[j] = 112.0
+                high[j] = 114.0
+                low[j] = 103.0
+                open_[j] = 111.5
+            if fire < n and fire != grab:
+                if held_break:
+                    close[fire] = 112.0
+                    high[fire] = 114.0
+                    low[fire] = 103.0
+                    open_[fire] = 111.5
+                else:
+                    close[fire] = 108.0
+                    high[fire] = 113.0
+                    low[fire] = 106.5
+                    open_[fire] = 111.5
+        else:
+            high[grab] = 115.0
+            close[grab] = 108.0
+            low[grab] = 103.0
+            open_[grab] = 104.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    return candles, setup, grab, fire
+
+
+def test_wyckoff_spring_reclaim_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("wyckoff_spring_reclaim", SignalSide.LONG)
+    assert base.lookback == 20
+    assert base.hold_bars == 2
+    assert space["lookback"] == [16, 20]
+    assert space["hold_bars"] == [1, 2]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "hold_bars"}
+    assert "vol_lookback" not in extra
+    assert "max_bars_since_break" not in extra
+    candles, setup, grab, fire = _wyckoff_spring_tape(long_side=True)
+    signals = _signals("wyckoff_spring_reclaim", candles)
+    for column in ("signal", "side", "score", "reason", "swing_high", "swing_low"):
+        assert column in signals.columns
+    assert "volume_ma" not in signals.columns
+    assert "range_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[setup]) == 0
+    assert int(signals["signal"].iloc[grab]) == 1
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["swing_low"].iloc[grab] == pytest.approx(90.0)
+    held, _, held_grab, held_fire = _wyckoff_spring_tape(long_side=True, held_break=True)
+    held_sig = _signals("wyckoff_spring_reclaim", held)
+    assert int(held_sig["signal"].iloc[held_grab]) == 0
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    late, _, late_grab, late_fire = _wyckoff_spring_tape(long_side=True, late_reclaim=True)
+    late_sig = _signals("wyckoff_spring_reclaim", late)
+    assert int(late_sig["signal"].iloc[late_grab]) == 0
+    assert int(late_sig["signal"].iloc[late_fire]) == 0
+    nxt, _, nxt_grab, nxt_fire = _wyckoff_spring_tape(long_side=True, next_bar_reclaim=True)
+    nxt_sig = _signals("wyckoff_spring_reclaim", nxt)
+    assert int(nxt_sig["signal"].iloc[nxt_grab]) == 0
+    assert int(nxt_sig["signal"].iloc[nxt_fire]) == 1
+    tight = factory(replace(base, hold_bars=1)).generate_signals(nxt)
+    assert int(tight["signal"].iloc[nxt_grab]) == 0
+    assert int(tight["signal"].iloc[nxt_fire]) == 0
+    same_tight = factory(replace(base, hold_bars=1)).generate_signals(candles)
+    assert int(same_tight["signal"].iloc[grab]) == 1
+    # Same-bar wick spring is not a close-through, so 119 stays flat.
+    failed = _signals("failed_range_break_reversion", candles)
+    prior_day = _signals("prior_day_extreme_reject", candles)
+    asia = _signals("asia_range_london_reject", candles)
+    orb = _signals("orb_fail_reversion", candles)
+    nr7 = _signals("nr7_fail_reversion", candles)
+    ib = _signals("ib_fail_reversion", candles)
+    wedge = _signals("converging_wedge_break", candles)
+    engulf = _signals("engulfing_fail_reversion", candles)
+    assert int(failed["signal"].iloc[grab]) == 0
+    assert int(prior_day["signal"].iloc[grab]) == 0
+    assert int(asia["signal"].iloc[grab]) == 0
+    assert int(orb["signal"].iloc[grab]) == 0
+    assert int(nr7["signal"].iloc[grab]) == 0
+    assert int(ib["signal"].iloc[grab]) == 0
+    assert int(wedge["signal"].iloc[grab]) == 0
+    assert int(engulf["signal"].iloc[grab]) == 0
+    heavy = candles.copy()
+    heavy.loc[heavy.index[grab], "volume"] = 50_000.0
+    assert int(_signals("wyckoff_spring_reclaim", heavy)["signal"].iloc[grab]) == 1
+
+
+def test_wyckoff_spring_reclaim_short_entry() -> None:
+    candles, _setup, grab, fire = _wyckoff_spring_tape(long_side=False)
+    signals = _signals("wyckoff_spring_reclaim", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[grab]) == -1
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["swing_high"].iloc[grab] == pytest.approx(110.0)
+    held, _, held_grab, held_fire = _wyckoff_spring_tape(long_side=False, held_break=True)
+    held_sig = _signals("wyckoff_spring_reclaim", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_grab]) == 0
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    nxt, _, nxt_grab, nxt_fire = _wyckoff_spring_tape(long_side=False, next_bar_reclaim=True)
+    nxt_sig = _signals("wyckoff_spring_reclaim", nxt, side=SignalSide.SHORT)
+    assert int(nxt_sig["signal"].iloc[nxt_grab]) == 0
+    assert int(nxt_sig["signal"].iloc[nxt_fire]) == -1
+    failed = _signals("failed_range_break_reversion", candles, side=SignalSide.SHORT)
+    prior_day = _signals("prior_day_extreme_reject", candles, side=SignalSide.SHORT)
+    asia = _signals("asia_range_london_reject", candles, side=SignalSide.SHORT)
+    orb = _signals("orb_fail_reversion", candles, side=SignalSide.SHORT)
+    nr7 = _signals("nr7_fail_reversion", candles, side=SignalSide.SHORT)
+    ib = _signals("ib_fail_reversion", candles, side=SignalSide.SHORT)
+    wedge = _signals("converging_wedge_break", candles, side=SignalSide.SHORT)
+    engulf = _signals("engulfing_fail_reversion", candles, side=SignalSide.SHORT)
+    assert int(failed["signal"].iloc[grab]) == 0
+    assert int(prior_day["signal"].iloc[grab]) == 0
+    assert int(asia["signal"].iloc[grab]) == 0
+    assert int(orb["signal"].iloc[grab]) == 0
+    assert int(nr7["signal"].iloc[grab]) == 0
+    assert int(ib["signal"].iloc[grab]) == 0
+    assert int(wedge["signal"].iloc[grab]) == 0
+    assert int(engulf["signal"].iloc[grab]) == 0
+    assert "range_high" not in signals.columns
+    assert "nr7_high" not in signals.columns
+    assert "neckline" not in signals.columns
+    assert "vol_mean" not in signals.columns
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -4808,6 +5006,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("ib_fail_reversion", {"max_bars_since_break"}),
         ("converging_wedge_break", {"lookback"}),
         ("engulfing_fail_reversion", {"max_bars_since_engulf"}),
+        ("wyckoff_spring_reclaim", {"lookback", "hold_bars"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -4830,6 +5029,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("ib_fail_reversion", {"max_bars_since_break"}),
         ("converging_wedge_break", {"lookback"}),
         ("engulfing_fail_reversion", {"max_bars_since_engulf"}),
+        ("wyckoff_spring_reclaim", {"lookback", "hold_bars"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

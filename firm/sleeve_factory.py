@@ -1990,6 +1990,39 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "failed-range, not a UTC-day ORB fail, and not NR7."
         ),
     ),
+    SleeveSpec(
+        name="wyckoff_spring_reclaim",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Wyckoff spring / failed-breakdown reclaim: identify a recent "
+            "range low over lookback prior bars, then a liquidity grab "
+            "that trades below that low and CLOSES back above it within "
+            "hold_bars. LONG on the reclaim close. SHORT is the upthrust "
+            "(trade above a range high, close back below). Quant-locked: "
+            "lookback [16, 20], hold_bars [1, 2], no volume. Not "
+            "failed_range_break_reversion (119 — close-through then later "
+            "fail). Not prior_day_extreme_reject (118). Not "
+            "asia_range_london_reject (120). Not orb / nr7 / ib fail "
+            "(121–124). Not converging_wedge / engulfing_fail (125–126). "
+            "Not equal_high_low_restest_fade. Not swing_failure_reversal. "
+            "Not H&S / asia_close / prior_close_magnet_fade. Do not recode "
+            "the 118–126 spent families."
+        ),
+        summary=(
+            "Long a Wyckoff spring: trade below a recent lookback range "
+            "low then close back above within hold_bars. Short the "
+            "upthrust mirror."
+        ),
+        justification=(
+            "A same-bar (or next-bar) wick grab of a rolling lookback "
+            "range extreme that closes back through that extreme is not "
+            "a close-through failed-range fade, not a prior UTC day H/L "
+            "reject, and not a session-box or NR7/ORB/IB fail."
+        ),
+    ),
 ]
 
 

@@ -169,6 +169,7 @@ CLOCK_BY_FAMILY = {
     "ib_fail_reversion": "4h/4h",
     "converging_wedge_break": "4h/4h",
     "engulfing_fail_reversion": "4h/4h",
+    "wyckoff_spring_reclaim": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
