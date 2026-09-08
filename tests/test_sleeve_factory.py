@@ -64,6 +64,7 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "candle_reject_reversal" not in names
     assert "bullish_rectangle_fail_reclaim" not in names
     assert "three_black_crows" not in names
+    assert "bb_medium_bw_upper_reject" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

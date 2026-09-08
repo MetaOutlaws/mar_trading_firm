@@ -131,6 +131,7 @@ APPROVED = [
     "candle_reject_reversal",
     "bullish_rectangle_fail_reclaim",
     "three_black_crows",
+    "bb_medium_bw_upper_reject",
 ]
 
 
@@ -6458,6 +6459,265 @@ def test_three_black_crows_no_lookahead() -> None:
     )
 
 
+def _bb_medium_bw_tape(
+    *,
+    long_side: bool = False,
+    regime: str = "medium",
+    tag: bool = True,
+    held_outside: bool = False,
+    k: float = 1.8,
+    n: int = 60,
+    fire: int = 45,
+) -> tuple[pd.DataFrame, int]:
+    """Alternating close tape with a controllable BB-width regime.
+
+    ``regime`` picks the half-amplitude so bandwidth lands in squeeze /
+    medium / blowoff. The fire bar keeps that close (so the rolling
+    window stays in-regime) and optionally wicks through the band.
+    """
+    from core.strategy import indicators as ind
+
+    # BW = 2 * k * std / mid. Alternating ±d around 100 has std = d.
+    # k=1.8 → BW = 0.036 * d. Medium [0.04, 0.10] needs d in ~[1.11, 2.78].
+    amplitude = {"squeeze": 0.50, "medium": 1.80, "blowoff": 4.00}[regime]
+    close = np.where(np.arange(n) % 2 == 0, 100.0 + amplitude, 100.0 - amplitude)
+    open_ = np.concatenate([[close[0]], close[:-1]])
+    high = np.maximum(open_, close) + 0.15
+    low = np.minimum(open_, close) - 0.15
+    if held_outside:
+        # Close still beyond the tagged band — a hold, not a reject.
+        if long_side:
+            close[fire] = 88.0
+            open_[fire] = 90.0
+            high[fire] = 91.0
+            low[fire] = 86.0
+        else:
+            close[fire] = 112.0
+            open_[fire] = 110.0
+            high[fire] = 114.0
+            low[fire] = 109.0
+    elif tag:
+        # Compute bands on the in-regime close, then wick-tag only.
+        close_s = pd.Series(close, dtype="float64")
+        _mid, upper, lower = ind.bollinger_bands(close_s, 20, k)
+        if long_side:
+            # Tag lower; keep close inside so it is a reject, not a stretch.
+            low[fire] = float(lower.iloc[fire]) - 0.25
+            high[fire] = max(high[fire], float(close[fire]) + 0.10)
+        else:
+            high[fire] = float(upper.iloc[fire]) + 0.25
+            low[fire] = min(low[fire], float(close[fire]) - 0.10)
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_), fire
+
+
+def test_bb_medium_bw_upper_reject_schema_and_short_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.bb_medium_bw_upper_reject import (
+        BB_PERIOD_LOCKED,
+        BW_MAX_LOCKED,
+        BW_MIN_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: search k only. BB20 and medium BW stay fixed.
+    factory, base, space = strategy_kit("bb_medium_bw_upper_reject", SignalSide.SHORT)
+    assert base.side is SignalSide.SHORT
+    assert base.k == pytest.approx(1.8)
+    assert base.bb_period == BB_PERIOD_LOCKED
+    assert base.bw_min == pytest.approx(BW_MIN_LOCKED)
+    assert base.bw_max == pytest.approx(BW_MAX_LOCKED)
+    assert space["k"] == [1.8, 2.0]
+    assert "bb_period" not in space
+    assert "bw_min" not in space
+    assert "bw_max" not in space
+    assert "band_k" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+
+    candles, fire = _bb_medium_bw_tape(long_side=False)
+    signals = _signals("bb_medium_bw_upper_reject", candles, side=SignalSide.SHORT)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "bb_mid",
+        "bb_upper",
+        "bb_lower",
+        "bb_bandwidth",
+        "medium_bw",
+        "tagged_upper",
+        "tagged_lower",
+        "closed_inside",
+    ):
+        assert column in signals.columns
+    # Not a squeeze-release, NR7, or ATR-expansion leftover.
+    assert "squeeze" not in signals.columns
+    assert "squeeze_mom" not in signals.columns
+    assert "nr7_high" not in signals.columns
+    assert "expansion_tr" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["medium_bw"].iloc[fire])
+    assert bool(signals["tagged_upper"].iloc[fire])
+    assert bool(signals["closed_inside"].iloc[fire])
+    bw = float(signals["bb_bandwidth"].iloc[fire])
+    assert BW_MIN_LOCKED <= bw <= BW_MAX_LOCKED
+    # k=2.0 widens the upper band past this wick — search k matters.
+    tight = factory(replace(base, k=2.0)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    # No tag: wick stays inside the envelope.
+    quiet, quiet_fire = _bb_medium_bw_tape(long_side=False, tag=False)
+    assert int(
+        _signals("bb_medium_bw_upper_reject", quiet, side=SignalSide.SHORT)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    # Held outside the upper band is a stretch, not a reject.
+    held, held_fire = _bb_medium_bw_tape(long_side=False, held_outside=True)
+    held_sig = _signals("bb_medium_bw_upper_reject", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert not bool(held_sig["closed_inside"].iloc[held_fire])
+    # Squeeze BW (below 0.04) does not fire even with a tag+close-back.
+    squeeze, squeeze_fire = _bb_medium_bw_tape(long_side=False, regime="squeeze")
+    squeeze_sig = _signals(
+        "bb_medium_bw_upper_reject", squeeze, side=SignalSide.SHORT
+    )
+    assert float(squeeze_sig["bb_bandwidth"].iloc[squeeze_fire]) < BW_MIN_LOCKED
+    assert int(squeeze_sig["signal"].iloc[squeeze_fire]) == 0
+    # Caller cannot unlock the medium window to admit a squeeze.
+    unlocked = factory(replace(base, bw_min=0.0, bw_max=1.0)).generate_signals(squeeze)
+    assert int(unlocked["signal"].iloc[squeeze_fire]) == 0
+    # Blowoff expansion BW (above 0.10) does not fire.
+    blow, blow_fire = _bb_medium_bw_tape(long_side=False, regime="blowoff")
+    blow_sig = _signals("bb_medium_bw_upper_reject", blow, side=SignalSide.SHORT)
+    assert float(blow_sig["bb_bandwidth"].iloc[blow_fire]) > BW_MAX_LOCKED
+    assert int(blow_sig["signal"].iloc[blow_fire]) == 0
+    # Caller cannot unlock BB period — locks stay locked.
+    short_period = factory(replace(base, bb_period=10)).generate_signals(candles)
+    assert int(short_period["signal"].iloc[fire]) == -1
+    assert short_period["bb_bandwidth"].iloc[fire] == pytest.approx(
+        signals["bb_bandwidth"].iloc[fire]
+    )
+    # Distinct from squeeze release, NR7 fail, ATR expansion-fail, and BMR stretch.
+    assert int(_signals("squeeze_momentum_break", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    assert int(_signals("nr7_fail_reversion", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    assert int(_signals("bollinger_mean_reversion", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    # LONG side does not take the upper-band reject.
+    long_on_upper = _signals("bb_medium_bw_upper_reject", candles, side=SignalSide.LONG)
+    assert int(long_on_upper["signal"].iloc[fire]) == 0
+    assert int((long_on_upper["signal"] == 1).sum()) == 0
+
+
+def test_bb_medium_bw_upper_reject_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.bb_medium_bw_upper_reject import BW_MAX_LOCKED, BW_MIN_LOCKED
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("bb_medium_bw_upper_reject", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.8, 2.0]
+
+    candles, fire = _bb_medium_bw_tape(long_side=True)
+    signals = _signals("bb_medium_bw_upper_reject", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["medium_bw"].iloc[fire])
+    assert bool(signals["tagged_lower"].iloc[fire])
+    assert bool(signals["closed_inside"].iloc[fire])
+    bw = float(signals["bb_bandwidth"].iloc[fire])
+    assert BW_MIN_LOCKED <= bw <= BW_MAX_LOCKED
+    # k=2.0 widens the lower band past this wick.
+    tight = factory(replace(base, k=2.0)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    quiet, quiet_fire = _bb_medium_bw_tape(long_side=True, tag=False)
+    assert int(
+        _signals("bb_medium_bw_upper_reject", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    held, held_fire = _bb_medium_bw_tape(long_side=True, held_outside=True)
+    held_sig = _signals("bb_medium_bw_upper_reject", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    squeeze, squeeze_fire = _bb_medium_bw_tape(long_side=True, regime="squeeze")
+    squeeze_sig = _signals("bb_medium_bw_upper_reject", squeeze, side=SignalSide.LONG)
+    assert float(squeeze_sig["bb_bandwidth"].iloc[squeeze_fire]) < BW_MIN_LOCKED
+    assert int(squeeze_sig["signal"].iloc[squeeze_fire]) == 0
+    blow, blow_fire = _bb_medium_bw_tape(long_side=True, regime="blowoff")
+    blow_sig = _signals("bb_medium_bw_upper_reject", blow, side=SignalSide.LONG)
+    assert float(blow_sig["bb_bandwidth"].iloc[blow_fire]) > BW_MAX_LOCKED
+    assert int(blow_sig["signal"].iloc[blow_fire]) == 0
+    assert int(_signals("squeeze_momentum_break", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("nr7_fail_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("bollinger_mean_reversion", candles)["signal"].iloc[fire]) == 0
+    short_on_lower = _signals("bb_medium_bw_upper_reject", candles, side=SignalSide.SHORT)
+    assert int(short_on_lower["signal"].iloc[fire]) == 0
+
+
+def test_bb_medium_bw_upper_reject_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("bb_medium_bw_upper_reject", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.8, 2.0]
+    assert "bb_period" not in space
+    assert "bw_min" not in space
+    assert "bw_max" not in space
+    spec = None
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("bb_medium_bw_upper_reject")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "bb_medium_bw_upper_reject"
+
+
+def test_bb_medium_bw_upper_reject_no_lookahead() -> None:
+    candles, fire = _bb_medium_bw_tape(long_side=False)
+    signals = _signals("bb_medium_bw_upper_reject", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    cut = fire + 1
+    truncated = _signals(
+        "bb_medium_bw_upper_reject", candles.iloc[:cut], side=SignalSide.SHORT
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite band geometry or the fire decision.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("bb_medium_bw_upper_reject", shocked, side=SignalSide.SHORT)
+    assert after["bb_upper"].iloc[fire] == pytest.approx(signals["bb_upper"].iloc[fire])
+    assert after["bb_lower"].iloc[fire] == pytest.approx(signals["bb_lower"].iloc[fire])
+    assert after["bb_bandwidth"].iloc[fire] == pytest.approx(
+        signals["bb_bandwidth"].iloc[fire]
+    )
+    assert int(after["signal"].iloc[fire]) == -1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -6492,6 +6752,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("candle_reject_reversal", {"min_lower_wick_frac", "max_body_frac"}),
         ("bullish_rectangle_fail_reclaim", {"lookback", "atr_tol"}),
         ("three_black_crows", {"min_body_frac", "max_upper_wick_frac"}),
+        ("bb_medium_bw_upper_reject", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -6522,6 +6783,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("candle_reject_reversal", {"min_lower_wick_frac", "max_body_frac"}),
         ("bullish_rectangle_fail_reclaim", {"lookback", "atr_tol"}),
         ("three_black_crows", {"min_body_frac", "max_upper_wick_frac"}),
+        ("bb_medium_bw_upper_reject", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

@@ -1074,6 +1074,28 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "bb_medium_bw_upper_reject@4h/4h",
+        "family": "bb_medium_bw_upper_reject",
+        "name": "bb_medium_bw_upper_reject 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 36,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a same-bar "
+            "Bollinger tag that closes back inside the envelope only "
+            "when bandwidth is in the locked medium window. "
+            "Quant-locked grid: BB period=20 (not searched), medium "
+            "BW [0.04, 0.10] locked, SHORT=upper reject / LONG=lower "
+            "reject. Free search (1 only): k [1.8, 2.0]. BOTH sides "
+            "honest. Walk-forward is not started from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
