@@ -128,6 +128,7 @@ APPROVED = [
     "classic_floor_pivot_reject",
     "failed_break_reclaim",
     "expansion_fail_fade",
+    "candle_reject_reversal",
 ]
 
 
@@ -5742,6 +5743,188 @@ def test_expansion_fail_fade_no_lookahead() -> None:
     )
 
 
+def _candle_reject_tape(
+    *,
+    lower_wick_frac: float = 0.60,
+    upper_wick_frac: float = 0.12,
+    body_frac: float | None = None,
+    bullish: bool = True,
+    fire: int = 12,
+    n: int = 24,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet tape plus one hammer / hanging-man print at ``fire``.
+
+    Fractions must sum to 1.0. Quiet bars are small-range dojis so they
+    cannot satisfy the locked non-doji floor or the lower-wick grid.
+    """
+    if body_frac is None:
+        body_frac = 1.0 - lower_wick_frac - upper_wick_frac
+    assert abs(lower_wick_frac + upper_wick_frac + body_frac - 1.0) < 1e-9
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    bar_low = 90.0
+    bar_high = 100.0
+    bar_range = bar_high - bar_low
+    body_low = bar_low + lower_wick_frac * bar_range
+    body_high = bar_high - upper_wick_frac * bar_range
+    if bullish:
+        open_[fire] = body_low
+        close[fire] = body_high
+    else:
+        open_[fire] = body_high
+        close[fire] = body_low
+    high[fire] = bar_high
+    low[fire] = bar_low
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_), fire
+
+
+def test_candle_reject_reversal_schema_and_long_hammer() -> None:
+    from dataclasses import replace
+
+    from core.strategy.candle_reject_reversal import (
+        MAX_UPPER_WICK_FRAC_LOCKED,
+        MIN_BODY_FRAC_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: stub-upper, non-doji floor, close-upper-half stay fixed.
+    factory, base, space = strategy_kit("candle_reject_reversal", SignalSide.LONG)
+    assert base.min_lower_wick_frac == pytest.approx(0.55)
+    assert base.max_body_frac == pytest.approx(0.35)
+    assert base.max_upper_wick_frac == pytest.approx(MAX_UPPER_WICK_FRAC_LOCKED)
+    assert base.min_body_frac == pytest.approx(MIN_BODY_FRAC_LOCKED)
+    assert base.require_close_upper_half is True
+    assert space["min_lower_wick_frac"] == [0.55, 0.65]
+    assert space["max_body_frac"] == [0.20, 0.35]
+    assert "max_upper_wick_frac" not in space
+    assert "min_body_frac" not in space
+    assert "require_close_upper_half" not in space
+    assert "run_bars" not in space
+    assert "max_body" not in space
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_lower_wick_frac", "max_body_frac"}
+    candles, fire = _candle_reject_tape(bullish=True)
+    signals = _signals("candle_reject_reversal", candles)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "lower_wick_frac",
+        "upper_wick_frac",
+        "body_frac",
+        "bar_mid",
+    ):
+        assert column in signals.columns
+    assert "doji" not in signals.columns
+    assert "run_bars" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert float(signals["lower_wick_frac"].iloc[fire]) == pytest.approx(0.60)
+    assert float(signals["upper_wick_frac"].iloc[fire]) == pytest.approx(0.12)
+    assert float(signals["body_frac"].iloc[fire]) == pytest.approx(0.28)
+    assert float(candles["close"].iloc[fire]) >= float(signals["bar_mid"].iloc[fire])
+    # A 0.60 lower wick clears 0.55 but not 0.65.
+    tight_wick = factory(replace(base, min_lower_wick_frac=0.65)).generate_signals(candles)
+    assert int(tight_wick["signal"].iloc[fire]) == 0
+    # A 0.28 body clears 0.35 but not 0.20.
+    tight_body = factory(replace(base, max_body_frac=0.20)).generate_signals(candles)
+    assert int(tight_body["signal"].iloc[fire]) == 0
+    # Doji body (~0.10) is doji_star territory, not this family.
+    doji, doji_fire = _candle_reject_tape(
+        lower_wick_frac=0.75, upper_wick_frac=0.15, body_frac=0.10
+    )
+    assert int(_signals("candle_reject_reversal", doji)["signal"].iloc[doji_fire]) == 0
+    assert int(_signals("wick_rejection_reversal", doji)["signal"].iloc[doji_fire]) == 1
+    # Fat upper wick is generic wick rejection, not a stub-upper hammer.
+    fat, fat_fire = _candle_reject_tape(
+        lower_wick_frac=0.60, upper_wick_frac=0.25, body_frac=0.15
+    )
+    assert int(_signals("candle_reject_reversal", fat)["signal"].iloc[fat_fire]) == 0
+    assert int(_signals("wick_rejection_reversal", fat)["signal"].iloc[fat_fire]) == 1
+    # Locked stub-upper still holds if a caller tries to loosen it.
+    loose = factory(replace(base, max_upper_wick_frac=0.40)).generate_signals(fat)
+    assert int(loose["signal"].iloc[fat_fire]) == 0
+    # Shooting star (long upper) is not a hanging-man SHORT.
+    star, star_fire = _candle_reject_tape(
+        lower_wick_frac=0.12, upper_wick_frac=0.60, body_frac=0.28
+    )
+    assert int(
+        _signals("candle_reject_reversal", star, side=SignalSide.SHORT)["signal"].iloc[star_fire]
+    ) == 0
+    # Same-bar hammer is not a doji-star confirm (that fires on the next bar).
+    assert int(_signals("doji_star_reversal", candles)["signal"].iloc[fire]) == 0
+
+
+def test_candle_reject_reversal_short_hanging_man() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("candle_reject_reversal", SignalSide.SHORT)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_lower_wick_frac", "max_body_frac"}
+    assert space["min_lower_wick_frac"] == [0.55, 0.65]
+    assert space["max_body_frac"] == [0.20, 0.35]
+    assert "run_bars" not in space
+    assert "max_upper_wick_frac" not in space
+    candles, fire = _candle_reject_tape(bullish=False)
+    signals = _signals("candle_reject_reversal", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert float(signals["lower_wick_frac"].iloc[fire]) == pytest.approx(0.60)
+    assert float(signals["upper_wick_frac"].iloc[fire]) == pytest.approx(0.12)
+    assert float(signals["body_frac"].iloc[fire]) == pytest.approx(0.28)
+    assert float(candles["close"].iloc[fire]) >= float(signals["bar_mid"].iloc[fire])
+    tight_wick = factory(replace(base, min_lower_wick_frac=0.65)).generate_signals(candles)
+    assert int(tight_wick["signal"].iloc[fire]) == 0
+    tight_body = factory(replace(base, max_body_frac=0.20)).generate_signals(candles)
+    assert int(tight_body["signal"].iloc[fire]) == 0
+    doji, doji_fire = _candle_reject_tape(
+        lower_wick_frac=0.75, upper_wick_frac=0.15, body_frac=0.10, bullish=False
+    )
+    assert int(
+        _signals("candle_reject_reversal", doji, side=SignalSide.SHORT)["signal"].iloc[doji_fire]
+    ) == 0
+
+
+def test_candle_reject_reversal_no_lookahead() -> None:
+    candles, fire = _candle_reject_tape(bullish=True)
+    signals = _signals("candle_reject_reversal", candles)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals("candle_reject_reversal", candles.iloc[:cut])
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite the hammer geometry or the fire decision.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 70.0
+    after = _signals("candle_reject_reversal", shocked)
+    assert after["lower_wick_frac"].iloc[fire] == pytest.approx(signals["lower_wick_frac"].iloc[fire])
+    assert after["upper_wick_frac"].iloc[fire] == pytest.approx(signals["upper_wick_frac"].iloc[fire])
+    assert after["body_frac"].iloc[fire] == pytest.approx(signals["body_frac"].iloc[fire])
+    assert after["bar_mid"].iloc[fire] == pytest.approx(signals["bar_mid"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -5773,6 +5956,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("classic_floor_pivot_reject", {"touch_tol_atr"}),
         ("failed_break_reclaim", {"lookback", "min_probe_bars"}),
         ("expansion_fail_fade", {"expansion_mult"}),
+        ("candle_reject_reversal", {"min_lower_wick_frac", "max_body_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -5800,6 +5984,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("classic_floor_pivot_reject", {"touch_tol_atr"}),
         ("failed_break_reclaim", {"lookback", "min_probe_bars"}),
         ("expansion_fail_fade", {"expansion_mult"}),
+        ("candle_reject_reversal", {"min_lower_wick_frac", "max_body_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
