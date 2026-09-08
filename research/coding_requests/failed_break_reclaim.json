@@ -1,0 +1,15 @@
+{
+  "family": "failed_break_reclaim",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "Multi-bar range/swing probe that closes back inside, then fade the failed break. Rolling range over lookback prior bars only. SHORT: highs beyond range_high for min_probe_bars then close_t back below range_high AND inside [range_low, range_high]. LONG: lows beyond range_low then close_t back above range_low AND inside. Quant-locked: require_close_inside=True, lookback [16, 20], min_probe_bars [2, 3], ATR period locked 20 if used, no volume. Not prior_day_extreme_reject (118 PDH). Not failed_range_break_reversion (119 single-bar closed-outside). Not ib_fail_reversion (124 IB). Not wyckoff_spring_reclaim (127). Not classic_floor_pivot_reject (129 P/R1/S1). Do not recode spent families 118–129. Do not code displacement_gap_follow.",
+  "summary": "Fade a multi-bar probe of a prior-bar lookback range that fails and closes back inside.",
+  "justification": "A multi-bar wick probe of a frozen lookback range that re-closes inside is not a single-bar close-through fade, not a same-bar Wyckoff spring, not a prior UTC day H/L reject, not a London IB fail, and not a floor P/R1/S1 reject.",
+  "status": "Brian Inbox-approved for coding",
+  "written_at": "2026-09-08T03:18:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/failed_break_reclaim.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward."
+}

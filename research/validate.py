@@ -1043,6 +1043,14 @@ def _novel_kit(name: str, side: SignalSide):
             # P/R1/S1 formula and ATR period locked. Search tag slack only.
             {"touch_tol_atr": [0.0, 0.10]},
         ),
+        "failed_break_reclaim": (
+            "core.strategy.failed_break_reclaim",
+            "FailedBreakReclaimParams",
+            "FailedBreakReclaimStrategy",
+            # Close-inside locked. ATR period locked 20 if used. No volume.
+            # Search lookback + min probe length only.
+            {"lookback": [16, 20], "min_probe_bars": [2, 3]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
