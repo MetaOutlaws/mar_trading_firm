@@ -83,10 +83,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # ---- Research pipeline continuity ---------------------------------------
-    #: Tier A walk-forwards start without Inbox. Paper-to-live stays human.
-    pipeline_auto_advance: bool = True
+    #: Fail-closed: unset or false never auto-starts a walk-forward (clock
+    #: expand, leftover fill, universe widen, next-family). Operator/Inbox
+    #: explicit start_job still works. Paper-to-live stays human.
+    pipeline_auto_advance: bool = False
     #: Rolling 24h cap on *same-grid* auto-starts. Unique clock/side follow-ups
-    #: still launch. 48 keeps three validators busy through a full research day.
+    #: still launch only when auto-advance is explicitly on.
     pipeline_auto_advance_budget_24h: int = Field(default=48, ge=0)
     #: Consecutive auto-advanced 0-pair rejects that pause auto-advance.
     pipeline_circuit_breaker_rejects: int = Field(default=3, ge=1)

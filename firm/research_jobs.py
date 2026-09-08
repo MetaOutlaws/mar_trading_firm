@@ -650,7 +650,7 @@ def on_strategy_approved(proposal: dict[str, Any]) -> dict[str, Any]:
         last_updated_by="operator",
         detail=f"Starting walk-forward validator ({clock}).",
     )
-    started = start_job(job["id"])
+    started = start_job(job["id"], explicit=True)
     status = "running" if started else "queued"
     return {
         "queued": True,
@@ -732,14 +732,34 @@ def stamp_job(job_id: int, **fields: Any) -> dict[str, Any] | None:
     return None
 
 
-def start_job(job_id: int) -> bool:
-    """Spawn `scripts/validate_strategy.py` for a queued job."""
+def start_job(job_id: int, *, explicit: bool = False) -> bool:
+    """Spawn `scripts/validate_strategy.py` for a queued job.
+
+    Auto-starts (explicit=False) are fail-closed when PIPELINE_AUTO_ADVANCE
+    is false/unset, or when this is an unauthorized leftover clock expand.
+    Marcus/operator Inbox approve passes explicit=True and still starts.
+    """
     from config.pipeline import pipeline_config
 
     jobs = _load()
     job = next((j for j in jobs if j.get("id") == job_id), None)
     if job is None:
         return False
+    if not explicit:
+        from firm.continuity import (
+            auto_advance_switch_on,
+            unauthorized_clock_expand,
+            _warn_gated_auto_expand,
+        )
+
+        allowed, why = auto_advance_switch_on()
+        if not allowed:
+            _warn_gated_auto_expand(why, job=job)
+            return False
+        expand_block = unauthorized_clock_expand(job, jobs=jobs)
+        if expand_block:
+            _warn_gated_auto_expand(expand_block, job=job)
+            return False
     running_only = [j for j in jobs if j.get("status") == "running"]
     cap = pipeline_config().wf_parallelism
     if len(running_only) >= cap:

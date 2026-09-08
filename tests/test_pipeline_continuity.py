@@ -20,6 +20,14 @@ def _isolate_finished_grids(monkeypatch, tmp_path) -> None:
     research_jobs._LAST_GOOD_JOBS = None
 
 
+def _enable_auto_advance(monkeypatch) -> None:
+    """Opt in to auto-start. Default is fail-closed (PIPELINE_AUTO_ADVANCE unset/false)."""
+    from config.settings import get_settings
+
+    monkeypatch.setenv("PIPELINE_AUTO_ADVANCE", "true")
+    get_settings.cache_clear()
+
+
 def test_atr_1h_is_tier_a(monkeypatch) -> None:
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     hypo = {
@@ -94,9 +102,10 @@ def test_fill_slots_starts_standby_same_tick(tmp_path, monkeypatch, firm_db) -> 
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
+    _enable_auto_advance(monkeypatch)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     spawned: list[int] = []
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: spawned.append(job_id) or True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     result = continuity.fill_walk_forward_slots(source="event")
@@ -118,7 +127,7 @@ def test_empty_catalog_does_not_spawn_finished_family(tmp_path, monkeypatch, fir
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     spawned: list[int] = []
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: spawned.append(job_id) or True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     (tmp_path / "ranking.json").write_text(
@@ -195,10 +204,11 @@ def test_explicit_near_miss_queue_still_advances(tmp_path, monkeypatch, firm_db)
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
+    _enable_auto_advance(monkeypatch)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     spawned: list[int] = []
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: spawned.append(job_id) or True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     monkeypatch.setattr(
         continuity,
@@ -250,7 +260,7 @@ def test_fill_slots_does_not_drain_catalog_when_breaker_tripped(
     _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(continuity, "auto_advance_allowed", lambda: (False, "circuit breaker"))
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     (tmp_path / "jobs.json").write_text(
         json.dumps(
             {
@@ -278,9 +288,10 @@ def test_breaker_releases_for_a_new_clock(tmp_path, monkeypatch, firm_db) -> Non
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
+    _enable_auto_advance(monkeypatch)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     pipeline_state.save_state(
@@ -307,8 +318,9 @@ def test_budget_exhausted_still_starts_new_followup(tmp_path, monkeypatch, firm_
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
+    _enable_auto_advance(monkeypatch)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     monkeypatch.setattr(
         continuity,
@@ -342,7 +354,7 @@ def test_budget_still_blocks_same_grid(tmp_path, monkeypatch, firm_db) -> None:
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     monkeypatch.setattr(
         continuity,
@@ -379,8 +391,9 @@ def test_backstop_fill_is_dropped_event(tmp_path, monkeypatch, firm_db) -> None:
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
+    _enable_auto_advance(monkeypatch)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     continuity.fill_walk_forward_slots(source="backstop")
@@ -401,7 +414,7 @@ def test_empty_standby_opens_ticket(tmp_path, monkeypatch, firm_db) -> None:
     monkeypatch.setattr("firm.research_catalog.remaining_hypotheses", lambda jobs=None: [])
     monkeypatch.setattr(continuity, "remaining_hypotheses", lambda jobs=None: [])
     monkeypatch.setattr("firm.research_catalog.replenish_catalog", lambda **kwargs: [])
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     continuity.evaluate_invariants()
     tickets = pipeline_state.open_tickets()
@@ -417,9 +430,10 @@ def test_evaluate_invariants_starts_walk_forward_when_idle(
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
+    _enable_auto_advance(monkeypatch)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     spawned: list[int] = []
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: spawned.append(job_id) or True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     continuity.evaluate_invariants()
@@ -436,9 +450,10 @@ def test_llm_timeout_still_starts_waiting_walk_forward(
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
+    _enable_auto_advance(monkeypatch)
     monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
     spawned: list[int] = []
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: spawned.append(job_id) or True)
     monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
     accountability.notify_employee_failure(
@@ -733,3 +748,271 @@ def test_resolve_escalation_hides_row(firm_db) -> None:
     eid = memory.escalate("ops_engineer", "stale", "detail", root_cause="stale_x")
     assert memory.resolve_escalation(eid) is True
     assert all(r["id"] != eid for r in memory.open_escalations())
+
+
+def test_auto_advance_unset_is_fail_closed(monkeypatch) -> None:
+    """PIPELINE_AUTO_ADVANCE unset/false never auto-starts a walk-forward."""
+    from config.settings import get_settings
+    from firm.continuity import auto_advance_gate, auto_advance_switch_on
+
+    monkeypatch.delenv("PIPELINE_AUTO_ADVANCE", raising=False)
+    get_settings.cache_clear()
+    allowed, why = auto_advance_switch_on()
+    assert allowed is False
+    assert "PIPELINE_AUTO_ADVANCE" in why
+    gated, gate_why = auto_advance_gate()
+    assert gated is False
+    assert "PIPELINE_AUTO_ADVANCE" in gate_why
+
+
+def test_harvest_4h_win_does_not_start_1h_expand_when_auto_advance_off(
+    tmp_path, monkeypatch, firm_db, caplog
+) -> None:
+    """A successful 4h harvest must not enqueue or start a 1h clock expand.
+
+    Jobs 135 (three_black_crows 1h SHORT) and 137 (bb_medium_bw 1h BOTH)
+    launched after 4h wins while PIPELINE_AUTO_ADVANCE=false. Harvest/win
+    may not call start_job unless Inbox/operator authorizes that expand.
+    """
+    import logging
+
+    from config.settings import get_settings
+    from firm import continuity, pipeline_state, research_catalog, research_jobs
+
+    monkeypatch.setenv("PIPELINE_AUTO_ADVANCE", "false")
+    get_settings.cache_clear()
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
+    monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
+    spawned: list[int] = []
+
+    def _capture_start(job_id: int, *, explicit: bool = False) -> bool:
+        spawned.append(job_id)
+        return True
+
+    monkeypatch.setattr(research_jobs, "start_job", _capture_start)
+    monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
+    leftover_1h = {
+        "id": "three_black_crows@1h/1h@SHORT",
+        "family": "three_black_crows",
+        "name": "three_black_crows 1h/1h SHORT expand",
+        "clock": "1h/1h",
+        "side": "SHORT",
+        "rank": 1,
+        "coded": True,
+        "justification": "unauthorized harvest expand",
+        "param_change": {"clock": "1h/1h"},
+    }
+    (tmp_path / "ranking.json").write_text(
+        json.dumps(
+            {
+                "added": [leftover_1h],
+                "ranks": {leftover_1h["id"]: 1},
+                "retired": [],
+                "justifications": {},
+                "dispositions": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    harvest_job = {
+        "id": 134,
+        "family": "three_black_crows",
+        "clock": "4h/4h",
+        "side": "SHORT",
+        "status": "done",
+        "pairs_approved": 2,
+        "auto_advanced": False,
+        "hypothesis_id": "three_black_crows@4h/4h@SHORT",
+        "detail": "three_black_crows: 2 of 6 pairs approved.",
+    }
+    (tmp_path / "jobs.json").write_text(
+        json.dumps({"jobs": [harvest_job]}),
+        encoding="utf-8",
+    )
+    research_catalog.record_finished_walk_forward(harvest_job)
+    caplog.set_level(logging.WARNING)
+    result = continuity.on_job_finished(harvest_job)
+    fill = result.get("fill") or {}
+    assert fill.get("started") == []
+    assert spawned == []
+    assert "PIPELINE_AUTO_ADVANCE" in str(fill.get("blocked") or "")
+    live = [
+        j
+        for j in research_jobs.list_jobs()
+        if j.get("status") in {"running", "queued"}
+    ]
+    assert live == []
+    assert all(j.get("clock") != "1h/1h" or j.get("status") not in {"running", "queued", "standby"} for j in research_jobs.list_jobs())
+    assert any("Refusing auto-expand" in rec.message for rec in caplog.records)
+
+
+def test_harvest_does_not_expand_even_if_fill_is_invoked(
+    tmp_path, monkeypatch, firm_db
+) -> None:
+    """Direct fill after a 4h win still cannot start the 1h leftover."""
+    from config.settings import get_settings
+    from firm import continuity, pipeline_state, research_catalog, research_jobs
+
+    monkeypatch.setenv("PIPELINE_AUTO_ADVANCE", "false")
+    get_settings.cache_clear()
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
+    spawned: list[int] = []
+    monkeypatch.setattr(
+        research_jobs,
+        "start_job",
+        lambda job_id, explicit=False: spawned.append(job_id) or True,
+    )
+    monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
+    leftover = [
+        {
+            "id": "bb_medium_bw_upper_reject@1h/1h",
+            "family": "bb_medium_bw_upper_reject",
+            "clock": "1h/1h",
+            "side": "BOTH",
+            "rank": 1,
+            "name": "bb_medium_bw_upper_reject 1h BOTH expand",
+            "justification": "unauthorized harvest expand",
+            "param_change": {"clock": "1h/1h"},
+        }
+    ]
+    monkeypatch.setattr(research_catalog, "remaining_hypotheses", lambda jobs=None: leftover)
+    monkeypatch.setattr(continuity, "remaining_hypotheses", lambda jobs=None: leftover)
+    monkeypatch.setattr(research_catalog, "replenish_catalog", lambda **kwargs: [])
+    (tmp_path / "jobs.json").write_text(
+        json.dumps(
+            {
+                "jobs": [
+                    {
+                        "id": 136,
+                        "family": "bb_medium_bw_upper_reject",
+                        "clock": "4h/4h",
+                        "side": "BOTH",
+                        "status": "done",
+                        "pairs_approved": 3,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = continuity.fill_walk_forward_slots(source="event")
+    assert result.get("started") == []
+    assert spawned == []
+    assert "PIPELINE_AUTO_ADVANCE" in str(result.get("blocked") or "")
+
+
+def test_operator_explicit_start_still_works_when_auto_advance_off(
+    tmp_path, monkeypatch, firm_db
+) -> None:
+    """Marcus/operator Inbox approve must still record+start a job."""
+    from config.settings import get_settings
+    from firm import research_jobs
+
+    monkeypatch.setenv("PIPELINE_AUTO_ADVANCE", "false")
+    get_settings.cache_clear()
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    started: list[tuple[int, bool]] = []
+
+    def _start(job_id: int, *, explicit: bool = False) -> bool:
+        started.append((job_id, explicit))
+        return True
+
+    monkeypatch.setattr(research_jobs, "start_job", _start)
+    monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
+    result = research_jobs.on_strategy_approved(
+        {
+            "id": 9,
+            "kind": "strategy",
+            "title": "Walk-forward three_black_crows 4h SHORT",
+            "payload": {
+                "family": "three_black_crows",
+                "name": "three_black_crows",
+                "clock": "4h/4h",
+                "side": "SHORT",
+                "action": "walk_forward",
+            },
+            "status": "approved",
+        }
+    )
+    assert result["queued"] is True
+    assert result["family"] == "three_black_crows"
+    assert started and started[0][1] is True
+    jobs = research_jobs.list_jobs()
+    assert jobs[0]["clock"] == "4h/4h"
+    assert jobs[0]["side"] == "SHORT"
+
+
+def test_harvest_same_family_1h_expand_needs_inbox_even_when_auto_advance_on(
+    tmp_path, monkeypatch, firm_db
+) -> None:
+    """A 4h win must not silently start the same family's leftover 1h clock."""
+    from firm import continuity, pipeline_state, research_catalog, research_jobs
+
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    _enable_auto_advance(monkeypatch)
+    monkeypatch.setattr(pipeline_state, "STATE_PATH", tmp_path / "state.json")
+    spawned: list[int] = []
+    monkeypatch.setattr(
+        research_jobs,
+        "start_job",
+        lambda job_id, explicit=False: spawned.append(job_id) or True,
+    )
+    monkeypatch.setattr("firm.envelope._auditor_flag", lambda family, **kwargs: False)
+    leftover = [
+        {
+            "id": "three_black_crows@1h/1h@SHORT",
+            "family": "three_black_crows",
+            "clock": "1h/1h",
+            "side": "SHORT",
+            "rank": 1,
+            "coded": True,
+            "free_params": 2,
+            "name": "three_black_crows 1h SHORT expand",
+            "justification": "harvest leftover",
+            "param_change": {"clock": "1h/1h"},
+        }
+    ]
+    monkeypatch.setattr(research_catalog, "remaining_hypotheses", lambda jobs=None: leftover)
+    monkeypatch.setattr(continuity, "remaining_hypotheses", lambda jobs=None: leftover)
+    monkeypatch.setattr(
+        continuity,
+        "classify_hypothesis",
+        lambda *args, **kwargs: {"tier": "A", "checks": {}, "reasons": []},
+    )
+    monkeypatch.setattr(
+        continuity,
+        "classify_family_clock",
+        lambda *args, **kwargs: {"tier": "A", "checks": {}, "reasons": []},
+    )
+    monkeypatch.setattr(research_catalog, "replenish_catalog", lambda **kwargs: [])
+    (tmp_path / "jobs.json").write_text(
+        json.dumps(
+            {
+                "jobs": [
+                    {
+                        "id": 134,
+                        "family": "three_black_crows",
+                        "clock": "4h/4h",
+                        "side": "SHORT",
+                        "status": "done",
+                        "pairs_approved": 2,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = continuity.fill_walk_forward_slots(source="event")
+    assert spawned == []
+    assert result.get("started") == []
+    assert any("clock expand" in s for s in (result.get("skipped") or []))
+    gated = [j for j in research_jobs.list_jobs() if j.get("status") == "gated"]
+    assert gated
+    assert gated[0]["clock"] == "1h/1h"
+    assert gated[0]["blocked_by"] == "clock_expand_inbox"

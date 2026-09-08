@@ -129,16 +129,38 @@ def hung_threshold_seconds(jobs: list[dict[str, Any]]) -> float:
     return float(cfg.hung_median_mult * median(sample))
 
 
+def auto_advance_switch_on() -> tuple[bool, str]:
+    """Fail-closed global switch. Unset, false, or unreadable => do not spawn.
+
+    Budget/breaker exemptions must never override this. Harvest, leftover
+    fill, clock expand, and next-family all stop here.
+    """
+    try:
+        cfg = pipeline_config()
+        enabled = bool(getattr(cfg, "auto_advance", False))
+    except Exception as exc:
+        logger.warning(
+            "Auto-advance gate unclear (%s); refusing auto-start (fail-closed)",
+            exc,
+        )
+        return False, "auto-advance gate unclear (fail-closed)"
+    if not enabled:
+        return False, "global override PIPELINE_AUTO_ADVANCE=false"
+    return True, "ok"
+
+
 def auto_advance_allowed() -> tuple[bool, str]:
     """Safety rails: global switch, budget, circuit breaker.
 
     Raw rails only. Callers that start validators must use
     `auto_advance_gate`, which still launches a *new* family@clock@side
-    when the pause is a re-run brake, not a global halt.
+    when the pause is a re-run brake, not a global halt. A global
+    PIPELINE_AUTO_ADVANCE halt is never exempted.
     """
+    enabled, why = auto_advance_switch_on()
+    if not enabled:
+        return False, why
     cfg = pipeline_config()
-    if not cfg.auto_advance:
-        return False, "global override PIPELINE_AUTO_ADVANCE=false"
     state = load_state()
     if state.get("circuit_breaker_tripped"):
         return False, "circuit breaker: consecutive auto 0-pair rejects"
@@ -231,13 +253,15 @@ def _followup_is_new(key: str) -> bool:
 def auto_advance_gate() -> tuple[bool, str]:
     """Whether fill may start a validator this tick.
 
-    Budget and the circuit breaker pause a silent re-run of the same grid.
-    A different clock/side follow-up must start in the same tick — that is
-    the duty-board rule, not an operator gate.
+    The global PIPELINE_AUTO_ADVANCE switch is fail-closed and is never
+    skipped for a new clock/side. Budget and the circuit breaker only
+    pause a silent re-run of the same grid when auto-advance is on.
     """
     allowed, why = auto_advance_allowed()
     if allowed:
         return True, why
+    if "PIPELINE_AUTO_ADVANCE" in why or "unclear" in why or "fail-closed" in why:
+        return False, why
     key = _next_followup_key()
     if "circuit breaker" in why:
         if _release_breaker_for_new_followup():
@@ -250,6 +274,106 @@ def auto_advance_gate() -> tuple[bool, str]:
         )
         return True, "ok"
     return False, why
+
+
+def _warn_gated_auto_expand(why: str, *, job: dict[str, Any] | None = None) -> None:
+    """Clear warning when harvest/fill tries to auto-start while gated."""
+    family = str((job or {}).get("family") or "")
+    clock = str((job or {}).get("clock") or "")
+    side = str((job or {}).get("side") or "")
+    job_id = (job or {}).get("id")
+    logger.warning(
+        "Refusing auto-expand/auto-start while gated (%s). "
+        "job_id=%s family=%s clock=%s side=%s. "
+        "Inbox/operator must explicitly authorize the next walk-forward.",
+        why,
+        job_id,
+        family,
+        clock,
+        side,
+    )
+
+
+def inbox_authorized_expand(family: str, clock: str, side: str = "BOTH") -> bool:
+    """True when an operator/Brian Inbox approve already authorized this expand.
+
+    Fail-closed: missing Inbox, pending-only rows, or a clock mismatch
+    does not authorize a harvest spawn.
+    """
+    if not family or not clock:
+        return False
+    try:
+        from firm import memory
+    except Exception:
+        return False
+    side_u = (side or "BOTH").upper()
+    try:
+        rows = list(memory.decided_strategy_proposals(limit=40))
+    except Exception:
+        logger.exception("Inbox expand-authorization lookup failed; fail-closed")
+        return False
+    for proposal in rows:
+        if str(proposal.get("status") or "") != "approved":
+            continue
+        payload = proposal.get("payload") if isinstance(proposal.get("payload"), dict) else {}
+        action = str(payload.get("action") or "")
+        if action and action != "walk_forward":
+            continue
+        prop_family = str(payload.get("family") or payload.get("name") or "")
+        prop_clock = str(payload.get("clock") or "")
+        prop_side = str(payload.get("side") or "BOTH").upper()
+        if prop_family != family:
+            continue
+        if prop_clock != clock:
+            continue
+        if prop_side and prop_side != side_u:
+            continue
+        return True
+    return False
+
+
+def unauthorized_clock_expand(job: dict[str, Any], jobs: list[dict[str, Any]] | None = None) -> str:
+    """Reason if this job is a same-family leftover clock expand without Inbox yes.
+
+    A 4h win must not silently enqueue 1h/15m of the same sleeve. Extra
+    clocks of a family that already has a verdict need operator_queued,
+    force_retest, an explicit near-miss tag, or an Inbox approve.
+    """
+    from firm.research_catalog import family_primary_clock, is_explicit_retest
+
+    family = str(job.get("family") or "")
+    clock = str(job.get("clock") or "")
+    side = str(job.get("side") or "BOTH")
+    if not family or not clock:
+        return "clock expand gate unclear (fail-closed)"
+    if job.get("operator_queued") or job.get("force_retest") or is_explicit_retest(job):
+        return ""
+    if inbox_authorized_expand(family, clock, side):
+        return ""
+    if jobs is None:
+        from firm.research_jobs import list_jobs
+
+        jobs = list_jobs()
+    try:
+        this_id = int(job.get("id") or 0)
+    except (TypeError, ValueError):
+        this_id = 0
+    finished = [
+        row
+        for row in jobs
+        if str(row.get("family") or "") == family
+        and row.get("status") in {"done", "failed"}
+        and int(row.get("id") or 0) != this_id
+    ]
+    if not finished:
+        return ""
+    primary = family_primary_clock(family)
+    if clock == primary:
+        return ""
+    return (
+        f"clock expand {family} {clock} {side} after a finished "
+        f"primary requires Inbox/operator authorization"
+    )
 
 
 def _flag_blocked_auto_advance(why: str, nxt_key: str) -> None:
@@ -488,9 +612,9 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
 
     allowed, why = auto_advance_gate()
     if not allowed:
-        # Leave standby as standby. Gating every follow-up drains the catalog
-        # into Inbox while the pause is the actual block. Same-grid re-runs
-        # stay paused; a new clock/side is exempt inside auto_advance_gate.
+        # Leave standby as standby. A global PIPELINE_AUTO_ADVANCE halt is
+        # fail-closed: leftover fill, clock expand, and next-family all stop.
+        _warn_gated_auto_expand(why)
         _flag_blocked_auto_advance(why, _next_followup_key())
         return {
             "started": started,
@@ -520,12 +644,33 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
             }
         )
 
+    skipped_keys: set[str] = set()
     while len(live_jobs(list_jobs())) < cfg.wf_parallelism:
         jobs = list_jobs()
-        pool = standby_jobs(jobs)
+        pool = [
+            row
+            for row in standby_jobs(jobs)
+            if _advance_key(
+                str(row.get("family") or ""),
+                str(row.get("clock") or ""),
+                str(row.get("side") or "BOTH"),
+                hypothesis_id=str(row.get("hypothesis_id") or ""),
+            )
+            not in skipped_keys
+        ]
         if not pool:
             stage_standby(source="fill_slots")
-            pool = standby_jobs(list_jobs())
+            pool = [
+                row
+                for row in standby_jobs(list_jobs())
+                if _advance_key(
+                    str(row.get("family") or ""),
+                    str(row.get("clock") or ""),
+                    str(row.get("side") or "BOTH"),
+                    hypothesis_id=str(row.get("hypothesis_id") or ""),
+                )
+                not in skipped_keys
+            ]
         if not pool:
             break
         job = pool[0]
@@ -563,7 +708,24 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
                 next_action="idle_or_queue_novel",
                 next_action_owner="desk_head",
             )
+            skipped_keys.add(_advance_key(family, clock, side, hid))
             skipped.append(f"{family} {clock} {side} already finished")
+            continue
+
+        expand_block = unauthorized_clock_expand(job, jobs=list_jobs())
+        if expand_block:
+            _warn_gated_auto_expand(expand_block, job=job)
+            stamp_job(
+                int(job["id"]),
+                status="gated",
+                stage="standby",
+                updated_by="desk_head",
+                blocked_by="clock_expand_inbox",
+                next_action="wait_human",
+                next_action_owner="operator",
+            )
+            skipped_keys.add(_advance_key(family, clock, side, hid))
+            skipped.append(expand_block)
             continue
 
         # Do not spend a slot on 1h clones of a sleeve whose first clock already
@@ -583,6 +745,7 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
                 next_action="code_or_test_new_family",
                 next_action_owner="desk_head",
             )
+            skipped_keys.add(_advance_key(family, clock, side, hid))
             skipped.append(f"{family} {clock} primary already 0/6")
             continue
         envelope = classify_family_clock(
@@ -605,6 +768,7 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
                 envelope_tier=tier,
             )
             _file_inbox_gate(job, envelope, reason="Tier C hard human gate")
+            skipped_keys.add(_advance_key(family, clock, side, hid))
             skipped.append(f"{family} {clock} Tier C")
             continue
         if tier == "A" and not allowed:
@@ -618,6 +782,7 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
                 next_action_owner="operator",
                 envelope_tier=tier,
             )
+            skipped_keys.add(_advance_key(family, clock, side, hid))
             skipped.append(f"{family} {clock} auto-advance blocked: {why}")
             _file_inbox_gate(job, envelope, reason=why)
             continue
@@ -633,6 +798,7 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
                 envelope_tier=tier,
             )
             _file_inbox_gate(job, envelope, reason="Tier B waits 24h unless you approve")
+            skipped_keys.add(_advance_key(family, clock, side, hid))
             skipped.append(f"{family} {clock} Tier B inbox")
             continue
         stamp_job(
@@ -645,7 +811,7 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
             envelope_tier=tier,
             auto_advanced=True,
         )
-        ok = start_job(int(job["id"]))
+        ok = start_job(int(job["id"]), explicit=False)
         if ok:
             started.append(int(job["id"]))
             record_auto_advance(
@@ -715,6 +881,10 @@ def default_approve_tier_b() -> list[int]:
     from firm import memory
     from firm.research_jobs import on_operator_approved
 
+    switch_on, why = auto_advance_switch_on()
+    if not switch_on:
+        _warn_gated_auto_expand(why)
+        return []
     cfg = pipeline_config()
     approved_ids: list[int] = []
     cutoff = _now() - timedelta(hours=cfg.tier_b_hours)
@@ -761,7 +931,20 @@ def on_job_finished(job: dict[str, Any]) -> dict[str, Any]:
         if job.get("envelope_tier") == "A" or job.get("auto_advanced"):
             _note_auto_reject(pairs)
     emit("on_walk_forward_slot_free", {"freed_by": job.get("id")})
-    fill = fill_walk_forward_slots(source="event")
+    # Harvest/win must not spawn a finer clock unless the global switch is
+    # on *and* leftover extra clocks are Inbox-authorized. Fail-closed.
+    allowed, why = auto_advance_gate()
+    if not allowed:
+        _warn_gated_auto_expand(why, job=job)
+        fill = {
+            "started": [],
+            "slots": 0,
+            "skipped": [why],
+            "idle": "",
+            "blocked": why,
+        }
+    else:
+        fill = fill_walk_forward_slots(source="event")
     evaluate_invariants()
     return {"postmortem": postmortem, "fill": fill}
 
