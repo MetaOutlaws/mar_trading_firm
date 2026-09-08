@@ -173,6 +173,7 @@ CLOCK_BY_FAMILY = {
     "prior_close_magnet_fade": "4h/4h",
     "classic_floor_pivot_reject": "4h/4h",
     "failed_break_reclaim": "4h/4h",
+    "expansion_fail_fade": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 

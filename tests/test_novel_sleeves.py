@@ -127,6 +127,7 @@ APPROVED = [
     "prior_close_magnet_fade",
     "classic_floor_pivot_reject",
     "failed_break_reclaim",
+    "expansion_fail_fade",
 ]
 
 
@@ -5536,6 +5537,211 @@ def test_failed_break_reclaim_no_lookahead() -> None:
     )
 
 
+def _expansion_fail_fade_tape(
+    *,
+    long_side: bool,
+    expansion_tr: float = 4.0,
+    heavy_fail_vol: bool = False,
+    held_outside: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet ATR~1 tape, one ATR-expansion bar, then a next-bar close-inside.
+
+    LONG: down expansion (close on the low side of the bar mid). SHORT: up
+    expansion (close on the high side). Fail bar volume stays at the prior-20
+    mean unless ``heavy_fail_vol``. ``held_outside`` keeps the fail close
+    beyond the expansion rail so it is not a fade.
+    """
+    n = 50
+    fire = 41
+    exp = 40
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    if long_side:
+        # Down expansion: high stays near the quiet high, low stretches.
+        high[exp] = 100.5
+        low[exp] = 100.5 - expansion_tr
+        close[exp] = low[exp] + 0.3
+        open_[exp] = 100.0
+        if held_outside:
+            close[fire] = float(low[exp]) - 0.5
+            high[fire] = close[fire] + 0.3
+            low[fire] = close[fire] - 0.3
+            open_[fire] = close[fire]
+        else:
+            close[fire] = 99.8
+            high[fire] = 100.2
+            low[fire] = 99.4
+            open_[fire] = 97.0
+    else:
+        # Up expansion: low stays near the quiet low, high stretches.
+        low[exp] = 99.5
+        high[exp] = 99.5 + expansion_tr
+        close[exp] = high[exp] - 0.3
+        open_[exp] = 100.0
+        if held_outside:
+            close[fire] = float(high[exp]) + 0.5
+            high[fire] = close[fire] + 0.3
+            low[fire] = close[fire] - 0.3
+            open_[fire] = close[fire]
+        else:
+            close[fire] = 100.2
+            high[fire] = 100.6
+            low[fire] = 99.8
+            open_[fire] = 103.0
+    candles = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    if heavy_fail_vol:
+        candles.loc[candles.index[fire], "volume"] = 50_000.0
+    return candles, fire
+
+
+def test_expansion_fail_fade_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    # Quant lock: atr_n and weak-vol stay fixed; only expansion_mult is searched.
+    factory, base, space = strategy_kit("expansion_fail_fade", SignalSide.LONG)
+    assert base.atr_n == 20
+    assert base.vol_lookback == 20
+    assert base.expansion_mult == pytest.approx(1.5)
+    assert space["expansion_mult"] == [1.5, 2.0]
+    assert "atr_n" not in space
+    assert "vol_lookback" not in space
+    assert "vol_period" not in space
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"expansion_mult"}
+    candles, fire = _expansion_fail_fade_tape(long_side=True)
+    signals = _signals("expansion_fail_fade", candles)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "atr",
+        "atr_prev",
+        "expansion_tr",
+        "expansion_high",
+        "expansion_low",
+        "expansion_mid",
+        "vol_mean",
+    ):
+        assert column in signals.columns
+    assert "range_high" not in signals.columns
+    assert "nr7_high" not in signals.columns
+    assert "orb_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert float(signals["expansion_tr"].iloc[fire]) == pytest.approx(4.0)
+    assert float(signals["atr_prev"].iloc[fire]) > 0.0
+    assert float(signals["expansion_tr"].iloc[fire]) > 2.0 * float(
+        signals["atr_prev"].iloc[fire]
+    )
+    # Fail close sits inside the expansion box, toward the mid from the low.
+    assert float(candles["close"].iloc[fire]) >= float(signals["expansion_low"].iloc[fire])
+    assert float(candles["close"].iloc[fire]) <= float(signals["expansion_high"].iloc[fire])
+    # A 1.7-ATR expansion clears 1.5 but not 2.0.
+    mild, mild_fire = _expansion_fail_fade_tape(long_side=True, expansion_tr=1.7)
+    mild_sig = _signals("expansion_fail_fade", mild)
+    assert int(mild_sig["signal"].iloc[mild_fire]) == 1
+    tight = factory(replace(base, expansion_mult=2.0)).generate_signals(mild)
+    assert int(tight["signal"].iloc[mild_fire]) == 0
+    # Close that holds outside the expansion box is not a fade.
+    held, held_fire = _expansion_fail_fade_tape(long_side=True, held_outside=True)
+    assert int(_signals("expansion_fail_fade", held)["signal"].iloc[held_fire]) == 0
+    # Locked weak-vol: volume_t above the prior-20 mean blocks the fade.
+    heavy, heavy_fire = _expansion_fail_fade_tape(long_side=True, heavy_fail_vol=True)
+    assert int(_signals("expansion_fail_fade", heavy)["signal"].iloc[heavy_fire]) == 0
+    # Wick-only expansion (close still inside the quiet 20-bar box) is not
+    # a Donchian close-through and not a multi-bar probe reclaim.
+    wick_n = 50
+    wick_fire = 41
+    wick_exp = 40
+    wick_close = np.full(wick_n, 100.0)
+    wick_high = np.full(wick_n, 100.5)
+    wick_low = np.full(wick_n, 99.5)
+    wick_open = np.full(wick_n, 100.0)
+    wick_high[wick_exp] = 104.0
+    wick_low[wick_exp] = 96.0
+    wick_close[wick_exp] = 99.6
+    wick_open[wick_exp] = 100.0
+    wick_close[wick_fire] = 99.9
+    wick_high[wick_fire] = 100.2
+    wick_low[wick_fire] = 99.4
+    wick_open[wick_fire] = 97.0
+    wick = _ohlcv(_hourly(wick_n), wick_close, high=wick_high, low=wick_low, open_=wick_open)
+    wick_sig = _signals("expansion_fail_fade", wick)
+    assert int(wick_sig["signal"].iloc[wick_fire]) == 1
+    assert int(_signals("failed_range_break_reversion", wick)["signal"].iloc[wick_fire]) == 0
+    assert int(_signals("failed_break_reclaim", wick)["signal"].iloc[wick_fire]) == 0
+    assert int(_signals("nr7_fail_reversion", wick)["signal"].iloc[wick_fire]) == 0
+
+
+def test_expansion_fail_fade_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("expansion_fail_fade", SignalSide.SHORT)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"expansion_mult"}
+    assert space["expansion_mult"] == [1.5, 2.0]
+    assert "atr_n" not in space
+    candles, fire = _expansion_fail_fade_tape(long_side=False)
+    signals = _signals("expansion_fail_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert float(signals["expansion_tr"].iloc[fire]) == pytest.approx(4.0)
+    mild, mild_fire = _expansion_fail_fade_tape(long_side=False, expansion_tr=1.7)
+    mild_sig = _signals("expansion_fail_fade", mild, side=SignalSide.SHORT)
+    assert int(mild_sig["signal"].iloc[mild_fire]) == -1
+    tight = factory(replace(base, expansion_mult=2.0)).generate_signals(mild)
+    assert int(tight["signal"].iloc[mild_fire]) == 0
+    held, held_fire = _expansion_fail_fade_tape(long_side=False, held_outside=True)
+    assert int(
+        _signals("expansion_fail_fade", held, side=SignalSide.SHORT)["signal"].iloc[held_fire]
+    ) == 0
+    heavy, heavy_fire = _expansion_fail_fade_tape(long_side=False, heavy_fail_vol=True)
+    assert int(
+        _signals("expansion_fail_fade", heavy, side=SignalSide.SHORT)["signal"].iloc[heavy_fire]
+    ) == 0
+
+
+def test_expansion_fail_fade_no_lookahead() -> None:
+    candles, fire = _expansion_fail_fade_tape(long_side=True)
+    signals = _signals("expansion_fail_fade", candles)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals("expansion_fail_fade", candles.iloc[:cut])
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite the expansion box or the fail decision.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("volume")] = 80_000.0
+    after = _signals("expansion_fail_fade", shocked)
+    assert after["expansion_high"].iloc[fire] == pytest.approx(signals["expansion_high"].iloc[fire])
+    assert after["expansion_low"].iloc[fire] == pytest.approx(signals["expansion_low"].iloc[fire])
+    assert after["atr_prev"].iloc[fire] == pytest.approx(signals["atr_prev"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -5566,6 +5772,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("prior_close_magnet_fade", {"k"}),
         ("classic_floor_pivot_reject", {"touch_tol_atr"}),
         ("failed_break_reclaim", {"lookback", "min_probe_bars"}),
+        ("expansion_fail_fade", {"expansion_mult"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -5592,6 +5799,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("prior_close_magnet_fade", {"k"}),
         ("classic_floor_pivot_reject", {"touch_tol_atr"}),
         ("failed_break_reclaim", {"lookback", "min_probe_bars"}),
+        ("expansion_fail_fade", {"expansion_mult"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

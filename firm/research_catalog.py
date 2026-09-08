@@ -979,6 +979,28 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "expansion_fail_fade@4h/4h",
+        "family": "expansion_fail_fade",
+        "name": "expansion_fail_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 32,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a failed 4h "
+            "ATR-expansion bar when the next bar closes back inside "
+            "on locked weak volume, toward the expansion midpoint. "
+            "Quant-locked grid: atr_n=20 (not searched), "
+            "expansion_mult [1.5, 2.0], weak-vol prior-20 mean "
+            "locked. BOTH sides honest. Walk-forward is not started "
+            "from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
