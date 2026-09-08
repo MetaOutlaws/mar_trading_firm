@@ -126,6 +126,7 @@ APPROVED = [
     "wyckoff_spring_reclaim",
     "prior_close_magnet_fade",
     "classic_floor_pivot_reject",
+    "failed_break_reclaim",
 ]
 
 
@@ -5306,6 +5307,235 @@ def test_classic_floor_pivot_reject_no_lookahead() -> None:
     )
 
 
+def _failed_break_reclaim_tape(
+    *,
+    long_side: bool,
+    held_break: bool = False,
+    blow_through: bool = False,
+    probe_bars: int = 2,
+    single_probe: bool = False,
+) -> tuple[pd.DataFrame, int, int]:
+    """Rolling 20-bar box 110/90, then a multi-bar wick probe that reclaims.
+
+    Probe bars wick beyond the *frozen* prior-bar range but do not close
+    through it, so failed_range_break_reversion (119) stays flat. The first
+    wick can be a Wyckoff spring/upthrust; later probe bars stay inside the
+    rolling Donchian that the first wick lifted, so 127 does not re-fire
+    on the reclaim bar. Prior UTC day stays ~101/99 so 118 stays flat.
+    Fire sits at 21:00 UTC so London IB / Asia-London session fades do not
+    share the bar.
+    """
+    n = 50
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    open_ = np.full(n, 100.0)
+    # Jan 3 onwards: a wide rolling box distinct from yesterday's UTC H/L.
+    high[24:] = 110.0
+    low[24:] = 90.0
+    first = 44
+    n_probe = 1 if single_probe else max(2, int(probe_bars))
+    fire = first + n_probe - 1
+    if long_side:
+        # First probe: unique wick below 90, close back inside (not a close-through).
+        low[first] = 84.0
+        high[first] = 97.0
+        close[first] = 95.0
+        open_[first] = 96.0
+        for j in range(first + 1, min(fire + 1, n)):
+            # Later probes stay below frozen 90 but above the first wick 84.
+            low[j] = 88.0
+            high[j] = 97.0
+            close[j] = 95.0
+            open_[j] = 94.0
+        if fire < n:
+            if held_break:
+                close[fire] = 84.0
+                high[fire] = 88.0
+                low[fire] = 82.0
+                open_[fire] = 86.0
+            elif blow_through:
+                close[fire] = 112.0
+                high[fire] = 114.0
+                low[fire] = 88.0
+                open_[fire] = 88.0
+            elif single_probe:
+                low[fire] = 84.0
+                high[fire] = 97.0
+                close[fire] = 95.0
+                open_[fire] = 96.0
+    else:
+        high[first] = 116.0
+        low[first] = 103.0
+        close[first] = 105.0
+        open_[first] = 104.0
+        for j in range(first + 1, min(fire + 1, n)):
+            high[j] = 112.0
+            low[j] = 103.0
+            close[j] = 105.0
+            open_[j] = 106.0
+        if fire < n:
+            if held_break:
+                close[fire] = 116.0
+                high[fire] = 118.0
+                low[fire] = 112.0
+                open_[fire] = 114.0
+            elif blow_through:
+                # Still a second probe high, but close blows through the far rail.
+                close[fire] = 85.0
+                high[fire] = 112.0
+                low[fire] = 84.0
+                open_[fire] = 108.0
+            elif single_probe:
+                high[fire] = 116.0
+                low[fire] = 103.0
+                close[fire] = 105.0
+                open_[fire] = 104.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    return candles, first, fire
+
+
+def test_failed_break_reclaim_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    from core.strategy.failed_break_reclaim import ATR_PERIOD
+
+    factory, base, space = strategy_kit("failed_break_reclaim", SignalSide.LONG)
+    assert ATR_PERIOD == 20
+    assert base.require_close_inside is True
+    assert base.lookback == 20
+    assert base.min_probe_bars == 2
+    assert space["lookback"] == [16, 20]
+    assert space["min_probe_bars"] == [2, 3]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "min_probe_bars"}
+    assert "require_close_inside" not in extra
+    assert "atr_n" not in extra
+    assert "atr_period" not in extra
+    assert "vol_lookback" not in extra
+    assert "max_bars_since_break" not in extra
+    assert "hold_bars" not in extra
+    candles, first, fire = _failed_break_reclaim_tape(long_side=True)
+    signals = _signals("failed_break_reclaim", candles)
+    for column in ("signal", "side", "score", "reason", "range_high", "range_low", "probe_bars"):
+        assert column in signals.columns
+    assert "volume_ma" not in signals.columns
+    assert "prior_high" not in signals.columns
+    assert "pivot" not in signals.columns
+    assert "swing_low" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[first]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["range_high"].iloc[fire] == pytest.approx(110.0)
+    assert signals["range_low"].iloc[fire] == pytest.approx(90.0)
+    assert signals["probe_bars"].iloc[fire] == pytest.approx(2.0)
+    held, _, held_fire = _failed_break_reclaim_tape(long_side=True, held_break=True)
+    assert int(_signals("failed_break_reclaim", held)["signal"].iloc[held_fire]) == 0
+    through, _, through_fire = _failed_break_reclaim_tape(long_side=True, blow_through=True)
+    assert int(_signals("failed_break_reclaim", through)["signal"].iloc[through_fire]) == 0
+    one, one_first, one_fire = _failed_break_reclaim_tape(long_side=True, single_probe=True)
+    one_sig = _signals("failed_break_reclaim", one)
+    assert int(one_sig["signal"].iloc[one_first]) == 0
+    assert int(one_sig["signal"].iloc[one_fire]) == 0
+    two_bar = candles
+    tight = factory(replace(base, min_probe_bars=3)).generate_signals(two_bar)
+    assert int(tight["signal"].iloc[first]) == 0
+    assert int(tight["signal"].iloc[fire]) == 0
+    three, _, three_fire = _failed_break_reclaim_tape(long_side=True, probe_bars=3)
+    three_sig = factory(replace(base, min_probe_bars=3)).generate_signals(three)
+    assert int(three_sig["signal"].iloc[three_fire]) == 1
+    # Neighbors: 118 / 119 / 124 / 127 / 129 stay flat on the reclaim bar.
+    spent = (
+        "prior_day_extreme_reject",
+        "failed_range_break_reversion",
+        "ib_fail_reversion",
+        "wyckoff_spring_reclaim",
+        "classic_floor_pivot_reject",
+    )
+    for name in spent:
+        assert int(_signals(name, candles)["signal"].iloc[fire]) == 0
+    heavy = candles.copy()
+    heavy.loc[heavy.index[fire], "volume"] = 50_000.0
+    assert int(_signals("failed_break_reclaim", heavy)["signal"].iloc[fire]) == 1
+
+
+def test_failed_break_reclaim_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("failed_break_reclaim", SignalSide.SHORT)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "min_probe_bars"}
+    assert space["lookback"] == [16, 20]
+    assert space["min_probe_bars"] == [2, 3]
+    assert base.require_close_inside is True
+    candles, first, fire = _failed_break_reclaim_tape(long_side=False)
+    signals = _signals("failed_break_reclaim", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[first]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["range_high"].iloc[fire] == pytest.approx(110.0)
+    assert signals["range_low"].iloc[fire] == pytest.approx(90.0)
+    held, _, held_fire = _failed_break_reclaim_tape(long_side=False, held_break=True)
+    assert int(
+        _signals("failed_break_reclaim", held, side=SignalSide.SHORT)["signal"].iloc[held_fire]
+    ) == 0
+    through, _, through_fire = _failed_break_reclaim_tape(long_side=False, blow_through=True)
+    assert int(
+        _signals("failed_break_reclaim", through, side=SignalSide.SHORT)["signal"].iloc[through_fire]
+    ) == 0
+    tight = factory(replace(base, min_probe_bars=3)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    spent = (
+        "prior_day_extreme_reject",
+        "failed_range_break_reversion",
+        "ib_fail_reversion",
+        "wyckoff_spring_reclaim",
+        "classic_floor_pivot_reject",
+    )
+    for name in spent:
+        assert int(_signals(name, candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    assert "prior_high" not in signals.columns
+    assert "nr7_high" not in signals.columns
+    assert "pivot" not in signals.columns
+    assert "swing_high" not in signals.columns
+
+
+def test_failed_break_reclaim_no_lookahead() -> None:
+    candles, _first, fire = _failed_break_reclaim_tape(long_side=True)
+    signals = _signals("failed_break_reclaim", candles)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals("failed_break_reclaim", candles.iloc[:cut])
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 140.0
+    after = _signals("failed_break_reclaim", shocked)
+    assert after["range_high"].iloc[fire] == pytest.approx(signals["range_high"].iloc[fire])
+    assert after["range_low"].iloc[fire] == pytest.approx(signals["range_low"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -5335,6 +5565,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("wyckoff_spring_reclaim", {"lookback", "hold_bars"}),
         ("prior_close_magnet_fade", {"k"}),
         ("classic_floor_pivot_reject", {"touch_tol_atr"}),
+        ("failed_break_reclaim", {"lookback", "min_probe_bars"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -5360,6 +5591,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("wyckoff_spring_reclaim", {"lookback", "hold_bars"}),
         ("prior_close_magnet_fade", {"k"}),
         ("classic_floor_pivot_reject", {"touch_tol_atr"}),
+        ("failed_break_reclaim", {"lookback", "min_probe_bars"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
