@@ -1025,6 +1025,30 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "bullish_rectangle_fail_reclaim@4h/4h",
+        "family": "bullish_rectangle_fail_reclaim",
+        "name": "bullish_rectangle_fail_reclaim 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 34,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a close back "
+            "inside a flat dual-rail rectangle after a close-outside "
+            "probe of support (LONG) or resistance (SHORT). "
+            "Quant-locked grid: max_bars_outside=2 (not searched), "
+            "require_close_inside=True, ATR period 20, "
+            "min_touches_per_rail=2, PIVOT_LEFT=3. Free search (2 "
+            "only): lookback [24, 32], atr_tol [0.10, 0.15]. BOTH "
+            "sides honest. Walk-forward is not started from this "
+            "coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

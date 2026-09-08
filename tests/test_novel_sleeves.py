@@ -129,6 +129,7 @@ APPROVED = [
     "failed_break_reclaim",
     "expansion_fail_fade",
     "candle_reject_reversal",
+    "bullish_rectangle_fail_reclaim",
 ]
 
 
@@ -5925,6 +5926,286 @@ def test_candle_reject_reversal_no_lookahead() -> None:
     )
 
 
+def _rectangle_fail_reclaim_tape(
+    *,
+    long_side: bool,
+    delay: int = 2,
+    held_break: bool = False,
+    blow_through: bool = False,
+    single_touch: bool = False,
+    sloped: bool = False,
+    decoy: bool = True,
+    upper_span: float = 0.0,
+    n: int = 90,
+) -> tuple[pd.DataFrame, int, int]:
+    """Two-touch flat box (110/90), close-outside, then close back inside.
+
+    First high publishes just outside a 24-bar window at the break so
+    default lookback=32 fires and lookback=24 does not. A Donchian-only
+    decoy wick (unpublished at the break) keeps jobs 119/130 off this
+    reclaim: their channel is wider than the rectangle rails.
+    """
+    close, high, low, open_ = _planted_swings_background(n)
+    high[38] = 110.0
+    close[38] = 108.0
+    if not single_touch:
+        low[46] = 85.0 if sloped else 90.0
+        close[46] = 92.0
+        high[52] = (118.0 if sloped else 110.0) + upper_span
+        close[52] = 108.0
+        low[58] = 90.0
+        close[58] = 92.0
+    break_i = 66
+    fire = break_i + delay
+    if long_side:
+        if decoy:
+            # Wider than the rectangle floor, not a published swing yet.
+            low[64] = 82.0
+        close[break_i] = 85.0
+        high[break_i] = 92.0
+        low[break_i] = 84.0
+        open_[break_i] = 92.0
+        for j in range(break_i + 1, fire):
+            close[j] = 84.0
+            high[j] = 88.0
+            low[j] = 83.0
+            open_[j] = 85.0
+        if held_break:
+            close[fire] = 84.0
+            high[fire] = 88.0
+            low[fire] = 83.0
+            open_[fire] = 85.0
+        elif blow_through:
+            close[fire] = 80.0
+            high[fire] = 86.0
+            low[fire] = 79.0
+            open_[fire] = 85.0
+        else:
+            close[fire] = 100.0
+            high[fire] = 102.0
+            low[fire] = 98.0
+            open_[fire] = 86.0
+    else:
+        if decoy:
+            high[64] = 118.0
+        close[break_i] = 115.0
+        high[break_i] = 116.0
+        low[break_i] = 108.0
+        open_[break_i] = 108.0
+        for j in range(break_i + 1, fire):
+            close[j] = 116.0
+            high[j] = 118.0
+            low[j] = 112.0
+            open_[j] = 115.0
+        if held_break:
+            close[fire] = 116.0
+            high[fire] = 118.0
+            low[fire] = 112.0
+            open_[fire] = 115.0
+        elif blow_through:
+            close[fire] = 125.0
+            high[fire] = 126.0
+            low[fire] = 114.0
+            open_[fire] = 116.0
+        else:
+            close[fire] = 100.0
+            high[fire] = 102.0
+            low[fire] = 98.0
+            open_[fire] = 114.0
+    candles = _ohlcv(_hourly(n, start="2024-01-03"), close, high=high, low=low, open_=open_)
+    return candles, break_i, fire
+
+
+def test_bullish_rectangle_fail_reclaim_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.bullish_rectangle_fail_reclaim import (
+        ATR_PERIOD,
+        MAX_BARS_OUTSIDE_LOCKED,
+        MIN_TOUCHES_PER_RAIL,
+        PIVOT_LEFT,
+        REQUIRE_CLOSE_INSIDE_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("bullish_rectangle_fail_reclaim", SignalSide.LONG)
+    assert ATR_PERIOD == 20
+    assert PIVOT_LEFT == 3
+    assert MIN_TOUCHES_PER_RAIL == 2
+    assert MAX_BARS_OUTSIDE_LOCKED == 2
+    assert REQUIRE_CLOSE_INSIDE_LOCKED is True
+    assert base.lookback == 32
+    assert base.atr_tol == pytest.approx(0.15)
+    assert base.max_bars_outside == 2
+    assert base.require_close_inside is True
+    assert base.min_touches_per_rail == 2
+    assert space["lookback"] == [24, 32]
+    assert space["atr_tol"] == [0.10, 0.15]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "atr_tol"}
+    assert "max_bars_outside" not in extra
+    assert "require_close_inside" not in extra
+    assert "min_touches_per_rail" not in extra
+    assert "atr_n" not in extra
+    assert "atr_period" not in extra
+    assert "pivot_left" not in extra
+    candles, break_i, fire = _rectangle_fail_reclaim_tape(long_side=True)
+    signals = _signals("bullish_rectangle_fail_reclaim", candles)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "upper_rail",
+        "lower_rail",
+        "n_highs",
+        "n_lows",
+        "bars_since_break",
+    ):
+        assert column in signals.columns
+    assert "range_high" not in signals.columns
+    assert "min_probe_bars" not in signals.columns
+    assert "max_bars_since_break" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[break_i]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["lower_rail"].iloc[break_i] == pytest.approx(90.0)
+    assert signals["upper_rail"].iloc[break_i] == pytest.approx(110.0)
+    assert signals["n_highs"].iloc[break_i] == pytest.approx(2.0)
+    assert signals["n_lows"].iloc[break_i] == pytest.approx(2.0)
+    assert signals["bars_since_break"].iloc[fire] == pytest.approx(2.0)
+    assert signals["break_low"].iloc[fire] == pytest.approx(90.0)
+    # First high sits outside the 24-bar publication window at the break.
+    tight_lb = factory(replace(base, lookback=24)).generate_signals(candles)
+    assert int(tight_lb["signal"].iloc[fire]) == 0
+    assert tight_lb["n_highs"].iloc[break_i] == pytest.approx(1.0)
+    # Locked max_bars_outside=2 even if a caller asks for 1.
+    forced = factory(replace(base, max_bars_outside=1)).generate_signals(candles)
+    assert int(forced["signal"].iloc[fire]) == 1
+    held, _, held_fire = _rectangle_fail_reclaim_tape(long_side=True, held_break=True)
+    assert int(_signals("bullish_rectangle_fail_reclaim", held)["signal"].iloc[held_fire]) == 0
+    assert int((_signals("bullish_rectangle_fail_reclaim", held)["signal"] == 1).sum()) == 0
+    through, _, through_fire = _rectangle_fail_reclaim_tape(long_side=True, blow_through=True)
+    assert int(
+        _signals("bullish_rectangle_fail_reclaim", through)["signal"].iloc[through_fire]
+    ) == 0
+    one, _, one_fire = _rectangle_fail_reclaim_tape(long_side=True, single_touch=True)
+    assert int(_signals("bullish_rectangle_fail_reclaim", one)["signal"].iloc[one_fire]) == 0
+    slope, _, slope_fire = _rectangle_fail_reclaim_tape(long_side=True, sloped=True)
+    assert int(_signals("bullish_rectangle_fail_reclaim", slope)["signal"].iloc[slope_fire]) == 0
+    late, _, late_fire = _rectangle_fail_reclaim_tape(long_side=True, delay=3)
+    assert int(_signals("bullish_rectangle_fail_reclaim", late)["signal"].iloc[late_fire]) == 0
+    # Neighbors: Donchian fail-reclaim families stay flat on this rectangle bar.
+    assert int(_signals("failed_range_break_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("failed_break_reclaim", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("ascending_triangle_break", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("converging_wedge_break", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("donchian_breakout", candles)["signal"].iloc[fire]) == 0
+    # A close-through that stays outside is a breakout, not this fade.
+    breakout, _, bout_fire = _rectangle_fail_reclaim_tape(long_side=True, held_break=True)
+    assert int(_signals("bullish_rectangle_fail_reclaim", breakout)["signal"].iloc[bout_fire]) == 0
+
+
+def test_bullish_rectangle_fail_reclaim_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("bullish_rectangle_fail_reclaim", SignalSide.SHORT)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "atr_tol"}
+    assert space["lookback"] == [24, 32]
+    assert space["atr_tol"] == [0.10, 0.15]
+    assert "max_bars_outside" not in extra
+    assert base.require_close_inside is True
+    assert base.max_bars_outside == 2
+    candles, break_i, fire = _rectangle_fail_reclaim_tape(long_side=False)
+    signals = _signals("bullish_rectangle_fail_reclaim", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[break_i]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["upper_rail"].iloc[break_i] == pytest.approx(110.0)
+    assert signals["lower_rail"].iloc[break_i] == pytest.approx(90.0)
+    assert signals["bars_since_break"].iloc[fire] == pytest.approx(2.0)
+    assert signals["break_high"].iloc[fire] == pytest.approx(110.0)
+    tight_lb = factory(replace(base, lookback=24)).generate_signals(candles)
+    assert int(tight_lb["signal"].iloc[fire]) == 0
+    held, _, held_fire = _rectangle_fail_reclaim_tape(long_side=False, held_break=True)
+    assert int(
+        _signals("bullish_rectangle_fail_reclaim", held, side=SignalSide.SHORT)["signal"].iloc[
+            held_fire
+        ]
+    ) == 0
+    through, _, through_fire = _rectangle_fail_reclaim_tape(long_side=False, blow_through=True)
+    assert int(
+        _signals("bullish_rectangle_fail_reclaim", through, side=SignalSide.SHORT)["signal"].iloc[
+            through_fire
+        ]
+    ) == 0
+    assert int(
+        _signals("failed_range_break_reversion", candles, side=SignalSide.SHORT)["signal"].iloc[fire]
+    ) == 0
+    assert int(
+        _signals("failed_break_reclaim", candles, side=SignalSide.SHORT)["signal"].iloc[fire]
+    ) == 0
+    assert "range_high" not in signals.columns
+    assert "nr7_high" not in signals.columns
+
+
+def test_bullish_rectangle_fail_reclaim_kit_locks_and_atr_tol() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("bullish_rectangle_fail_reclaim", SignalSide.LONG)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "atr_tol"}
+    assert space["lookback"] == [24, 32]
+    assert space["atr_tol"] == [0.10, 0.15]
+    # 0.50 high-span clears 0.15×ATR(20) on this tape but not 0.10×ATR(20).
+    loose, _break_i, fire = _rectangle_fail_reclaim_tape(
+        long_side=True, decoy=False, upper_span=0.50
+    )
+    assert int(factory(replace(base, atr_tol=0.15)).generate_signals(loose)["signal"].iloc[fire]) == 1
+    assert int(factory(replace(base, atr_tol=0.10)).generate_signals(loose)["signal"].iloc[fire]) == 0
+    # min_touches stays locked at 2 if a caller tries to drop to 1.
+    lonely, _, lonely_fire = _rectangle_fail_reclaim_tape(long_side=True, single_touch=True)
+    loosened = factory(replace(base, min_touches_per_rail=1)).generate_signals(lonely)
+    assert int(loosened["signal"].iloc[lonely_fire]) == 0
+
+
+def test_bullish_rectangle_fail_reclaim_no_lookahead() -> None:
+    candles, _break_i, fire = _rectangle_fail_reclaim_tape(long_side=True)
+    signals = _signals("bullish_rectangle_fail_reclaim", candles)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals("bullish_rectangle_fail_reclaim", candles.iloc[:cut])
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 140.0
+    after = _signals("bullish_rectangle_fail_reclaim", shocked)
+    assert after["upper_rail"].iloc[fire] == pytest.approx(signals["upper_rail"].iloc[fire])
+    assert after["lower_rail"].iloc[fire] == pytest.approx(signals["lower_rail"].iloc[fire])
+    assert after["break_low"].iloc[fire] == pytest.approx(signals["break_low"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -5957,6 +6238,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("failed_break_reclaim", {"lookback", "min_probe_bars"}),
         ("expansion_fail_fade", {"expansion_mult"}),
         ("candle_reject_reversal", {"min_lower_wick_frac", "max_body_frac"}),
+        ("bullish_rectangle_fail_reclaim", {"lookback", "atr_tol"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -5985,6 +6267,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("failed_break_reclaim", {"lookback", "min_probe_bars"}),
         ("expansion_fail_fade", {"expansion_mult"}),
         ("candle_reject_reversal", {"min_lower_wick_frac", "max_body_frac"}),
+        ("bullish_rectangle_fail_reclaim", {"lookback", "atr_tol"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
