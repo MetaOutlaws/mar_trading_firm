@@ -1001,6 +1001,30 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "candle_reject_reversal@4h/4h",
+        "family": "candle_reject_reversal",
+        "name": "candle_reject_reversal 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 33,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Classic hammer / "
+            "hanging-man reject candle as one family: LONG hammer, "
+            "SHORT hanging-man, same geometry. Quant-locked grid: "
+            "max_upper_wick_frac=0.15 (not searched), "
+            "min_body_frac=0.15 (not a doji), close in upper half "
+            "locked, no run_bars / no doji-star confirm. Free search "
+            "(2 only): min_lower_wick_frac [0.55, 0.65], "
+            "max_body_frac [0.20, 0.35]. BOTH sides honest. "
+            "Walk-forward is not started from this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

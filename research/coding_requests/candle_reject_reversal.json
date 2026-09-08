@@ -1,0 +1,15 @@
+{
+  "family": "candle_reject_reversal",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "Classic hammer/hanging reject candle as a single family. LONG = hammer shape (long lower wick, stub upper, non-doji body, close in upper half). SHORT = hanging-man shape (same geometry). Geometry: lower_wick_frac=(min(open,close)-low)/(high-low), upper_wick_frac=(high-max(open,close))/(high-low), body_frac=|close-open|/(high-low). Quant-locked: max_upper_wick_frac=0.15 (not searched), min_body_frac=0.15 (not a doji; doji_star uses max_body ~0.10), close in upper half locked, no run_bars / no doji-star confirm. Free search (2 only): min_lower_wick_frac [0.55, 0.65], max_body_frac [0.20, 0.35]. Not wick_rejection_reversal (generic long wick; no stub-upper / non-doji / close-upper-half kit). Not doji_star_reversal (doji body + run + confirm). Do not recode spent families 118–131. Displacement parked. Rectangle / three_black_crows buffer only.",
+  "summary": "Enter on a classic hammer / hanging-man reject candle (long lower wick, stub upper, non-doji body, close in the upper half) as one 4h BOTH family.",
+  "justification": "A single-bar hammer / hanging-man with locked stub-upper, non-doji body, and close-in-upper-half is not generic wick rejection and not a doji-star run-plus-confirm.",
+  "status": "Brian Inbox-approved for coding",
+  "written_at": "2026-09-08T04:15:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/candle_reject_reversal.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward."
+}

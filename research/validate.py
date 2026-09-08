@@ -1058,6 +1058,14 @@ def _novel_kit(name: str, side: SignalSide):
             # atr_n and weak-vol lookback locked at 20. Search expansion_mult only.
             {"expansion_mult": [1.5, 2.0]},
         ),
+        "candle_reject_reversal": (
+            "core.strategy.candle_reject_reversal",
+            "CandleRejectReversalParams",
+            "CandleRejectReversalStrategy",
+            # Stub-upper, non-doji floor, and close-upper-half locked.
+            # No run_bars. Search lower-wick floor + body cap only.
+            {"min_lower_wick_frac": [0.55, 0.65], "max_body_frac": [0.20, 0.35]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
