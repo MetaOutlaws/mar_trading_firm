@@ -178,6 +178,7 @@ CLOCK_BY_FAMILY = {
     "bullish_rectangle_fail_reclaim": "4h/4h",
     "three_black_crows": "4h/4h",
     "bb_medium_bw_upper_reject": "4h/4h",
+    "atr_open_flush_fade": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -210,6 +211,8 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         return "bb_medium_bw_upper_reject"
     if "bollinger" in blob or "mean rev" in blob or "mean_rev" in blob:
         return "bollinger_mean_reversion"
+    if "open_flush" in blob or "atr_open_flush" in blob:
+        return "atr_open_flush_fade"
     if "atr" in blob and "breakout" in blob:
         return "atr_channel_breakout"
     if "pullback" in blob or "two_time" in blob or "two-time" in blob:
