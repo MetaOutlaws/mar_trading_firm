@@ -1,0 +1,15 @@
+{
+  "family": "expansion_fail_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "Fade a failed 4h range-expansion bar when the next bar closes back inside that expansion bar's high-low on non-expanding volume. Expansion: true range > expansion_mult * ATR(20). Fail: next close inside that bar's H/L. Fade toward the expansion midpoint (SHORT if expansion was up / close near high side failed; LONG if expansion was down). Quant-locked: atr_n=20 (not searched), expansion_mult search [1.5, 2.0], weak-vol gate volume_t <= prior-20 mean (not searched), max 2 free params (only expansion_mult is free). Not range_compression_volume_thrust (102 — successful squeeze thrust). Not failed_range_break_reversion (119 — rolling N-bar close-through). Not nr7 / orb / ib fail. Not failed_break_reclaim (130 — multi-bar probe). Not displacement_gap_follow (PARKED). Do not recode spent families 118–130.",
+  "summary": "Fade a failed 4h ATR-expansion bar when the next bar closes back inside on weak volume, toward the expansion midpoint.",
+  "justification": "A single ATR-expansion bar that fails on the next close-inside print with locked weak volume is not a successful squeeze thrust, not a rolling Donchian close-through fade, not NR7/ORB/IB, and not a multi-bar probe reclaim.",
+  "status": "Brian Inbox-approved for coding",
+  "written_at": "2026-09-08T03:40:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/expansion_fail_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward."
+}

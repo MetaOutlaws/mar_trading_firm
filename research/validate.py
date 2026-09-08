@@ -1051,6 +1051,13 @@ def _novel_kit(name: str, side: SignalSide):
             # Search lookback + min probe length only.
             {"lookback": [16, 20], "min_probe_bars": [2, 3]},
         ),
+        "expansion_fail_fade": (
+            "core.strategy.expansion_fail_fade",
+            "ExpansionFailFadeParams",
+            "ExpansionFailFadeStrategy",
+            # atr_n and weak-vol lookback locked at 20. Search expansion_mult only.
+            {"expansion_mult": [1.5, 2.0]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
