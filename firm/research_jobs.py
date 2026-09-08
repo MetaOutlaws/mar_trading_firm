@@ -177,6 +177,7 @@ CLOCK_BY_FAMILY = {
     "candle_reject_reversal": "4h/4h",
     "bullish_rectangle_fail_reclaim": "4h/4h",
     "three_black_crows": "4h/4h",
+    "bb_medium_bw_upper_reject": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -205,6 +206,8 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         return "funding_fade"
     if "ema" in blob and "adx" in blob:
         return "ema_adx_trend"
+    if "bb_medium" in blob or "medium_bw_upper" in blob:
+        return "bb_medium_bw_upper_reject"
     if "bollinger" in blob or "mean rev" in blob or "mean_rev" in blob:
         return "bollinger_mean_reversion"
     if "atr" in blob and "breakout" in blob:

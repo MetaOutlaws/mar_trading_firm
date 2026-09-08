@@ -1083,6 +1083,14 @@ def _novel_kit(name: str, side: SignalSide):
             # Search body floor + upper-wick cap only.
             {"min_body_frac": [0.40, 0.50], "max_upper_wick_frac": [0.15, 0.25]},
         ),
+        "bb_medium_bw_upper_reject": (
+            "core.strategy.bb_medium_bw_upper_reject",
+            "BbMediumBwUpperRejectParams",
+            "BbMediumBwUpperRejectStrategy",
+            # BB period=20 and medium BW [0.04, 0.10] locked.
+            # Search k (stdev multiplier) only.
+            {"k": [1.8, 2.0]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

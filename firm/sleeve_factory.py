@@ -2265,6 +2265,40 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "engulfing-fail reversion."
         ),
     ),
+    SleeveSpec(
+        name="bb_medium_bw_upper_reject",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Bollinger medium-bandwidth band reject / fade as one 4h "
+            "BOTH family. Same-bar tag-then-close-back inside the "
+            "envelope, only when BW is in the locked medium window. "
+            "Not a squeeze breakout, not NR7, not an ATR "
+            "expansion-fail / blowoff fade. Quant-locked: BB20, "
+            "medium BW [0.04, 0.10], SHORT=upper / LONG=lower. Free "
+            "search (1 only): k [1.8, 2.0]. Not "
+            "squeeze_momentum_break / bb_squeeze_breakout leftover. "
+            "Not expansion_fail_fade (131 — single ATR expansion bar "
+            "then next-bar fail). Not nr7_fail_reversion. Not "
+            "bollinger_mean_reversion (close-through stretch, no "
+            "medium-BW reject). Not displacement / H&S / cup / "
+            "diamond / pennant / wedge. Do not recode spent "
+            "families 118–135."
+        ),
+        summary=(
+            "Fade a same-bar Bollinger tag that closes back inside "
+            "the envelope only when bandwidth is in the locked "
+            "medium window, as one 4h BOTH family."
+        ),
+        justification=(
+            "A locked medium-BW same-bar band reject (SHORT upper / "
+            "LONG lower, search k only) is not a squeeze-release "
+            "leftover, not NR7, and not an ATR expansion-fail / "
+            "blowoff fade."
+        ),
+    ),
 ]
 
 

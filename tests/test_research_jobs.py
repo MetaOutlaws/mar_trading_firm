@@ -33,6 +33,10 @@ def test_infer_family_from_title_and_payload() -> None:
     assert infer_family({"name": "rsi_trend"}, "") == "rsi_trend"
     assert infer_family({}, "Funding rate fade") == "funding_fade"
     assert infer_family({}, "Bollinger fade in chop") == "bollinger_mean_reversion"
+    assert infer_family({}, "Next: bb_medium_bw_upper_reject") == "bb_medium_bw_upper_reject"
+    assert infer_family({"family": "bb_medium_bw_upper_reject"}, "Bollinger fade") == (
+        "bb_medium_bw_upper_reject"
+    )
     assert infer_family({"name": "ema_adx_trend"}, "") == "ema_adx_trend"
     assert infer_family({}, "ATR channel breakout") == "atr_channel_breakout"
     assert infer_family({}, "4h trend 1h pullback") == "trend_pullback_htf"
@@ -339,6 +343,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "candle_reject_reversal" in coded
     assert "bullish_rectangle_fail_reclaim" in coded
     assert "three_black_crows" in coded
+    assert "bb_medium_bw_upper_reject" in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
     assert "bar_vwap_inflow_surge" not in novel_ready
@@ -383,6 +388,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "candle_reject_reversal" not in novel_ready
     assert "bullish_rectangle_fail_reclaim" not in novel_ready
     assert "three_black_crows" not in novel_ready
+    assert "bb_medium_bw_upper_reject" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -851,6 +857,7 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "candle_reject_reversal" not in families
     assert "bullish_rectangle_fail_reclaim" not in families
     assert "three_black_crows" not in families
+    assert "bb_medium_bw_upper_reject" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(
