@@ -1075,6 +1075,14 @@ def _novel_kit(name: str, side: SignalSide):
             # + atr_tol only.
             {"lookback": [24, 32], "atr_tol": [0.10, 0.15]},
         ),
+        "three_black_crows": (
+            "core.strategy.three_black_crows",
+            "ThreeBlackCrowsParams",
+            "ThreeBlackCrowsStrategy",
+            # n_crows=3, open-in-prior-range, and SHORT side locked.
+            # Search body floor + upper-wick cap only.
+            {"min_body_frac": [0.40, 0.50], "max_upper_wick_frac": [0.15, 0.25]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

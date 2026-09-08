@@ -176,6 +176,7 @@ CLOCK_BY_FAMILY = {
     "expansion_fail_fade": "4h/4h",
     "candle_reject_reversal": "4h/4h",
     "bullish_rectangle_fail_reclaim": "4h/4h",
+    "three_black_crows": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 

@@ -2229,6 +2229,42 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "(130), and not a breakout continuation."
         ),
     ),
+    SleeveSpec(
+        name="three_black_crows",
+        template="novel",
+        clock="4h/4h",
+        side="SHORT",
+        needs_feed=False,
+        novel_reason=(
+            "Classic three black crows as a SHORT-only family. Three "
+            "consecutive bearish candles with descending closes; each "
+            "opens within the prior candle's high-low; substantial "
+            "bodies; limited upper wicks. SHORT entry after the third "
+            "crow confirms. Quant-locked: n_crows=3 (not searched), "
+            "open-in-prior-range locked, SHORT only (not BOTH / not "
+            "three white soldiers). Free search (2 only): "
+            "min_body_frac [0.40, 0.50], max_upper_wick_frac "
+            "[0.15, 0.25]. Not three_bar_play (trend + narrow rest + "
+            "break of rest leftover). Not engulfing_fail_reversion "
+            "(job 126 — two-bar body engulf then fail through engulf "
+            "open). Not candle_reject / consecutive_bar_exhaustion / "
+            "open_in_prior_range_fail / rectangle. Do not recode "
+            "spent families 118–133. Do not code three white "
+            "soldiers / BOTH."
+        ),
+        summary=(
+            "SHORT after a classic three-black-crows print (three "
+            "consecutive bearish descending closes, each opening in "
+            "the prior range, substantial bodies, limited upper "
+            "wicks) as one 4h SHORT family."
+        ),
+        justification=(
+            "A locked three-crow descending-close SHORT with "
+            "open-in-prior-range and searched body/upper-wick floors "
+            "is not a three-bar-play leftover and not an "
+            "engulfing-fail reversion."
+        ),
+    ),
 ]
 
 

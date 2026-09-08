@@ -130,6 +130,7 @@ APPROVED = [
     "expansion_fail_fade",
     "candle_reject_reversal",
     "bullish_rectangle_fail_reclaim",
+    "three_black_crows",
 ]
 
 
@@ -6206,6 +6207,250 @@ def test_bullish_rectangle_fail_reclaim_no_lookahead() -> None:
     )
 
 
+def _paint_bearish_crow(
+    *,
+    open_px: float,
+    range_: float,
+    body_frac: float,
+    upper_wick_frac: float,
+) -> tuple[float, float, float, float]:
+    """Return open/high/low/close for a bearish crow with exact fractions."""
+    upper = upper_wick_frac * range_
+    body = body_frac * range_
+    high = open_px + upper
+    close = open_px - body
+    low = close - (range_ - upper - body)
+    return open_px, high, low, close
+
+
+def _three_black_crows_tape(
+    *,
+    body_frac: float = 0.45,
+    upper_wick_frac: float = 0.20,
+    first_open_in_prior: bool = True,
+    descending: bool = True,
+    third_bearish: bool = True,
+    two_crows_only: bool = False,
+    n: int = 40,
+    fire: int = 24,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet uptrend then a classic three-crow window ending at ``fire``."""
+    close = np.linspace(100.0, 118.0, n)
+    open_ = np.concatenate([[close[0]], close[:-1]])
+    high = np.maximum(open_, close) + 0.4
+    low = np.minimum(open_, close) - 0.4
+    # Wide prior so crow-1 can open inside (or deliberately outside).
+    prior = fire - 3
+    open_[prior] = 110.0
+    close[prior] = 118.0
+    high[prior] = 120.0
+    low[prior] = 100.0
+    range_ = 10.0
+    first_open = 114.0 if first_open_in_prior else 125.0
+    o1, h1, l1, c1 = _paint_bearish_crow(
+        open_px=first_open, range_=range_, body_frac=body_frac, upper_wick_frac=upper_wick_frac
+    )
+    if two_crows_only:
+        # Bar t-2 stays a quiet bullish print so the window is only two crows.
+        open_[fire - 2] = 112.0
+        close[fire - 2] = 116.0
+        high[fire - 2] = 117.0
+        low[fire - 2] = 111.0
+        second_open = 115.0
+    else:
+        open_[fire - 2], high[fire - 2], low[fire - 2], close[fire - 2] = o1, h1, l1, c1
+        second_open = min(max(c1 + 2.5, l1 + 0.2), h1 - 0.2)
+    o2, h2, l2, c2 = _paint_bearish_crow(
+        open_px=second_open, range_=range_, body_frac=body_frac, upper_wick_frac=upper_wick_frac
+    )
+    open_[fire - 1], high[fire - 1], low[fire - 1], close[fire - 1] = o2, h2, l2, c2
+    third_open = min(max(c2 + 2.5, l2 + 0.2), h2 - 0.2)
+    if third_bearish:
+        if not descending:
+            # Keep body/wick fractions. Lift the open so close sits above
+            # crow-2 while the bar stays bearish and inside the prior range.
+            third_open = min(h2, c2 + body_frac * range_ + 0.5)
+        o3, h3, l3, c3 = _paint_bearish_crow(
+            open_px=third_open, range_=range_, body_frac=body_frac, upper_wick_frac=upper_wick_frac
+        )
+        open_[fire], high[fire], low[fire], close[fire] = o3, h3, l3, c3
+    else:
+        open_[fire] = third_open
+        close[fire] = third_open + 4.0
+        high[fire] = close[fire] + 0.4
+        low[fire] = open_[fire] - 0.4
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_), fire
+
+
+def test_three_black_crows_schema_and_short_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.three_black_crows import (
+        N_CROWS_LOCKED,
+        REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: search only body floor + upper-wick cap. Crow count and
+    # open-in-prior-range stay fixed. SHORT-only — not BOTH.
+    factory, base, space = strategy_kit("three_black_crows", SignalSide.SHORT)
+    assert base.side is SignalSide.SHORT
+    assert base.min_body_frac == pytest.approx(0.40)
+    assert base.max_upper_wick_frac == pytest.approx(0.25)
+    assert base.n_crows == N_CROWS_LOCKED
+    assert base.require_open_in_prior_range is REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED
+    assert space["min_body_frac"] == [0.40, 0.50]
+    assert space["max_upper_wick_frac"] == [0.15, 0.25]
+    assert "n_crows" not in space
+    assert "require_open_in_prior_range" not in space
+    assert "max_upper_wick" not in space
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_body_frac", "max_upper_wick_frac"}
+
+    candles, fire = _three_black_crows_tape()
+    signals = _signals("three_black_crows", candles, side=SignalSide.SHORT)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "body_frac",
+        "upper_wick_frac",
+        "open_in_prior_range",
+        "crow",
+        "min_body_frac_3",
+        "max_upper_wick_frac_3",
+    ):
+        assert column in signals.columns
+    assert "rest_high" not in signals.columns
+    assert "engulfing" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["crow"].iloc[fire])
+    assert bool(signals["open_in_prior_range"].iloc[fire])
+    assert float(signals["body_frac"].iloc[fire]) == pytest.approx(0.45)
+    assert float(signals["upper_wick_frac"].iloc[fire]) == pytest.approx(0.20)
+    assert float(signals["min_body_frac_3"].iloc[fire]) == pytest.approx(0.45)
+    assert float(signals["max_upper_wick_frac_3"].iloc[fire]) == pytest.approx(0.20)
+    # A 0.45 body clears 0.40 but not 0.50.
+    tight_body = factory(replace(base, min_body_frac=0.50)).generate_signals(candles)
+    assert int(tight_body["signal"].iloc[fire]) == 0
+    # A 0.20 upper wick clears 0.25 but not 0.15.
+    tight_wick = factory(replace(base, max_upper_wick_frac=0.15)).generate_signals(candles)
+    assert int(tight_wick["signal"].iloc[fire]) == 0
+    # Thin body is not a crow even at the looser 0.40 floor.
+    thin, thin_fire = _three_black_crows_tape(body_frac=0.30)
+    assert int(
+        _signals("three_black_crows", thin, side=SignalSide.SHORT)["signal"].iloc[thin_fire]
+    ) == 0
+    # Fat upper wick is not a stub-upper crow.
+    fat, fat_fire = _three_black_crows_tape(upper_wick_frac=0.30)
+    assert int(
+        _signals("three_black_crows", fat, side=SignalSide.SHORT)["signal"].iloc[fat_fire]
+    ) == 0
+    # Locked open-in-prior-range still holds if a caller tries to loosen it.
+    gap, gap_fire = _three_black_crows_tape(first_open_in_prior=False)
+    loose_open = factory(replace(base, require_open_in_prior_range=False)).generate_signals(gap)
+    assert int(loose_open["signal"].iloc[gap_fire]) == 0
+    assert int(
+        _signals("three_black_crows", gap, side=SignalSide.SHORT)["signal"].iloc[gap_fire]
+    ) == 0
+    # Locked n_crows=3: two crows do not fire even if a caller asks for 2.
+    two, two_fire = _three_black_crows_tape(two_crows_only=True)
+    two_loose = factory(replace(base, n_crows=2)).generate_signals(two)
+    assert int(two_loose["signal"].iloc[two_fire]) == 0
+    assert int(
+        _signals("three_black_crows", two, side=SignalSide.SHORT)["signal"].iloc[two_fire]
+    ) == 0
+    # Descending-closes lock: third crow still bearish but close not lower.
+    flat, flat_fire = _three_black_crows_tape(descending=False)
+    assert int(
+        _signals("three_black_crows", flat, side=SignalSide.SHORT)["signal"].iloc[flat_fire]
+    ) == 0
+    # Third bar bullish is not a crow.
+    white, white_fire = _three_black_crows_tape(third_bearish=False)
+    assert int(
+        _signals("three_black_crows", white, side=SignalSide.SHORT)["signal"].iloc[white_fire]
+    ) == 0
+    # LONG / three white soldiers is not this family.
+    long_sig = _signals("three_black_crows", candles, side=SignalSide.LONG)
+    assert int(long_sig["signal"].iloc[fire]) == 0
+    assert int((long_sig["signal"] == 1).sum()) == 0
+    assert int((long_sig["signal"] == -1).sum()) == 0
+    # Distinct from three_bar_play leftover (rest-inside-mother + break).
+    play_long = _signals("three_bar_play", candles)
+    play_short = _signals("three_bar_play", candles, side=SignalSide.SHORT)
+    assert int(play_long["signal"].iloc[fire]) == 0
+    assert int(play_short["signal"].iloc[fire]) == 0
+    # Distinct from engulfing_fail_reversion (job 126 — engulf then fail).
+    engulf_long = _signals("engulfing_fail_reversion", candles)
+    engulf_short = _signals("engulfing_fail_reversion", candles, side=SignalSide.SHORT)
+    assert int(engulf_long["signal"].iloc[fire]) == 0
+    assert int(engulf_short["signal"].iloc[fire]) == 0
+
+
+def test_three_black_crows_kit_locks_short_only() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("three_black_crows", SignalSide.SHORT)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_body_frac", "max_upper_wick_frac"}
+    assert space["min_body_frac"] == [0.40, 0.50]
+    assert space["max_upper_wick_frac"] == [0.15, 0.25]
+    assert "n_crows" not in space
+    assert "require_open_in_prior_range" not in space
+    assert base.side is SignalSide.SHORT
+    spec = None
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("three_black_crows")
+    assert spec is not None
+    assert spec.side == "SHORT"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "three_black_crows"
+
+
+def test_three_black_crows_no_lookahead() -> None:
+    candles, fire = _three_black_crows_tape()
+    signals = _signals("three_black_crows", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    cut = fire + 1
+    truncated = _signals("three_black_crows", candles.iloc[:cut], side=SignalSide.SHORT)
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite crow geometry or the fire decision.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("three_black_crows", shocked, side=SignalSide.SHORT)
+    assert after["body_frac"].iloc[fire] == pytest.approx(signals["body_frac"].iloc[fire])
+    assert after["upper_wick_frac"].iloc[fire] == pytest.approx(
+        signals["upper_wick_frac"].iloc[fire]
+    )
+    assert after["min_body_frac_3"].iloc[fire] == pytest.approx(
+        signals["min_body_frac_3"].iloc[fire]
+    )
+    assert after["max_upper_wick_frac_3"].iloc[fire] == pytest.approx(
+        signals["max_upper_wick_frac_3"].iloc[fire]
+    )
+    assert int(after["signal"].iloc[fire]) == -1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -6239,6 +6484,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("expansion_fail_fade", {"expansion_mult"}),
         ("candle_reject_reversal", {"min_lower_wick_frac", "max_body_frac"}),
         ("bullish_rectangle_fail_reclaim", {"lookback", "atr_tol"}),
+        ("three_black_crows", {"min_body_frac", "max_upper_wick_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -6268,6 +6514,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("expansion_fail_fade", {"expansion_mult"}),
         ("candle_reject_reversal", {"min_lower_wick_frac", "max_body_frac"}),
         ("bullish_rectangle_fail_reclaim", {"lookback", "atr_tol"}),
+        ("three_black_crows", {"min_body_frac", "max_upper_wick_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
