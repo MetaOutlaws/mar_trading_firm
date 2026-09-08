@@ -6286,21 +6286,22 @@ def test_three_black_crows_schema_and_short_entry() -> None:
     from dataclasses import replace
 
     from core.strategy.three_black_crows import (
-        N_CROWS_LOCKED,
+        N_BARS_LOCKED,
         REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED,
     )
     from research.validate import strategy_kit
 
-    # Quant lock: search only body floor + upper-wick cap. Crow count and
+    # Quant lock: search only body floor + upper-wick cap. n_bars and
     # open-in-prior-range stay fixed. SHORT-only — not BOTH.
     factory, base, space = strategy_kit("three_black_crows", SignalSide.SHORT)
     assert base.side is SignalSide.SHORT
     assert base.min_body_frac == pytest.approx(0.40)
     assert base.max_upper_wick_frac == pytest.approx(0.25)
-    assert base.n_crows == N_CROWS_LOCKED
+    assert base.n_bars == N_BARS_LOCKED
     assert base.require_open_in_prior_range is REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED
     assert space["min_body_frac"] == [0.40, 0.50]
     assert space["max_upper_wick_frac"] == [0.15, 0.25]
+    assert "n_bars" not in space
     assert "n_crows" not in space
     assert "require_open_in_prior_range" not in space
     assert "max_upper_wick" not in space
@@ -6357,9 +6358,9 @@ def test_three_black_crows_schema_and_short_entry() -> None:
     assert int(
         _signals("three_black_crows", gap, side=SignalSide.SHORT)["signal"].iloc[gap_fire]
     ) == 0
-    # Locked n_crows=3: two crows do not fire even if a caller asks for 2.
+    # Locked n_bars=3: two crows do not fire even if a caller asks for 2.
     two, two_fire = _three_black_crows_tape(two_crows_only=True)
-    two_loose = factory(replace(base, n_crows=2)).generate_signals(two)
+    two_loose = factory(replace(base, n_bars=2)).generate_signals(two)
     assert int(two_loose["signal"].iloc[two_fire]) == 0
     assert int(
         _signals("three_black_crows", two, side=SignalSide.SHORT)["signal"].iloc[two_fire]
@@ -6389,6 +6390,11 @@ def test_three_black_crows_schema_and_short_entry() -> None:
     engulf_short = _signals("engulfing_fail_reversion", candles, side=SignalSide.SHORT)
     assert int(engulf_long["signal"].iloc[fire]) == 0
     assert int(engulf_short["signal"].iloc[fire]) == 0
+    # Distinct from candle_reject_reversal (single-bar hammer / hanging-man).
+    reject_long = _signals("candle_reject_reversal", candles)
+    reject_short = _signals("candle_reject_reversal", candles, side=SignalSide.SHORT)
+    assert int(reject_long["signal"].iloc[fire]) == 0
+    assert int(reject_short["signal"].iloc[fire]) == 0
 
 
 def test_three_black_crows_kit_locks_short_only() -> None:
@@ -6399,6 +6405,7 @@ def test_three_black_crows_kit_locks_short_only() -> None:
     assert extra == {"min_body_frac", "max_upper_wick_frac"}
     assert space["min_body_frac"] == [0.40, 0.50]
     assert space["max_upper_wick_frac"] == [0.15, 0.25]
+    assert "n_bars" not in space
     assert "n_crows" not in space
     assert "require_open_in_prior_range" not in space
     assert base.side is SignalSide.SHORT

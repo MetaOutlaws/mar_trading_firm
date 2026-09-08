@@ -12,7 +12,7 @@ Geometry (range = high-low; zero-range bars never qualify as a crow):
 
 Quant-locked (not searched):
 
-    - exactly ``n_crows = 3``
+    - exactly ``n_bars = 3``
     - each crow opens in the prior bar's high-low
     - SHORT side only
     - descending closes across the three crows
@@ -41,8 +41,8 @@ import pandas as pd
 
 from core.strategy.base import SignalSide, Strategy, StrategyParams
 
-# Classic three-crow window. Walk-forward must not search this.
-N_CROWS_LOCKED = 3
+# Classic three-bar crow window. Walk-forward must not search this.
+N_BARS_LOCKED = 3
 # Each crow must open inside the immediately prior bar's high-low.
 REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED = True
 
@@ -55,8 +55,8 @@ class ThreeBlackCrowsParams(StrategyParams):
     min_body_frac: float = 0.40
     # Maximum upper-wick share of each crow. Quant grid: [0.15, 0.25].
     max_upper_wick_frac: float = 0.25
-    # Quant-locked crow count. Not a free search param.
-    n_crows: int = N_CROWS_LOCKED
+    # Quant-locked bar count (Garwe stamp n_bars=3). Not a free search param.
+    n_bars: int = N_BARS_LOCKED
     # Quant-locked open-in-prior-range. Not a free search param.
     require_open_in_prior_range: bool = REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED
     take_profit_pct: float = 0.04
@@ -87,7 +87,7 @@ class ThreeBlackCrowsStrategy(Strategy):
         # Searched knobs stay caller-set. Locks stay locked even if overridden.
         min_body = float(params.min_body_frac)
         max_upper = float(params.max_upper_wick_frac)
-        n_crows = N_CROWS_LOCKED
+        n_bars = N_BARS_LOCKED
         require_open = REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED
 
         bar_range = (high - low).replace(0, pd.NA)
@@ -117,9 +117,9 @@ class ThreeBlackCrowsStrategy(Strategy):
         if require_open:
             crow = crow & open_in_prior
 
-        # Exactly three consecutive crows ending at t. n_crows is locked at 3.
+        # Exactly three consecutive crows ending at t. n_bars is locked at 3.
         three = crow
-        for lag in range(1, n_crows):
+        for lag in range(1, n_bars):
             three = three & crow.shift(lag)
 
         # Descending closes across the three-crow window only.
@@ -130,8 +130,8 @@ class ThreeBlackCrowsStrategy(Strategy):
         signals["open_in_prior_range"] = open_in_prior.fillna(False)
         signals["crow"] = crow.fillna(False)
         # Window diagnostics so a later shock cannot rewrite bar-t geometry.
-        min_body_3 = body_frac.rolling(n_crows, min_periods=n_crows).min()
-        max_upper_3 = upper_wick_frac.rolling(n_crows, min_periods=n_crows).max()
+        min_body_3 = body_frac.rolling(n_bars, min_periods=n_bars).min()
+        max_upper_3 = upper_wick_frac.rolling(n_bars, min_periods=n_bars).max()
         signals["min_body_frac_3"] = min_body_3
         signals["max_upper_wick_frac_3"] = max_upper_3
 
@@ -166,7 +166,7 @@ class ThreeBlackCrowsStrategy(Strategy):
 
 
 __all__ = [
-    "N_CROWS_LOCKED",
+    "N_BARS_LOCKED",
     "REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED",
     "ThreeBlackCrowsParams",
     "ThreeBlackCrowsStrategy",

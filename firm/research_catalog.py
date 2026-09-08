@@ -1063,7 +1063,7 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
             "black crows: three consecutive bearish descending "
             "closes, each opening in the prior high-low, substantial "
             "bodies, limited upper wicks. SHORT entry after the "
-            "third crow confirms. Quant-locked grid: n_crows=3 "
+            "third crow confirms. Quant-locked grid: n_bars=3 "
             "(not searched), open-in-prior-range locked, SHORT only "
             "(not BOTH / not three white soldiers). Free search "
             "(2 only): min_body_frac [0.40, 0.50], "

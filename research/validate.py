@@ -1079,7 +1079,7 @@ def _novel_kit(name: str, side: SignalSide):
             "core.strategy.three_black_crows",
             "ThreeBlackCrowsParams",
             "ThreeBlackCrowsStrategy",
-            # n_crows=3, open-in-prior-range, and SHORT side locked.
+            # n_bars=3, open-in-prior-range, and SHORT side locked.
             # Search body floor + upper-wick cap only.
             {"min_body_frac": [0.40, 0.50], "max_upper_wick_frac": [0.15, 0.25]},
         ),
