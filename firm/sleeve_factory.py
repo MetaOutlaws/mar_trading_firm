@@ -2193,6 +2193,42 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "wick rejection and not a doji-star run-plus-confirm."
         ),
     ),
+    SleeveSpec(
+        name="bullish_rectangle_fail_reclaim",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Classic flat dual-rail rectangle (multi-touch support + "
+            "resistance). LONG = close below the flat lower rail, then "
+            "close back inside the box. SHORT = close above the flat "
+            "upper rail, then close back inside. Rails are published "
+            "swing clusters whose span is <= atr_tol · ATR(20), at "
+            "least two touches per rail. Quant-locked: "
+            "max_bars_outside=2 (not searched; clearer of job 119), "
+            "require_close_inside=True, ATR period 20, "
+            "min_touches_per_rail=2, PIVOT_LEFT=3. Free search (2 "
+            "only): lookback [24, 32], atr_tol [0.10, 0.15]. Not "
+            "failed_range_break_reversion (119 — Donchian "
+            "close-through, no dual-rail multi-touch flat rectangle). "
+            "Not failed_break_reclaim (130 — Donchian wick-probe, no "
+            "flat rectangle rails / multi-touch box). Not a triangle / "
+            "wedge / H&S / cup / pennant / three_black_crows / "
+            "displacement recode. Do not recode spent families 118–132."
+        ),
+        summary=(
+            "Fade a close back inside a flat dual-rail rectangle after "
+            "a close-outside probe of support (LONG) or resistance "
+            "(SHORT) as one 4h BOTH family."
+        ),
+        justification=(
+            "A multi-touch flat support-and-resistance box that fades "
+            "a close-outside fail-reclaim is not a Donchian "
+            "close-through (119), not a Donchian wick-probe reclaim "
+            "(130), and not a breakout continuation."
+        ),
+    ),
 ]
 
 

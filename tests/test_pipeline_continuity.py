@@ -673,6 +673,7 @@ def test_promote_remaining_into_top5_after_postmortem(tmp_path, monkeypatch) -> 
                     "failed_break_reclaim@4h/4h": 16,
                     "expansion_fail_fade@4h/4h": 16,
                     "candle_reject_reversal@4h/4h": 16,
+                    "bullish_rectangle_fail_reclaim@4h/4h": 16,
                     "session_boundary_volume_fade@4h/4h": 16,
                     "vwap_spread_exhaustion@4h/4h": 16,
                     "vwap_volatility_band_fade@1h/1h": 16,

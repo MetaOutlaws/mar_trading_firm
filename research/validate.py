@@ -1066,6 +1066,15 @@ def _novel_kit(name: str, side: SignalSide):
             # No run_bars. Search lower-wick floor + body cap only.
             {"min_lower_wick_frac": [0.55, 0.65], "max_body_frac": [0.20, 0.35]},
         ),
+        "bullish_rectangle_fail_reclaim": (
+            "core.strategy.bullish_rectangle_fail_reclaim",
+            "BullishRectangleFailReclaimParams",
+            "BullishRectangleFailReclaimStrategy",
+            # max_bars_outside locked at 2. Close-inside, ATR(20),
+            # min_touches=2, and PIVOT_LEFT=3 locked. Search lookback
+            # + atr_tol only.
+            {"lookback": [24, 32], "atr_tol": [0.10, 0.15]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
