@@ -2299,6 +2299,40 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "blowoff fade."
         ),
     ),
+    SleeveSpec(
+        name="atr_open_flush_fade",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Same-bar open flush then fade through the open as one "
+            "4h BOTH family. Flush distance is k*ATR(20) from the "
+            "signal-bar open (ATR known before the bar so the flush "
+            "cannot lift its own threshold). Not a London IB fail, "
+            "not a prior-close magnet stretch, not a next-bar "
+            "expansion fail, not a UTC-day ORB fail. Quant-locked: "
+            "ATR20, same-bar geometry, SHORT=up-flush / "
+            "LONG=down-flush. Free search (1 only): k [1.0, 1.5]. "
+            "Not ib_fail_reversion (124). Not "
+            "prior_close_magnet_fade (128). Not expansion_fail_fade "
+            "(131). Not orb_fail_reversion. Not "
+            "prior_week_extreme_reject (CEO superseded — do not "
+            "implement). Not NR7 / rectangle / three_black / "
+            "bb_medium. Do not recode spent families 118–137."
+        ),
+        summary=(
+            "Fade a same-bar open flush that closes back through "
+            "the open (SHORT = up-flush fade, LONG = down-flush "
+            "fade) as one 4h BOTH family."
+        ),
+        justification=(
+            "A locked ATR20 same-bar open-flush fade (SHORT up / "
+            "LONG down, search k only) is not a London IB fail, "
+            "not a prior-close magnet stretch, not a next-bar "
+            "expansion fail, and not a UTC-day ORB fail."
+        ),
+    ),
 ]
 
 
