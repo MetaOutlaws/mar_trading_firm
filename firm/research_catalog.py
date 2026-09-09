@@ -1167,6 +1167,32 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "sma20_stretch_fade@4h/4h",
+        "family": "sma20_stretch_fade",
+        "name": "sma20_stretch_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 40,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a same-bar "
+            "SMA20 wick stretch that reclaims toward SMA. "
+            "Quant-locked grid: SMA period=20 and ATR period=20 "
+            "(not searched), LONG=stretch below then reclaim / "
+            "SHORT=stretch above then fade. Free search (1 only): "
+            "k [1.5, 2.0]. BOTH sides honest. Walk-forward is not "
+            "started from this coding PR. Not "
+            "bb_medium_bw_upper_reject, not atr_open_flush_fade "
+            "(138), not utc_day_open_flush_fade (139), not "
+            "london_close_inventory_fade (100), not "
+            "three_white_soldiers (140)."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

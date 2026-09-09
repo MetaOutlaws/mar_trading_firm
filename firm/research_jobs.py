@@ -181,6 +181,7 @@ CLOCK_BY_FAMILY = {
     "atr_open_flush_fade": "4h/4h",
     "utc_day_open_flush_fade": "4h/4h",
     "three_white_soldiers": "4h/4h",
+    "sma20_stretch_fade": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -209,6 +210,8 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         return "funding_fade"
     if "ema" in blob and "adx" in blob:
         return "ema_adx_trend"
+    if "sma20_stretch" in blob or "sma20" in blob:
+        return "sma20_stretch_fade"
     if "bb_medium" in blob or "medium_bw_upper" in blob:
         return "bb_medium_bw_upper_reject"
     if "bollinger" in blob or "mean rev" in blob or "mean_rev" in blob:

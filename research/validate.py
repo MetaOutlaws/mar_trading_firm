@@ -1116,6 +1116,14 @@ def _novel_kit(name: str, side: SignalSide):
             # Search body floor + lower-wick cap only.
             {"min_body_frac": [0.40, 0.50], "max_lower_wick_frac": [0.15, 0.25]},
         ),
+        "sma20_stretch_fade": (
+            "core.strategy.sma20_stretch_fade",
+            "Sma20StretchFadeParams",
+            "Sma20StretchFadeStrategy",
+            # sma_n and atr_n locked at 20. Same-bar wick stretch
+            # then halfway reclaim toward SMA locked. Search k only.
+            {"k": [1.5, 2.0]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
