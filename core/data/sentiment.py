@@ -227,14 +227,18 @@ class SentimentSnapshotModel(BaseModel):
 
 
 def _normalize_takeaway(text: str) -> str | None:
-    """Pass Watch prose through. Coerce Fit to `Fit: <class>` or drop family ids."""
+    """Pass Watch prose through. Coerce Fit to `Fit: <class>` or drop family ids.
+
+    Luke's live file often writes `Fit: fade.` (trailing period). Strip trailing
+    punctuation/whitespace before the class check so a valid Fit is not dropped.
+    """
     stripped = str(text or "").strip()
     if not stripped:
         return None
     match = _FIT_LINE.match(stripped)
     if not match:
         return stripped
-    klass = match.group(1).strip().lower()
+    klass = match.group(1).strip().lower().rstrip(" \t.,;:!?")
     if klass not in VALID_FIT_CLASSES:
         return None
     return f"Fit: {klass}"

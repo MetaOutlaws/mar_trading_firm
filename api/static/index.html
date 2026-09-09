@@ -1865,7 +1865,7 @@ function takeawayParts(text) {
   let body = match[2];
   // Fit is a class label only: fade | breakout | session | candle — never a family id.
   if (label === "Fit") {
-    const klass = String(body || "").trim().toLowerCase();
+    const klass = String(body || "").trim().toLowerCase().replace(/[\s.,;:!?]+$/, "");
     body = ["fade", "breakout", "session", "candle"].includes(klass) ? klass : "";
   }
   return { kind: label.toLowerCase(), label, body };

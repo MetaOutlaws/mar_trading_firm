@@ -441,6 +441,38 @@ def test_fit_takeaway_is_class_only_not_family_id() -> None:
     assert kept["takeaways"] == ["Watch: ETH lag vs BTC", "Fit: breakout"]
 
 
+def test_fit_takeaway_strips_trailing_period() -> None:
+    """Paper file writes `Fit: fade.` — must not drop the second takeaway."""
+    watch = (
+        "Watch: ZEC privacy pocket crowded; SOL/STONK/VVV promo/chase "
+        "— not clean asset bids."
+    )
+    parsed = validate_sentiment_blob(_blob(takeaways=[watch, "Fit: fade."]))
+    assert parsed["takeaways"] == [watch, "Fit: fade"]
+
+    spaced = validate_sentiment_blob(_blob(takeaways=[watch, "Fit: fade.  "]))
+    assert spaced["takeaways"] == [watch, "Fit: fade"]
+
+
+def test_api_sentiment_keeps_watch_and_fit_with_trailing_period(
+    firm_db, tmp_path, monkeypatch
+) -> None:
+    from fastapi.testclient import TestClient
+
+    watch = (
+        "Watch: ZEC privacy pocket crowded; SOL/STONK/VVV promo/chase "
+        "— not clean asset bids."
+    )
+    dest = tmp_path / "last_sentiment.json"
+    persist_sentiment(_blob(headline="CT tape", takeaways=[watch, "Fit: fade."]), dest)
+    monkeypatch.setattr("core.data.sentiment.LAST_SENTIMENT_PATH", dest)
+    from api.app import app
+
+    body = TestClient(app).get("/api/sentiment").json()
+    assert body["takeaways"] == [watch, "Fit: fade"]
+    assert len(body["takeaways"]) == 2
+
+
 def test_reading_as_of_and_n_passthrough(tmp_path: Path) -> None:
     stamp = _as_of()
     blob = _blob(
