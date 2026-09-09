@@ -32,7 +32,7 @@ def test_timeout_routes_to_ops_escalation(firm_db, monkeypatch, tmp_path) -> Non
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     monkeypatch.setattr(research_catalog, "paper_book_finished_keys", lambda: set())
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
-    monkeypatch.setattr("firm.research_jobs.start_job", lambda job_id: True)
+    monkeypatch.setattr("firm.research_jobs.start_job", lambda job_id, explicit=False: True)
 
     result = notify_employee_failure(
         "quant_researcher", "gemini call failed: The read operation timed out"
@@ -187,7 +187,7 @@ def test_recovered_timeout_is_not_a_live_failure(firm_db, monkeypatch, tmp_path)
     monkeypatch.setattr(research_catalog, "CATALOG_RANKING_PATH", tmp_path / "ranking.json")
     monkeypatch.setattr(research_catalog, "paper_book_finished_keys", lambda: set())
     (tmp_path / "jobs.json").write_text('{"jobs":[]}', encoding="utf-8")
-    monkeypatch.setattr("firm.research_jobs.start_job", lambda job_id: True)
+    monkeypatch.setattr("firm.research_jobs.start_job", lambda job_id, explicit=False: True)
 
     fail_id = memory.start_run("quant_researcher", "Quant Researcher", "agenda")
     memory.finish_run(

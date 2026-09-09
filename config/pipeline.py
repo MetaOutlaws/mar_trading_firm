@@ -26,8 +26,10 @@ Conflicts vs the implementation brief (not silently reinterpreted):
    PIPELINE_WF_PARALLELISM if Bybit rate-limits. The 24h auto-advance
    budget is a same-grid loop cap; a new family@clock@side still starts.
 
-5. Tier A auto-advance relocates the human gate to paper-to-live. A global
-   PIPELINE_AUTO_ADVANCE=false switch reverts to default-block.
+5. Auto-advance is fail-closed. PIPELINE_AUTO_ADVANCE unset or false never
+   auto-starts a walk-forward (clock expand, leftover fill, next-family).
+   Harvest/win does not spawn a finer clock unless Inbox/operator authorizes
+   that expand. The explicit start_job path stays for Marcus/operator.
 """
 
 from __future__ import annotations
@@ -137,7 +139,7 @@ class PipelineConfig:
 def pipeline_config() -> PipelineConfig:
     s = get_settings()
     return PipelineConfig(
-        auto_advance=bool(s.pipeline_auto_advance),
+        auto_advance=bool(getattr(s, "pipeline_auto_advance", False)),
         auto_advance_budget_24h=int(s.pipeline_auto_advance_budget_24h),
         circuit_breaker_rejects=int(s.pipeline_circuit_breaker_rejects),
         wf_parallelism=int(s.pipeline_wf_parallelism),

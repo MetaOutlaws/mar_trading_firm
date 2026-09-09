@@ -74,12 +74,36 @@ def test_non_strategy_approve_does_not_queue() -> None:
     assert "not a strategy" in result["next_step"].lower()
 
 
+def test_start_job_refuses_auto_start_when_gated(tmp_path, monkeypatch, caplog) -> None:
+    """Auto start_job is fail-closed when PIPELINE_AUTO_ADVANCE is false."""
+    import logging
+
+    from config.settings import get_settings
+    from firm import research_jobs
+
+    monkeypatch.setenv("PIPELINE_AUTO_ADVANCE", "false")
+    get_settings.cache_clear()
+    monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    _isolate_finished_grids(monkeypatch, tmp_path)
+    (tmp_path / "research_jobs.json").write_text(
+        '{"jobs":[{"id":137,"family":"bb_medium_bw_upper_reject","status":"queued",'
+        '"clock":"1h/1h","side":"BOTH"}]}',
+        encoding="utf-8",
+    )
+    caplog.set_level(logging.WARNING)
+    assert research_jobs.start_job(137, explicit=False) is False
+    job = next(j for j in research_jobs.list_jobs() if j["id"] == 137)
+    assert job["status"] == "queued"
+    assert job.get("pid") is None
+    assert any("Refusing auto-expand" in rec.message for rec in caplog.records)
+
+
 def test_coded_family_queues_without_spawning(tmp_path, monkeypatch) -> None:
     from firm import research_jobs
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
 
     result = on_strategy_approved(
@@ -114,7 +138,7 @@ def test_uncoded_family_is_blocked_not_spawned(tmp_path, monkeypatch) -> None:
     spawned: list[int] = []
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: spawned.append(job_id) or True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: spawned.append(job_id) or True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
 
     result = on_strategy_approved(
@@ -137,7 +161,7 @@ def test_catch_up_only_starts_coded_untested_families(tmp_path, monkeypatch) -> 
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
     monkeypatch.setattr("firm.memory.approved_code_mandates", lambda limit=20: [])
     monkeypatch.setattr(
@@ -410,7 +434,7 @@ def test_code_family_approve_starts_walk_forward_when_coded(tmp_path, monkeypatc
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
 
     result = on_operator_approved(
@@ -435,7 +459,7 @@ def test_code_family_approve_starts_opening_range_when_coded(tmp_path, monkeypat
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
 
     result = on_operator_approved(
@@ -460,7 +484,7 @@ def test_catch_up_starts_approved_code_mandate(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
     monkeypatch.setattr("firm.memory.decided_strategy_proposals", lambda limit=20: [])
     monkeypatch.setattr(
@@ -553,7 +577,7 @@ def test_already_tested_clock_does_not_spawn(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
     _isolate_finished_grids(monkeypatch, tmp_path)
-    monkeypatch.setattr(research_jobs, "start_job", lambda job_id: True)
+    monkeypatch.setattr(research_jobs, "start_job", lambda job_id, explicit=False: True)
     monkeypatch.setattr("firm.memory.mark_research_status", lambda *args, **kwargs: 0)
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":[{"family":"donchian_breakout","status":"done","clock":"1h/4h","pairs_approved":0}]}',
