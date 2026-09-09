@@ -135,6 +135,7 @@ APPROVED = [
     "atr_open_flush_fade",
     "utc_day_open_flush_fade",
     "three_white_soldiers",
+    "sma20_stretch_fade",
 ]
 
 
@@ -7500,6 +7501,245 @@ def test_three_white_soldiers_no_lookahead() -> None:
     )
 
 
+def _sma20_stretch_tape(
+    *,
+    long_side: bool,
+    stretch: bool = True,
+    reclaim: bool = True,
+    n: int = 50,
+    fire: int = 42,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet 100±1 tape, then one SMA wick-stretch bar.
+
+    Quiet TR is 2 so Wilder ATR(20) settles near 2. Fire is 18:00 UTC so
+    this is not a London-close (15:00) inventory bar. Close stays on the
+    stretched side of SMA (and of the bar open) so this is not an
+    open-flush fade through the open, not a UTC day-open fade through
+    100, and not a three-white-soldiers print.
+
+    Default wick reach 3.4 sits between k=1.5 and k=2.0 after the fire
+    bar inflates current ATR, so search k matters.
+    """
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    # 3.4 points is 1.7 * quiet ATR. After Wilder updates, stretch is
+    # still >= 1.5 ATR and < 2.0 ATR.
+    reach = 3.4
+    if stretch:
+        if long_side:
+            # Stretch below SMA; close reclaims toward SMA but stays
+            # below open / day-open so atr_open / utc_day LONG stay flat.
+            low[fire] = 100.0 - reach
+            close[fire] = 99.85 if reclaim else 96.70
+            open_[fire] = 100.0
+            high[fire] = max(open_[fire], close[fire]) + 0.05
+        else:
+            high[fire] = 100.0 + reach
+            close[fire] = 100.15 if reclaim else 103.30
+            open_[fire] = 100.0
+            low[fire] = min(open_[fire], close[fire]) - 0.05
+    index = _hourly(n)
+    # Fire must not land on the 15:00 London-close hour.
+    assert int(index[fire].hour) != 15
+    return _ohlcv(index, close, high=high, low=low, open_=open_), fire
+
+
+def _assert_sma20_clear_of_siblings(candles: pd.DataFrame, fire: int, side: SignalSide) -> None:
+    """This family is not a clone of the spent / distinct stretch fades."""
+    assert int(_signals("bb_medium_bw_upper_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("atr_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("utc_day_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("three_white_soldiers", candles, side=side)["signal"].iloc[fire]) == 0
+
+
+def test_sma20_stretch_fade_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.sma20_stretch_fade import (
+        ATR_N_LOCKED,
+        RECLAIM_FRAC_LOCKED,
+        SMA_N_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: search k only. SMA20 and ATR20 stay fixed.
+    factory, base, space = strategy_kit("sma20_stretch_fade", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.k == pytest.approx(1.5)
+    assert base.sma_n == SMA_N_LOCKED
+    assert base.atr_n == ATR_N_LOCKED
+    assert space["k"] == [1.5, 2.0]
+    assert "sma_n" not in space
+    assert "atr_n" not in space
+    assert "sma_period" not in space
+    assert "atr_period" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+
+    candles, fire = _sma20_stretch_tape(long_side=True)
+    signals = _signals("sma20_stretch_fade", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "sma",
+        "atr",
+        "stretch_below_atr",
+        "stretch_above_atr",
+        "stretched_below",
+        "stretched_above",
+        "reclaimed_toward_sma_long",
+        "reclaimed_toward_sma_short",
+    ):
+        assert column in signals.columns
+    # Magnet is SMA, not BB / bar-open / UTC day-open / London close.
+    assert "bb_mid" not in signals.columns
+    assert "bb_bandwidth" not in signals.columns
+    assert "bar_open" not in signals.columns
+    assert "day_open" not in signals.columns
+    assert "up_flush" not in signals.columns
+    assert "mother_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["stretched_below"].iloc[fire])
+    assert bool(signals["reclaimed_toward_sma_long"].iloc[fire])
+    assert not bool(signals["stretched_above"].iloc[fire])
+    stretch = float(signals["stretch_below_atr"].iloc[fire])
+    assert stretch >= 1.5
+    assert stretch < 2.0
+    sma = float(signals["sma"].iloc[fire])
+    atr = float(signals["atr"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    low_px = float(candles["low"].iloc[fire])
+    assert (sma - low_px) >= 1.5 * atr
+    assert close_px > sma - RECLAIM_FRAC_LOCKED * 1.5 * atr
+    # k=2.0 needs a deeper wick — search k matters.
+    tight = factory(replace(base, k=2.0)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    quiet, quiet_fire = _sma20_stretch_tape(long_side=True, stretch=False)
+    assert int(
+        _signals("sma20_stretch_fade", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    held, held_fire = _sma20_stretch_tape(long_side=True, reclaim=False)
+    held_sig = _signals("sma20_stretch_fade", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["stretched_below"].iloc[held_fire])
+    assert not bool(held_sig["reclaimed_toward_sma_long"].iloc[held_fire])
+    # Caller cannot unlock SMA / ATR periods — locks stay locked.
+    unlocked = factory(replace(base, sma_n=5, atr_n=5)).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["sma"].iloc[fire] == pytest.approx(signals["sma"].iloc[fire])
+    assert unlocked["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    _assert_sma20_clear_of_siblings(candles, fire, SignalSide.LONG)
+    # SHORT side does not take the stretch-below reclaim.
+    short_on_down = _signals("sma20_stretch_fade", candles, side=SignalSide.SHORT)
+    assert int(short_on_down["signal"].iloc[fire]) == 0
+    assert int((short_on_down["signal"] == -1).sum()) == 0
+
+
+def test_sma20_stretch_fade_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("sma20_stretch_fade", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.5, 2.0]
+
+    candles, fire = _sma20_stretch_tape(long_side=False)
+    signals = _signals("sma20_stretch_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["stretched_above"].iloc[fire])
+    assert bool(signals["reclaimed_toward_sma_short"].iloc[fire])
+    assert not bool(signals["stretched_below"].iloc[fire])
+    stretch = float(signals["stretch_above_atr"].iloc[fire])
+    assert stretch >= 1.5
+    assert stretch < 2.0
+    tight = factory(replace(base, k=2.0)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    quiet, quiet_fire = _sma20_stretch_tape(long_side=False, stretch=False)
+    assert int(
+        _signals("sma20_stretch_fade", quiet, side=SignalSide.SHORT)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    held, held_fire = _sma20_stretch_tape(long_side=False, reclaim=False)
+    held_sig = _signals("sma20_stretch_fade", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["stretched_above"].iloc[held_fire])
+    assert not bool(held_sig["reclaimed_toward_sma_short"].iloc[held_fire])
+    _assert_sma20_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_up = _signals("sma20_stretch_fade", candles, side=SignalSide.LONG)
+    assert int(long_on_up["signal"].iloc[fire]) == 0
+
+
+def test_sma20_stretch_fade_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("sma20_stretch_fade", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.5, 2.0]
+    assert "sma_n" not in space
+    assert "atr_n" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("sma20_stretch_fade")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "sma20_stretch_fade"
+
+
+def test_sma20_stretch_fade_no_lookahead() -> None:
+    candles, fire = _sma20_stretch_tape(long_side=True)
+    signals = _signals("sma20_stretch_fade", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "sma20_stretch_fade", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite prior SMA, ATR, or the fire decision.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("sma20_stretch_fade", shocked, side=SignalSide.LONG)
+    assert after["sma"].iloc[fire] == pytest.approx(signals["sma"].iloc[fire])
+    assert after["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert after["stretch_below_atr"].iloc[fire] == pytest.approx(
+        signals["stretch_below_atr"].iloc[fire]
+    )
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -7538,6 +7778,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("atr_open_flush_fade", {"k"}),
         ("utc_day_open_flush_fade", {"k"}),
         ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
+        ("sma20_stretch_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -7572,6 +7813,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("atr_open_flush_fade", {"k"}),
         ("utc_day_open_flush_fade", {"k"}),
         ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
+        ("sma20_stretch_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

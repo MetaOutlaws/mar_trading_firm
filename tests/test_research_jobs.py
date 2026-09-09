@@ -45,6 +45,10 @@ def test_infer_family_from_title_and_payload() -> None:
     assert infer_family({"family": "utc_day_open_flush_fade"}, "ATR open flush") == (
         "utc_day_open_flush_fade"
     )
+    assert infer_family({}, "Next: sma20_stretch_fade") == "sma20_stretch_fade"
+    assert infer_family({"family": "sma20_stretch_fade"}, "ATR channel breakout") == (
+        "sma20_stretch_fade"
+    )
     assert infer_family({"name": "ema_adx_trend"}, "") == "ema_adx_trend"
     assert infer_family({}, "ATR channel breakout") == "atr_channel_breakout"
     assert infer_family({}, "4h trend 1h pullback") == "trend_pullback_htf"
@@ -379,6 +383,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "atr_open_flush_fade" in coded
     assert "utc_day_open_flush_fade" in coded
     assert "three_white_soldiers" in coded
+    assert "sma20_stretch_fade" in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
     assert "bar_vwap_inflow_surge" not in novel_ready
@@ -427,6 +432,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "atr_open_flush_fade" not in novel_ready
     assert "utc_day_open_flush_fade" not in novel_ready
     assert "three_white_soldiers" not in novel_ready
+    assert "sma20_stretch_fade" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -899,6 +905,7 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "atr_open_flush_fade" not in families
     assert "utc_day_open_flush_fade" not in families
     assert "three_white_soldiers" not in families
+    assert "sma20_stretch_fade" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(
