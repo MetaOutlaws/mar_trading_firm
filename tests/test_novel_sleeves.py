@@ -134,6 +134,7 @@ APPROVED = [
     "bb_medium_bw_upper_reject",
     "atr_open_flush_fade",
     "utc_day_open_flush_fade",
+    "three_white_soldiers",
 ]
 
 
@@ -7231,6 +7232,274 @@ def test_utc_day_open_flush_fade_no_lookahead() -> None:
     )
 
 
+def _paint_bullish_soldier(
+    open_px: float,
+    range_: float,
+    body_frac: float,
+    lower_wick_frac: float,
+) -> tuple[float, float, float, float]:
+    """Return open/high/low/close for a bullish soldier with exact fractions."""
+    lower = lower_wick_frac * range_
+    body = body_frac * range_
+    low = open_px - lower
+    close = open_px + body
+    high = close + (range_ - lower - body)
+    return open_px, high, low, close
+
+
+def _three_white_soldiers_tape(
+    *,
+    body_frac: float = 0.45,
+    lower_wick_frac: float = 0.20,
+    first_open_in_prior: bool = True,
+    ascending: bool = True,
+    third_bullish: bool = True,
+    two_soldiers_only: bool = False,
+    n: int = 40,
+    fire: int = 24,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet downtrend then a classic three-soldier window ending at ``fire``."""
+    close = np.linspace(118.0, 100.0, n)
+    open_ = np.concatenate([[close[0]], close[:-1]])
+    high = np.maximum(open_, close) + 0.4
+    low = np.minimum(open_, close) - 0.4
+    # Wide prior so soldier-1 can open inside (or deliberately outside).
+    prior = fire - 3
+    open_[prior] = 110.0
+    close[prior] = 102.0
+    high[prior] = 120.0
+    low[prior] = 100.0
+    range_ = 10.0
+    first_open = 106.0 if first_open_in_prior else 95.0
+    o1, h1, l1, c1 = _paint_bullish_soldier(
+        open_px=first_open, range_=range_, body_frac=body_frac, lower_wick_frac=lower_wick_frac
+    )
+    if two_soldiers_only:
+        # Bar t-2 stays a quiet bearish print so the window is only two soldiers.
+        open_[fire - 2] = 116.0
+        close[fire - 2] = 112.0
+        high[fire - 2] = 117.0
+        low[fire - 2] = 111.0
+        second_open = 113.0
+    else:
+        open_[fire - 2], high[fire - 2], low[fire - 2], close[fire - 2] = o1, h1, l1, c1
+        second_open = max(min(c1 - 2.5, h1 - 0.2), l1 + 0.2)
+    o2, h2, l2, c2 = _paint_bullish_soldier(
+        open_px=second_open, range_=range_, body_frac=body_frac, lower_wick_frac=lower_wick_frac
+    )
+    open_[fire - 1], high[fire - 1], low[fire - 1], close[fire - 1] = o2, h2, l2, c2
+    third_open = max(min(c2 - 2.5, h2 - 0.2), l2 + 0.2)
+    if third_bullish:
+        if not ascending:
+            # Keep body/wick fractions. Drop the open so close sits below
+            # soldier-2 while the bar stays bullish and inside the prior range.
+            third_open = max(l2, c2 - body_frac * range_ - 0.5)
+        o3, h3, l3, c3 = _paint_bullish_soldier(
+            open_px=third_open, range_=range_, body_frac=body_frac, lower_wick_frac=lower_wick_frac
+        )
+        open_[fire], high[fire], low[fire], close[fire] = o3, h3, l3, c3
+    else:
+        open_[fire] = third_open
+        close[fire] = third_open - 4.0
+        high[fire] = open_[fire] + 0.4
+        low[fire] = close[fire] - 0.4
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_), fire
+
+
+def test_three_white_soldiers_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.three_white_soldiers import (
+        N_BARS_LOCKED,
+        REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: search only body floor + lower-wick cap. n_bars and
+    # open-in-prior-range stay fixed. LONG-only — not BOTH.
+    factory, base, space = strategy_kit("three_white_soldiers", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.min_body_frac == pytest.approx(0.40)
+    assert base.max_lower_wick_frac == pytest.approx(0.25)
+    assert base.n_bars == N_BARS_LOCKED
+    assert base.require_open_in_prior_range is REQUIRE_OPEN_IN_PRIOR_RANGE_LOCKED
+    assert space["min_body_frac"] == [0.40, 0.50]
+    assert space["max_lower_wick_frac"] == [0.15, 0.25]
+    assert "n_bars" not in space
+    assert "n_soldiers" not in space
+    assert "require_open_in_prior_range" not in space
+    assert "max_lower_wick" not in space
+    assert "max_upper_wick_frac" not in space
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_body_frac", "max_lower_wick_frac"}
+
+    candles, fire = _three_white_soldiers_tape()
+    signals = _signals("three_white_soldiers", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "body_frac",
+        "lower_wick_frac",
+        "open_in_prior_range",
+        "soldier",
+        "min_body_frac_3",
+        "max_lower_wick_frac_3",
+    ):
+        assert column in signals.columns
+    assert "crow" not in signals.columns
+    assert "upper_wick_frac" not in signals.columns
+    assert "rest_high" not in signals.columns
+    assert "engulfing" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["soldier"].iloc[fire])
+    assert bool(signals["open_in_prior_range"].iloc[fire])
+    assert float(signals["body_frac"].iloc[fire]) == pytest.approx(0.45)
+    assert float(signals["lower_wick_frac"].iloc[fire]) == pytest.approx(0.20)
+    assert float(signals["min_body_frac_3"].iloc[fire]) == pytest.approx(0.45)
+    assert float(signals["max_lower_wick_frac_3"].iloc[fire]) == pytest.approx(0.20)
+    # A 0.45 body clears 0.40 but not 0.50.
+    tight_body = factory(replace(base, min_body_frac=0.50)).generate_signals(candles)
+    assert int(tight_body["signal"].iloc[fire]) == 0
+    # A 0.20 lower wick clears 0.25 but not 0.15.
+    tight_wick = factory(replace(base, max_lower_wick_frac=0.15)).generate_signals(candles)
+    assert int(tight_wick["signal"].iloc[fire]) == 0
+    # Thin body is not a soldier even at the looser 0.40 floor.
+    thin, thin_fire = _three_white_soldiers_tape(body_frac=0.30)
+    assert int(
+        _signals("three_white_soldiers", thin, side=SignalSide.LONG)["signal"].iloc[thin_fire]
+    ) == 0
+    # Fat lower wick is not a stub-lower soldier.
+    fat, fat_fire = _three_white_soldiers_tape(lower_wick_frac=0.30)
+    assert int(
+        _signals("three_white_soldiers", fat, side=SignalSide.LONG)["signal"].iloc[fat_fire]
+    ) == 0
+    # Locked open-in-prior-range still holds if a caller tries to loosen it.
+    gap, gap_fire = _three_white_soldiers_tape(first_open_in_prior=False)
+    loose_open = factory(replace(base, require_open_in_prior_range=False)).generate_signals(gap)
+    assert int(loose_open["signal"].iloc[gap_fire]) == 0
+    assert int(
+        _signals("three_white_soldiers", gap, side=SignalSide.LONG)["signal"].iloc[gap_fire]
+    ) == 0
+    # Locked n_bars=3: two soldiers do not fire even if a caller asks for 2.
+    two, two_fire = _three_white_soldiers_tape(two_soldiers_only=True)
+    two_loose = factory(replace(base, n_bars=2)).generate_signals(two)
+    assert int(two_loose["signal"].iloc[two_fire]) == 0
+    assert int(
+        _signals("three_white_soldiers", two, side=SignalSide.LONG)["signal"].iloc[two_fire]
+    ) == 0
+    # Ascending-closes lock: third soldier still bullish but close not higher.
+    flat, flat_fire = _three_white_soldiers_tape(ascending=False)
+    assert int(
+        _signals("three_white_soldiers", flat, side=SignalSide.LONG)["signal"].iloc[flat_fire]
+    ) == 0
+    # Third bar bearish is not a soldier.
+    black, black_fire = _three_white_soldiers_tape(third_bullish=False)
+    assert int(
+        _signals("three_white_soldiers", black, side=SignalSide.LONG)["signal"].iloc[black_fire]
+    ) == 0
+    # SHORT / three black crows is not this family.
+    short_sig = _signals("three_white_soldiers", candles, side=SignalSide.SHORT)
+    assert int(short_sig["signal"].iloc[fire]) == 0
+    assert int((short_sig["signal"] == -1).sum()) == 0
+    assert int((short_sig["signal"] == 1).sum()) == 0
+    # Distinct from three_black_crows (job 134 — SHORT-only descending crows).
+    crows_short = _signals("three_black_crows", candles, side=SignalSide.SHORT)
+    crows_long = _signals("three_black_crows", candles, side=SignalSide.LONG)
+    assert int(crows_short["signal"].iloc[fire]) == 0
+    assert int(crows_long["signal"].iloc[fire]) == 0
+    # A crows tape must not fire this LONG family either.
+    crow_tape, crow_fire = _three_black_crows_tape()
+    soldiers_on_crows = _signals("three_white_soldiers", crow_tape, side=SignalSide.LONG)
+    assert int(soldiers_on_crows["signal"].iloc[crow_fire]) == 0
+    assert int((soldiers_on_crows["signal"] == 1).sum()) == 0
+    # Distinct from three_bar_play leftover (rest-inside-mother + break).
+    play_long = _signals("three_bar_play", candles)
+    play_short = _signals("three_bar_play", candles, side=SignalSide.SHORT)
+    assert int(play_long["signal"].iloc[fire]) == 0
+    assert int(play_short["signal"].iloc[fire]) == 0
+    # Distinct from engulfing_fail_reversion (job 126 — engulf then fail).
+    engulf_long = _signals("engulfing_fail_reversion", candles)
+    engulf_short = _signals("engulfing_fail_reversion", candles, side=SignalSide.SHORT)
+    assert int(engulf_long["signal"].iloc[fire]) == 0
+    assert int(engulf_short["signal"].iloc[fire]) == 0
+    # Distinct from atr_open_flush_fade (138 — same-bar bar-open flush).
+    atr_long = _signals("atr_open_flush_fade", candles, side=SignalSide.LONG)
+    atr_short = _signals("atr_open_flush_fade", candles, side=SignalSide.SHORT)
+    assert int(atr_long["signal"].iloc[fire]) == 0
+    assert int(atr_short["signal"].iloc[fire]) == 0
+    # Distinct from utc_day_open_flush_fade (139 — UTC day-open flush).
+    utc_long = _signals("utc_day_open_flush_fade", candles, side=SignalSide.LONG)
+    utc_short = _signals("utc_day_open_flush_fade", candles, side=SignalSide.SHORT)
+    assert int(utc_long["signal"].iloc[fire]) == 0
+    assert int(utc_short["signal"].iloc[fire]) == 0
+
+
+def test_three_white_soldiers_kit_locks_long_only() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("three_white_soldiers", SignalSide.LONG)
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_body_frac", "max_lower_wick_frac"}
+    assert space["min_body_frac"] == [0.40, 0.50]
+    assert space["max_lower_wick_frac"] == [0.15, 0.25]
+    assert "n_bars" not in space
+    assert "n_soldiers" not in space
+    assert "require_open_in_prior_range" not in space
+    assert "max_upper_wick_frac" not in space
+    assert base.side is SignalSide.LONG
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("three_white_soldiers")
+    assert spec is not None
+    assert spec.side == "LONG"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "three_white_soldiers"
+
+
+def test_three_white_soldiers_no_lookahead() -> None:
+    candles, fire = _three_white_soldiers_tape()
+    signals = _signals("three_white_soldiers", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals("three_white_soldiers", candles.iloc[:cut], side=SignalSide.LONG)
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite soldier geometry or the fire decision.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("three_white_soldiers", shocked, side=SignalSide.LONG)
+    assert after["body_frac"].iloc[fire] == pytest.approx(signals["body_frac"].iloc[fire])
+    assert after["lower_wick_frac"].iloc[fire] == pytest.approx(
+        signals["lower_wick_frac"].iloc[fire]
+    )
+    assert after["min_body_frac_3"].iloc[fire] == pytest.approx(
+        signals["min_body_frac_3"].iloc[fire]
+    )
+    assert after["max_lower_wick_frac_3"].iloc[fire] == pytest.approx(
+        signals["max_lower_wick_frac_3"].iloc[fire]
+    )
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -7268,6 +7537,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("bb_medium_bw_upper_reject", {"k"}),
         ("atr_open_flush_fade", {"k"}),
         ("utc_day_open_flush_fade", {"k"}),
+        ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -7301,6 +7571,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("bb_medium_bw_upper_reject", {"k"}),
         ("atr_open_flush_fade", {"k"}),
         ("utc_day_open_flush_fade", {"k"}),
+        ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

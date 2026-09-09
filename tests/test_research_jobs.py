@@ -378,6 +378,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "bb_medium_bw_upper_reject" in coded
     assert "atr_open_flush_fade" in coded
     assert "utc_day_open_flush_fade" in coded
+    assert "three_white_soldiers" in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
     assert "bar_vwap_inflow_surge" not in novel_ready
@@ -425,6 +426,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "bb_medium_bw_upper_reject" not in novel_ready
     assert "atr_open_flush_fade" not in novel_ready
     assert "utc_day_open_flush_fade" not in novel_ready
+    assert "three_white_soldiers" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -896,6 +898,7 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "bb_medium_bw_upper_reject" not in families
     assert "atr_open_flush_fade" not in families
     assert "utc_day_open_flush_fade" not in families
+    assert "three_white_soldiers" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

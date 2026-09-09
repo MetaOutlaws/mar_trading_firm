@@ -2367,6 +2367,47 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "inventory-close fade."
         ),
     ),
+    SleeveSpec(
+        name="three_white_soldiers",
+        template="novel",
+        clock="4h/4h",
+        side="LONG",
+        needs_feed=False,
+        novel_reason=(
+            "Classic three white soldiers as a LONG-only family. "
+            "Three consecutive bullish candles with ascending "
+            "closes; each opens within the prior candle's high-low; "
+            "substantial bodies; limited lower wicks. LONG entry "
+            "after the third soldier confirms. Quant-locked: "
+            "n_bars=3 (not searched), open-in-prior-range locked, "
+            "LONG only (not BOTH / not three black crows). Free "
+            "search (2 only): min_body_frac [0.40, 0.50], "
+            "max_lower_wick_frac [0.15, 0.25]. Not "
+            "three_black_crows (job 134 — SHORT-only descending "
+            "bearish crows). Not three_bar_play (trend + narrow "
+            "rest + break of rest leftover). Not "
+            "engulfing_fail_reversion (job 126 — two-bar body "
+            "engulf then fail through engulf open). Not "
+            "atr_open_flush_fade (138 — same-bar bar-open flush "
+            "fade). Not utc_day_open_flush_fade (139 — UTC "
+            "day-open flush fade). Not ny_close_inventory_fade "
+            "(banned/parked). Do not recode spent families "
+            "118–139. Do not modify three_black_crows geometry."
+        ),
+        summary=(
+            "LONG after a classic three-white-soldiers print "
+            "(three consecutive bullish ascending closes, each "
+            "opening in the prior range, substantial bodies, "
+            "limited lower wicks) as one 4h LONG family."
+        ),
+        justification=(
+            "A locked three-soldier ascending-close LONG with "
+            "open-in-prior-range and searched body/lower-wick "
+            "floors is not three_black_crows SHORT, not a "
+            "three-bar-play leftover, and not an engulfing-fail "
+            "or open-flush fade."
+        ),
+    ),
 ]
 
 

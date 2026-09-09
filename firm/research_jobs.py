@@ -180,6 +180,7 @@ CLOCK_BY_FAMILY = {
     "bb_medium_bw_upper_reject": "4h/4h",
     "atr_open_flush_fade": "4h/4h",
     "utc_day_open_flush_fade": "4h/4h",
+    "three_white_soldiers": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
