@@ -133,6 +133,7 @@ APPROVED = [
     "three_black_crows",
     "bb_medium_bw_upper_reject",
     "atr_open_flush_fade",
+    "utc_day_open_flush_fade",
 ]
 
 
@@ -6936,6 +6937,300 @@ def test_atr_open_flush_fade_no_lookahead() -> None:
     )
 
 
+def _4h(n: int, start: str = "2024-01-02") -> pd.DatetimeIndex:
+    """UTC 4h index aligned to 00:00 so the first bar of each day is the day-open."""
+    return pd.date_range(start, periods=n, freq="4h", tz="UTC")
+
+
+def _utc_day_open_flush_tape(
+    *,
+    long_side: bool,
+    flush: bool = True,
+    fade: bool = True,
+    k: float = 1.0,
+    n: int = 48,
+) -> tuple[pd.DataFrame, int, int]:
+    """4h tape. Fire is a later same-day bar (08:00), not the 00:00 day-open.
+
+    Quiet 100±1 bars so ATR ~ 2. The 08:00 bar opens *away* from the frozen
+    UTC day-open so this is not ``atr_open_flush_fade`` same-bar bar-open
+    geometry. Default flush is 1.2 * prior ATR: k=1.0 fires, k=1.5 does not.
+
+    Close prints outside the quiet 101/99 box so this is not an ORB fail or
+    prior-day extreme that requires a close back inside that box.
+    """
+    from core.strategy import indicators as ind
+
+    index = _4h(n)
+    # 2024-01-02 00:00 start: bar 30 is Jan 7 00:00, bar 32 is Jan 7 08:00.
+    day_open_idx = 30
+    fire = 32
+    assert int(index[day_open_idx].hour) == 0
+    assert int(index[fire].hour) == 8
+    assert index[day_open_idx].date() == index[fire].date()
+
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    quiet = _ohlcv(index, close, high=high, low=low, open_=open_)
+    atr_prev = float(
+        ind.atr(quiet["high"], quiet["low"], quiet["close"], 20).iloc[fire - 1]
+    )
+    assert atr_prev > 0
+    if flush:
+        # 1.2 * k * ATR at default k=1.0: enough for 1.0, short of 1.5.
+        reach = 1.2 * k * atr_prev
+        if long_side:
+            # Open below day_open so bar-open flush of atr_open_flush_fade
+            # would need a deeper low (open - k*ATR) than day_open - k*ATR.
+            open_[fire] = 100.0 - 0.25 * atr_prev
+            low[fire] = 100.0 - reach
+            # Close back above day_open and above the quiet 101/99 ORB/day box.
+            close[fire] = 101.5 if fade else 99.40
+            high[fire] = max(open_[fire], close[fire]) + 0.05
+        else:
+            open_[fire] = 100.0 + 0.25 * atr_prev
+            high[fire] = 100.0 + reach
+            # Close back below day_open and below the quiet 101/99 box.
+            close[fire] = 98.5 if fade else 100.60
+            low[fire] = min(open_[fire], close[fire]) - 0.05
+    return _ohlcv(index, close, high=high, low=low, open_=open_), fire, day_open_idx
+
+
+def _assert_clear_of_siblings(candles: pd.DataFrame, fire: int, side: SignalSide) -> None:
+    """This family is not a clone of the spent / distinct sleeves."""
+    assert int(_signals("atr_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_day_extreme_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_close_magnet_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("ib_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("orb_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("ny_cash_open_drive", candles, side=side)["signal"].iloc[fire]) == 0
+
+
+def test_utc_day_open_flush_fade_schema_and_short_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.utc_day_open_flush_fade import ATR_N_LOCKED, DAY_OPEN_WINDOW_HOURS
+    from research.validate import strategy_kit
+
+    # Quant lock: search k only. ATR20 and UTC day-open window stay fixed.
+    factory, base, space = strategy_kit("utc_day_open_flush_fade", SignalSide.SHORT)
+    assert base.side is SignalSide.SHORT
+    assert base.k == pytest.approx(1.0)
+    assert base.atr_n == ATR_N_LOCKED
+    assert space["k"] == [1.0, 1.5]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "window_hours" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+
+    candles, fire, day_open_idx = _utc_day_open_flush_tape(long_side=False)
+    signals = _signals("utc_day_open_flush_fade", candles, side=SignalSide.SHORT)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "atr",
+        "atr_prev",
+        "day_open",
+        "up_flush_atr",
+        "down_flush_atr",
+        "up_flush",
+        "down_flush",
+        "faded_below_day_open",
+        "faded_above_day_open",
+    ):
+        assert column in signals.columns
+    # Anchor is UTC day-open, not the signal bar's own open.
+    assert "bar_open" not in signals.columns
+    assert "mother_high" not in signals.columns
+    assert "london_mother" not in signals.columns
+    assert "prior_close" not in signals.columns
+    assert "expansion_tr" not in signals.columns
+    assert "orb_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    # The 00:00 day-open bar itself is not the fire — later same-day slot is.
+    assert int(signals["signal"].iloc[day_open_idx]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert float(signals["day_open"].iloc[fire]) == pytest.approx(100.0)
+    assert float(signals["day_open"].iloc[fire]) == pytest.approx(
+        float(candles["open"].iloc[day_open_idx])
+    )
+    # Fire bar opened away from day_open — not atr_open_flush_fade geometry.
+    assert float(candles["open"].iloc[fire]) != pytest.approx(100.0)
+    assert bool(signals["up_flush"].iloc[fire])
+    assert bool(signals["faded_below_day_open"].iloc[fire])
+    assert not bool(signals["down_flush"].iloc[fire])
+    assert float(signals["up_flush_atr"].iloc[fire]) >= 1.0
+    assert float(signals["up_flush_atr"].iloc[fire]) < 1.5
+    tight = factory(replace(base, k=1.5)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    quiet, quiet_fire, _ = _utc_day_open_flush_tape(long_side=False, flush=False)
+    assert int(
+        _signals("utc_day_open_flush_fade", quiet, side=SignalSide.SHORT)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    held, held_fire, _ = _utc_day_open_flush_tape(long_side=False, fade=False)
+    held_sig = _signals("utc_day_open_flush_fade", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["up_flush"].iloc[held_fire])
+    assert not bool(held_sig["faded_below_day_open"].iloc[held_fire])
+    # Caller cannot unlock ATR period — locks stay locked.
+    short_period = factory(replace(base, atr_n=5)).generate_signals(candles)
+    assert int(short_period["signal"].iloc[fire]) == -1
+    assert short_period["atr_prev"].iloc[fire] == pytest.approx(
+        signals["atr_prev"].iloc[fire]
+    )
+    assert DAY_OPEN_WINDOW_HOURS == pytest.approx(4.0)
+    _assert_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    # LONG side does not take the up-flush fade of day-open.
+    long_on_up = _signals("utc_day_open_flush_fade", candles, side=SignalSide.LONG)
+    assert int(long_on_up["signal"].iloc[fire]) == 0
+    assert int((long_on_up["signal"] == 1).sum()) == 0
+
+
+def test_utc_day_open_flush_fade_long_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("utc_day_open_flush_fade", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.0, 1.5]
+
+    candles, fire, day_open_idx = _utc_day_open_flush_tape(long_side=True)
+    signals = _signals("utc_day_open_flush_fade", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[day_open_idx]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert float(signals["day_open"].iloc[fire]) == pytest.approx(100.0)
+    assert bool(signals["down_flush"].iloc[fire])
+    assert bool(signals["faded_above_day_open"].iloc[fire])
+    assert not bool(signals["up_flush"].iloc[fire])
+    assert float(signals["down_flush_atr"].iloc[fire]) >= 1.0
+    assert float(signals["down_flush_atr"].iloc[fire]) < 1.5
+    tight = factory(replace(base, k=1.5)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    quiet, quiet_fire, _ = _utc_day_open_flush_tape(long_side=True, flush=False)
+    assert int(
+        _signals("utc_day_open_flush_fade", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    held, held_fire, _ = _utc_day_open_flush_tape(long_side=True, fade=False)
+    held_sig = _signals("utc_day_open_flush_fade", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["down_flush"].iloc[held_fire])
+    assert not bool(held_sig["faded_above_day_open"].iloc[held_fire])
+    _assert_clear_of_siblings(candles, fire, SignalSide.LONG)
+    short_on_down = _signals("utc_day_open_flush_fade", candles, side=SignalSide.SHORT)
+    assert int(short_on_down["signal"].iloc[fire]) == 0
+
+
+def test_utc_day_open_flush_fade_same_day_constraint() -> None:
+    """A spike that only qualifies vs yesterday's day-open must not fire today."""
+    candles, fire, day_open_idx = _utc_day_open_flush_tape(long_side=False)
+    signals = _signals("utc_day_open_flush_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert float(signals["day_open"].iloc[fire]) == pytest.approx(100.0)
+
+    # Next UTC day 00:00 is bar 36 (Jan 8). Lock a *different* day-open.
+    nxt_open = 36
+    nxt_fire = 38  # 08:00 the next calendar day
+    assert int(candles.index[nxt_open].hour) == 0
+    assert int(candles.index[nxt_fire].hour) == 8
+    assert candles.index[nxt_open].date() != candles.index[fire].date()
+
+    shocked = candles.copy()
+    # New day's open is far from yesterday's 100. A 100-centered flush is
+    # not a k*ATR flush of 120.
+    shocked.iloc[nxt_open, shocked.columns.get_loc("open")] = 120.0
+    shocked.iloc[nxt_open, shocked.columns.get_loc("close")] = 120.0
+    shocked.iloc[nxt_open, shocked.columns.get_loc("high")] = 121.0
+    shocked.iloc[nxt_open, shocked.columns.get_loc("low")] = 119.0
+    atr_prev = float(signals["atr_prev"].iloc[fire])
+    shocked.iloc[nxt_fire, shocked.columns.get_loc("open")] = 120.4
+    # Would be a SHORT vs yesterday's day-open=100, not vs today's 120.
+    shocked.iloc[nxt_fire, shocked.columns.get_loc("high")] = 100.0 + 1.2 * atr_prev
+    shocked.iloc[nxt_fire, shocked.columns.get_loc("close")] = 98.5
+    shocked.iloc[nxt_fire, shocked.columns.get_loc("low")] = 98.4
+
+    after = _signals("utc_day_open_flush_fade", shocked, side=SignalSide.SHORT)
+    assert float(after["day_open"].iloc[fire]) == pytest.approx(100.0)
+    assert float(after["day_open"].iloc[nxt_fire]) == pytest.approx(120.0)
+    # Yesterday's fire is unchanged; today's copycat vs the old open is flat.
+    assert int(after["signal"].iloc[fire]) == -1
+    assert int(after["signal"].iloc[nxt_fire]) == 0
+    # Day-open does not leak across midnight.
+    assert after["day_open"].iloc[day_open_idx] == pytest.approx(100.0)
+    assert after["day_open"].iloc[nxt_open - 1] == pytest.approx(100.0)
+
+
+def test_utc_day_open_flush_fade_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("utc_day_open_flush_fade", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.0, 1.5]
+    assert "atr_n" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("utc_day_open_flush_fade")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "utc_day_open_flush_fade"
+
+
+def test_utc_day_open_flush_fade_no_lookahead() -> None:
+    candles, fire, _ = _utc_day_open_flush_tape(long_side=False)
+    signals = _signals("utc_day_open_flush_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    cut = fire + 1
+    truncated = _signals(
+        "utc_day_open_flush_fade", candles.iloc[:cut], side=SignalSide.SHORT
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite prior ATR, day-open, or the fire decision.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("utc_day_open_flush_fade", shocked, side=SignalSide.SHORT)
+    assert after["atr_prev"].iloc[fire] == pytest.approx(signals["atr_prev"].iloc[fire])
+    assert after["day_open"].iloc[fire] == pytest.approx(signals["day_open"].iloc[fire])
+    assert after["up_flush_atr"].iloc[fire] == pytest.approx(
+        signals["up_flush_atr"].iloc[fire]
+    )
+    assert int(after["signal"].iloc[fire]) == -1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -6972,6 +7267,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("three_black_crows", {"min_body_frac", "max_upper_wick_frac"}),
         ("bb_medium_bw_upper_reject", {"k"}),
         ("atr_open_flush_fade", {"k"}),
+        ("utc_day_open_flush_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -7004,6 +7300,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("three_black_crows", {"min_body_frac", "max_upper_wick_frac"}),
         ("bb_medium_bw_upper_reject", {"k"}),
         ("atr_open_flush_fade", {"k"}),
+        ("utc_day_open_flush_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

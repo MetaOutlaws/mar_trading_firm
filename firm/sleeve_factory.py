@@ -2333,6 +2333,40 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "expansion fail, and not a UTC-day ORB fail."
         ),
     ),
+    SleeveSpec(
+        name="utc_day_open_flush_fade",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Fade a flush of the frozen UTC day-open (not the "
+            "signal bar's own open) as one 4h BOTH family. Same "
+            "UTC day only. Not atr_open_flush_fade (138 — RETIRED "
+            "same-bar bar-open flush). Not a prior-day / "
+            "prior-week extreme reject, not a prior-close magnet "
+            "stretch, not a London IB fail, not a UTC-day ORB "
+            "fail, not a next-bar expansion fail, not an "
+            "inventory-close / NY-close fade. Quant-locked: "
+            "ATR20, UTC day-open anchor, SHORT=up-flush / "
+            "LONG=down-flush. Free search (1 only): k [1.0, 1.5]. "
+            "Do not recode spent family 138. Do not modify "
+            "atr_open_flush_fade geometry."
+        ),
+        summary=(
+            "Fade a flush of the UTC day-open that closes back "
+            "through that open (SHORT = up-flush fade, LONG = "
+            "down-flush fade) as one 4h BOTH family."
+        ),
+        justification=(
+            "A locked ATR20 UTC-day-open flush fade (SHORT up / "
+            "LONG down, search k only, same calendar day only) "
+            "is not a same-bar bar-open flush, not a prior-day "
+            "extreme, not a prior-close magnet, not a London IB "
+            "fail, not a UTC-day ORB fail, and not an "
+            "inventory-close fade."
+        ),
+    ),
 ]
 
 
