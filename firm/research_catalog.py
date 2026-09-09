@@ -1193,6 +1193,39 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "outside_bar_fail_reversion@4h/4h",
+        "family": "outside_bar_fail_reversion",
+        "name": "outside_bar_fail_reversion 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 41,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a failed "
+            "outside bar when the next close sits strictly back "
+            "inside that bar. Quant-locked grid: ATR period=20 "
+            "(not searched), outside definition locked "
+            "(high[t-1]>high[t-2] AND low[t-1]<low[t-2]), "
+            "require_close_inside_outside=True (strict inside), "
+            "LONG=close above mid / SHORT=close below mid. Free "
+            "search (1 only): min_outside_atr [0.8, 1.2]. BOTH "
+            "sides honest. Walk-forward is not started from this "
+            "coding PR. Not engulfing_fail_reversion (126), not "
+            "failed_range_break_reversion (119), not "
+            "failed_break_reclaim (130), not expansion_fail_fade "
+            "(131), not candle_reject / ib_fail / nr7_fail, not "
+            "atr_open_flush_fade (138), not "
+            "utc_day_open_flush_fade (139), not "
+            "three_white_soldiers (140), not sma20_stretch_fade "
+            "(141), not london_close / ny_close inventory fades, "
+            "not outside_bar_reversal."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

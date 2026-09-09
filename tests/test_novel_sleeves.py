@@ -136,6 +136,7 @@ APPROVED = [
     "utc_day_open_flush_fade",
     "three_white_soldiers",
     "sma20_stretch_fade",
+    "outside_bar_fail_reversion",
 ]
 
 
@@ -7740,6 +7741,331 @@ def test_sma20_stretch_fade_no_lookahead() -> None:
     )
 
 
+def _outside_bar_fail_tape(
+    *,
+    long_side: bool,
+    contain_prior: bool = True,
+    close_inside: bool = True,
+    close_on_rail: bool = False,
+    close_on_mid: bool = False,
+    tiny_outside: bool = False,
+    one_sided_only: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet ATR~1 tape, one modest outside bar, then a next-bar close-inside.
+
+    Quiet bars sit at 100.5/99.5 so ATR20 stays near 1.0. The bar before the
+    outside print is narrower (100.3/99.7) so t-1 contains t-2 without also
+    being a 1.5-ATR expansion. Fail close is above mid (LONG) or below mid
+    (SHORT). Fire hour is 17:00 UTC so London-close / IB mothers stay dark.
+    """
+    n = 50
+    fire = 41
+    outside = 40
+    prior = 39
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    # Narrower prior bar so the next print is a true outside (strict H/L).
+    if tiny_outside:
+        high[prior] = 100.02
+        low[prior] = 99.98
+    else:
+        high[prior] = 100.3
+        low[prior] = 99.7
+    close[prior] = 100.0
+    open_[prior] = 100.0
+    if tiny_outside:
+        high[outside] = 100.05
+        low[outside] = 99.95
+    elif one_sided_only:
+        # Higher high only — not an outside bar (low does not undercut prior).
+        high[outside] = 101.2
+        low[outside] = 99.8
+    elif contain_prior:
+        high[outside] = 100.5
+        low[outside] = 99.5
+    else:
+        # Higher high but not a lower low — not an outside bar.
+        high[outside] = 100.6
+        low[outside] = 99.8
+    # Flat body: not a body engulf and not outside_bar_reversal (needs close>open).
+    close[outside] = 100.0
+    open_[outside] = 100.0
+    out_high = float(high[outside])
+    out_low = float(low[outside])
+    out_mid = (out_high + out_low) / 2.0
+    half = max((out_high - out_low) / 2.0, 1e-6)
+    # Stay inside a tiny outside bar; 0.15 is only safe on the default 1.0 range.
+    inside_offset = min(0.15, 0.30 * half)
+    if close_on_rail:
+        close[fire] = out_high
+    elif close_on_mid:
+        close[fire] = out_mid
+    elif not close_inside:
+        close[fire] = out_high + 0.3 if long_side else out_low - 0.3
+    elif long_side:
+        close[fire] = out_mid + inside_offset
+    else:
+        close[fire] = out_mid - inside_offset
+    # Fail bar stays inside the outside range so it is not another outside print.
+    wick = min(0.08, 0.20 * (out_high - out_low))
+    if close_inside and not close_on_rail:
+        high[fire] = min(out_high - 1e-4, max(close[fire], open_[fire]) + wick)
+        low[fire] = max(out_low + 1e-4, min(close[fire], open_[fire]) - wick)
+    else:
+        high[fire] = max(close[fire], open_[fire]) + wick
+        low[fire] = min(close[fire], open_[fire]) - wick
+    open_[fire] = out_mid
+    index = _hourly(n)
+    assert int(index[fire].hour) != 15
+    assert int(index[fire].hour) not in {7, 8, 9, 10}
+    return _ohlcv(index, close, high=high, low=low, open_=open_), fire
+
+
+def _assert_outside_bar_fail_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """This family is not a clone of the spent fail-reversion / fade sleeves."""
+    assert int(_signals("engulfing_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("failed_range_break_reversion", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("failed_break_reclaim", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("candle_reject_reversal", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("ib_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("nr7_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("atr_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("utc_day_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("three_white_soldiers", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("three_black_crows", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("sma20_stretch_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("outside_bar_reversal", candles, side=side)["signal"].iloc[fire]) == 0
+    # Reversal sibling fires ON the outside bar, not on the fail bar. Keep it dark.
+    assert int(_signals("outside_bar_reversal", candles, side=side)["signal"].iloc[fire - 1]) == 0
+
+
+def test_outside_bar_fail_reversion_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.outside_bar_fail_reversion import (
+        ATR_N_LOCKED,
+        REQUIRE_CLOSE_INSIDE_OUTSIDE_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: search min_outside_atr only. ATR20 + strict inside stay fixed.
+    factory, base, space = strategy_kit("outside_bar_fail_reversion", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.min_outside_atr == pytest.approx(0.8)
+    assert base.atr_n == ATR_N_LOCKED
+    assert base.require_close_inside_outside is REQUIRE_CLOSE_INSIDE_OUTSIDE_LOCKED
+    assert space["min_outside_atr"] == [0.8, 1.2]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "require_close_inside_outside" not in space
+    assert "require_close_inside" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_outside_atr"}
+
+    candles, fire = _outside_bar_fail_tape(long_side=True)
+    signals = _signals("outside_bar_fail_reversion", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "atr",
+        "atr_known",
+        "outside",
+        "outside_high",
+        "outside_low",
+        "outside_mid",
+        "outside_range",
+        "outside_atr",
+        "prior_high",
+        "prior_low",
+        "sized_enough",
+        "close_inside_outside",
+        "close_above_mid",
+        "close_below_mid",
+    ):
+        assert column in signals.columns
+    # Not a Donchian / NR7 / IB / engulf / expansion / SMA / day-open clone.
+    assert "range_high" not in signals.columns
+    assert "nr7_high" not in signals.columns
+    assert "mother_high" not in signals.columns
+    assert "engulf_open" not in signals.columns
+    assert "expansion_tr" not in signals.columns
+    assert "sma" not in signals.columns
+    assert "day_open" not in signals.columns
+    assert "bb_mid" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["outside"].iloc[fire])
+    assert bool(signals["sized_enough"].iloc[fire])
+    assert bool(signals["close_inside_outside"].iloc[fire])
+    assert bool(signals["close_above_mid"].iloc[fire])
+    assert not bool(signals["close_below_mid"].iloc[fire])
+    # Geometry: outside is t-1 vs t-2; fail close is strictly inside and above mid.
+    out_high = float(signals["outside_high"].iloc[fire])
+    out_low = float(signals["outside_low"].iloc[fire])
+    out_mid = float(signals["outside_mid"].iloc[fire])
+    prior_high = float(signals["prior_high"].iloc[fire])
+    prior_low = float(signals["prior_low"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    assert out_high > prior_high
+    assert out_low < prior_low
+    assert close_px > out_low
+    assert close_px < out_high
+    assert close_px > out_mid
+    assert (out_high - out_low) >= 0.8 * atr_known
+    assert (out_high - out_low) < 1.2 * atr_known
+    # min_outside_atr=1.2 needs a wider outside — search grid matters.
+    tight = factory(replace(base, min_outside_atr=1.2)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    missing, missing_fire = _outside_bar_fail_tape(long_side=True, contain_prior=False)
+    assert int(
+        _signals("outside_bar_fail_reversion", missing, side=SignalSide.LONG)["signal"].iloc[
+            missing_fire
+        ]
+    ) == 0
+    one_sided, one_fire = _outside_bar_fail_tape(long_side=True, one_sided_only=True)
+    assert int(
+        _signals("outside_bar_fail_reversion", one_sided, side=SignalSide.LONG)["signal"].iloc[
+            one_fire
+        ]
+    ) == 0
+    held, held_fire = _outside_bar_fail_tape(long_side=True, close_inside=False)
+    held_sig = _signals("outside_bar_fail_reversion", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["outside"].iloc[held_fire])
+    assert not bool(held_sig["close_inside_outside"].iloc[held_fire])
+    rail, rail_fire = _outside_bar_fail_tape(long_side=True, close_on_rail=True)
+    rail_sig = _signals("outside_bar_fail_reversion", rail, side=SignalSide.LONG)
+    assert int(rail_sig["signal"].iloc[rail_fire]) == 0
+    # Caller cannot unlock the strict-inside lock.
+    unlocked_inside = factory(
+        replace(base, require_close_inside_outside=False)
+    ).generate_signals(rail)
+    assert int(unlocked_inside["signal"].iloc[rail_fire]) == 0
+    mid, mid_fire = _outside_bar_fail_tape(long_side=True, close_on_mid=True)
+    assert int(
+        _signals("outside_bar_fail_reversion", mid, side=SignalSide.LONG)["signal"].iloc[
+            mid_fire
+        ]
+    ) == 0
+    tiny, tiny_fire = _outside_bar_fail_tape(long_side=True, tiny_outside=True)
+    assert int(
+        _signals("outside_bar_fail_reversion", tiny, side=SignalSide.LONG)["signal"].iloc[
+            tiny_fire
+        ]
+    ) == 0
+    # Caller cannot unlock ATR20 — locks stay locked.
+    unlocked = factory(replace(base, atr_n=5)).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert unlocked["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    _assert_outside_bar_fail_clear_of_siblings(candles, fire, SignalSide.LONG)
+    # SHORT side does not take the close-above-mid fail.
+    short_on_up = _signals("outside_bar_fail_reversion", candles, side=SignalSide.SHORT)
+    assert int(short_on_up["signal"].iloc[fire]) == 0
+    assert int((short_on_up["signal"] == -1).sum()) == 0
+
+
+def test_outside_bar_fail_reversion_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("outside_bar_fail_reversion", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_outside_atr"}
+    assert space["min_outside_atr"] == [0.8, 1.2]
+
+    candles, fire = _outside_bar_fail_tape(long_side=False)
+    signals = _signals("outside_bar_fail_reversion", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["outside"].iloc[fire])
+    assert bool(signals["close_inside_outside"].iloc[fire])
+    assert bool(signals["close_below_mid"].iloc[fire])
+    assert not bool(signals["close_above_mid"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    assert close_px < float(signals["outside_mid"].iloc[fire])
+    assert close_px > float(signals["outside_low"].iloc[fire])
+    assert close_px < float(signals["outside_high"].iloc[fire])
+    tight = factory(replace(base, min_outside_atr=1.2)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    held, held_fire = _outside_bar_fail_tape(long_side=False, close_inside=False)
+    held_sig = _signals("outside_bar_fail_reversion", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    _assert_outside_bar_fail_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_down = _signals("outside_bar_fail_reversion", candles, side=SignalSide.LONG)
+    assert int(long_on_down["signal"].iloc[fire]) == 0
+
+
+def test_outside_bar_fail_reversion_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("outside_bar_fail_reversion", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_outside_atr"}
+    assert space["min_outside_atr"] == [0.8, 1.2]
+    assert "atr_n" not in space
+    assert "require_close_inside_outside" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("outside_bar_fail_reversion")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "outside_bar_fail_reversion"
+
+
+def test_outside_bar_fail_reversion_no_lookahead() -> None:
+    candles, fire = _outside_bar_fail_tape(long_side=True)
+    signals = _signals("outside_bar_fail_reversion", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "outside_bar_fail_reversion", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite the outside box, ATR known-before-signal, or fire.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("outside_bar_fail_reversion", shocked, side=SignalSide.LONG)
+    assert after["outside_high"].iloc[fire] == pytest.approx(signals["outside_high"].iloc[fire])
+    assert after["outside_low"].iloc[fire] == pytest.approx(signals["outside_low"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert after["outside_atr"].iloc[fire] == pytest.approx(signals["outside_atr"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -7779,6 +8105,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("utc_day_open_flush_fade", {"k"}),
         ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
         ("sma20_stretch_fade", {"k"}),
+        ("outside_bar_fail_reversion", {"min_outside_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -7814,6 +8141,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("utc_day_open_flush_fade", {"k"}),
         ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
         ("sma20_stretch_fade", {"k"}),
+        ("outside_bar_fail_reversion", {"min_outside_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
