@@ -68,6 +68,7 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "atr_open_flush_fade" not in names
     assert "utc_day_open_flush_fade" not in names
     assert "three_white_soldiers" not in names
+    assert "sma20_stretch_fade" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

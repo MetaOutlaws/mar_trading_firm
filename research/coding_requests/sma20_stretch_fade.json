@@ -1,0 +1,15 @@
+{
+  "family": "sma20_stretch_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "SMA20 stretch fade as one 4h BOTH family. Wick stretch vs SMA(20) of close by k*ATR(20), then same-bar close reclaims toward SMA (halfway: 0.5*k*ATR). LONG = stretch below SMA then reclaim toward SMA. SHORT = stretch above SMA then fade toward SMA. Quant-locked: SMA20 + ATR20 (not searched). Free search (1 only): k [1.5, 2.0]. Not bb_medium_bw_upper_reject (BB tag + medium-BW close-inside). Not kairi_relative_fade (percent from SMA, no ATR wick + half-k reclaim). Not bollinger_mean_reversion (close-through BB). Not prior_close_magnet_fade (magnet is prior close). Not atr_open_flush_fade (138 — same-bar bar-open flush). Not utc_day_open_flush_fade (139 — UTC day-open flush). Not london_close_inventory_fade (100). Not three_white_soldiers (140). Not ny_close_inventory_fade (banned/parked). Do not recode spent families 118–140. Do not modify atr / three_* geometry.",
+  "summary": "Fade a same-bar SMA20 wick stretch that reclaims toward SMA (SHORT = stretch above, LONG = stretch below) as one 4h BOTH family.",
+  "justification": "A locked SMA20+ATR20 wick-stretch fade with searched k and a halfway reclaim toward SMA is not a BB medium-BW reject, not a bar-open / UTC-day-open flush, not a London-close inventory fade, and not a three-white-soldiers leftover.",
+  "status": "Brian Inbox-approved for coding",
+  "written_at": "2026-09-09T17:00:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/sma20_stretch_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward."
+}
