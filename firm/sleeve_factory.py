@@ -2497,6 +2497,7 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
     ),
     SleeveSpec(
         name="displacement_gap_follow",
+        name="keltner_channel_fade",
         template="novel",
         clock="4h/4h",
         side="BOTH",
@@ -2548,6 +2549,34 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "weekend / midnight gap fill, not a two-bar "
             "body-efficiency pair, not an open-in-prior fade, "
             "and not a fail-reversion / inventory / flush sleeve."
+            "Keltner channel fade as one 4h BOTH family. Same-bar "
+            "wick tag of EMA(20) of close ± k*ATR(20), then close "
+            "rejects back inside that tagged band. ATR known before "
+            "the signal bar (atr.shift(1)). Quant-locked: EMA20 of "
+            "close (not typical), ATR20, require close-inside, "
+            "SHORT=high>upper AND close<upper / LONG=low<lower AND "
+            "close>lower (strict tag, not >=). Free search (1 only): "
+            "k [1.5, 2.0]. Not keltner_break (close-through "
+            "typical-price Keltner / ATR10). Not sma20_stretch_fade "
+            "(141 — SMA wick stretch + halfway reclaim). Not "
+            "bb_medium_bw_upper_reject (BB + medium-BW). Not "
+            "outside_bar_fail_reversion (142). Not "
+            "three_black_crows / three_white_soldiers. Not "
+            "atr_open_flush_fade / utc_day_open_flush_fade. Not "
+            "failed_break_reclaim / expansion_fail_fade / "
+            "candle_reject_reversal. Not ib_fail / nr7_fail / "
+            "engulfing_fail. Not asia_range_london_reject / "
+            "prior_day_extreme_reject. Not displacement_gap_follow "
+            "(PARKED). Not range_compression_volume_thrust / "
+            "inventory fades. Do not recode spent families 118–142. "
+            "Do not modify sibling geometry."
+            "Fade a same-bar Keltner tag that closes back inside "
+            "the EMA20 ± k*ATR20 band (SHORT = upper reject, LONG "
+            "= lower reject) as one 4h BOTH family."
+            "A locked EMA20-of-close + prior-bar ATR20 band fade "
+            "with searched k and a strict tag-then-close-inside is "
+            "not a Keltner close-through breakout, not an SMA "
+            "stretch fade, and not a Bollinger medium-BW reject."
         ),
     ),
 ]

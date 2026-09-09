@@ -1140,6 +1140,14 @@ def _novel_kit(name: str, side: SignalSide):
             # atr_n locked at 20. Gap definition and follow-not-fade
             # locked. Search min_gap_atr + min_body_eff only.
             {"min_gap_atr": [0.10, 0.25], "min_body_eff": [0.50, 0.70]},
+        "keltner_channel_fade": (
+            "core.strategy.keltner_channel_fade",
+            "KeltnerChannelFadeParams",
+            "KeltnerChannelFadeStrategy",
+            # ema_n and atr_n locked at 20. Mid is EMA of close.
+            # ATR known before the signal bar. Strict tag then
+            # close back inside locked. Search k only.
+            {"k": [1.5, 2.0]},
         ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
