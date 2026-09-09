@@ -183,6 +183,7 @@ CLOCK_BY_FAMILY = {
     "three_white_soldiers": "4h/4h",
     "sma20_stretch_fade": "4h/4h",
     "outside_bar_fail_reversion": "4h/4h",
+    "displacement_gap_follow": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -211,6 +212,8 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         return "funding_fade"
     if "ema" in blob and "adx" in blob:
         return "ema_adx_trend"
+    if "displacement_gap" in blob or "displacement gap" in blob:
+        return "displacement_gap_follow"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:
         return "outside_bar_fail_reversion"
     if "sma20_stretch" in blob or "sma20" in blob:
