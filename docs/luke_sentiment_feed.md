@@ -37,7 +37,7 @@ os.replace(tmp, dest)  # POSIX atomic replace on the same filesystem
 | `source` | `luke_ct_scraper` |
 | `model` | `ct-scraper` |
 | `headline` | Optional L1 string. Desk shows it prominent; classic files omit it. |
-| `takeaways` | Optional `string[]`, at most two. Watch is prose (`Watch: …`). Fit is **class only**: `Fit: fade` \| `Fit: breakout` \| `Fit: session` \| `Fit: candle`. Never a family id. |
+| `takeaways` | Optional `string[]`, at most two. Watch is prose (`Watch: …`). Fit is **class only**: `Fit: fade` \| `Fit: breakout` \| `Fit: session` \| `Fit: candle`. Never a family id. Trailing punctuation (`Fit: fade.`) is stripped so the Fit line is not dropped. |
 | `market_narrative` | Full tape. Desk splits display on ` \| ` or newlines. |
 | `mood` | `risk_on` \| `risk_off` \| `chop` \| `greed` \| `fear` |
 | `readings[].symbol` | Bybit linear, e.g. `BTCUSDT` |
