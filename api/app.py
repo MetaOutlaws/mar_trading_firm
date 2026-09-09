@@ -181,8 +181,8 @@ def local_session(request: Request) -> dict[str, Any]:
 def sentiment() -> dict[str, Any]:
     """Desk sentiment: Luke `data/last_sentiment.json` when fresh, else SQLite.
 
-    Also returns mood / market_narrative / trending / influencers from the file
-    whenever it parsed. Does not call xAI or X.
+    Also returns mood / headline / takeaways / market_narrative / trending /
+    influencers from the file whenever it parsed. Does not call xAI or X.
     """
     from core.data.sentiment import empty_desk_payload, sentiment_for_desk
 

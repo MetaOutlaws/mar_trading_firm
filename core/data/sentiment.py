@@ -41,6 +41,9 @@ CACHE_TTL = timedelta(minutes=30)
 VALID_MOODS = frozenset({"risk_on", "risk_off", "chop", "greed", "fear"})
 VALID_HYPE = frozenset({"building", "peaking", "exhausted", "fading", "absent"})
 VALID_BIAS = frozenset({"bullish", "bearish", "neutral"})
+#: Fit takeaway is a class label only — never a family id.
+VALID_FIT_CLASSES = frozenset({"fade", "breakout", "session", "candle"})
+_FIT_LINE = re.compile(r"^fit\s*:\s*(.+)$", re.IGNORECASE)
 
 #: Bybit linear symbols: BTCUSDT, 1000PEPEUSDT, etc.
 _BYBIT_SYMBOL = re.compile(r"^[A-Z0-9]{3,24}$")
@@ -60,6 +63,9 @@ class SentimentReadingModel(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     sources: list[str] = Field(default_factory=list)
     price_at_reading: float = 0.0
+    # Per-reading tape stamp + sample size (optional on classic files).
+    as_of: str = ""
+    n: int | None = None
 
     @field_validator("symbol", mode="before")
     @classmethod
@@ -87,6 +93,29 @@ class SentimentReadingModel(BaseModel):
         if isinstance(value, list):
             return [str(item) for item in value if item]
         return []
+
+    @field_validator("as_of", mode="before")
+    @classmethod
+    def _reading_as_of(cls, value: Any) -> str:
+        if value is None or value == "":
+            return ""
+        text = str(value).strip()
+        if parse_iso(text) is None:
+            return ""
+        return text
+
+    @field_validator("n", mode="before")
+    @classmethod
+    def _sample_n(cls, value: Any) -> int | None:
+        if value is None or value == "":
+            return None
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            return None
+        if count < 0:
+            return None
+        return count
 
 
 class TrendingTokenModel(BaseModel):
@@ -116,7 +145,7 @@ class InfluencerModel(BaseModel):
 
     handle: str
     bias: str
-    followers: int = 0
+    followers: int | None = None
     note: str = ""
 
     @field_validator("handle", mode="before")
@@ -146,6 +175,9 @@ class SentimentSnapshotModel(BaseModel):
     as_of: str
     source: str = "luke_ct_scraper"
     model: str = "ct-scraper"
+    # L1 clarity fields — optional so classic snapshots still validate.
+    headline: str = ""
+    takeaways: list[str] = Field(default_factory=list)
     market_narrative: str = ""
     mood: str
     readings: list[SentimentReadingModel] = Field(default_factory=list)
@@ -166,6 +198,46 @@ class SentimentSnapshotModel(BaseModel):
         if parse_iso(value) is None:
             raise ValueError("as_of must be ISO-8601")
         return value
+
+    @field_validator("headline", mode="before")
+    @classmethod
+    def _headline(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+    @field_validator("takeaways", mode="before")
+    @classmethod
+    def _takeaways(cls, value: Any) -> list[str]:
+        """Watch prose stays; Fit is class-only (fade/breakout/session/candle)."""
+        if value is None or value == "":
+            return []
+        items = [value] if isinstance(value, str) else value
+        if not isinstance(items, list):
+            return []
+        kept: list[str] = []
+        for item in items:
+            if not isinstance(item, str):
+                continue
+            text = _normalize_takeaway(item)
+            if not text:
+                continue
+            kept.append(text)
+            if len(kept) >= 2:
+                break
+        return kept
+
+
+def _normalize_takeaway(text: str) -> str | None:
+    """Pass Watch prose through. Coerce Fit to `Fit: <class>` or drop family ids."""
+    stripped = str(text or "").strip()
+    if not stripped:
+        return None
+    match = _FIT_LINE.match(stripped)
+    if not match:
+        return stripped
+    klass = match.group(1).strip().lower()
+    if klass not in VALID_FIT_CLASSES:
+        return None
+    return f"Fit: {klass}"
 
 
 def parse_iso(value: Any) -> datetime | None:
@@ -278,6 +350,8 @@ def empty_desk_payload(*, empty_reason: str = "missing") -> dict[str, Any]:
         "fresh": False,
         "stale": False,
         "empty_reason": empty_reason,
+        "headline": "",
+        "takeaways": [],
         "market_narrative": "",
         "mood": "",
         "readings": [],
@@ -300,6 +374,8 @@ def _reading_row(item: dict[str, Any], *, recorded_at: str, model: str) -> dict[
         "forward_return_4h": None,
         "forward_return_24h": None,
         "model": model,
+        "as_of": item.get("as_of") or "",
+        "n": item.get("n"),
     }
 
 
@@ -315,8 +391,10 @@ def desk_snapshot(
 
     * Fresh file (as_of within TTL): heatmap readings come from the file.
     * Stale or missing file: heatmap readings fall back to SQLite.
-    * mood / narrative / trending / influencers come from the file whenever it
-      parsed, even if stale, so the last known CT tape is still visible.
+    * mood / headline / takeaways / narrative / trending / influencers come from
+      the file whenever it parsed, even if stale, so the last known CT tape is
+      still visible. Headline and takeaways must pass through — extra="ignore"
+      on the snapshot model used to strip them before the desk ever saw them.
     * `on_import` runs when the file loaded so callers can copy readings into
       `memory.record_sentiment` for forward-return history.
     """
@@ -349,6 +427,8 @@ def desk_snapshot(
 
     has_extras = bool(
         (extras_source.get("market_narrative") or "").strip()
+        or (extras_source.get("headline") or "").strip()
+        or extras_source.get("takeaways")
         or extras_source.get("mood")
         or extras_source.get("trending")
         or extras_source.get("influencers")
@@ -367,6 +447,8 @@ def desk_snapshot(
         "fresh": fresh,
         "stale": bool(blob) and not fresh,
         "empty_reason": empty_reason,
+        "headline": extras_source.get("headline") or "",
+        "takeaways": list(extras_source.get("takeaways") or []),
         "market_narrative": extras_source.get("market_narrative") or "",
         "mood": extras_source.get("mood") or "",
         "readings": readings,

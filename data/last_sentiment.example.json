@@ -2,7 +2,12 @@
   "as_of": "2026-09-07T08:00:00+00:00",
   "source": "luke_ct_scraper",
   "model": "ct-scraper",
-  "market_narrative": "BTC holds above a well-watched level while ETH lags; CT is rotating from meme-beta into majors with less leverage-cosplay than last week.",
+  "headline": "BTC defends range high while ETH lags; CT rotating into majors.",
+  "takeaways": [
+    "Watch: ETH/BTC grind and fewer ETH-season posts.",
+    "Fit: fade"
+  ],
+  "market_narrative": "BTC holds above a well-watched level while ETH lags | CT is rotating from meme-beta into majors with less leverage-cosplay than last week.",
   "mood": "chop",
   "readings": [
     {
@@ -12,7 +17,9 @@
       "narrative": "Range-high defence, funding not crowded, still two-way.",
       "confidence": 0.62,
       "sources": ["https://x.com/example/status/1"],
-      "price_at_reading": 0
+      "price_at_reading": 0,
+      "as_of": "2026-09-07T08:00:00+00:00",
+      "n": 48
     },
     {
       "symbol": "ETHUSDT",
@@ -21,7 +28,9 @@
       "narrative": "ETH/BTC grind lower; fewer 'ETH season' posts than the prior bounce.",
       "confidence": 0.55,
       "sources": ["https://x.com/example/status/2"],
-      "price_at_reading": 0
+      "price_at_reading": 0,
+      "as_of": "2026-09-07T08:00:00+00:00",
+      "n": 36
     },
     {
       "symbol": "SOLUSDT",
@@ -30,7 +39,9 @@
       "narrative": "SOL still mentioned with BTC, but replies are 'already up'.",
       "confidence": 0.48,
       "sources": [],
-      "price_at_reading": 0
+      "price_at_reading": 0,
+      "as_of": "2026-09-07T08:00:00+00:00",
+      "n": 21
     }
   ],
   "trending": [
@@ -61,19 +72,19 @@
       "handle": "example_macro",
       "bias": "bullish",
       "followers": 412000,
-      "note": "Framing BTC as the bid; ignoring alts."
+      "note": "BTC · Framing as the bid; ignoring alts."
     },
     {
       "handle": "example_perp",
       "bias": "neutral",
       "followers": 88000,
-      "note": "Calling it a chop tape until funding resets."
+      "note": "majors · Chop tape until funding resets."
     },
     {
       "handle": "example_bear",
       "bias": "bearish",
       "followers": 151000,
-      "note": "Still fading every bounce into resistance."
+      "note": "BTC · Still fading every bounce into resistance."
     }
   ]
 }
