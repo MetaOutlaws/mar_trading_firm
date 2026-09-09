@@ -1226,6 +1226,34 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "keltner_channel_fade@4h/4h",
+        "family": "keltner_channel_fade",
+        "name": "keltner_channel_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 42,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a same-bar "
+            "Keltner tag that closes back inside the EMA20 ± k*ATR20 "
+            "band. Quant-locked grid: EMA period=20 of close and ATR "
+            "period=20 (not searched), ATR known before the signal "
+            "bar (atr.shift(1)), require close back inside the tagged "
+            "band, SHORT=high[t]>upper[t] AND close[t]<upper[t] / "
+            "LONG=low[t]<lower[t] AND close[t]>lower[t] (strict tag). "
+            "Free search (1 only): k [1.5, 2.0]. BOTH sides honest. "
+            "Walk-forward is not started from this coding PR. Not "
+            "keltner_break (close-through typical-price Keltner). "
+            "Not sma20_stretch_fade (141), not "
+            "bb_medium_bw_upper_reject, not "
+            "outside_bar_fail_reversion (142)."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

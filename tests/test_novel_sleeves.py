@@ -137,6 +137,7 @@ APPROVED = [
     "three_white_soldiers",
     "sma20_stretch_fade",
     "outside_bar_fail_reversion",
+    "keltner_channel_fade",
 ]
 
 
@@ -8066,6 +8067,333 @@ def test_outside_bar_fail_reversion_no_lookahead() -> None:
     )
 
 
+def _keltner_channel_fade_tape(
+    *,
+    long_side: bool,
+    tag: bool = True,
+    reject_inside: bool = True,
+    tag_on_rail: bool = False,
+    close_through: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet ATR~1 tape, then one EMA±ATR wick tag that closes back inside.
+
+    Quiet bars sit at 100.5/99.5 so ATR20 known-before-signal stays 1.0.
+    Fire hour is 18:00 UTC so London-close / IB / Asia-London stay dark.
+    Close stays on the tagged side of SMA halfway-reclaim so this is not
+    sma20_stretch_fade, and it does not close through the open / day-open.
+    """
+    n = 50
+    fire = 42
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    if long_side:
+        # EMA~99.89, ATR_prev=1 → lower@k=1.5 ~ 98.39. Wick 98.20 tags
+        # k=1.5 and misses k=2.0 (~97.89). Close 98.80 is inside the
+        # band but short of the SMA halfway reclaim (~99.16).
+        close[fire] = 98.80 if reject_inside and not close_through else 97.80
+        if close_through:
+            close[fire] = 97.80
+            low[fire] = 97.60
+            high[fire] = 98.00
+        elif tag_on_rail:
+            close[fire] = 98.80
+            low[fire] = 98.38571428571429
+            high[fire] = 100.05
+        elif tag:
+            low[fire] = 98.20
+            high[fire] = 100.05
+        else:
+            close[fire] = 100.0
+            low[fire] = 99.5
+            high[fire] = 100.5
+        if not reject_inside and tag and not tag_on_rail and not close_through:
+            # Tagged lower band, close still outside / on the band.
+            close[fire] = 98.00
+            low[fire] = 97.70
+            high[fire] = 98.20
+    else:
+        # EMA~100.11, ATR_prev=1 → upper@k=1.5 ~ 101.61. Wick 101.80 tags
+        # k=1.5 and misses k=2.0 (~102.11). Close 101.20 is inside.
+        close[fire] = 101.20 if reject_inside and not close_through else 102.20
+        if close_through:
+            close[fire] = 102.40
+            high[fire] = 102.60
+            low[fire] = 99.90
+        elif tag_on_rail:
+            close[fire] = 101.20
+            high[fire] = 101.61428571428571
+            low[fire] = 99.95
+        elif tag:
+            high[fire] = 101.80
+            low[fire] = 99.95
+        else:
+            close[fire] = 100.0
+            high[fire] = 100.5
+            low[fire] = 99.5
+        if not reject_inside and tag and not tag_on_rail and not close_through:
+            close[fire] = 102.00
+            high[fire] = 102.30
+            low[fire] = 101.80
+    open_[fire] = 100.0
+    index = _hourly(n)
+    assert int(index[fire].hour) != 15
+    assert int(index[fire].hour) not in {7, 8, 9, 10}
+    return _ohlcv(index, close, high=high, low=low, open_=open_), fire
+
+
+def _assert_keltner_channel_fade_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """This family is not a clone of keltner_break or the spent fade sleeves."""
+    assert int(_signals("keltner_break", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("sma20_stretch_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("bb_medium_bw_upper_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("outside_bar_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("three_black_crows", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("three_white_soldiers", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("atr_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("utc_day_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("failed_break_reclaim", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("candle_reject_reversal", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("ib_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("nr7_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("engulfing_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("asia_range_london_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_day_extreme_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("range_compression_volume_thrust", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(
+        _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+
+
+def test_keltner_channel_fade_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy import indicators as ind
+    from core.strategy.keltner_channel_fade import (
+        ATR_N_LOCKED,
+        EMA_N_LOCKED,
+        REQUIRE_CLOSE_INSIDE_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: search k only. EMA20, ATR20, close-inside stay fixed.
+    factory, base, space = strategy_kit("keltner_channel_fade", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.k == pytest.approx(1.5)
+    assert base.ema_n == EMA_N_LOCKED
+    assert base.atr_n == ATR_N_LOCKED
+    assert base.require_close_inside is REQUIRE_CLOSE_INSIDE_LOCKED
+    assert space["k"] == [1.5, 2.0]
+    assert "ema_n" not in space
+    assert "atr_n" not in space
+    assert "ema_period" not in space
+    assert "atr_period" not in space
+    assert "require_close_inside" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+
+    candles, fire = _keltner_channel_fade_tape(long_side=True)
+    signals = _signals("keltner_channel_fade", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "keltner_mid",
+        "keltner_upper",
+        "keltner_lower",
+        "atr",
+        "atr_known",
+        "tagged_lower",
+        "tagged_upper",
+        "closed_inside_lower",
+        "closed_inside_upper",
+    ):
+        assert column in signals.columns
+    # Mid is EMA of close, not typical-price Keltner and not SMA / BB / open.
+    assert "sma" not in signals.columns
+    assert "bb_mid" not in signals.columns
+    assert "bb_bandwidth" not in signals.columns
+    assert "bar_open" not in signals.columns
+    assert "day_open" not in signals.columns
+    assert "outside_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["tagged_lower"].iloc[fire])
+    assert bool(signals["closed_inside_lower"].iloc[fire])
+    assert not bool(signals["tagged_upper"].iloc[fire])
+    mid = float(signals["keltner_mid"].iloc[fire])
+    lower = float(signals["keltner_lower"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    atr_now = float(signals["atr"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    low_px = float(candles["low"].iloc[fire])
+    # Geometry: mid = EMA20(close); width uses prior-bar ATR, not this bar.
+    assert mid == pytest.approx(float(ind.ema(candles["close"], EMA_N_LOCKED).iloc[fire]))
+    typical = (candles["high"] + candles["low"] + candles["close"]) / 3.0
+    assert mid != pytest.approx(float(ind.ema(typical, EMA_N_LOCKED).iloc[fire]))
+    assert atr_known == pytest.approx(1.0)
+    assert atr_now > atr_known
+    assert lower == pytest.approx(mid - 1.5 * atr_known)
+    assert low_px < lower
+    assert close_px > lower
+    # Strict tag: sitting on the band is not a fade.
+    rail, rail_fire = _keltner_channel_fade_tape(long_side=True, tag_on_rail=True)
+    rail_sig = _signals("keltner_channel_fade", rail, side=SignalSide.LONG)
+    assert float(rail["low"].iloc[rail_fire]) == pytest.approx(
+        float(rail_sig["keltner_lower"].iloc[rail_fire])
+    )
+    assert int(rail_sig["signal"].iloc[rail_fire]) == 0
+    # k=2.0 needs a deeper wick — search k matters.
+    tight = factory(replace(base, k=2.0)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    quiet, quiet_fire = _keltner_channel_fade_tape(long_side=True, tag=False)
+    assert int(
+        _signals("keltner_channel_fade", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    held, held_fire = _keltner_channel_fade_tape(long_side=True, reject_inside=False)
+    held_sig = _signals("keltner_channel_fade", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["tagged_lower"].iloc[held_fire])
+    assert not bool(held_sig["closed_inside_lower"].iloc[held_fire])
+    # Close-through the band is a breakout, not this fade.
+    through, through_fire = _keltner_channel_fade_tape(long_side=True, close_through=True)
+    assert int(
+        _signals("keltner_channel_fade", through, side=SignalSide.LONG)["signal"].iloc[
+            through_fire
+        ]
+    ) == 0
+    # Caller cannot unlock EMA / ATR / close-inside — locks stay locked.
+    unlocked = factory(
+        replace(base, ema_n=5, atr_n=5, require_close_inside=False)
+    ).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["keltner_mid"].iloc[fire] == pytest.approx(signals["keltner_mid"].iloc[fire])
+    assert unlocked["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    unlocked_held = factory(replace(base, require_close_inside=False)).generate_signals(held)
+    assert int(unlocked_held["signal"].iloc[held_fire]) == 0
+    _assert_keltner_channel_fade_clear_of_siblings(candles, fire, SignalSide.LONG)
+    # SHORT side does not take the lower-band reject.
+    short_on_down = _signals("keltner_channel_fade", candles, side=SignalSide.SHORT)
+    assert int(short_on_down["signal"].iloc[fire]) == 0
+    assert int((short_on_down["signal"] == -1).sum()) == 0
+
+
+def test_keltner_channel_fade_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("keltner_channel_fade", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.5, 2.0]
+
+    candles, fire = _keltner_channel_fade_tape(long_side=False)
+    signals = _signals("keltner_channel_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["tagged_upper"].iloc[fire])
+    assert bool(signals["closed_inside_upper"].iloc[fire])
+    assert not bool(signals["tagged_lower"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    high_px = float(candles["high"].iloc[fire])
+    upper = float(signals["keltner_upper"].iloc[fire])
+    assert high_px > upper
+    assert close_px < upper
+    tight = factory(replace(base, k=2.0)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    rail, rail_fire = _keltner_channel_fade_tape(long_side=False, tag_on_rail=True)
+    rail_sig = _signals("keltner_channel_fade", rail, side=SignalSide.SHORT)
+    assert float(rail["high"].iloc[rail_fire]) == pytest.approx(
+        float(rail_sig["keltner_upper"].iloc[rail_fire])
+    )
+    assert int(rail_sig["signal"].iloc[rail_fire]) == 0
+    held, held_fire = _keltner_channel_fade_tape(long_side=False, reject_inside=False)
+    held_sig = _signals("keltner_channel_fade", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["tagged_upper"].iloc[held_fire])
+    assert not bool(held_sig["closed_inside_upper"].iloc[held_fire])
+    through, through_fire = _keltner_channel_fade_tape(
+        long_side=False, close_through=True
+    )
+    through_fade = _signals("keltner_channel_fade", through, side=SignalSide.SHORT)
+    assert int(through_fade["signal"].iloc[through_fire]) == 0
+    # Close-through is the keltner_break class — fade stays dark, break can fire.
+    through_break = _signals("keltner_break", through, side=SignalSide.LONG)
+    assert int(through_break["signal"].iloc[through_fire]) == 1
+    _assert_keltner_channel_fade_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_up = _signals("keltner_channel_fade", candles, side=SignalSide.LONG)
+    assert int(long_on_up["signal"].iloc[fire]) == 0
+
+
+def test_keltner_channel_fade_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("keltner_channel_fade", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.5, 2.0]
+    assert "ema_n" not in space
+    assert "atr_n" not in space
+    assert "require_close_inside" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("keltner_channel_fade")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "keltner_channel_fade"
+
+
+def test_keltner_channel_fade_no_lookahead() -> None:
+    candles, fire = _keltner_channel_fade_tape(long_side=True)
+    signals = _signals("keltner_channel_fade", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "keltner_channel_fade", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite EMA mid, prior-bar ATR, or the fire decision.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("keltner_channel_fade", shocked, side=SignalSide.LONG)
+    assert after["keltner_mid"].iloc[fire] == pytest.approx(signals["keltner_mid"].iloc[fire])
+    assert after["keltner_lower"].iloc[fire] == pytest.approx(
+        signals["keltner_lower"].iloc[fire]
+    )
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert after["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -8106,6 +8434,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
         ("sma20_stretch_fade", {"k"}),
         ("outside_bar_fail_reversion", {"min_outside_atr"}),
+        ("keltner_channel_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -8142,6 +8471,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
         ("sma20_stretch_fade", {"k"}),
         ("outside_bar_fail_reversion", {"min_outside_atr"}),
+        ("keltner_channel_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

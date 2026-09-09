@@ -1133,6 +1133,15 @@ def _novel_kit(name: str, side: SignalSide):
             # min_outside_atr only.
             {"min_outside_atr": [0.8, 1.2]},
         ),
+        "keltner_channel_fade": (
+            "core.strategy.keltner_channel_fade",
+            "KeltnerChannelFadeParams",
+            "KeltnerChannelFadeStrategy",
+            # ema_n and atr_n locked at 20. Mid is EMA of close.
+            # ATR known before the signal bar. Strict tag then
+            # close back inside locked. Search k only.
+            {"k": [1.5, 2.0]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
