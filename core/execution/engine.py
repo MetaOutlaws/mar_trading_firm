@@ -390,8 +390,9 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
     Args:
         require_approval: When True (live and testnet), only research-approved
             sleeves are included (every approved=True key). Paper mode passes
-            False so unapproved candidates can be forward-tested, but every
-            approved research key is still always scanned.
+            False so operator paper_override sleeves can be scanned, but every
+            approved research key is still always scanned. Unapproved
+            forward-test inject is disabled (Brian YES 2026-09-09).
         candidates: Explicit symbol list for paper mode. Defaults to the
             symbols that have configured parameters.
     """
@@ -428,30 +429,13 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
         plan.entries.append(entry)
         seen.add(ident)
 
-    # Default to the most liquid names: their cost assumptions are the most
-    # reliable, so forward-test evidence from them is the most informative.
-    default_pool = [
-        symbol
-        for symbol in APPROVED_RESEARCH_SYMBOLS
-        if symbol in universe.long_params or symbol in universe.short_params
-    ]
-    pool = candidates or default_pool or universe.research_candidates("LONG")[:6]
-    for symbol in pool:
-        for side in (SignalSide.LONG, SignalSide.SHORT):
-            if (symbol, side.value) in approved_pairs:
-                continue
-            entry = _entry_for(symbol, side)
-            if entry is None:
-                continue
-            ident = _entry_ident(entry)
-            if ident in seen:
-                continue
-            plan.entries.append(entry)
-            seen.add(ident)
-
-    # Named paper candidates (ATR 1h on BNB/XRP/AVAX). These do not follow
-    # paper_scan_family() or the catalog 4h clock, and they never unlock live.
+    # Brian YES 2026-09-09: paper blotter = research approved + paper_override
+    # only. Do not inject unapproved paper_scan_family() forward-tests or
+    # PAPER_SCAN_SLEEVES (atr_channel leftovers). candidates arg retained for
+    # API compat but ignored for inject.
+    _ = candidates
     for family, symbol, side_value, timeframe in PAPER_SCAN_SLEEVES:
+        # Tuple is empty after pipeline clear; keep loop for future opt-in.
         entry = _entry_from_record(
             family,
             {"timeframe": timeframe, "params": {}, "approved": False},

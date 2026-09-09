@@ -1,4 +1,4 @@
-"""
+﻿"""
 Configurable research-pipeline thresholds.
 
 Cadences are backstops. Walk-forward start is event-driven: a free slot
@@ -39,7 +39,7 @@ from typing import Any
 
 from config.settings import get_settings
 
-#: BTC/ETH/SOL plus BNB/XRP/AVAX — 6 symbols, 12 long/short pairs.
+#: BTC/ETH/SOL plus BNB/XRP/AVAX â€” 6 symbols, 12 long/short pairs.
 #: New names still need asset_params rows before paper will scan them.
 APPROVED_RESEARCH_SYMBOLS = (
     "BTCUSDT",
@@ -51,16 +51,9 @@ APPROVED_RESEARCH_SYMBOLS = (
 )
 
 #: Paper-only extra scans. Not live and not a walk-forward verdict.
-#: 1h ATR failed gates on BTC/ETH/SOL; BNB/XRP/AVAX were never tested there.
-#: The catalog clock for this family stays 4h/4h.
-PAPER_SCAN_SLEEVES: tuple[tuple[str, str, str, str], ...] = (
-    ("atr_channel_breakout", "BNBUSDT", "LONG", "1h"),
-    ("atr_channel_breakout", "BNBUSDT", "SHORT", "1h"),
-    ("atr_channel_breakout", "XRPUSDT", "LONG", "1h"),
-    ("atr_channel_breakout", "XRPUSDT", "SHORT", "1h"),
-    ("atr_channel_breakout", "AVAXUSDT", "LONG", "1h"),
-    ("atr_channel_breakout", "AVAXUSDT", "SHORT", "1h"),
-)
+#: Emptied 2026-09-09 (Brian YES): atr_channel 1h BNB/XRP/AVAX inject removed.
+#: Paper blotter = research approved + paper_override only.
+PAPER_SCAN_SLEEVES: tuple[tuple[str, str, str, str], ...] = ()
 
 
 def is_paper_scan_sleeve(family: str, symbol: str, side: str, timeframe: str) -> bool:
