@@ -1124,6 +1124,15 @@ def _novel_kit(name: str, side: SignalSide):
             # then halfway reclaim toward SMA locked. Search k only.
             {"k": [1.5, 2.0]},
         ),
+        "outside_bar_fail_reversion": (
+            "core.strategy.outside_bar_fail_reversion",
+            "OutsideBarFailReversionParams",
+            "OutsideBarFailReversionStrategy",
+            # atr_n locked at 20. Outside definition, strict
+            # close-inside, and mid-side split locked. Search
+            # min_outside_atr only.
+            {"min_outside_atr": [0.8, 1.2]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

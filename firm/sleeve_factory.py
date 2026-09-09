@@ -2446,6 +2446,55 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "three-white-soldiers leftover."
         ),
     ),
+    SleeveSpec(
+        name="outside_bar_fail_reversion",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Outside-bar fail reversion as one 4h BOTH family. "
+            "Outside bar is t-1 vs t-2 (range containment). "
+            "Fail/reversion is bar t closing strictly inside that "
+            "outside high-low. Side is the fail close vs the "
+            "outside mid — not the outside bar's own close, not a "
+            "body-engulf open fail, not a Donchian / IB / NR7 "
+            "rail. Quant-locked: ATR20, outside definition, "
+            "require_close_inside_outside, mid-side split (not "
+            "searched). Free search (1 only): min_outside_atr "
+            "[0.8, 1.2]. Not engulfing_fail_reversion (126 — "
+            "two-bar body engulf then fail through engulf open). "
+            "Not failed_range_break_reversion (119 — rolling "
+            "N-bar Donchian). Not failed_break_reclaim (130 — "
+            "multi-bar wick probe). Not expansion_fail_fade "
+            "(131 — ATR true-range expansion + weak-vol; side "
+            "from expansion close vs mid). Not "
+            "candle_reject_reversal. Not ib_fail_reversion "
+            "(124). Not nr7_fail_reversion (123). Not "
+            "atr_open_flush_fade (138). Not "
+            "utc_day_open_flush_fade (139). Not "
+            "three_white_soldiers (140) / three_black_crows "
+            "(134). Not sma20_stretch_fade (141). Not "
+            "london_close_inventory_fade (100) / "
+            "ny_close_inventory_fade (banned/parked). Not "
+            "outside_bar_reversal (fires ON the outside bar). "
+            "Do not recode spent families 118–141. Do not "
+            "modify sibling geometry."
+        ),
+        summary=(
+            "Fade a failed outside bar when the next close sits "
+            "strictly back inside that bar (LONG = close above "
+            "mid, SHORT = close below mid) as one 4h BOTH family."
+        ),
+        justification=(
+            "A locked ATR20 outside-bar containment then "
+            "next-bar strict close-inside, with searched "
+            "min_outside_atr and a mid-side split, is not a "
+            "body-engulf open fail, not a Donchian / IB / NR7 "
+            "fail, not an ATR expansion-fail, and not a "
+            "same-bar outside-bar reversal."
+        ),
+    ),
 ]
 
 
