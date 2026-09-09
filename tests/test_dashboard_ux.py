@@ -50,6 +50,9 @@ def test_sentiment_tab_l1_clarity_contract():
     assert "Watch|Fit" in html
     assert "narrative-split" in html
     assert "heat-narrative" in html
+    assert "s.as_of" in html
+    assert "n=" in html
+    assert "fade" in html and "breakout" in html and "session" in html and "candle" in html
     assert "inf-note" in html
     assert "L1 display only" in html
     assert "Market narrative" in html

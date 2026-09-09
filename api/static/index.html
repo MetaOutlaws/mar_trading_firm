@@ -1862,7 +1862,13 @@ function takeawayParts(text) {
   const match = String(text).match(/^(Watch|Fit)\s*:\s*(.*)$/i);
   if (!match) return { kind: "", label: "", body: String(text) };
   const label = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
-  return { kind: label.toLowerCase(), label, body: match[2] };
+  let body = match[2];
+  // Fit is a class label only: fade | breakout | session | candle — never a family id.
+  if (label === "Fit") {
+    const klass = String(body || "").trim().toLowerCase();
+    body = ["fade", "breakout", "session", "candle"].includes(klass) ? klass : "";
+  }
+  return { kind: label.toLowerCase(), label, body };
 }
 
 // Split display on " | " or newlines; a single paragraph looks like the old wall.
@@ -1904,6 +1910,7 @@ function renderSentiment() {
     ? `<div class="takeaways">${takeaways.map(t => {
         const parts = takeawayParts(t);
         const kind = parts.kind === "watch" || parts.kind === "fit" ? parts.kind : "";
+        if (kind === "fit" && !parts.body) return "";
         const label = parts.label || "Note";
         const body = parts.body || t;
         return `<div class="takeaway ${kind}"><span class="tag">${esc(label)}</span><span class="body">${esc(body)}</span></div>`;
@@ -1929,9 +1936,13 @@ function renderSentiment() {
           const hue = 8 + (Number(s.score) + 1) * 56;
           const score = s.score != null ? Number(s.score).toFixed(2) : "—";
           const stage = s.hype_stage || "unscored";
+          const readingAsOf = s.as_of || s.recorded_at || "";
+          const asOfBit = readingAsOf ? when(readingAsOf) : "";
+          const nBit = (s.n != null && s.n !== "") ? "n=" + String(Number(s.n)) : "";
+          const extra = [asOfBit, nBit].filter(Boolean).map(bit => " · " + esc(bit)).join("");
           return `<div class="chip heat-chip" style="background:hsla(${hue},55%,16%,.9)">
             <div><strong>${esc(s.symbol)}</strong></div>
-            <div class="heat-meta"><span class="num">${esc(score)}</span> · ${esc(stage)}</div>
+            <div class="heat-meta"><span class="num">${esc(score)}</span> · ${esc(stage)}${extra}</div>
             <div class="heat-narrative">${esc(s.narrative || "")}</div>
           </div>`;
         }).join("")}</section></div>`

@@ -41,6 +41,9 @@ CACHE_TTL = timedelta(minutes=30)
 VALID_MOODS = frozenset({"risk_on", "risk_off", "chop", "greed", "fear"})
 VALID_HYPE = frozenset({"building", "peaking", "exhausted", "fading", "absent"})
 VALID_BIAS = frozenset({"bullish", "bearish", "neutral"})
+#: Fit takeaway is a class label only — never a family id.
+VALID_FIT_CLASSES = frozenset({"fade", "breakout", "session", "candle"})
+_FIT_LINE = re.compile(r"^fit\s*:\s*(.+)$", re.IGNORECASE)
 
 #: Bybit linear symbols: BTCUSDT, 1000PEPEUSDT, etc.
 _BYBIT_SYMBOL = re.compile(r"^[A-Z0-9]{3,24}$")
@@ -60,6 +63,9 @@ class SentimentReadingModel(BaseModel):
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     sources: list[str] = Field(default_factory=list)
     price_at_reading: float = 0.0
+    # Per-reading tape stamp + sample size (optional on classic files).
+    as_of: str = ""
+    n: int | None = None
 
     @field_validator("symbol", mode="before")
     @classmethod
@@ -87,6 +93,29 @@ class SentimentReadingModel(BaseModel):
         if isinstance(value, list):
             return [str(item) for item in value if item]
         return []
+
+    @field_validator("as_of", mode="before")
+    @classmethod
+    def _reading_as_of(cls, value: Any) -> str:
+        if value is None or value == "":
+            return ""
+        text = str(value).strip()
+        if parse_iso(text) is None:
+            return ""
+        return text
+
+    @field_validator("n", mode="before")
+    @classmethod
+    def _sample_n(cls, value: Any) -> int | None:
+        if value is None or value == "":
+            return None
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            return None
+        if count < 0:
+            return None
+        return count
 
 
 class TrendingTokenModel(BaseModel):
@@ -178,7 +207,7 @@ class SentimentSnapshotModel(BaseModel):
     @field_validator("takeaways", mode="before")
     @classmethod
     def _takeaways(cls, value: Any) -> list[str]:
-        """Keep Luke's plain strings (already 'Watch:' / 'Fit:'); drop objects."""
+        """Watch prose stays; Fit is class-only (fade/breakout/session/candle)."""
         if value is None or value == "":
             return []
         items = [value] if isinstance(value, str) else value
@@ -188,13 +217,27 @@ class SentimentSnapshotModel(BaseModel):
         for item in items:
             if not isinstance(item, str):
                 continue
-            text = item.strip()
+            text = _normalize_takeaway(item)
             if not text:
                 continue
             kept.append(text)
             if len(kept) >= 2:
                 break
         return kept
+
+
+def _normalize_takeaway(text: str) -> str | None:
+    """Pass Watch prose through. Coerce Fit to `Fit: <class>` or drop family ids."""
+    stripped = str(text or "").strip()
+    if not stripped:
+        return None
+    match = _FIT_LINE.match(stripped)
+    if not match:
+        return stripped
+    klass = match.group(1).strip().lower()
+    if klass not in VALID_FIT_CLASSES:
+        return None
+    return f"Fit: {klass}"
 
 
 def parse_iso(value: Any) -> datetime | None:
@@ -331,6 +374,8 @@ def _reading_row(item: dict[str, Any], *, recorded_at: str, model: str) -> dict[
         "forward_return_4h": None,
         "forward_return_24h": None,
         "model": model,
+        "as_of": item.get("as_of") or "",
+        "n": item.get("n"),
     }
 
 
