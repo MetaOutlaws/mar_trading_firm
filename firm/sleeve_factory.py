@@ -2495,6 +2495,61 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "same-bar outside-bar reversal."
         ),
     ),
+    SleeveSpec(
+        name="displacement_gap_follow",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Displacement gap follow as one 4h BOTH family. Follow "
+            "an unfilled adjacent-bar gap that prints an efficient "
+            "body in the gap direction. LONG: low[t] > high[t-1] "
+            "AND close[t] > open[t], gap (low[t]-high[t-1]) >= "
+            "min_gap_atr * ATR20, body (close-open)/(high-low) >= "
+            "min_body_eff (zero-range guarded). SHORT: high[t] < "
+            "low[t-1] AND close[t] < open[t], gap "
+            "(low[t-1]-high[t]) >= min_gap_atr * ATR20, body "
+            "(open-close)/(high-low) >= min_body_eff. "
+            "Quant-locked: ATR20 known before the signal bar, gap "
+            "definition, follow not fade (not searched). Free "
+            "search (2 only): min_gap_atr [0.10, 0.25], "
+            "min_body_eff [0.50, 0.70]. Not weekend_gap_fill "
+            "(Monday fade toward Friday). Not "
+            "utc_midnight_gap_fill (first-hour fade toward prior "
+            "close). Not body_efficiency_follow (two-bar "
+            "|body|/TR + volume; no gap). Not "
+            "open_in_prior_range_fail (gap open then close back "
+            "inside prior bar). Not outside_bar_fail_reversion "
+            "(142). Not sma20_stretch_fade (141). Not "
+            "bb_medium_bw_upper_reject. Not three_white_soldiers "
+            "(140) / three_black_crows (134). Not "
+            "atr_open_flush_fade (138). Not "
+            "utc_day_open_flush_fade (139). Not "
+            "failed_break_reclaim (130). Not expansion_fail_fade "
+            "(131). Not candle_reject_reversal. Not "
+            "ib_fail_reversion (124). Not nr7_fail_reversion "
+            "(123). Not engulfing_fail_reversion (126). Not "
+            "asia_range_london_reject (121). Not "
+            "prior_day_extreme_reject (118). Not "
+            "range_compression_volume_thrust (102). Not "
+            "london_close / ny_close inventory fades. Do not "
+            "recode spent families 118–142. Do not modify "
+            "sibling geometry."
+        ),
+        summary=(
+            "Follow a same-bar unfilled displacement gap with an "
+            "efficient body (LONG = gap up + bullish, SHORT = "
+            "gap down + bearish) as one 4h BOTH family."
+        ),
+        justification=(
+            "A locked ATR20 unfilled-gap follow with searched "
+            "min_gap_atr and high-low body efficiency is not a "
+            "weekend / midnight gap fill, not a two-bar "
+            "body-efficiency pair, not an open-in-prior fade, "
+            "and not a fail-reversion / inventory / flush sleeve."
+        ),
+    ),
 ]
 
 

@@ -1133,6 +1133,14 @@ def _novel_kit(name: str, side: SignalSide):
             # min_outside_atr only.
             {"min_outside_atr": [0.8, 1.2]},
         ),
+        "displacement_gap_follow": (
+            "core.strategy.displacement_gap_follow",
+            "DisplacementGapFollowParams",
+            "DisplacementGapFollowStrategy",
+            # atr_n locked at 20. Gap definition and follow-not-fade
+            # locked. Search min_gap_atr + min_body_eff only.
+            {"min_gap_atr": [0.10, 0.25], "min_body_eff": [0.50, 0.70]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

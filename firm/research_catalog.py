@@ -1226,6 +1226,35 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "displacement_gap_follow@4h/4h",
+        "family": "displacement_gap_follow",
+        "name": "displacement_gap_follow 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 42,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Follow an "
+            "unfilled adjacent-bar displacement gap that prints "
+            "an efficient body in the gap direction. Quant-locked "
+            "grid: ATR period=20 (not searched), ATR known before "
+            "the signal bar, LONG=gap up + bullish close / "
+            "SHORT=gap down + bearish close. Free search (2 "
+            "only): min_gap_atr [0.10, 0.25], min_body_eff "
+            "[0.50, 0.70]. BOTH sides honest. Walk-forward is "
+            "not started from this coding PR. Not "
+            "weekend_gap_fill, not utc_midnight_gap_fill, not "
+            "body_efficiency_follow, not open_in_prior_range_fail, "
+            "not outside_bar_fail_reversion (142), not "
+            "sma20_stretch_fade (141), not fail-reversion / "
+            "flush / inventory siblings."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

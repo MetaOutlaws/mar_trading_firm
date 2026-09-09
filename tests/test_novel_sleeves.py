@@ -137,6 +137,7 @@ APPROVED = [
     "three_white_soldiers",
     "sma20_stretch_fade",
     "outside_bar_fail_reversion",
+    "displacement_gap_follow",
 ]
 
 
@@ -8066,6 +8067,329 @@ def test_outside_bar_fail_reversion_no_lookahead() -> None:
     )
 
 
+def _displacement_gap_tape(
+    *,
+    long_side: bool,
+    gap: bool = True,
+    follow_close: bool = True,
+    tiny_gap: bool = False,
+    inefficient: bool = False,
+    zero_range: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet ATR~1 tape, then one unfilled displacement print.
+
+    Quiet bars sit at 100.5/99.5 so ATR20 stays near 1.0. The fire bar
+    gaps 0.15 ATR (inside the 0.10 floor, below the 0.25 search point)
+    with body efficiency 0.60 (inside the 0.50 floor, below 0.70).
+    Fire hour is 17:00 UTC so midnight / London / IB / inventory stay dark.
+    Not Monday, so weekend_gap_fill stays dark.
+    """
+    n = 50
+    fire = 41
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    prior_high = 100.5
+    prior_low = 99.5
+    if zero_range:
+        # Single-tick print after a gap — high-low is zero, so efficiency is undefined.
+        px = 100.80 if long_side else 99.20
+        high[fire] = px
+        low[fire] = px
+        open_[fire] = px
+        close[fire] = px
+    elif long_side:
+        gap_size = 0.05 if tiny_gap else (0.15 if gap else -0.10)
+        fire_low = prior_high + gap_size
+        fire_high = fire_low + 1.0
+        if inefficient:
+            fire_open = fire_low + 0.20
+            fire_close = fire_low + 0.50
+        elif follow_close:
+            fire_open = fire_low + 0.10
+            fire_close = fire_low + 0.70
+        else:
+            # Gap up but close bearish — follow LONG must stay dark.
+            fire_open = fire_low + 0.70
+            fire_close = fire_low + 0.10
+        high[fire] = fire_high
+        low[fire] = fire_low
+        open_[fire] = fire_open
+        close[fire] = fire_close
+    else:
+        gap_size = 0.05 if tiny_gap else (0.15 if gap else -0.10)
+        fire_high = prior_low - gap_size
+        fire_low = fire_high - 1.0
+        if inefficient:
+            fire_open = fire_high - 0.20
+            fire_close = fire_high - 0.50
+        elif follow_close:
+            fire_open = fire_high - 0.10
+            fire_close = fire_high - 0.70
+        else:
+            # Gap down but close bullish — follow SHORT must stay dark.
+            fire_open = fire_high - 0.70
+            fire_close = fire_high - 0.10
+        high[fire] = fire_high
+        low[fire] = fire_low
+        open_[fire] = fire_open
+        close[fire] = fire_close
+    index = _hourly(n)
+    assert int(index[fire].hour) != 0
+    assert int(index[fire].hour) != 15
+    assert int(index[fire].hour) not in {7, 8, 9, 10}
+    assert int(index[fire].dayofweek) != 0
+    return _ohlcv(index, close, high=high, low=low, open_=open_), fire
+
+
+def _assert_displacement_gap_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """This family is not a clone of the spent gap-fill / fail / fade sleeves."""
+    assert int(_signals("outside_bar_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("sma20_stretch_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("bb_medium_bw_upper_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("three_black_crows", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("three_white_soldiers", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("atr_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("utc_day_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("failed_break_reclaim", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("candle_reject_reversal", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("ib_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("nr7_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("engulfing_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("asia_range_london_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_day_extreme_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("body_efficiency_follow", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("open_in_prior_range_fail", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("range_compression_volume_thrust", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("weekend_gap_fill", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("utc_midnight_gap_fill", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+
+
+def test_displacement_gap_follow_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.displacement_gap_follow import ATR_N_LOCKED
+    from research.validate import strategy_kit
+
+    # Quant lock: search min_gap_atr + min_body_eff only. ATR20 stays fixed.
+    factory, base, space = strategy_kit("displacement_gap_follow", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.min_gap_atr == pytest.approx(0.10)
+    assert base.min_body_eff == pytest.approx(0.50)
+    assert base.atr_n == ATR_N_LOCKED
+    assert space["min_gap_atr"] == [0.10, 0.25]
+    assert space["min_body_eff"] == [0.50, 0.70]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_gap_atr", "min_body_eff"}
+
+    candles, fire = _displacement_gap_tape(long_side=True)
+    signals = _signals("displacement_gap_follow", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "atr",
+        "atr_known",
+        "prior_high",
+        "prior_low",
+        "gap_up",
+        "gap_down",
+        "gap_up_size",
+        "gap_down_size",
+        "gap_size",
+        "gap_atr",
+        "bar_range",
+        "body_eff",
+        "body_eff_long",
+        "sized_enough",
+        "efficient_enough",
+    ):
+        assert column in signals.columns
+    # Not a session / SMA / Donchian / BB / weekend-gap clone.
+    assert "sma" not in signals.columns
+    assert "day_open" not in signals.columns
+    assert "bb_mid" not in signals.columns
+    assert "range_high" not in signals.columns
+    assert "nr7_high" not in signals.columns
+    assert "mother_high" not in signals.columns
+    assert "engulf_open" not in signals.columns
+    assert "expansion_tr" not in signals.columns
+    assert "friday_close" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["gap_up"].iloc[fire])
+    assert not bool(signals["gap_down"].iloc[fire])
+    assert bool(signals["sized_enough"].iloc[fire])
+    assert bool(signals["efficient_enough"].iloc[fire])
+    prior_high = float(signals["prior_high"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    open_px = float(candles["open"].iloc[fire])
+    low_px = float(candles["low"].iloc[fire])
+    high_px = float(candles["high"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    gap_size = float(signals["gap_size"].iloc[fire])
+    body_eff = float(signals["body_eff"].iloc[fire])
+    assert low_px > prior_high
+    assert close_px > open_px
+    assert gap_size == pytest.approx(low_px - prior_high)
+    assert gap_size >= 0.10 * atr_known
+    assert gap_size < 0.25 * atr_known
+    assert body_eff == pytest.approx((close_px - open_px) / (high_px - low_px))
+    assert 0.50 <= body_eff < 0.70
+    # Signal-bar TR includes the gap; ATR known before t must not.
+    assert atr_known == pytest.approx(1.0, abs=0.15)
+    assert float(signals["atr"].iloc[fire]) != pytest.approx(atr_known)
+    # Search grid matters: 0.25 ATR floor and 0.70 body floor miss this print.
+    tight_gap = factory(replace(base, min_gap_atr=0.25)).generate_signals(candles)
+    assert int(tight_gap["signal"].iloc[fire]) == 0
+    tight_body = factory(replace(base, min_body_eff=0.70)).generate_signals(candles)
+    assert int(tight_body["signal"].iloc[fire]) == 0
+    missing, missing_fire = _displacement_gap_tape(long_side=True, gap=False)
+    assert int(
+        _signals("displacement_gap_follow", missing, side=SignalSide.LONG)["signal"].iloc[
+            missing_fire
+        ]
+    ) == 0
+    tiny, tiny_fire = _displacement_gap_tape(long_side=True, tiny_gap=True)
+    assert int(
+        _signals("displacement_gap_follow", tiny, side=SignalSide.LONG)["signal"].iloc[
+            tiny_fire
+        ]
+    ) == 0
+    weak, weak_fire = _displacement_gap_tape(long_side=True, inefficient=True)
+    weak_sig = _signals("displacement_gap_follow", weak, side=SignalSide.LONG)
+    assert int(weak_sig["signal"].iloc[weak_fire]) == 0
+    assert bool(weak_sig["gap_up"].iloc[weak_fire])
+    assert not bool(weak_sig["efficient_enough"].iloc[weak_fire])
+    faded, faded_fire = _displacement_gap_tape(long_side=True, follow_close=False)
+    faded_sig = _signals("displacement_gap_follow", faded, side=SignalSide.LONG)
+    assert int(faded_sig["signal"].iloc[faded_fire]) == 0
+    assert bool(faded_sig["gap_up"].iloc[faded_fire])
+    flat, flat_fire = _displacement_gap_tape(long_side=True, zero_range=True)
+    flat_sig = _signals("displacement_gap_follow", flat, side=SignalSide.LONG)
+    assert int(flat_sig["signal"].iloc[flat_fire]) == 0
+    assert bool(flat_sig["gap_up"].iloc[flat_fire])
+    assert not bool(flat_sig["efficient_enough"].iloc[flat_fire])
+    # Caller cannot unlock ATR20 — locks stay locked.
+    unlocked = factory(replace(base, atr_n=5)).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert unlocked["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    _assert_displacement_gap_clear_of_siblings(candles, fire, SignalSide.LONG)
+    # SHORT side does not take the gap-up follow.
+    short_on_up = _signals("displacement_gap_follow", candles, side=SignalSide.SHORT)
+    assert int(short_on_up["signal"].iloc[fire]) == 0
+    assert int((short_on_up["signal"] == -1).sum()) == 0
+
+
+def test_displacement_gap_follow_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("displacement_gap_follow", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_gap_atr", "min_body_eff"}
+    assert space["min_gap_atr"] == [0.10, 0.25]
+    assert space["min_body_eff"] == [0.50, 0.70]
+
+    candles, fire = _displacement_gap_tape(long_side=False)
+    signals = _signals("displacement_gap_follow", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["gap_down"].iloc[fire])
+    assert not bool(signals["gap_up"].iloc[fire])
+    assert bool(signals["sized_enough"].iloc[fire])
+    assert bool(signals["efficient_enough"].iloc[fire])
+    prior_low = float(signals["prior_low"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    open_px = float(candles["open"].iloc[fire])
+    high_px = float(candles["high"].iloc[fire])
+    low_px = float(candles["low"].iloc[fire])
+    assert high_px < prior_low
+    assert close_px < open_px
+    assert float(signals["gap_size"].iloc[fire]) == pytest.approx(prior_low - high_px)
+    assert float(signals["body_eff"].iloc[fire]) == pytest.approx(
+        (open_px - close_px) / (high_px - low_px)
+    )
+    tight = factory(replace(base, min_gap_atr=0.25)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    faded, faded_fire = _displacement_gap_tape(long_side=False, follow_close=False)
+    faded_sig = _signals("displacement_gap_follow", faded, side=SignalSide.SHORT)
+    assert int(faded_sig["signal"].iloc[faded_fire]) == 0
+    _assert_displacement_gap_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_down = _signals("displacement_gap_follow", candles, side=SignalSide.LONG)
+    assert int(long_on_down["signal"].iloc[fire]) == 0
+
+
+def test_displacement_gap_follow_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("displacement_gap_follow", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_gap_atr", "min_body_eff"}
+    assert space["min_gap_atr"] == [0.10, 0.25]
+    assert space["min_body_eff"] == [0.50, 0.70]
+    assert "atr_n" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("displacement_gap_follow")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "displacement_gap_follow"
+
+
+def test_displacement_gap_follow_no_lookahead() -> None:
+    candles, fire = _displacement_gap_tape(long_side=True)
+    signals = _signals("displacement_gap_follow", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "displacement_gap_follow", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite the prior rail, ATR known-before-signal, or fire.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("displacement_gap_follow", shocked, side=SignalSide.LONG)
+    assert after["prior_high"].iloc[fire] == pytest.approx(signals["prior_high"].iloc[fire])
+    assert after["prior_low"].iloc[fire] == pytest.approx(signals["prior_low"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert after["gap_atr"].iloc[fire] == pytest.approx(signals["gap_atr"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -8106,6 +8430,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
         ("sma20_stretch_fade", {"k"}),
         ("outside_bar_fail_reversion", {"min_outside_atr"}),
+        ("displacement_gap_follow", {"min_gap_atr", "min_body_eff"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -8142,6 +8467,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("three_white_soldiers", {"min_body_frac", "max_lower_wick_frac"}),
         ("sma20_stretch_fade", {"k"}),
         ("outside_bar_fail_reversion", {"min_outside_atr"}),
+        ("displacement_gap_follow", {"min_gap_atr", "min_body_eff"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
