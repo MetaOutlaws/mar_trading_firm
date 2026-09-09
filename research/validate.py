@@ -1091,6 +1091,14 @@ def _novel_kit(name: str, side: SignalSide):
             # Search k (stdev multiplier) only.
             {"k": [1.8, 2.0]},
         ),
+        "atr_open_flush_fade": (
+            "core.strategy.atr_open_flush_fade",
+            "AtrOpenFlushFadeParams",
+            "AtrOpenFlushFadeStrategy",
+            # atr_n locked at 20. Same-bar flush then fade through
+            # open locked. Search k (ATR units from open) only.
+            {"k": [1.0, 1.5]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

@@ -1096,6 +1096,28 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "atr_open_flush_fade@4h/4h",
+        "family": "atr_open_flush_fade",
+        "name": "atr_open_flush_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 37,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a same-bar "
+            "open flush that closes back through the open. "
+            "Quant-locked grid: ATR period=20 (not searched), "
+            "same-bar flush then fade through open, SHORT=up-flush "
+            "/ LONG=down-flush. Free search (1 only): k [1.0, 1.5]. "
+            "BOTH sides honest. Walk-forward is not started from "
+            "this coding PR."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

@@ -132,6 +132,7 @@ APPROVED = [
     "bullish_rectangle_fail_reclaim",
     "three_black_crows",
     "bb_medium_bw_upper_reject",
+    "atr_open_flush_fade",
 ]
 
 
@@ -6718,6 +6719,223 @@ def test_bb_medium_bw_upper_reject_no_lookahead() -> None:
     )
 
 
+def _atr_open_flush_tape(
+    *,
+    long_side: bool,
+    flush: bool = True,
+    fade: bool = True,
+    k: float = 1.0,
+    n: int = 48,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet 100±1 tape (ATR ~ 2) then one same-bar open flush.
+
+    Default flush is 1.2 * prior ATR so k=1.0 fires and k=1.5 does not.
+    Fade closes back through the open; held keeps close on the flush side.
+    """
+    from core.strategy import indicators as ind
+
+    fire = n - 4
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    # Measure prevailing ATR on the quiet tape, then rewrite only bar `fire`.
+    quiet = _ohlcv(_hourly(n), close, high=high, low=low, open_=open_)
+    atr_prev = float(ind.atr(quiet["high"], quiet["low"], quiet["close"], 20).iloc[fire - 1])
+    assert atr_prev > 0
+    if flush:
+        # 1.2 * k * ATR at the default k=1.0: enough for 1.0, short of 1.5.
+        reach = 1.2 * k * atr_prev
+        if long_side:
+            open_[fire] = 100.0
+            low[fire] = 100.0 - reach
+            close[fire] = 100.25 if fade else 99.40
+            high[fire] = max(open_[fire], close[fire]) + 0.05
+        else:
+            open_[fire] = 100.0
+            high[fire] = 100.0 + reach
+            close[fire] = 99.75 if fade else 100.60
+            low[fire] = min(open_[fire], close[fire]) - 0.05
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_), fire
+
+
+def test_atr_open_flush_fade_schema_and_short_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.atr_open_flush_fade import ATR_N_LOCKED
+    from research.validate import strategy_kit
+
+    # Quant lock: search k only. ATR20 stays fixed.
+    factory, base, space = strategy_kit("atr_open_flush_fade", SignalSide.SHORT)
+    assert base.side is SignalSide.SHORT
+    assert base.k == pytest.approx(1.0)
+    assert base.atr_n == ATR_N_LOCKED
+    assert space["k"] == [1.0, 1.5]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+
+    candles, fire = _atr_open_flush_tape(long_side=False)
+    signals = _signals("atr_open_flush_fade", candles, side=SignalSide.SHORT)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "atr",
+        "atr_prev",
+        "bar_open",
+        "up_flush_atr",
+        "down_flush_atr",
+        "up_flush",
+        "down_flush",
+        "faded_below_open",
+        "faded_above_open",
+    ):
+        assert column in signals.columns
+    # Not an IB / magnet / expansion / ORB leftover.
+    assert "mother_high" not in signals.columns
+    assert "london_mother" not in signals.columns
+    assert "prior_close" not in signals.columns
+    assert "expansion_tr" not in signals.columns
+    assert "orb_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["up_flush"].iloc[fire])
+    assert bool(signals["faded_below_open"].iloc[fire])
+    assert not bool(signals["down_flush"].iloc[fire])
+    assert float(signals["up_flush_atr"].iloc[fire]) >= 1.0
+    assert float(signals["up_flush_atr"].iloc[fire]) < 1.5
+    # k=1.5 needs a deeper flush — search k matters.
+    tight = factory(replace(base, k=1.5)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    # No flush: quiet wick stays well under 1.0 ATR from the open.
+    quiet, quiet_fire = _atr_open_flush_tape(long_side=False, flush=False)
+    assert int(
+        _signals("atr_open_flush_fade", quiet, side=SignalSide.SHORT)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    # Flush that holds above the open is not a fade.
+    held, held_fire = _atr_open_flush_tape(long_side=False, fade=False)
+    held_sig = _signals("atr_open_flush_fade", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["up_flush"].iloc[held_fire])
+    assert not bool(held_sig["faded_below_open"].iloc[held_fire])
+    # Caller cannot unlock ATR period — locks stay locked.
+    short_period = factory(replace(base, atr_n=5)).generate_signals(candles)
+    assert int(short_period["signal"].iloc[fire]) == -1
+    assert short_period["atr_prev"].iloc[fire] == pytest.approx(
+        signals["atr_prev"].iloc[fire]
+    )
+    # Distinct from London IB fail, prior-close magnet, next-bar expansion, ORB fail.
+    assert int(_signals("ib_fail_reversion", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_close_magnet_fade", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    assert int(_signals("orb_fail_reversion", candles, side=SignalSide.SHORT)["signal"].iloc[fire]) == 0
+    # LONG side does not take the up-flush fade.
+    long_on_up = _signals("atr_open_flush_fade", candles, side=SignalSide.LONG)
+    assert int(long_on_up["signal"].iloc[fire]) == 0
+    assert int((long_on_up["signal"] == 1).sum()) == 0
+
+
+def test_atr_open_flush_fade_long_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("atr_open_flush_fade", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.0, 1.5]
+
+    candles, fire = _atr_open_flush_tape(long_side=True)
+    signals = _signals("atr_open_flush_fade", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["down_flush"].iloc[fire])
+    assert bool(signals["faded_above_open"].iloc[fire])
+    assert not bool(signals["up_flush"].iloc[fire])
+    assert float(signals["down_flush_atr"].iloc[fire]) >= 1.0
+    assert float(signals["down_flush_atr"].iloc[fire]) < 1.5
+    tight = factory(replace(base, k=1.5)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    quiet, quiet_fire = _atr_open_flush_tape(long_side=True, flush=False)
+    assert int(
+        _signals("atr_open_flush_fade", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    held, held_fire = _atr_open_flush_tape(long_side=True, fade=False)
+    held_sig = _signals("atr_open_flush_fade", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["down_flush"].iloc[held_fire])
+    assert not bool(held_sig["faded_above_open"].iloc[held_fire])
+    assert int(_signals("ib_fail_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("prior_close_magnet_fade", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("orb_fail_reversion", candles)["signal"].iloc[fire]) == 0
+    short_on_down = _signals("atr_open_flush_fade", candles, side=SignalSide.SHORT)
+    assert int(short_on_down["signal"].iloc[fire]) == 0
+
+
+def test_atr_open_flush_fade_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("atr_open_flush_fade", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.0, 1.5]
+    assert "atr_n" not in space
+    spec = None
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("atr_open_flush_fade")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "atr_open_flush_fade"
+
+
+def test_atr_open_flush_fade_no_lookahead() -> None:
+    candles, fire = _atr_open_flush_tape(long_side=False)
+    signals = _signals("atr_open_flush_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    cut = fire + 1
+    truncated = _signals(
+        "atr_open_flush_fade", candles.iloc[:cut], side=SignalSide.SHORT
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    # Later bars must not rewrite prior ATR or the fire decision.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("atr_open_flush_fade", shocked, side=SignalSide.SHORT)
+    assert after["atr_prev"].iloc[fire] == pytest.approx(signals["atr_prev"].iloc[fire])
+    assert after["up_flush_atr"].iloc[fire] == pytest.approx(
+        signals["up_flush_atr"].iloc[fire]
+    )
+    assert int(after["signal"].iloc[fire]) == -1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -6753,6 +6971,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("bullish_rectangle_fail_reclaim", {"lookback", "atr_tol"}),
         ("three_black_crows", {"min_body_frac", "max_upper_wick_frac"}),
         ("bb_medium_bw_upper_reject", {"k"}),
+        ("atr_open_flush_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -6784,6 +7003,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("bullish_rectangle_fail_reclaim", {"lookback", "atr_tol"}),
         ("three_black_crows", {"min_body_frac", "max_upper_wick_frac"}),
         ("bb_medium_bw_upper_reject", {"k"}),
+        ("atr_open_flush_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
