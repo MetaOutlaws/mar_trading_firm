@@ -1118,6 +1118,29 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "utc_day_open_flush_fade@4h/4h",
+        "family": "utc_day_open_flush_fade",
+        "name": "utc_day_open_flush_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 38,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Fade a flush of "
+            "the UTC day-open that closes back through that open. "
+            "Quant-locked grid: ATR period=20 (not searched), UTC "
+            "day-open = first 4h open in 00:00–03:59 UTC (same "
+            "calendar day only), SHORT=up-flush / LONG=down-flush. "
+            "Free search (1 only): k [1.0, 1.5]. BOTH sides honest. "
+            "Walk-forward is not started from this coding PR. Not "
+            "atr_open_flush_fade (138 RETIRED)."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

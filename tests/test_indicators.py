@@ -521,6 +521,37 @@ def test_iso_week_open_is_monday_0000_not_midweek():
     assert week_open.iloc[36] == pytest.approx(80.0)
 
 
+def test_utc_day_open_is_first_4h_slot_same_day_only():
+    """Locked UTC day-open is the first bar in 00:00–03:59, same calendar day."""
+    index = pd.date_range("2024-01-02", periods=18, freq="4h", tz="UTC")
+    open_ = pd.Series(100.0, index=index)
+    open_.iloc[0] = 80.0  # Jan 2 00:00
+    open_.iloc[1] = 90.0  # Jan 2 04:00 — must not rewrite day-open
+    open_.iloc[6] = 120.0  # Jan 3 00:00 — next day
+    day_open = ind.utc_day_open(open_)
+    assert day_open.iloc[0] == pytest.approx(80.0)
+    assert day_open.iloc[1] == pytest.approx(80.0)
+    assert day_open.iloc[5] == pytest.approx(80.0)  # Jan 2 20:00
+    assert day_open.iloc[6] == pytest.approx(120.0)
+    assert day_open.iloc[7] == pytest.approx(120.0)
+    # A tape that starts after 03:59 has no day-open that calendar day.
+    late = pd.date_range("2024-01-02 04:00", periods=5, freq="4h", tz="UTC")
+    late_open = pd.Series([111.0, 112.0, 113.0, 114.0, 115.0], index=late)
+    assert ind.utc_day_open(late_open).isna().all()
+
+
+def test_utc_day_open_hourly_uses_0000_not_later_hour_in_window():
+    """On 1h, 00:00 is the first in-window bar; 01:00–03:00 do not rewrite it."""
+    index = pd.date_range("2024-01-02", periods=10, freq="h", tz="UTC")
+    open_ = pd.Series(100.0, index=index)
+    open_.iloc[0] = 80.0
+    open_.iloc[2] = 99.0  # 02:00 still in 00:00–03:59
+    day_open = ind.utc_day_open(open_)
+    assert day_open.iloc[0] == pytest.approx(80.0)
+    assert day_open.iloc[2] == pytest.approx(80.0)
+    assert day_open.iloc[4] == pytest.approx(80.0)
+
+
 def test_prior_utc_8h_session_publishes_after_session_ends():
     index = pd.date_range("2024-01-02", periods=24, freq="h", tz="UTC")
     high = pd.Series(101.0, index=index)

@@ -251,6 +251,40 @@ def utc_day_key(index: pd.Index) -> pd.Series:
     return pd.Series(utc_index.normalize(), index=index)
 
 
+# First 4h slot of the UTC day: bars whose open sits in 00:00–03:59 UTC.
+UTC_DAY_OPEN_WINDOW_HOURS = 4.0
+
+
+def utc_day_open(
+    open_: pd.Series,
+    *,
+    window_hours: float = UTC_DAY_OPEN_WINDOW_HOURS,
+) -> pd.Series:
+    """Open of the first bar whose UTC open is in ``[00:00, window_hours)``.
+
+    On a 4h clock that is the 00:00 bar — the locked UTC day-open anchor.
+    Published from that bar through the rest of the *same* UTC calendar day
+    only. It does not ffill into the next day (that would be a prior-day
+    level) and a tape that starts after the window stays NaN for that day.
+
+    Causal: groupby-ffill only looks backward within the day.
+    """
+    if window_hours <= 0:
+        raise ValueError(f"window_hours must be positive, got {window_hours}")
+    utc_index = _as_utc_index(open_.index)
+    day = pd.Series(utc_index.normalize(), index=open_.index)
+    hours_into = pd.Series(
+        (utc_index - utc_index.normalize()) / pd.Timedelta(hours=1),
+        index=open_.index,
+    )
+    in_window = hours_into < float(window_hours)
+    # First in-window print of each UTC day. Later 01:00/02:00/03:00 hour
+    # bars (on 1h) do not rewrite the locked open.
+    first = in_window & in_window.groupby(day).cumsum().eq(1)
+    printed = open_.astype("float64").where(first)
+    return printed.groupby(day).ffill()
+
+
 def utc_session_vwap(
     high: pd.Series,
     low: pd.Series,

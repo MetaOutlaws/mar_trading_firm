@@ -1099,6 +1099,15 @@ def _novel_kit(name: str, side: SignalSide):
             # open locked. Search k (ATR units from open) only.
             {"k": [1.0, 1.5]},
         ),
+        "utc_day_open_flush_fade": (
+            "core.strategy.utc_day_open_flush_fade",
+            "UtcDayOpenFlushFadeParams",
+            "UtcDayOpenFlushFadeStrategy",
+            # atr_n locked at 20. UTC day-open (first 4h in
+            # 00:00–03:59, same calendar day) locked. Search k
+            # (ATR units from day-open) only.
+            {"k": [1.0, 1.5]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

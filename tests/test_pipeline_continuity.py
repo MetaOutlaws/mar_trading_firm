@@ -692,6 +692,7 @@ def test_promote_remaining_into_top5_after_postmortem(tmp_path, monkeypatch) -> 
                     "three_black_crows@4h/4h": 16,
                     "bb_medium_bw_upper_reject@4h/4h": 16,
                     "atr_open_flush_fade@4h/4h": 16,
+                    "utc_day_open_flush_fade@4h/4h": 16,
                     "session_boundary_volume_fade@4h/4h": 16,
                     "vwap_spread_exhaustion@4h/4h": 16,
                     "vwap_volatility_band_fade@1h/1h": 16,
