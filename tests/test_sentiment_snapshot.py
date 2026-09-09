@@ -67,6 +67,9 @@ def test_example_file_matches_contract() -> None:
     parsed = validate_sentiment_blob(data)
     assert parsed["source"] == "luke_ct_scraper"
     assert parsed["mood"] == "chop"
+    assert parsed["headline"]
+    assert parsed["takeaways"][0].startswith("Watch:")
+    assert parsed["takeaways"][1].startswith("Fit:")
     assert parsed["readings"][0]["symbol"] == "BTCUSDT"
     assert -1.0 <= parsed["readings"][0]["score"] <= 1.0
 
@@ -338,6 +341,8 @@ def test_api_sentiment_returns_desk_object(firm_db, tmp_path, monkeypatch) -> No
     assert "trending" in body
     assert "influencers" in body
     assert "market_narrative" in body
+    assert "headline" in body
+    assert "takeaways" in body
     assert body["mood"] == "chop"
 
 
@@ -358,3 +363,65 @@ def test_import_skips_when_sqlite_is_newer(firm_db) -> None:
     blob = _blob(as_of="2026-09-07T08:00:00+00:00")
     assert import_snapshot_if_newer(blob) == 0
     assert memory.latest_sentiment()[0]["narrative"] == "xai"
+
+
+def test_classic_blob_defaults_empty_l1_fields() -> None:
+    parsed = validate_sentiment_blob(_blob())
+    assert parsed["headline"] == ""
+    assert parsed["takeaways"] == []
+    assert parsed["market_narrative"] == "Majors two-way, memes quieter."
+
+
+def test_headline_and_takeaways_passthrough(tmp_path: Path) -> None:
+    blob = _blob(
+        headline="BTC two-way at range high",
+        takeaways=[
+            "Watch: ETH lag vs BTC",
+            "Fit: majors over meme-beta",
+            "Watch: extra should be dropped",
+            {"kind": "Watch", "text": "nested object must be dropped"},
+        ],
+    )
+    parsed = validate_sentiment_blob(blob)
+    assert parsed["headline"] == "BTC two-way at range high"
+    assert parsed["takeaways"] == ["Watch: ETH lag vs BTC", "Fit: majors over meme-beta"]
+
+    dest = tmp_path / "last_sentiment.json"
+    persist_sentiment(blob, dest)
+    desk = desk_snapshot([], path=dest)
+    assert desk["headline"] == "BTC two-way at range high"
+    assert desk["takeaways"] == ["Watch: ETH lag vs BTC", "Fit: majors over meme-beta"]
+
+
+def test_api_sentiment_emits_headline_takeaways(firm_db, tmp_path, monkeypatch) -> None:
+    from fastapi.testclient import TestClient
+
+    dest = tmp_path / "last_sentiment.json"
+    persist_sentiment(
+        _blob(
+            headline="CT rotating into majors",
+            takeaways=["Watch: ETH lag", "Fit: less leverage-cosplay"],
+        ),
+        dest,
+    )
+    monkeypatch.setattr("core.data.sentiment.LAST_SENTIMENT_PATH", dest)
+    from api.app import app
+
+    client = TestClient(app)
+    body = client.get("/api/sentiment").json()
+    assert body["headline"] == "CT rotating into majors"
+    assert body["takeaways"] == ["Watch: ETH lag", "Fit: less leverage-cosplay"]
+    assert body["mood"] == "chop"
+    assert body["market_narrative"]
+
+
+def test_null_followers_does_not_drop_influencer() -> None:
+    blob = _blob(
+        influencers=[
+            {"handle": "example_macro", "bias": "bullish", "followers": None, "note": "BTC · bid"}
+        ]
+    )
+    parsed = validate_sentiment_blob(blob)
+    assert parsed["influencers"][0]["handle"] == "example_macro"
+    assert parsed["influencers"][0]["followers"] is None
+    assert parsed["influencers"][0]["note"] == "BTC · bid"

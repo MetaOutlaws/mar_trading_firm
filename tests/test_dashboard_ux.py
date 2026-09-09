@@ -37,3 +37,19 @@ def test_duty_board_and_who_runs_default_collapsed():
     assert 'collapsibleCard("whoRunsOps", "Who runs daily ops"' in html
     assert "firmCollapse" in html
     assert "${duties.length} on track" in html
+
+
+def test_sentiment_tab_l1_clarity_contract():
+    """Pin Luke's L1 desk shape. Display only — no trade calls, no WF."""
+    html = _html()
+    assert "function renderSentiment(" in html
+    assert "function sentimentTakeaways(" in html
+    assert "function splitMarketNarrative(" in html
+    assert "desk.headline" in html
+    assert "desk.takeaways" in html
+    assert "Watch|Fit" in html
+    assert "narrative-split" in html
+    assert "heat-narrative" in html
+    assert "inf-note" in html
+    assert "L1 display only" in html
+    assert "Market narrative" in html

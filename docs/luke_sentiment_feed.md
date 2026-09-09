@@ -36,11 +36,20 @@ os.replace(tmp, dest)  # POSIX atomic replace on the same filesystem
 | `as_of` | ISO-8601. Freshness TTL is 30 minutes. |
 | `source` | `luke_ct_scraper` |
 | `model` | `ct-scraper` |
+| `headline` | Optional L1 string. Desk shows it prominent; classic files omit it. |
+| `takeaways` | Optional `string[]`, at most two. Each string is already prefixed `Watch:` or `Fit:` (plain strings, not objects). No trade calls. |
+| `market_narrative` | Full tape. Desk splits display on ` \| ` or newlines. |
 | `mood` | `risk_on` \| `risk_off` \| `chop` \| `greed` \| `fear` |
 | `readings[].symbol` | Bybit linear, e.g. `BTCUSDT` |
 | `readings[].score` | `-1` … `+1` |
 | `readings[].hype_stage` | `building` \| `peaking` \| `exhausted` \| `fading` \| `absent` |
+| `readings[].narrative` | Full per-symbol note. Desk does not truncate. |
 | `readings[].confidence` | `0` … `1` |
+| `trending[]` | `token`, `symbol`, `rank`, `mentions`, `score` |
+| `influencers[]` | `handle`, `bias`, `followers` (nullable), `note` (`asset · claim`) |
+
+`headline` and `takeaways` must survive `/api/sentiment` and `/api/floor` unchanged.
+Missing those fields is valid: the tab falls back to the classic `market_narrative` wall.
 
 Invalid rows inside `readings` / `trending` / `influencers` are dropped; a bad
 `mood` or `as_of` rejects the whole file and the desk falls back to SQLite.

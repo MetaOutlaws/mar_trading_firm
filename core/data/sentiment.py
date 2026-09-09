@@ -116,7 +116,7 @@ class InfluencerModel(BaseModel):
 
     handle: str
     bias: str
-    followers: int = 0
+    followers: int | None = None
     note: str = ""
 
     @field_validator("handle", mode="before")
@@ -146,6 +146,9 @@ class SentimentSnapshotModel(BaseModel):
     as_of: str
     source: str = "luke_ct_scraper"
     model: str = "ct-scraper"
+    # L1 clarity fields — optional so classic snapshots still validate.
+    headline: str = ""
+    takeaways: list[str] = Field(default_factory=list)
     market_narrative: str = ""
     mood: str
     readings: list[SentimentReadingModel] = Field(default_factory=list)
@@ -166,6 +169,32 @@ class SentimentSnapshotModel(BaseModel):
         if parse_iso(value) is None:
             raise ValueError("as_of must be ISO-8601")
         return value
+
+    @field_validator("headline", mode="before")
+    @classmethod
+    def _headline(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+    @field_validator("takeaways", mode="before")
+    @classmethod
+    def _takeaways(cls, value: Any) -> list[str]:
+        """Keep Luke's plain strings (already 'Watch:' / 'Fit:'); drop objects."""
+        if value is None or value == "":
+            return []
+        items = [value] if isinstance(value, str) else value
+        if not isinstance(items, list):
+            return []
+        kept: list[str] = []
+        for item in items:
+            if not isinstance(item, str):
+                continue
+            text = item.strip()
+            if not text:
+                continue
+            kept.append(text)
+            if len(kept) >= 2:
+                break
+        return kept
 
 
 def parse_iso(value: Any) -> datetime | None:
@@ -278,6 +307,8 @@ def empty_desk_payload(*, empty_reason: str = "missing") -> dict[str, Any]:
         "fresh": False,
         "stale": False,
         "empty_reason": empty_reason,
+        "headline": "",
+        "takeaways": [],
         "market_narrative": "",
         "mood": "",
         "readings": [],
@@ -315,8 +346,10 @@ def desk_snapshot(
 
     * Fresh file (as_of within TTL): heatmap readings come from the file.
     * Stale or missing file: heatmap readings fall back to SQLite.
-    * mood / narrative / trending / influencers come from the file whenever it
-      parsed, even if stale, so the last known CT tape is still visible.
+    * mood / headline / takeaways / narrative / trending / influencers come from
+      the file whenever it parsed, even if stale, so the last known CT tape is
+      still visible. Headline and takeaways must pass through — extra="ignore"
+      on the snapshot model used to strip them before the desk ever saw them.
     * `on_import` runs when the file loaded so callers can copy readings into
       `memory.record_sentiment` for forward-return history.
     """
@@ -349,6 +382,8 @@ def desk_snapshot(
 
     has_extras = bool(
         (extras_source.get("market_narrative") or "").strip()
+        or (extras_source.get("headline") or "").strip()
+        or extras_source.get("takeaways")
         or extras_source.get("mood")
         or extras_source.get("trending")
         or extras_source.get("influencers")
@@ -367,6 +402,8 @@ def desk_snapshot(
         "fresh": fresh,
         "stale": bool(blob) and not fresh,
         "empty_reason": empty_reason,
+        "headline": extras_source.get("headline") or "",
+        "takeaways": list(extras_source.get("takeaways") or []),
         "market_narrative": extras_source.get("market_narrative") or "",
         "mood": extras_source.get("mood") or "",
         "readings": readings,
