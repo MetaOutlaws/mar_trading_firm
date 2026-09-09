@@ -1108,6 +1108,14 @@ def _novel_kit(name: str, side: SignalSide):
             # (ATR units from day-open) only.
             {"k": [1.0, 1.5]},
         ),
+        "three_white_soldiers": (
+            "core.strategy.three_white_soldiers",
+            "ThreeWhiteSoldiersParams",
+            "ThreeWhiteSoldiersStrategy",
+            # n_bars=3, open-in-prior-range, and LONG side locked.
+            # Search body floor + lower-wick cap only.
+            {"min_body_frac": [0.40, 0.50], "max_lower_wick_frac": [0.15, 0.25]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

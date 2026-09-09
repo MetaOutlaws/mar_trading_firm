@@ -1141,6 +1141,32 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "three_white_soldiers@4h/4h",
+        "family": "three_white_soldiers",
+        "name": "three_white_soldiers 4h/4h LONG",
+        "clock": "4h/4h",
+        "side": "LONG",
+        "rank": 39,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Classic three "
+            "white soldiers: three consecutive bullish ascending "
+            "closes, each opening in the prior high-low, substantial "
+            "bodies, limited lower wicks. LONG entry after the "
+            "third soldier confirms. Quant-locked grid: n_bars=3 "
+            "(not searched), open-in-prior-range locked, LONG only "
+            "(not BOTH / not three black crows). Free search "
+            "(2 only): min_body_frac [0.40, 0.50], "
+            "max_lower_wick_frac [0.15, 0.25]. LONG side honest. "
+            "Walk-forward is not started from this coding PR. Not "
+            "three_black_crows (job 134 SHORT only)."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
