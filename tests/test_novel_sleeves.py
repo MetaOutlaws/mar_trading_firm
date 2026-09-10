@@ -9800,20 +9800,20 @@ def test_rolling_va_extreme_reject_schema_and_long_entry() -> None:
     factory, base, space = strategy_kit("rolling_va_extreme_reject", SignalSide.LONG)
     assert base.side is SignalSide.LONG
     assert base.lookback == LOOKBACK_MIN
-    assert base.touch_tol == pytest.approx(TOUCH_TOL_MIN)
+    assert base.touch_tol_atr == pytest.approx(TOUCH_TOL_MIN)
     assert base.va_frac == pytest.approx(VA_FRAC_MIN)
     assert base.atr_n == ATR_N_LOCKED
     assert base.require_close_inside_va is REQUIRE_CLOSE_INSIDE_VA_LOCKED
     assert space["lookback"] == [20, 48]
-    assert space["touch_tol"] == [0.0, 0.10]
+    assert space["touch_tol_atr"] == [0.0, 0.10]
     assert space["va_frac"] == [0.68, 0.70]
     assert "atr_n" not in space
     assert "atr_period" not in space
-    assert "touch_tol_atr" not in space
+    assert "touch_tol" not in space
     assert "n_bins" not in space
     assert "require_close_inside_va" not in space
     extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
-    assert extra == {"lookback", "touch_tol", "va_frac"}
+    assert extra == {"lookback", "touch_tol_atr", "va_frac"}
     assert POC_BINS_LOCKED == 20
     assert ind.POC_BINS_LOCKED == 20
     assert LOOKBACK_MAX == 48
@@ -9844,6 +9844,9 @@ def test_rolling_va_extreme_reject_schema_and_long_entry() -> None:
     assert signals["vah"].iloc[fire] == pytest.approx(levels["vah"])
     assert bool(signals["tagged_val"].iloc[fire])
     assert bool(signals["closed_inside_va"].iloc[fire])
+    # Garwe stamp: VAL < close < VAH after the VAL tag.
+    assert float(levels["val"]) < float(candles["close"].iloc[fire]) < float(levels["vah"])
+    assert float(candles["low"].iloc[fire]) <= float(levels["val"])
     assert float(signals["score"].iloc[fire]) >= 0.0
     assert "rolling-VA" in str(signals["reason"].iloc[fire])
 
@@ -9877,7 +9880,7 @@ def test_rolling_va_extreme_reject_short_entry() -> None:
     factory, base, space = strategy_kit("rolling_va_extreme_reject", SignalSide.SHORT)
     assert base.side is SignalSide.SHORT
     extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
-    assert extra == {"lookback", "touch_tol", "va_frac"}
+    assert extra == {"lookback", "touch_tol_atr", "va_frac"}
 
     candles, fire, levels = _rolling_va_extreme_reject_tape(long_side=False)
     signals = _signals("rolling_va_extreme_reject", candles, side=SignalSide.SHORT)
@@ -9886,6 +9889,9 @@ def test_rolling_va_extreme_reject_short_entry() -> None:
     assert signals["vah"].iloc[fire] == pytest.approx(levels["vah"])
     assert bool(signals["tagged_vah"].iloc[fire])
     assert bool(signals["closed_inside_va"].iloc[fire])
+    # Garwe stamp: VAL < close < VAH after the VAH tag.
+    assert float(levels["val"]) < float(candles["close"].iloc[fire]) < float(levels["vah"])
+    assert float(candles["high"].iloc[fire]) >= float(levels["vah"])
 
     held, held_fire, _ = _rolling_va_extreme_reject_tape(
         long_side=False, close_inside=False
@@ -9906,13 +9912,14 @@ def test_rolling_va_extreme_reject_kit_locks() -> None:
 
     factory, base, space = strategy_kit("rolling_va_extreme_reject", SignalSide.LONG)
     extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
-    assert extra == {"lookback", "touch_tol", "va_frac"}
+    assert extra == {"lookback", "touch_tol_atr", "va_frac"}
     assert space["lookback"] == [20, 48]
-    assert space["touch_tol"] == [0.0, 0.10]
+    assert space["touch_tol_atr"] == [0.0, 0.10]
     assert space["va_frac"] == [0.68, 0.70]
     assert "atr_n" not in space
     assert "k" not in space
     assert "n_bins" not in space
+    assert "touch_tol" not in space
     assert "require_close_inside_va" not in space
     from firm.sleeve_factory import spec_for_family
 

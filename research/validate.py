@@ -1181,11 +1181,12 @@ def _novel_kit(name: str, side: SignalSide):
             # lookback bars, signal bar excluded) locked. Same
             # 20-bin occupancy histogram as prior_poc / HVN.
             # require_close_inside_va locked True. ATR known
-            # before the signal bar. Search lookback + touch_tol
-            # + va_frac only. Garwe stamp — do not widen.
+            # before the signal bar. Search lookback +
+            # touch_tol_atr + va_frac only. Garwe stamp —
+            # do not widen or rename.
             {
                 "lookback": [20, 48],
-                "touch_tol": [0.0, 0.10],
+                "touch_tol_atr": [0.0, 0.10],
                 "va_frac": [0.68, 0.70],
             },
         ),

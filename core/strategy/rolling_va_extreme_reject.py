@@ -9,10 +9,11 @@ time from the POC until accumulated volume >= ``va_frac`` of total volume.
 VAH / VAL are the outer edges of that value area (see
 ``indicators.volume_profile_value_area`` / ``rolling_volume_value_area``).
 
-Fade the extremes (chop / mean-reversion — not a breakout):
+Fade the extremes (chop / mean-reversion — not a breakout). Garwe stamp
+signal rules (exact):
 
-    SHORT: high[t] >= VAH - touch_tol * ATR  AND  close[t] inside VA
-    LONG:  low[t]  <= VAL + touch_tol * ATR  AND  close[t] inside VA
+    SHORT: high[t] >= VAH - touch_tol_atr * ATR  AND  VAL < close[t] < VAH
+    LONG:  low[t]  <= VAL + touch_tol_atr * ATR  AND  VAL < close[t] < VAH
 
 ``require_close_inside_va`` is locked True: close must sit strictly inside
 (VAL, VAH) after the tag. ATR is Wilder ATR(20) known *before* the signal
@@ -30,10 +31,10 @@ Quant-locked (not searched) — Garwe stamp:
     - ATR period = 20, known before the signal bar
     - Fill at t+1 open
 
-Free search (3 only) — Garwe stamp, do not widen:
+Free search (3 only) — Garwe stamp, do not widen or rename:
 
     - ``lookback`` grid ``[20, 48]``
-    - ``touch_tol`` grid ``[0.0, 0.10]`` (ATR multiples)
+    - ``touch_tol_atr`` grid ``[0.0, 0.10]`` (ATR multiples)
     - ``va_frac`` grid ``[0.68, 0.70]``
 
 OHLCV + volume/turnover as available. Causal: bars ``<= t``.
@@ -58,7 +59,7 @@ import pandas as pd
 from core.strategy import indicators as ind
 from core.strategy.base import SignalSide, Strategy, StrategyParams
 
-# Locked ATR window. Walk-forward searches lookback + touch_tol + va_frac.
+# Locked ATR window. Walk-forward searches lookback + touch_tol_atr + va_frac.
 ATR_N_LOCKED = 20
 # Locked histogram bins. Same definition as prior_poc / HVN.
 POC_BINS_LOCKED = ind.POC_BINS_LOCKED
@@ -81,7 +82,7 @@ class RollingVaExtremeRejectParams(StrategyParams):
     # Prior-bar rolling profile length. Garwe grid: [20, 48].
     lookback: int = LOOKBACK_MIN
     # Tag slack as a multiple of prior-bar ATR. Garwe grid: [0.0, 0.10].
-    touch_tol: float = TOUCH_TOL_MIN
+    touch_tol_atr: float = TOUCH_TOL_MIN
     # Value-area fraction of window volume. Garwe grid: [0.68, 0.70].
     va_frac: float = VA_FRAC_MIN
     # Quant-locked True: require close strictly inside (VAL, VAH).
@@ -116,7 +117,7 @@ class RollingVaExtremeRejectStrategy(Strategy):
         # Searched knobs stay caller-set but stay inside the Garwe grid.
         # Period / bin count / close-inside stay locked even if overridden.
         lookback = min(LOOKBACK_MAX, max(LOOKBACK_MIN, int(params.lookback)))
-        touch_k = min(TOUCH_TOL_MAX, max(TOUCH_TOL_MIN, float(params.touch_tol)))
+        touch_k = min(TOUCH_TOL_MAX, max(TOUCH_TOL_MIN, float(params.touch_tol_atr)))
         va_frac = min(VA_FRAC_MAX, max(VA_FRAC_MIN, float(params.va_frac)))
         atr_n = ATR_N_LOCKED
         close_inside = REQUIRE_CLOSE_INSIDE_VA_LOCKED
