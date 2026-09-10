@@ -332,14 +332,28 @@ def certify_paper() -> dict[str, Any]:
         for row in plan
         if isinstance(row, dict)
     }
-    missing_approved = sorted(approved_sleeves - plan_sleeves)
-    sleeve_ok = bool(plan) and names <= allowed and not missing_approved
+    sitout_rows = cycle.get("regime_sitouts") if isinstance(cycle.get("regime_sitouts"), list) else []
+    sitout_sleeves = {
+        (
+            str(row.get("strategy") or ""),
+            str(row.get("symbol") or ""),
+            str(row.get("side") or "").upper(),
+            str(row.get("timeframe") or ""),
+        )
+        for row in sitout_rows
+        if isinstance(row, dict)
+    }
+    # Regime sit-outs are intentional paper omissions, not a missing book.
+    missing_approved = sorted(approved_sleeves - plan_sleeves - sitout_sleeves)
+    accounted = bool(plan) or bool(sitout_sleeves)
+    sleeve_ok = accounted and names <= allowed and not missing_approved
     checks.append(
         _check(
             "paper_sleeve",
             sleeve_ok,
             (
                 f"scan_family={family} plan={sorted(names) or 'empty'}"
+                + (f" sitouts={len(sitout_sleeves)}" if sitout_sleeves else "")
                 + (f" missing_approved={missing_approved}" if missing_approved else "")
             ),
         )
@@ -354,7 +368,14 @@ def certify_paper() -> dict[str, Any]:
         tf_detail.append(f"{row.get('symbol')} {row.get('side')} {rec_tf} (want {want})")
         if rec_tf != want:
             tf_ok = False
-    checks.append(_check("paper_clock", bool(plan) and tf_ok, "; ".join(tf_detail[:6]) or "no plan"))
+    clock_ok = (bool(plan) and tf_ok) or (not plan and bool(sitout_sleeves))
+    checks.append(
+        _check(
+            "paper_clock",
+            clock_ok,
+            "; ".join(tf_detail[:6]) or ("regime sit-out" if sitout_sleeves else "no plan"),
+        )
+    )
     errors = cycle.get("errors") if isinstance(cycle.get("errors"), list) else []
     recon_ok = not any("reconcil" in str(e).lower() for e in errors)
     checks.append(

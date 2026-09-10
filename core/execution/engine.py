@@ -28,6 +28,7 @@ import json
 import logging
 from dataclasses import dataclass, field, fields, replace
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from config.settings import PROJECT_ROOT, TradingMode, get_settings
 from config.pipeline import APPROVED_RESEARCH_SYMBOLS, PAPER_SCAN_SLEEVES, is_paper_scan_sleeve
@@ -111,9 +112,10 @@ class PlanEntry:
     Scanning a 4h short strategy on 15m candles would evaluate entirely
     different indicator values from the ones the backtest validated.
 
-    ``blocked_regimes`` comes from the approval record. Paper skips *new*
-    entries while the current market regime is on that list. Open positions
-    are still managed. Live unlock is unchanged.
+    ``blocked_regimes`` / ``regime_activation_filter`` come from the approval
+    record. Paper ``build_plan`` omits new entries while the live Soko trend
+    is blocked (or missing — fail-closed). Open positions are still managed.
+    Live unlock is unchanged.
     """
 
     symbol: str
@@ -121,6 +123,7 @@ class PlanEntry:
     strategy: Strategy
     timeframe: str
     blocked_regimes: tuple[str, ...] = ()
+    regime_activation_filter: tuple[str, ...] = ()
     activation_mode: str = "unrestricted"
 
     @property
@@ -128,23 +131,41 @@ class PlanEntry:
         return f"{self.symbol}:{self.side.value}"
 
 
-def _current_paper_regime() -> str | None:
-    """Latest regime-analyst snapshot (bull/bear/chop), or None if unknown.
+def paper_record_sitout_reason(
+    record: dict[str, Any] | None,
+    live_trend: str | None,
+    *,
+    strategy_name: str = "",
+) -> str | None:
+    """Why paper ``build_plan`` must omit this sleeve, or None to scan it.
 
-    Fail-open: a missing or unreadable snapshot must not freeze the blotter.
+    Fail-closed for regime-gated rows when the Soko/desk trend feed is dark:
+    we do not open new paper entries blind. Unrestricted sleeves (no filter,
+    no blocked list, not ``regime_gated``) are never sat out here.
     """
-    try:
-        from firm.memory import latest_regime
+    from research.validate import (
+        activation_filter_from_record,
+        blocked_regimes_from_record,
+        record_is_regime_gated,
+    )
 
-        snap = latest_regime()
-    except Exception:
-        logger.exception("Could not read latest regime snapshot for paper sit-out")
+    if not record_is_regime_gated(record):
         return None
-    if not isinstance(snap, dict):
-        return None
-    name = str(snap.get("regime") or "").strip().lower()
-    if name in {"bull", "bear", "chop"}:
-        return name
+    blocked = blocked_regimes_from_record(record)
+    allow = activation_filter_from_record(record)
+    name = strategy_name or str((record or {}).get("strategy") or "sleeve")
+    if live_trend is None:
+        return (
+            f"regime sit-out: Soko trend feed missing (fail-closed) for {name}"
+        )
+    trend = str(live_trend).strip().lower()
+    if blocked and trend in blocked:
+        return f"regime sit-out: {trend} is blocked for {name} ({', '.join(blocked)})"
+    if allow and trend not in allow:
+        return (
+            f"regime sit-out: {trend} not in regime_activation_filter "
+            f"for {name} ({', '.join(allow)})"
+        )
     return None
 
 
@@ -155,28 +176,28 @@ def paper_regime_sitout_reason(
     trading_mode: TradingMode | None = None,
     lookup_regime: bool = True,
 ) -> str | None:
-    """Why paper should skip a new fill, or None to proceed.
+    """Scan-loop belt: skip a fill if ``build_plan`` somehow still included it.
 
     Live/testnet never sit out here — go-live remains the live gate.
-    When the current regime is unknown, fail-open (do not skip).
     """
     mode = trading_mode if trading_mode is not None else get_settings().trading_mode
     if mode is not TradingMode.PAPER:
         return None
-    blocked = tuple(entry.blocked_regimes)
-    if not blocked:
-        return None
-    regime = current_regime
-    if lookup_regime and regime is None:
-        regime = _current_paper_regime()
-    if regime is None:
-        return None
-    if str(regime) in blocked:
-        return (
-            f"regime sit-out: {regime} is blocked for "
-            f"{entry.strategy.name} ({', '.join(blocked)})"
-        )
-    return None
+    record = {
+        "activation_mode": entry.activation_mode,
+        "blocked_regimes": list(entry.blocked_regimes),
+        "regime_disable": list(entry.blocked_regimes),
+        "regime_activation_filter": list(entry.regime_activation_filter),
+        "strategy": entry.strategy.name,
+    }
+    trend = current_regime
+    if lookup_regime and trend is None:
+        from core.data.soko_trend import read_live_soko_trend
+
+        trend = read_live_soko_trend()
+    return paper_record_sitout_reason(
+        record, None if trend is None else str(trend), strategy_name=entry.strategy.name
+    )
 
 
 @dataclass
@@ -184,6 +205,9 @@ class TradingPlan:
     """Which symbol/side pairs the engine may trade, and with what strategy."""
 
     entries: list[PlanEntry] = field(default_factory=list)
+    #: Paper sit-outs omitted from ``entries`` this cycle (regime-gated).
+    regime_sitouts: list[dict[str, Any]] = field(default_factory=list)
+    soko_trend: str | None = None
 
     @property
     def symbols(self) -> list[str]:
@@ -258,10 +282,45 @@ def _entry_ident(entry: PlanEntry) -> tuple[str, str, str, str]:
     return (entry.symbol, entry.side.value, entry.strategy.name, entry.timeframe)
 
 
+def _sitout_row(
+    *,
+    key: str,
+    name: str,
+    symbol: str,
+    side_value: str,
+    timeframe: str,
+    record: dict[str, Any],
+    reason: str,
+) -> dict[str, Any]:
+    from research.validate import activation_filter_from_record, blocked_regimes_from_record
+
+    return {
+        "key": key,
+        "strategy": name,
+        "symbol": symbol,
+        "side": side_value,
+        "timeframe": timeframe,
+        "reason": reason,
+        "blocked_regimes": blocked_regimes_from_record(record),
+        "regime_activation_filter": activation_filter_from_record(record),
+        "activation_mode": str(record.get("activation_mode") or "regime_gated"),
+    }
+
+
 def _append_approved_sleeves(
-    plan: TradingPlan, universe, seen: set[tuple[str, str, str, str]]
+    plan: TradingPlan,
+    universe,
+    seen: set[tuple[str, str, str, str]],
+    *,
+    live_trend: str | None = None,
+    sit_out: bool = False,
 ) -> set[tuple[str, str, str, str]]:
-    """Add one plan row per approved=True research key. No (symbol, side) collapse."""
+    """Add one plan row per approved=True research key. No (symbol, side) collapse.
+
+    ``sit_out=True`` is the paper blotter path: regime-gated sleeves are omitted
+    when the live Soko trend is blocked or the feed is dark. Live/testnet
+    leave ``sit_out=False`` so the approved book is unchanged.
+    """
     added: set[tuple[str, str, str, str]] = set()
     for key, record in universe.approved_records:
         parsed = parse_approval_key(key)
@@ -269,6 +328,25 @@ def _append_approved_sleeves(
             continue
         name, symbol, side_value = parsed
         rec_name = str(record.get("strategy") or name).strip() or name
+        if sit_out:
+            reason = paper_record_sitout_reason(
+                record, live_trend, strategy_name=rec_name
+            )
+            if reason:
+                rec_tf = str(record.get("timeframe") or "")
+                plan.regime_sitouts.append(
+                    _sitout_row(
+                        key=key,
+                        name=rec_name,
+                        symbol=symbol,
+                        side_value=side_value,
+                        timeframe=rec_tf,
+                        record=record,
+                        reason=reason,
+                    )
+                )
+                logger.info("Paper plan sit-out %s: %s", key, reason)
+                continue
         entry = _entry_from_record(rec_name, record, symbol, SignalSide(side_value))
         if entry is None:
             logger.error(
@@ -381,9 +459,14 @@ def _entry_from_record(name: str, record: dict, symbol: str, side: SignalSide) -
     if not clock_tf:
         logger.error("%s:%s as %s has no timeframe", symbol, side.value, name)
         return None
-    from research.validate import activation_mode_for, blocked_regimes_from_record
+    from research.validate import (
+        activation_filter_from_record,
+        activation_mode_for,
+        blocked_regimes_from_record,
+    )
 
     blocked = tuple(blocked_regimes_from_record(record))
+    allow = tuple(activation_filter_from_record(record))
     mode = str(record.get("activation_mode") or "").strip()
     if mode not in {"unrestricted", "regime_gated", "rejected"}:
         mode = activation_mode_for(
@@ -395,6 +478,7 @@ def _entry_from_record(name: str, record: dict, symbol: str, side: SignalSide) -
         strategy=strategy,
         timeframe=clock_tf,
         blocked_regimes=blocked,
+        regime_activation_filter=allow,
         activation_mode=mode,
     )
 
@@ -474,24 +558,50 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
     if require_approval:
         # Live/testnet: every approved=True research key, not unique (symbol, side).
         # This does not enable live — only the go-live gates do that.
-        _append_approved_sleeves(plan, universe, set())
+        # No Soko sit-out: live stays gated by require_approval / go-live.
+        _append_approved_sleeves(plan, universe, set(), sit_out=False)
         logger.info("Trading plan: %d research-approved sleeve(s).", len(plan.entries))
         return plan
+
+    # Paper blotter: sit out regime-gated sleeves against the live Soko trend.
+    from core.data.soko_trend import read_live_soko_trend
+
+    live_trend = read_live_soko_trend()
+    plan.soko_trend = live_trend
 
     # Paper always scans every research-approved sleeve first. Collapsing to
     # unique (symbol, side) hid week_open_reclaim / orb_fail_reversion on the
     # same XRP SHORT, and double_top on an already-approved BTC SHORT.
     approved_pairs = set(universe.approved_pairs)
     seen: set[tuple[str, str, str, str]] = set()
-    approved_idents = _append_approved_sleeves(plan, universe, seen)
+    approved_idents = _append_approved_sleeves(
+        plan, universe, seen, live_trend=live_trend, sit_out=True
+    )
 
     # Operator paper vetoes: scan this exact sleeve even though gates failed.
-    # Live `require_approval=True` never reaches here.
+    # Live `require_approval=True` never reaches here. Regime-gated overrides
+    # still sit out so a veto cannot trade blind in a blocked regime.
     for key, record in universe.paper_override_records:
         parsed = parse_approval_key(key)
         if parsed is None:
             continue
         name, symbol, side_value = parsed
+        reason = paper_record_sitout_reason(record, live_trend, strategy_name=name)
+        if reason:
+            rec_tf = str(record.get("timeframe") or "")
+            plan.regime_sitouts.append(
+                _sitout_row(
+                    key=key,
+                    name=name,
+                    symbol=symbol,
+                    side_value=side_value,
+                    timeframe=rec_tf,
+                    record=record,
+                    reason=reason,
+                )
+            )
+            logger.info("Paper plan sit-out %s: %s", key, reason)
+            continue
         entry = _entry_from_record(name, record, symbol, SignalSide(side_value))
         if entry is None:
             continue
@@ -531,11 +641,14 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
     extra_n = len(plan.entries) - approved_n
     logger.warning(
         "Trading plan: %d research-approved sleeve(s) plus %d UNAPPROVED "
-        "candidate pair(s) (%d operator paper override(s)). Candidates have NOT "
-        "passed validation and must never run with real money.",
+        "candidate pair(s) (%d operator paper override(s), %d regime sit-out(s), "
+        "soko_trend=%s). Candidates have NOT passed validation and must never "
+        "run with real money.",
         approved_n,
         extra_n,
         override_n,
+        len(plan.regime_sitouts),
+        live_trend or "missing",
     )
     return plan
 
@@ -559,10 +672,13 @@ def persist_last_cycle(report: CycleReport, plan: TradingPlan | None = None) -> 
                     entry.strategy.name, entry.symbol, entry.side.value, entry.timeframe
                 ),
                 "blocked_regimes": list(entry.blocked_regimes),
+                "regime_activation_filter": list(entry.regime_activation_filter),
                 "activation_mode": entry.activation_mode,
             }
             for entry in plan.entries
         ]
+        payload["regime_sitouts"] = list(plan.regime_sitouts)
+        payload["soko_trend"] = plan.soko_trend
     try:
         LAST_CYCLE_PATH.parent.mkdir(parents=True, exist_ok=True)
         LAST_CYCLE_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")

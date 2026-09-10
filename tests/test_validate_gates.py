@@ -13,7 +13,12 @@ from unittest.mock import MagicMock
 
 from config.settings import TradingMode
 from config.universe import ShortParams, Universe
-from core.execution.engine import PlanEntry, build_plan, paper_regime_sitout_reason
+from core.execution.engine import (
+    PlanEntry,
+    build_plan,
+    paper_record_sitout_reason,
+    paper_regime_sitout_reason,
+)
 from core.strategy.base import SignalSide
 from research.validate import (
     DEFAULT_CRITERIA,
@@ -22,6 +27,7 @@ from research.validate import (
     activation_mode_for,
     adverse_regimes,
     blocked_regimes_from_record,
+    record_is_regime_gated,
     write_approvals,
 )
 
@@ -144,6 +150,7 @@ def test_write_approvals_persists_regime_sitout_metadata(tmp_path) -> None:
     assert rec["blocked_regimes"] == ["bull"]
     assert rec["regime_disable"] == ["bull"]
     assert rec["activation_mode"] == "regime_gated"
+    assert rec["regime_activation_filter"] == []
     assert rec["regime_results"]["bull"]["expectancy_pct"] == -0.2
 
 
@@ -160,8 +167,8 @@ def test_symbol_verdict_approved_despite_blocked_regimes() -> None:
     assert verdict.regime_disable == ["bear", "chop"]
 
 
-def test_paper_plan_consumes_blocked_regimes(monkeypatch) -> None:
-    universe = Universe(
+def _gated_universe() -> Universe:
+    return Universe(
         long_params={},
         short_params={"BTCUSDT": ShortParams(symbol="BTCUSDT", timeframe="4h")},
         approvals={
@@ -173,25 +180,86 @@ def test_paper_plan_consumes_blocked_regimes(monkeypatch) -> None:
                 "blocked_regimes": ["bull"],
                 "regime_disable": ["bull"],
                 "activation_mode": "regime_gated",
+            },
+            "week_open_reclaim:BTCUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "week_open_reclaim",
+                "params": {},
+                "activation_mode": "unrestricted",
+            },
+        },
+    )
+
+
+def test_paper_build_plan_sits_out_blocked_soko_trend(monkeypatch) -> None:
+    """Paper build_plan omits the gated sleeve when Soko says bull."""
+    universe = _gated_universe()
+    monkeypatch.setattr("core.execution.engine.get_universe", lambda: universe)
+    monkeypatch.setattr("firm.research_jobs.paper_scan_family", lambda: "bb_squeeze_breakout")
+    monkeypatch.setattr("firm.research_jobs._active_job_for", lambda family: None)
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda path=None: "bull")
+
+    paper = build_plan(require_approval=False, candidates=["BTCUSDT"])
+    names = {e.strategy.name for e in paper.entries}
+    assert "atr_channel_breakout" not in names
+    assert "week_open_reclaim" in names
+    assert paper.soko_trend == "bull"
+    assert any(row["strategy"] == "atr_channel_breakout" for row in paper.regime_sitouts)
+
+    # Unblocked regime still scans the gated sleeve.
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda path=None: "bear")
+    scanning = build_plan(require_approval=False, candidates=["BTCUSDT"])
+    assert any(e.strategy.name == "atr_channel_breakout" for e in scanning.entries)
+    assert scanning.regime_sitouts == []
+
+    # Live path never sits out — go-live / require_approval stay the live gate.
+    live = build_plan(require_approval=True)
+    live_names = {e.strategy.name for e in live.entries}
+    assert "atr_channel_breakout" in live_names
+    assert live.regime_sitouts == []
+
+
+def test_paper_build_plan_fail_closed_when_soko_feed_missing(monkeypatch) -> None:
+    universe = _gated_universe()
+    monkeypatch.setattr("core.execution.engine.get_universe", lambda: universe)
+    monkeypatch.setattr("firm.research_jobs.paper_scan_family", lambda: "bb_squeeze_breakout")
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda path=None: None)
+
+    paper = build_plan(require_approval=False, candidates=["BTCUSDT"])
+    names = {e.strategy.name for e in paper.entries}
+    assert "atr_channel_breakout" not in names
+    assert "week_open_reclaim" in names
+    assert any("fail-closed" in row["reason"] for row in paper.regime_sitouts)
+
+
+def test_paper_build_plan_honors_activation_filter(monkeypatch) -> None:
+    universe = Universe(
+        long_params={},
+        short_params={"BTCUSDT": ShortParams(symbol="BTCUSDT", timeframe="4h")},
+        approvals={
+            "mama_fama_cross:BTCUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "mama_fama_cross",
+                "params": {"fastlimit": 0.5, "slowlimit": 0.05},
+                "activation_mode": "regime_gated",
+                "regime_activation_filter": ["bear"],
             }
         },
     )
     monkeypatch.setattr("core.execution.engine.get_universe", lambda: universe)
     monkeypatch.setattr("firm.research_jobs.paper_scan_family", lambda: "bb_squeeze_breakout")
-    monkeypatch.setattr("firm.research_jobs._active_job_for", lambda family: None)
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda path=None: "chop")
 
     paper = build_plan(require_approval=False, candidates=["BTCUSDT"])
-    gated = [
-        e
-        for e in paper.entries
-        if e.strategy.name == "atr_channel_breakout" and e.symbol == "BTCUSDT"
-    ]
-    assert gated, "regime-gated approved sleeve must stay on the paper blotter"
-    assert gated[0].blocked_regimes == ("bull",)
-    assert gated[0].activation_mode == "regime_gated"
+    assert paper.entries == []
+    assert paper.regime_sitouts
+    assert "not in regime_activation_filter" in paper.regime_sitouts[0]["reason"]
 
-    live = build_plan(require_approval=True)
-    assert any(e.strategy.name == "atr_channel_breakout" for e in live.entries)
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda path=None: "bear")
+    allowed = build_plan(require_approval=False, candidates=["BTCUSDT"])
+    assert any(e.strategy.name == "mama_fama_cross" for e in allowed.entries)
 
 
 def test_paper_sits_out_in_blocked_regime() -> None:
@@ -225,16 +293,15 @@ def test_paper_sits_out_in_blocked_regime() -> None:
         )
         is None
     )
-    # Unknown regime fails open.
-    assert (
-        paper_regime_sitout_reason(
-            entry,
-            current_regime=None,
-            trading_mode=TradingMode.PAPER,
-            lookup_regime=False,
-        )
-        is None
+    # Missing Soko feed fails closed for regime-gated sleeves.
+    missing = paper_regime_sitout_reason(
+        entry,
+        current_regime=None,
+        trading_mode=TradingMode.PAPER,
+        lookup_regime=False,
     )
+    assert missing is not None
+    assert "fail-closed" in missing
     # Live never sits out here — go-live is the live gate.
     assert (
         paper_regime_sitout_reason(
@@ -292,6 +359,85 @@ def test_engine_scan_loop_records_regime_sitout(monkeypatch) -> None:
     assert report.rejections == [
         ("BTCUSDT", "regime sit-out: bull is blocked for atr_channel_breakout (bull)")
     ]
+
+
+def test_record_helpers_and_sitout_reason() -> None:
+    gated = {
+        "activation_mode": "regime_gated",
+        "blocked_regimes": ["bull"],
+        "strategy": "atr_channel_breakout",
+    }
+    assert record_is_regime_gated(gated) is True
+    assert record_is_regime_gated({"approved": True}) is False
+    assert paper_record_sitout_reason(gated, None, strategy_name="atr") is not None
+    assert paper_record_sitout_reason(gated, "bull", strategy_name="atr") is not None
+    assert paper_record_sitout_reason(gated, "bear", strategy_name="atr") is None
+
+
+def test_read_live_soko_trend_from_file(tmp_path, monkeypatch) -> None:
+    from core.data.soko_trend import read_live_soko_trend
+
+    dest = tmp_path / "last_soko_trend.json"
+    dest.write_text(json.dumps({"trend": "Bull"}), encoding="utf-8")
+    monkeypatch.setattr("core.data.soko_trend._read_regime_snapshot", lambda: None)
+    assert read_live_soko_trend(dest) == "bull"
+    dest.write_text(json.dumps({"btc_trend": "down"}), encoding="utf-8")
+    assert read_live_soko_trend(dest) == "bear"
+
+
+def test_certify_paper_counts_regime_sitouts(tmp_path, monkeypatch) -> None:
+    from firm import integrity as integrity_mod
+
+    cycle_path = tmp_path / "last_cycle.json"
+    cycle_path.write_text(
+        json.dumps(
+            {
+                "plan": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "side": "SHORT",
+                        "timeframe": "4h",
+                        "strategy": "week_open_reclaim",
+                    }
+                ],
+                "regime_sitouts": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "side": "SHORT",
+                        "timeframe": "4h",
+                        "strategy": "atr_channel_breakout",
+                        "reason": "regime sit-out: bull is blocked",
+                    }
+                ],
+                "soko_trend": "bull",
+            }
+        ),
+        encoding="utf-8",
+    )
+    universe = Universe(
+        long_params={},
+        short_params={"BTCUSDT": ShortParams(symbol="BTCUSDT", timeframe="4h")},
+        approvals={
+            "week_open_reclaim:BTCUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "week_open_reclaim",
+            },
+            "atr_channel_breakout:BTCUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "atr_channel_breakout",
+                "activation_mode": "regime_gated",
+                "blocked_regimes": ["bull"],
+            },
+        },
+    )
+    monkeypatch.setattr(integrity_mod, "LAST_CYCLE_PATH", cycle_path)
+    monkeypatch.setattr("config.universe.get_universe", lambda: universe)
+    monkeypatch.setattr("firm.research_jobs.paper_scan_family", lambda: "week_open_reclaim")
+    report = integrity_mod.certify_paper()
+    sleeve = next(c for c in report["checks"] if c["name"] == "paper_sleeve")
+    assert sleeve["ok"] is True
 
 
 def test_paper_scan_sleeves_remain_empty() -> None:

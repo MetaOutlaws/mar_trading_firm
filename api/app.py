@@ -321,6 +321,7 @@ def strategies() -> dict[str, Any]:
                 "regime_disable": record.get("regime_disable")
                 or record.get("blocked_regimes")
                 or [],
+                "regime_activation_filter": record.get("regime_activation_filter") or [],
                 "activation_mode": record.get("activation_mode") or "",
                 "validated_at": record.get("validated_at"),
             }

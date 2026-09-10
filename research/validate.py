@@ -135,6 +135,27 @@ def blocked_regimes_from_record(record: dict[str, Any] | None) -> list[str]:
     return []
 
 
+def activation_filter_from_record(record: dict[str, Any] | None) -> list[str]:
+    """Allow-list of regimes this sleeve may trade. Empty means no allow-list."""
+    if not isinstance(record, dict):
+        return []
+    return _normalize_regime_names(record.get("regime_activation_filter"))
+
+
+def record_is_regime_gated(record: dict[str, Any] | None) -> bool:
+    """True when paper must consult the live Soko trend before scanning."""
+    if not isinstance(record, dict):
+        return False
+    mode = str(record.get("activation_mode") or "").strip()
+    if mode == "regime_gated":
+        return True
+    if activation_filter_from_record(record):
+        return True
+    if blocked_regimes_from_record(record):
+        return True
+    return False
+
+
 def activation_mode_for(*, approved: bool, blocked: list[str]) -> str:
     """How a validated sleeve may trade: unrestricted, regime-gated, or rejected."""
     if not approved:
@@ -208,6 +229,7 @@ class SymbolVerdict:
             "regime_results": self.regime_results,
             "blocked_regimes": list(self.blocked_regimes),
             "regime_disable": list(self.blocked_regimes),
+            "regime_activation_filter": [],
             "activation_mode": self.activation_mode,
         }
 
@@ -1590,6 +1612,7 @@ def write_approvals(verdicts: list[SymbolVerdict], path=APPROVALS_PATH) -> dict[
             "regime_results": verdict.regime_results,
             "blocked_regimes": list(verdict.blocked_regimes),
             "regime_disable": list(verdict.blocked_regimes),
+            "regime_activation_filter": [],
             "activation_mode": verdict.activation_mode,
             "validated_at": datetime.now(timezone.utc).isoformat(),
         }
