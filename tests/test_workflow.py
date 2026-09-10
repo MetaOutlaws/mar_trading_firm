@@ -185,11 +185,21 @@ def test_next_tests_without_coded_key_are_walk_not_code(monkeypatch) -> None:
         {"family": "utc_open_fail_reversion", "clock": "4h/4h", "side": "BOTH"},
         {"family": "open_in_prior_range_fail", "clock": "4h/4h", "side": "BOTH"},
     ]
-    snap = workflow_snapshot(jobs=[], remaining=remaining)
+    jobs = [
+        {
+            "id": 3,
+            "family": "ascending_triangle_break",
+            "status": "failed",
+            "clock": "4h/4h",
+            "side": "BOTH",
+        }
+    ]
+    snap = workflow_snapshot(jobs=jobs, remaining=remaining)
     walk = next(s for s in snap["stages"] if s["id"] == "walk")
     assert walk["current"] is True
     assert walk["state"] == "wait"
     assert snap["current"]["family"] == "utc_open_fail_reversion"
+    assert snap["current"]["status"] != "failed"
     assert snap["next"]["family"] == "open_in_prior_range_fail"
 
 

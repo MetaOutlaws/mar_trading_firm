@@ -294,9 +294,9 @@ def _current_job_card(
     live = next((s for s in stages if s.get("current")), None)
     phase = str((live or {}).get("id") or "walk")
     live_status = str((latest or {}).get("status") or "")
-    # A finished reject is not the Floor hero unless we are harvesting/reviewing it.
+    # A finished reject is not the Floor hero. Walk-wait shows the next family.
     show_job = live_status in {"running", "queued", "standby"} or (
-        live_status in {"done", "failed"} and phase in {"walk", "harvest", "review", "book"}
+        live_status in {"done", "failed"} and phase in {"harvest", "review", "book"}
     )
     if latest and show_job:
         high = high_level_progress(latest, walk_bar)
