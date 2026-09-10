@@ -177,3 +177,19 @@ def test_failed_walk_is_not_floor_hero_during_code(monkeypatch) -> None:
     for stage in snap["stages"]:
         assert "ascending_triangle_break" not in (stage.get("detail") or "")
 
+
+def test_next_tests_without_coded_key_are_walk_not_code(monkeypatch) -> None:
+    """Research plan next_tests omit `coded`; they are leftover walk-forwards."""
+    _isolate(monkeypatch)
+    remaining = [
+        {"family": "utc_open_fail_reversion", "clock": "4h/4h", "side": "BOTH"},
+        {"family": "open_in_prior_range_fail", "clock": "4h/4h", "side": "BOTH"},
+    ]
+    snap = workflow_snapshot(jobs=[], remaining=remaining)
+    walk = next(s for s in snap["stages"] if s["id"] == "walk")
+    assert walk["current"] is True
+    assert walk["state"] == "wait"
+    assert snap["current"]["family"] == "utc_open_fail_reversion"
+    assert snap["next"]["family"] == "open_in_prior_range_fail"
+
+

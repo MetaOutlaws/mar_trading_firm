@@ -206,7 +206,8 @@ def _pointer(
         return _STAGE_IDS.index("book"), "active"
     if remaining:
         row = remaining[0]
-        coded = bool(row.get("coded"))
+        # Research next_tests omit `coded`; those rows are already-coded leftovers.
+        coded = bool(row["coded"]) if "coded" in row else True
         return _STAGE_IDS.index("walk" if coded else "code"), "wait"
     return _STAGE_IDS.index("hyp"), "wait"
 
@@ -330,6 +331,17 @@ def _current_job_card(
             "phase": "code",
             "progress": None,
             "progress_label": "coding",
+            "stalled": False,
+        }
+    if family:
+        return {
+            "family": family,
+            "clock": str((latest or {}).get("clock") or ""),
+            "side": str((latest or {}).get("side") or "BOTH"),
+            "status": "queued",
+            "phase": phase,
+            "progress": None,
+            "progress_label": phase,
             "stalled": False,
         }
     if scan_family:
