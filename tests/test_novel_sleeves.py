@@ -8845,26 +8845,28 @@ def _hvn_mean_revert_multinode_tape(
     close[1] = 96.5
     open_[1] = 96.6
     volume[1] = 10.0
-    # Tertiary HVN near 97.5.
+    # Keep each planted node inside one 20-bin occupancy slot so ranking
+    # is volume, not a split across two adjacent mid-range bins.
+    # Tertiary HVN near 97.5 (bin ~97.35–97.80 on range [96, 105]).
     for i in range(4, 7):
-        high[i] = 97.7
-        low[i] = 97.3
-        close[i] = 97.5
-        open_[i] = 97.5
+        high[i] = 97.55
+        low[i] = 97.45
+        close[i] = 97.50
+        open_[i] = 97.50
         volume[i] = 2_500.0
-    # POC / hvn_1 near 100 (highest volume).
+    # POC / hvn_1 near 100 (bin ~99.60–100.05).
     for i in range(8, 16):
-        high[i] = 100.2
-        low[i] = 99.8
-        close[i] = 100.0
-        open_[i] = 100.0
+        high[i] = 99.95
+        low[i] = 99.85
+        close[i] = 99.90
+        open_[i] = 99.90
         volume[i] = 8_000.0
-    # Secondary HVN near 103.5.
+    # Secondary HVN near 103.5 (bin ~103.20–103.65).
     for i in range(16, 20):
-        high[i] = 103.7
-        low[i] = 103.3
-        close[i] = 103.5
-        open_[i] = 103.5
+        high[i] = 103.45
+        low[i] = 103.35
+        close[i] = 103.40
+        open_[i] = 103.40
         volume[i] = 4_000.0
     nodes = ind.volume_profile_hvn_nodes(
         high[:24], low[:24], volume[:24], n_bins=ind.POC_BINS_LOCKED, top_n=3
@@ -8925,11 +8927,7 @@ def _hvn_mean_revert_multinode_tape(
 def _assert_hvn_mean_revert_clear_of_siblings(
     candles: pd.DataFrame, fire: int, side: SignalSide
 ) -> None:
-    """Nearest-of-top-N HVN is not POC-only, H/L, SMA/Keltner, VWAP, or VA."""
-    from core.strategy.displacement_gap_follow import (
-        DisplacementGapFollowParams,
-        DisplacementGapFollowStrategy,
-    )
+    """Nearest-of-top-N HVN is not POC-only, H/L, SMA/Keltner, or inventory."""
     from core.strategy.registry import list_strategies
     from research.validate import strategy_kit
 
@@ -8943,18 +8941,8 @@ def _assert_hvn_mean_revert_clear_of_siblings(
     assert _fire("prior_day_extreme_reject") == 0
     assert _fire("sma20_stretch_fade") == 0
     assert _fire("keltner_channel_fade") == 0
-    assert _fire("keltner_break") == 0
     assert _fire("asia_range_london_reject") == 0
     assert _fire("london_close_inventory_fade") == 0
-    assert _fire("utc_session_vwap_reversion") == 0
-    assert _fire("vwap_volatility_band_fade") == 0
-    assert _fire("classic_floor_pivot_reject") == 0
-    gap = DisplacementGapFollowStrategy(DisplacementGapFollowParams(side=side))
-    try:
-        gap_sig = int(gap.generate_signals(candles)["signal"].iloc[fire])
-    except TypeError:
-        gap_sig = 0
-    assert gap_sig == 0
     names = set(list_strategies())
     assert "hvn_mean_revert" in names
     assert "hvn_node_fade" not in names

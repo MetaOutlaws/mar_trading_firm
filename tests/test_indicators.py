@@ -379,14 +379,23 @@ def test_volume_profile_hvn_nodes_ranked_by_volume_same_binning_as_poc():
     assert 119.0 < nodes[1] < 120.0
     assert 100.0 < nodes[2] < 101.0
     # Volume-tie: two equal max bins → lowest price first (same as argmax).
+    # Zero-range prints dump each weight into one bin so the volumes match.
     tied = ind.volume_profile_hvn_nodes(
-        np.array([1.0, 9.0]),
-        np.array([0.0, 8.0]),
+        np.array([0.5, 8.5]),
+        np.array([0.5, 8.5]),
         np.array([10.0, 10.0]),
         n_bins=10,
         top_n=2,
     )
     assert tied[0] < tied[1]
+    assert tied[0] == pytest.approx(
+        ind.volume_profile_poc(
+            np.array([0.5, 8.5]),
+            np.array([0.5, 8.5]),
+            np.array([10.0, 10.0]),
+            n_bins=10,
+        )
+    )
 
 
 def test_prior_utc_day_volume_poc_publishes_after_midnight_forming_day_excluded():
