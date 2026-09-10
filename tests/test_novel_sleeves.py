@@ -140,6 +140,7 @@ APPROVED = [
     "keltner_channel_fade",
     "prior_poc_reclaim_fade",
     "hvn_mean_revert",
+    "prior_day_vwap_reject",
 ]
 
 
@@ -8529,7 +8530,8 @@ def _assert_prior_poc_reclaim_fade_clear_of_siblings(
     # (tested in test_hvn_mean_revert_nearest_of_top_n).
     assert "hvn_mean_revert" in names
     assert "hvn_node_fade" not in names
-    assert "prior_day_vwap_reject" not in names
+    assert "prior_day_vwap_reject" in names
+    assert _fire("prior_day_vwap_reject") == 0
     assert "session_vwap_band_fade" not in names
     assert "session_volume_profile_reversal" not in names
     assert "rolling_va_extreme_reject" not in names
@@ -8946,7 +8948,8 @@ def _assert_hvn_mean_revert_clear_of_siblings(
     names = set(list_strategies())
     assert "hvn_mean_revert" in names
     assert "hvn_node_fade" not in names
-    assert "prior_day_vwap_reject" not in names
+    assert "prior_day_vwap_reject" in names
+    assert _fire("prior_day_vwap_reject") == 0
     assert "session_vwap_band_fade" not in names
     assert "session_volume_profile_reversal" not in names
     assert "rolling_va_extreme_reject" not in names
@@ -9236,6 +9239,427 @@ def test_hvn_mean_revert_nearest_of_top_n() -> None:
     assert bool(held_n3["tagged_from_above"].iloc[held_fire])
 
 
+def _prior_day_vwap_reject_tape(
+    *,
+    long_side: bool,
+    stretch: bool = True,
+    reclaim: bool = True,
+    miss_stretch: bool = False,
+    forming_day_volume_shock: bool = False,
+    stretch_atr_mult: float = 1.20,
+) -> tuple[pd.DataFrame, int, float]:
+    """Prior UTC day plants a volume-weighted session VWAP near 100.
+
+    Tiny-volume extremes keep prior-day H/L away from the fire wick so
+    ``prior_day_extreme_reject`` stays dark. Fire is 18:00 UTC so London-
+    close / IB / Asia-London stay dark. Stretch is ~1.2 known-before ATR:
+    default ``k=1.0`` fires and ``k=1.5`` does not. Close stays near 100
+    so developing-session VWAP fades do not trigger.
+    """
+    from core.strategy import indicators as ind
+
+    n = 72
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    volume = np.full(n, 100.0)
+    # Prior UTC day (Jan 2) range occupancy + a concentrated mid-range node.
+    high[1] = 102.5
+    low[1] = 101.5
+    close[1] = 102.0
+    open_[1] = 101.8
+    volume[1] = 50.0
+    high[2] = 98.5
+    low[2] = 97.5
+    close[2] = 98.0
+    open_[2] = 98.2
+    volume[2] = 50.0
+    for i in range(8, 20):
+        high[i] = 100.15
+        low[i] = 99.85
+        close[i] = 100.0
+        open_[i] = 100.0
+        volume[i] = 8_000.0
+    vwap_val = float(
+        ind.prior_utc_day_session_vwap(
+            pd.Series(high, index=index),
+            pd.Series(low, index=index),
+            pd.Series(close, index=index),
+            pd.Series(volume, index=index),
+        ).iloc[24]
+    )
+    fire = int(index.get_loc(pd.Timestamp("2024-01-03 18:00", tz="UTC")))
+    assert int(index[fire].hour) == 18
+    if forming_day_volume_shock:
+        # Forming Jan 3 print at 110 must not rewrite yesterday's VWAP.
+        shock = int(index.get_loc(pd.Timestamp("2024-01-03 12:00", tz="UTC")))
+        high[shock] = 110.2
+        low[shock] = 109.8
+        close[shock] = 110.0
+        open_[shock] = 110.0
+        volume[shock] = 1_000_000.0
+    # ~1.0 ATR on this tape. 1.2*ATR stretch fires k=1.0, misses k=1.5.
+    delta = float(stretch_atr_mult)
+    half = 0.35
+    if long_side:
+        if miss_stretch:
+            low[fire] = vwap_val - 0.40
+            close[fire] = vwap_val - 0.20
+            high[fire] = vwap_val + 0.20
+            open_[fire] = vwap_val - 0.10
+        elif stretch:
+            low[fire] = vwap_val - delta
+            high[fire] = vwap_val + 0.20
+            open_[fire] = vwap_val - 0.10
+            close[fire] = vwap_val - half if reclaim else vwap_val - delta + 0.05
+        else:
+            low[fire] = vwap_val - 0.20
+            close[fire] = vwap_val + 0.05
+            high[fire] = vwap_val + 0.25
+            open_[fire] = vwap_val
+    else:
+        if miss_stretch:
+            high[fire] = vwap_val + 0.40
+            close[fire] = vwap_val + 0.20
+            low[fire] = vwap_val - 0.20
+            open_[fire] = vwap_val + 0.10
+        elif stretch:
+            high[fire] = vwap_val + delta
+            low[fire] = vwap_val - 0.20
+            open_[fire] = vwap_val + 0.10
+            close[fire] = vwap_val + half if reclaim else vwap_val + delta - 0.05
+        else:
+            high[fire] = vwap_val + 0.20
+            close[fire] = vwap_val - 0.05
+            low[fire] = vwap_val - 0.25
+            open_[fire] = vwap_val
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = candles["volume"] * candles["close"]
+    return candles, fire, vwap_val
+
+
+def _assert_prior_day_vwap_reject_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """Prior-day VWAP stretch is not developing VWAP, AVWAP, POC/HVN, or H/L."""
+    from core.strategy.registry import list_strategies
+
+    def _fire(name: str) -> int:
+        try:
+            return int(_signals(name, candles, side=side)["signal"].iloc[fire])
+        except TypeError:
+            return 0
+
+    assert _fire("utc_session_vwap_reversion") == 0
+    assert _fire("swing_anchored_vwap_pullback") == 0
+    assert _fire("vwap_spread_exhaustion") == 0
+    assert _fire("vwap_volatility_band_fade") == 0
+    assert _fire("london_close_inventory_fade") == 0
+    assert _fire("prior_poc_reclaim_fade") == 0
+    assert _fire("hvn_mean_revert") == 0
+    assert _fire("sma20_stretch_fade") == 0
+    assert _fire("keltner_channel_fade") == 0
+    assert _fire("prior_day_extreme_reject") == 0
+    assert _fire("asia_range_london_reject") == 0
+    names = set(list_strategies())
+    assert "prior_day_vwap_reject" in names
+    assert "session_vwap_band_fade" not in names
+    assert "rolling_va_extreme_reject" not in names
+
+
+def test_prior_day_vwap_reject_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy import indicators as ind
+    from core.strategy.prior_day_vwap_reject import ATR_N_LOCKED, RECLAIM_FRAC_LOCKED
+    from research.validate import strategy_kit
+
+    # Quant lock: search k only. ATR20 + prior-day VWAP stay fixed.
+    factory, base, space = strategy_kit("prior_day_vwap_reject", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.k == pytest.approx(1.0)
+    assert base.atr_n == ATR_N_LOCKED
+    assert space["k"] == [1.0, 1.5]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "reclaim_frac" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert RECLAIM_FRAC_LOCKED == 0.5
+
+    candles, fire, vwap_val = _prior_day_vwap_reject_tape(long_side=True)
+    signals = _signals("prior_day_vwap_reject", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "vwap",
+        "atr",
+        "atr_known",
+        "stretch_below_atr",
+        "stretch_above_atr",
+        "stretched_below",
+        "stretched_above",
+        "reclaimed_toward_vwap_long",
+        "reclaimed_toward_vwap_short",
+    ):
+        assert column in signals.columns
+    # Prior-day session VWAP, not H/L, SMA, Keltner, POC, or developing VWAP cols.
+    assert "prior_high" not in signals.columns
+    assert "prior_low" not in signals.columns
+    assert "sma" not in signals.columns
+    assert "keltner_mid" not in signals.columns
+    assert "poc" not in signals.columns
+    assert "hvn" not in signals.columns
+    assert "rolling_vwap" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["stretched_below"].iloc[fire])
+    assert bool(signals["reclaimed_toward_vwap_long"].iloc[fire])
+    assert not bool(signals["stretched_above"].iloc[fire])
+    vwap = float(signals["vwap"].iloc[fire])
+    assert vwap == pytest.approx(vwap_val)
+    assert 99.5 < vwap < 100.5
+    atr_known = float(signals["atr_known"].iloc[fire])
+    atr_now = float(signals["atr"].iloc[fire])
+    assert atr_known == pytest.approx(1.0, abs=0.20)
+    assert atr_known > 0
+    low_px = float(candles["low"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    assert low_px <= vwap - 1.0 * atr_known
+    assert close_px > vwap - 0.5 * 1.0 * atr_known
+    expected = ind.prior_utc_day_session_vwap(
+        candles["high"],
+        candles["low"],
+        candles["close"],
+        candles["volume"],
+        turnover=candles["turnover"],
+    )
+    assert vwap == pytest.approx(float(expected.iloc[fire]))
+    # Developing session VWAP on the fire bar is not the magnet.
+    live = ind.utc_session_vwap(
+        candles["high"], candles["low"], candles["close"], candles["volume"]
+    )
+    # Quiet / no stretch stays flat.
+    quiet, quiet_fire, _ = _prior_day_vwap_reject_tape(long_side=True, stretch=False)
+    assert int(
+        _signals("prior_day_vwap_reject", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    # Stretch without halfway reclaim stays flat.
+    held, held_fire, _ = _prior_day_vwap_reject_tape(long_side=True, reclaim=False)
+    held_sig = _signals("prior_day_vwap_reject", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["stretched_below"].iloc[held_fire])
+    assert not bool(held_sig["reclaimed_toward_vwap_long"].iloc[held_fire])
+    # 0.40 ATR poke misses k=1.0; it is not this fade.
+    miss, miss_fire, _ = _prior_day_vwap_reject_tape(long_side=True, miss_stretch=True)
+    miss_sig = _signals("prior_day_vwap_reject", miss)
+    assert int(miss_sig["signal"].iloc[miss_fire]) == 0
+    # Default 1.2 ATR stretch fires k=1.0 and misses locked k=1.5.
+    wide = factory(replace(base, k=1.5)).generate_signals(candles)
+    assert int(wide["signal"].iloc[fire]) == 0
+    # Caller cannot unlock ATR period — locks stay locked.
+    unlocked = factory(replace(base, atr_n=5)).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    _assert_prior_day_vwap_reject_clear_of_siblings(candles, fire, SignalSide.LONG)
+    short_on_long = _signals("prior_day_vwap_reject", candles, side=SignalSide.SHORT)
+    assert int(short_on_long["signal"].iloc[fire]) == 0
+    assert int((short_on_long["signal"] == -1).sum()) == 0
+    # Live developing VWAP is a different series; we only require the magnet
+    # is the prior-day snapshot (already checked). Keep the name bound.
+    assert live.notna().iloc[fire]
+
+
+def test_prior_day_vwap_reject_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("prior_day_vwap_reject", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.0, 1.5]
+
+    candles, fire, vwap_val = _prior_day_vwap_reject_tape(long_side=False)
+    signals = _signals("prior_day_vwap_reject", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["stretched_above"].iloc[fire])
+    assert bool(signals["reclaimed_toward_vwap_short"].iloc[fire])
+    assert not bool(signals["stretched_below"].iloc[fire])
+    vwap = float(signals["vwap"].iloc[fire])
+    assert vwap == pytest.approx(vwap_val)
+    high_px = float(candles["high"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    assert high_px >= vwap + 1.0 * atr_known
+    assert close_px < vwap + 0.5 * 1.0 * atr_known
+    held, held_fire, _ = _prior_day_vwap_reject_tape(long_side=False, reclaim=False)
+    held_sig = _signals("prior_day_vwap_reject", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["stretched_above"].iloc[held_fire])
+    assert not bool(held_sig["reclaimed_toward_vwap_short"].iloc[held_fire])
+    miss, miss_fire, _ = _prior_day_vwap_reject_tape(long_side=False, miss_stretch=True)
+    miss_sig = _signals("prior_day_vwap_reject", miss, side=SignalSide.SHORT)
+    assert int(miss_sig["signal"].iloc[miss_fire]) == 0
+    wide = factory(replace(base, k=1.5)).generate_signals(candles)
+    assert int(wide["signal"].iloc[fire]) == 0
+    _assert_prior_day_vwap_reject_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_short = _signals("prior_day_vwap_reject", candles, side=SignalSide.LONG)
+    assert int(long_on_short["signal"].iloc[fire]) == 0
+
+
+def test_prior_day_vwap_reject_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("prior_day_vwap_reject", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.0, 1.5]
+    assert "atr_n" not in space
+    assert "touch_tol_atr" not in space
+    assert "lookback_nodes" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("prior_day_vwap_reject")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "prior_day_vwap_reject"
+
+
+def test_prior_day_vwap_reject_no_lookahead() -> None:
+    candles, fire, _vwap_val = _prior_day_vwap_reject_tape(long_side=True)
+    signals = _signals("prior_day_vwap_reject", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "prior_day_vwap_reject", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["vwap"].iloc[:cut],
+        truncated["vwap"],
+        check_names=False,
+    )
+    # Later bars must not rewrite prior-day VWAP, prior-bar ATR, or the fire.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("volume")] = 5_000_000.0
+    after = _signals("prior_day_vwap_reject", shocked, side=SignalSide.LONG)
+    assert after["vwap"].iloc[fire] == pytest.approx(signals["vwap"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert after["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+    # Fire-bar range cannot lift the ATR used for the stretch (known-before).
+    fat = candles.copy()
+    fat.iloc[fire, fat.columns.get_loc("low")] = float(candles["low"].iloc[fire])
+    fat.iloc[fire, fat.columns.get_loc("high")] = 130.0
+    fat_sig = _signals("prior_day_vwap_reject", fat, side=SignalSide.LONG)
+    assert fat_sig["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert float(fat_sig["atr"].iloc[fire]) > float(signals["atr"].iloc[fire])
+
+
+def test_prior_day_vwap_reject_prior_day_only_forming_day_excluded() -> None:
+    """VWAP is yesterday's completed session. Today's volume cannot move it."""
+    from core.strategy import indicators as ind
+
+    candles, fire, vwap_val = _prior_day_vwap_reject_tape(long_side=True)
+    signals = _signals("prior_day_vwap_reject", candles, side=SignalSide.LONG)
+    assert pd.isna(signals["vwap"].iloc[10])
+    assert pd.isna(signals["vwap"].iloc[23])
+    assert signals["vwap"].iloc[24] == pytest.approx(vwap_val)
+    assert signals["vwap"].iloc[fire] == pytest.approx(vwap_val)
+    # Completed Jan 2 developing VWAP equals the published prior-day value.
+    session = ind.utc_session_vwap(
+        candles["high"], candles["low"], candles["close"], candles["volume"]
+    )
+    assert vwap_val == pytest.approx(float(session.iloc[23]))
+    shocked, shock_fire, _ = _prior_day_vwap_reject_tape(
+        long_side=True, forming_day_volume_shock=True
+    )
+    after = _signals("prior_day_vwap_reject", shocked, side=SignalSide.LONG)
+    assert after["vwap"].iloc[shock_fire] == pytest.approx(vwap_val)
+    assert after["vwap"].iloc[shock_fire] != pytest.approx(110.0, abs=1.0)
+    assert int(after["signal"].iloc[shock_fire]) == 1
+    live_after = ind.utc_session_vwap(
+        shocked["high"], shocked["low"], shocked["close"], shocked["volume"]
+    )
+    # Forming-day shock moves developing VWAP; prior-day magnet does not follow.
+    assert float(live_after.iloc[shock_fire]) != pytest.approx(vwap_val, abs=0.5)
+    # A 4h tape uses the same UTC-day snapshot: forming day stays dark.
+    four = pd.date_range("2024-01-02", periods=18, freq="4h", tz="UTC")
+    close = np.full(18, 100.0)
+    high = np.full(18, 100.5)
+    low = np.full(18, 99.5)
+    volume = np.full(18, 100.0)
+    high[1] = 102.5
+    low[1] = 101.5
+    close[1] = 102.0
+    volume[1] = 50.0
+    high[2] = 98.5
+    low[2] = 97.5
+    close[2] = 98.0
+    volume[2] = 50.0
+    for i in range(3, 6):
+        high[i] = 100.15
+        low[i] = 99.85
+        close[i] = 100.0
+        volume[i] = 8_000.0
+    vwap4 = ind.prior_utc_day_session_vwap(
+        pd.Series(high, index=four),
+        pd.Series(low, index=four),
+        pd.Series(close, index=four),
+        pd.Series(volume, index=four),
+    )
+    assert pd.isna(vwap4.iloc[5])
+    day0_session = ind.utc_session_vwap(
+        pd.Series(high, index=four),
+        pd.Series(low, index=four),
+        pd.Series(close, index=four),
+        pd.Series(volume, index=four),
+    )
+    assert vwap4.iloc[6] == pytest.approx(float(day0_session.iloc[5]))
+    # Day-1 high-volume print at 110 must not leak into day-1's published VWAP.
+    high[8] = 110.2
+    low[8] = 109.8
+    close[8] = 110.0
+    volume[8] = 1_000_000.0
+    vwap4_shock = ind.prior_utc_day_session_vwap(
+        pd.Series(high, index=four),
+        pd.Series(low, index=four),
+        pd.Series(close, index=four),
+        pd.Series(volume, index=four),
+    )
+    assert vwap4_shock.iloc[6] == pytest.approx(vwap4.iloc[6])
+    assert vwap4_shock.iloc[8] == pytest.approx(vwap4.iloc[6])
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -9279,6 +9703,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("keltner_channel_fade", {"k"}),
         ("prior_poc_reclaim_fade", {"touch_tol_atr"}),
         ("hvn_mean_revert", {"lookback_nodes", "touch_tol_atr"}),
+        ("prior_day_vwap_reject", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -9318,6 +9743,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("keltner_channel_fade", {"k"}),
         ("prior_poc_reclaim_fade", {"touch_tol_atr"}),
         ("hvn_mean_revert", {"lookback_nodes", "touch_tol_atr"}),
+        ("prior_day_vwap_reject", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

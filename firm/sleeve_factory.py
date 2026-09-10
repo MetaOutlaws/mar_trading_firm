@@ -2632,6 +2632,52 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "not a session-volume-profile skip-list family."
         ),
     ),
+    SleeveSpec(
+        name="prior_day_vwap_reject",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Prior completed UTC-day VWAP stretch reject as one "
+            "4h BOTH family. VWAP is the session VWAP of the "
+            "prior COMPLETED UTC day only (00:00–24:00 "
+            "yesterday, typical-price volume/turnover weighted). "
+            "Never a forming day. Never developing/live session "
+            "VWAP. SHORT: high[t] >= VWAP + k*ATR AND close[t] "
+            "< VWAP + 0.5*k*ATR. LONG: low[t] <= VWAP - k*ATR "
+            "AND close[t] > VWAP - 0.5*k*ATR. ATR period locked "
+            "20, known before the signal bar (atr.shift(1)). "
+            "Reject toward VWAP (halfway reclaim). Fill t+1 "
+            "open. Free search (1 only): k [1.0, 1.5]. Not "
+            "utc_session_vwap_reversion / "
+            "swing_anchored_vwap_pullback / "
+            "vwap_spread_exhaustion / "
+            "vwap_volatility_band_fade (90/94/98/99 spent "
+            "developing-session VWAP cluster). Not inventory "
+            "fades. Not prior_poc_reclaim_fade (Job 145). Not "
+            "hvn_mean_revert (Job 146). Not "
+            "rolling_va_extreme_reject. Not sma20_stretch_fade "
+            "(141). Not keltner_channel_fade (Job 144 0/12 — "
+            "do not revive). Not prior_day_extreme_reject "
+            "(118 H/L). Do not recode spent families 118–146. "
+            "Do not modify sibling geometry."
+        ),
+        summary=(
+            "Fade a 4h wick stretch of the prior completed "
+            "UTC-day session VWAP that reclaims halfway toward "
+            "VWAP (SHORT = stretch above then fade, LONG = "
+            "stretch below then reclaim) as one 4h BOTH family."
+        ),
+        justification=(
+            "A locked prior-completed-UTC-day session VWAP "
+            "stretch-then-halfway-reclaim, with ATR20 known "
+            "before the signal bar and searched k only, is not "
+            "a developing-session VWAP fade, not swing AVWAP, "
+            "not a rolling VWAP band/spread, and not a "
+            "POC / HVN / rolling value-area sleeve."
+        ),
+    ),
 ]
 
 

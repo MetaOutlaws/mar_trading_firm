@@ -1329,6 +1329,43 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "prior_day_vwap_reject@4h/4h",
+        "family": "prior_day_vwap_reject",
+        "name": "prior_day_vwap_reject 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 45,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved + Quant AUTHORITATIVE for "
+            "coding only. Fade a 4h wick stretch of the prior "
+            "completed UTC-day session VWAP that reclaims "
+            "halfway toward VWAP. Quant-locked grid: VWAP from "
+            "the prior COMPLETED UTC day only (00:00–24:00 "
+            "yesterday; typical-price volume/turnover weighted; "
+            "forming day excluded; not developing/live session "
+            "VWAP), ATR period=20 known before the signal bar "
+            "(atr.shift(1)), reject toward VWAP (halfway "
+            "reclaim). SHORT=high[t] >= VWAP + k*ATR AND "
+            "close[t] < VWAP + 0.5*k*ATR / LONG=low[t] <= "
+            "VWAP - k*ATR AND close[t] > VWAP - 0.5*k*ATR. "
+            "Free search (1 only): k [1.0, 1.5]. BOTH sides "
+            "honest. Walk-forward is not started from this "
+            "coding PR. Live stays off. Not utc_session_vwap / "
+            "swing AVWAP / vwap_spread / vwap_band (90/94/98/"
+            "99), not inventory fades, not prior_poc_reclaim_"
+            "fade (Job 145), not hvn_mean_revert (Job 146), "
+            "not rolling_va_extreme_reject, not "
+            "sma20_stretch_fade (141), not "
+            "keltner_channel_fade (Job 144 0/12 — do not "
+            "revive), not prior_day_extreme_reject (118 H/L)."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

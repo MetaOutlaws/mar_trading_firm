@@ -1163,6 +1163,16 @@ def _novel_kit(name: str, side: SignalSide):
             # only. No leave_atr / bar-lookback / hvn_node_fade.
             {"lookback_nodes": [1, 3], "touch_tol_atr": [0.0, 0.15]},
         ),
+        "prior_day_vwap_reject": (
+            "core.strategy.prior_day_vwap_reject",
+            "PriorDayVwapRejectParams",
+            "PriorDayVwapRejectStrategy",
+            # atr_n locked at 20. Prior completed UTC-day session
+            # VWAP locked (never developing / forming day). ATR
+            # known before the signal bar. Halfway reclaim toward
+            # VWAP locked. Search k only.
+            {"k": [1.0, 1.5]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
