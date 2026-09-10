@@ -652,10 +652,88 @@ canvas { width: 100%; height: 84px; display: block; }
   .standup-grid { grid-template-columns: 1fr; }
 }
 .job-list { display: grid; gap: 8px; margin-top: 12px; }
+.pipeline.workflow .pipe-stage { min-width: 108px; padding: 10px 8px 12px; }
+.pipe-owner {
+  font-size: 12px;
+  color: var(--paper);
+  margin-top: 4px;
+  font-weight: 500;
+}
+.now-job {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px 18px;
+  align-items: start;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(200, 245, 74, 0.28);
+  background: rgba(200, 245, 74, 0.05);
+  border-radius: var(--radius);
+}
+.now-job.stalled {
+  border-color: rgba(240, 180, 41, 0.45);
+  background: rgba(240, 180, 41, 0.06);
+}
+.now-job .family {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.buffer-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.buffer-card {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+.buffer-card .slot {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.buffer-card .letter {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--accent);
+  margin-left: 8px;
+}
+.book-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+.book-footer strong { color: var(--ink); font-weight: 600; }
+.book-footer .live-off { color: var(--warn); }
+.swimlane {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.swim-chip {
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
 @media (max-width: 980px) {
   .pipe-stage + .pipe-stage { border-left: 1px solid var(--line); border-top: 0; }
   .pipeline { flex-direction: column; }
   .pipe-stage:first-child, .pipe-stage:last-child { border-radius: 12px; }
+  .buffer-row { grid-template-columns: 1fr; }
+  .now-job { grid-template-columns: 1fr; }
 }
 .hidden { display: none !important; }
 .menu-btn { display: none; }
@@ -726,7 +804,7 @@ const VIEWS = [
 const KICKERS = {
   overview: "Daily standup — where we are, what needs you, what is next",
   health: "Keys, last cycle, and why the blotter is quiet",
-  floor: "Ten employees, trust ladder, and current work",
+  floor: "Firm process — who owns each stage, what’s now, what’s next",
   blotter: "Closed round trips with costs and attribution",
   positions: "Open book — mark, open P&L, stop, and target",
   strategies: "Research-approved (live gate) vs operator paper vetoes vs rejects",
@@ -853,7 +931,7 @@ const VIEW_PAGE_KEYS = {
   inbox: ["inbox", "escal"],
   research: ["jobs", "backlog", "hypotheses", "nextTests"],
   positions: ["positions"],
-  floor: ["activity", "jobs"],
+  floor: ["activity"],
 };
 function pageSlice(id, arr) {
   const list = arr || [];
@@ -1256,17 +1334,108 @@ function standupCard() {
 
 function renderFloor() {
   const employees = state.floor.employees || [];
-  if (!employees.length) return empty("No employees loaded", "The orchestrator has not registered the floor yet.");
   return `<div class="toolbar">
       <button class="btn accent" onclick="wakeFloor()">Wake floor</button>
-      <span class="muted">Runs every employee whose seat has a key. Sentiment prefers Luke’s last_sentiment.json; xAI is optional.</span>
+      <span class="muted">Runs every employee whose seat has a key. Floor is the process view — it does not start walk-forwards. Jobs live on Research.</span>
     </div>
-    <section class="employees">${employees.map(empCard).join("")}</section>
+    ${floorWorkflowCard()}
+    ${employees.length
+      ? `<section class="employees">${employees.map(empCard).join("")}</section>`
+      : empty("No employees loaded", "The orchestrator has not registered the floor yet.")}
     <div class="card"><h2>Activity</h2>${(() => {
       const sliced = pageSlice("activity", state.floor.activity || []);
       return `<div class="feed" data-page-list="activity">${sliced.items.map(activityRow).join("") || empty("No runs yet", "Employees appear here after their first cycle.")}</div>${pagerHtml("activity", sliced, "runs")}`;
-    })()}</div>
-    ${pipelineCard()}`;
+    })()}</div>`;
+}
+
+function floorWorkflowCard() {
+  // CEO Floor strip: Hypothesis → Score → COO ONE → CEO YES → Stamp → Code → Walk → Harvest → Review → Book → Activate
+  // Owners: Shumba, Munha, Marcus, Brian, Garwe, Chiremba, Mukanya, Mukanya, Marcus, paper, Soko
+  const flow = state.floor.workflow || {};
+  const stages = flow.stages || [];
+  const current = flow.current || null;
+  const blockers = flow.blockers || [];
+  const book = flow.book || {};
+  const stateLabel = { done: "Done", active: "In progress", wait: "Waiting", bad: "Blocked" };
+  const strip = stages.length
+    ? `<div class="pipeline workflow">${stages.map(s => {
+        const live = !!s.current;
+        const pct = s.progress;
+        const showBar = (live || s.stalled) && typeof pct === "number";
+        const bar = showBar
+          ? `<div class="pipe-bar ${s.stalled ? "stalled" : ""}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>
+             <div class="pipe-eta ${s.stalled ? "stalled" : ""}">${Math.round(pct)}% · ${esc(s.progress_label || (s.stalled ? "Stalled" : ""))}</div>`
+          : "";
+        const status = live
+          ? `<div class="pipe-now">${s.stalled ? "Stalled" : (s.state === "wait" ? "Waiting" : s.state === "bad" ? "Blocked" : "In progress")}</div>`
+          : `<div class="pipe-state">${esc(stateLabel[s.state] || s.state || "Waiting")}</div>`;
+        return `<div class="pipe-stage ${esc(s.state || "wait")}${live ? " current" : ""}${s.stalled ? " stalled" : ""}">
+        <div class="pipe-kicker">${esc(s.label)}</div>
+        <div class="pipe-owner">${esc(s.owner || "")}</div>
+        ${status}
+        <div class="pipe-detail">${esc(s.detail || "")}</div>
+        ${bar}
+      </div>`;
+      }).join("")}</div>`
+    : empty("Workflow not loaded", "Refresh the desk after the API restarts.");
+  const blockerBanner = blockers.length
+    ? `<div class="banner ${blockers.some(b => b.level === "blocking") ? "bad" : "warn"}" style="margin-bottom:12px">
+        <strong>Blockers</strong>
+        <div class="blocker-row">${blockers.map(b => `<span class="blocker ${esc(b.level || "waiting")}">${esc(b.text)}</span>`).join("")}</div>
+      </div>`
+    : "";
+  let nowCard = "";
+  if (current && current.family) {
+    const pct = current.progress;
+    const phase = current.phase || current.status || "";
+    const meta = [current.clock, current.side].filter(Boolean).join(" · ");
+    const bar = typeof pct === "number"
+      ? `<div class="pipe-bar ${current.stalled ? "stalled" : ""}"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>
+         <div class="pipe-eta ${current.stalled ? "stalled" : ""}">${esc(current.progress_label || (Math.round(pct) + "%"))}</div>`
+      : (current.progress_label ? `<div class="muted" style="margin-top:8px">${esc(current.progress_label)}</div>` : "");
+    nowCard = `<div class="now-job${current.stalled ? " stalled" : ""}">
+      <div>
+        <div class="pipe-kicker">Current job</div>
+        <div class="family">${esc(current.family)}</div>
+        <div class="muted">${esc(meta)}${phase ? " · " + esc(phase) : ""}</div>
+        ${bar}
+      </div>
+      <span class="badge ${current.stalled ? "warn" : (current.status === "running" || current.status === "queued" ? "ok" : "")}">${esc(current.status || phase || "now")}</span>
+    </div>`;
+  }
+  const bufferCard = (row) => {
+    if (!row || !row.family) return `<div class="buffer-card"><div class="muted">Buffer empty</div></div>`;
+    const meta = [row.clock, row.side].filter(Boolean).join(" · ");
+    return `<div class="buffer-card">
+      <div class="slot">${esc(row.slot || "")}<span class="letter">${esc(row.letter || "")}</span></div>
+      <div style="margin-top:4px"><strong>${esc(row.family)}</strong></div>
+      <div class="muted">${esc(meta)}${row.coded ? " · coded" : ""}</div>
+    </div>`;
+  };
+  const hasBuffer = !!(flow.next || flow.then);
+  const bufferRow = hasBuffer
+    ? `<div class="buffer-row">${bufferCard(flow.next)}${bufferCard(flow.then)}</div>`
+    : "";
+  const waiters = flow.who_waits || [];
+  const swim = waiters.length
+    ? `<div class="swimlane">${waiters.map(w => `<span class="swim-chip"><strong>${esc(w.owner)}</strong> · ${esc(w.stage)}</span>`).join("")}</div>`
+    : "";
+  const live = String(book.live || "OFF").toUpperCase() === "ON";
+  const footer = `<div class="book-footer">
+      <span><strong>${esc(book.approved_count ?? 0)}</strong> research approved</span>
+      <span><strong>${esc(book.paper_override_count ?? 0)}</strong> paper overrides</span>
+      <span class="${live ? "" : "live-off"}">Live ${esc(book.live || "OFF")}</span>
+    </div>`;
+  return `<div class="card">
+    <h2>Firm workflow</h2>
+    <p class="muted">${esc(flow.note || "Hypothesis through Activate. Floor is not the validator console.")}</p>
+    ${blockerBanner}
+    ${strip}
+    ${nowCard}
+    ${bufferRow}
+    ${swim}
+    ${footer}
+  </div>`;
 }
 
 function pipelineCard() {
@@ -1304,14 +1473,16 @@ function pipelineCard() {
     : empty("Pipeline not loaded", "Refresh the desk after the API restarts.");
   const jobSliced = pageSlice("jobs", jobs.slice().reverse());
   const jobRows = jobs.length
-    ? `<div class="job-list" data-page-list="jobs">${jobSliced.items.map(j => `<div class="feed-item">
+    ? `<h2 style="margin-top:16px">Walk-forward jobs</h2>
+      <p class="muted">Validator console on Research. Floor shows the firm process, not this list.</p>
+      <div class="job-list" data-page-list="jobs">${jobSliced.items.map(j => `<div class="feed-item">
         <div><strong>${esc(j.family || "job")}</strong> <span class="badge ${j.status === "running" || j.status === "queued" ? "ok" : j.status === "failed" ? "bad" : ""}">${esc(j.status || "")}</span>
           <span class="muted">${esc((j.symbols || []).join(", "))}</span>
           <span class="muted">${esc(rel(j.started_at || j.created_at))}</span>
         </div>
         <div class="muted">${esc(j.detail || "")}</div>
       </div>`).join("")}</div>${pagerHtml("jobs", jobSliced, "jobs")}`
-    : `<div class="muted" style="margin-top:10px">No walk-forward jobs yet. Tier A starts from standby when a slot is free.</div>`;
+    : `<div class="muted" style="margin-top:10px">No walk-forward jobs yet. Tier A starts from standby when a slot is free. Job cards stay on Research, not Floor.</div>`;
   return `<div class="card">
     <h2>Research pipeline</h2>
     <p class="muted">Catalog → standby → walk-forward (Tier A auto-starts). Paper-to-live is still a hard human gate. Hit%/PnL on employee cards are the wrong KPI until a pair is approved — use throughput below.</p>
@@ -2382,7 +2553,7 @@ function viewFingerprint(name) {
   const slices = {
     overview: { eq: state.equity, risk: state.risk, standup: floor.standup, pipeline: floor.pipeline, inboxN: (floor.inbox || []).length, golive: state.golive, paperN: (state.strategies || {}).paper_override_count, approvedN: (state.strategies || {}).approved_count },
     health: { cycle: state.cycle, llm: state.llm, risk: state.risk },
-    floor: { employees: floor.employees, activity: floor.activity, org: floor.org },
+    floor: { employees: floor.employees, activity: floor.activity, org: floor.org, workflow: floor.workflow, pipeline: floor.pipeline, paperN: (state.strategies || {}).paper_override_count, approvedN: (state.strategies || {}).approved_count },
     blotter: { trades: state.trades, rejections: state.rejections },
     positions: { pos: (state.risk || {}).open_positions, eq: state.equity },
     strategies: { strategies: state.strategies, integrity: floor.integrity },
