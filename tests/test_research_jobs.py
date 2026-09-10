@@ -72,6 +72,13 @@ def test_infer_family_from_title_and_payload() -> None:
         "prior_day_vwap_reject"
     )
     assert infer_family({}, "Code prior day vwap reject 4h") == "prior_day_vwap_reject"
+    assert infer_family({}, "Next: rolling_va_extreme_reject") == "rolling_va_extreme_reject"
+    assert infer_family({"family": "rolling_va_extreme_reject"}, "ATR channel breakout") == (
+        "rolling_va_extreme_reject"
+    )
+    assert infer_family({}, "Code rolling va extreme reject 4h") == (
+        "rolling_va_extreme_reject"
+    )
     # Must not collapse onto bollinger via the generic "mean_rev" token.
     assert infer_family({}, "Code hvn mean revert 4h") == "hvn_mean_revert"
     assert infer_family({"name": "ema_adx_trend"}, "") == "ema_adx_trend"
@@ -414,6 +421,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "prior_poc_reclaim_fade" in coded
     assert "hvn_mean_revert" in coded
     assert "prior_day_vwap_reject" in coded
+    assert "rolling_va_extreme_reject" in coded
     assert "hvn_node_fade" not in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
@@ -469,6 +477,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "prior_poc_reclaim_fade" not in novel_ready
     assert "hvn_mean_revert" not in novel_ready
     assert "prior_day_vwap_reject" not in novel_ready
+    assert "rolling_va_extreme_reject" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -947,6 +956,7 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "prior_poc_reclaim_fade" not in families
     assert "hvn_mean_revert" not in families
     assert "prior_day_vwap_reject" not in families
+    assert "rolling_va_extreme_reject" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

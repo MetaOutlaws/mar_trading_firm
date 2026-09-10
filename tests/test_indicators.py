@@ -465,6 +465,83 @@ def test_prior_utc_day_volume_poc_publishes_after_midnight_forming_day_excluded(
     )
 
 
+def test_volume_profile_value_area_grows_from_poc_to_frac():
+    """VA expands one bin from POC; VAH/VAL are outer edges, not midpoints."""
+    # Range [0, 10] → 5 bins of width 2. Midpoints 1, 3, 5, 7, 9.
+    # hist ≈ [1, 10, 3, 2, 1] via zero-range prints at each midpoint.
+    # Zero-weight prints at 0 and 10 lock the range without adding volume.
+    high = np.array([0.0, 1.0, 3.0, 5.0, 7.0, 9.0, 10.0])
+    low = np.array([0.0, 1.0, 3.0, 5.0, 7.0, 9.0, 10.0])
+    weight = np.array([0.0, 1.0, 10.0, 3.0, 2.0, 1.0, 0.0])
+    vah, val, poc = ind.volume_profile_value_area(
+        high, low, weight, n_bins=5, va_frac=0.70
+    )
+    # POC is the 10-weight bin midpoint (3.0). Target 0.70 * 17 = 11.9.
+    # Add the 3-weight neighbor above → bins 1-2. VAL=2, VAH=6.
+    assert poc == pytest.approx(3.0)
+    assert val == pytest.approx(2.0)
+    assert vah == pytest.approx(6.0)
+    # Collapsed window cannot publish a close-inside interval.
+    collapsed = ind.volume_profile_value_area(
+        np.array([5.0]), np.array([5.0]), np.array([1.0]), n_bins=20, va_frac=0.70
+    )
+    assert all(np.isnan(x) for x in collapsed)
+
+
+def test_rolling_volume_value_area_excludes_signal_bar_and_is_causal():
+    """Bar t uses [t-lookback, t-1]. Later bars cannot rewrite a published VA."""
+    index = pd.date_range("2024-01-02", periods=30, freq="h", tz="UTC")
+    high = pd.Series(100.5, index=index)
+    low = pd.Series(99.5, index=index)
+    volume = pd.Series(100.0, index=index)
+    # Window bars 0-19: fat node at 100 plus tiny range prints.
+    high.iloc[0] = 90.4
+    low.iloc[0] = 90.0
+    volume.iloc[0] = 10.0
+    high.iloc[1] = 110.0
+    low.iloc[1] = 109.6
+    volume.iloc[1] = 10.0
+    high.iloc[2:20] = 100.2
+    low.iloc[2:20] = 99.8
+    volume.iloc[2:20] = 5_000.0
+    expected_vah, expected_val, expected_poc = ind.volume_profile_value_area(
+        high.iloc[:20], low.iloc[:20], volume.iloc[:20], n_bins=20, va_frac=0.70
+    )
+    profile = ind.rolling_volume_value_area(
+        high, low, volume, lookback=20, va_frac=0.70, n_bins=20
+    )
+    # First published row is index 20 (uses bars 0-19). Signal bar 20 is out.
+    assert pd.isna(profile["vah"].iloc[19])
+    assert profile["vah"].iloc[20] == pytest.approx(expected_vah)
+    assert profile["val"].iloc[20] == pytest.approx(expected_val)
+    assert profile["poc"].iloc[20] == pytest.approx(expected_poc)
+    # Shocking the signal bar itself must not move the published VA.
+    shocked_high = high.copy()
+    shocked_low = low.copy()
+    shocked_vol = volume.copy()
+    shocked_high.iloc[20] = 140.0
+    shocked_low.iloc[20] = 70.0
+    shocked_vol.iloc[20] = 1_000_000.0
+    shocked = ind.rolling_volume_value_area(
+        shocked_high, shocked_low, shocked_vol, lookback=20, va_frac=0.70, n_bins=20
+    )
+    assert shocked["vah"].iloc[20] == pytest.approx(expected_vah)
+    assert shocked["val"].iloc[20] == pytest.approx(expected_val)
+    # Truncation to the first published bar matches the full-tape snapshot.
+    cut = 21
+    truncated = ind.rolling_volume_value_area(
+        high.iloc[:cut],
+        low.iloc[:cut],
+        volume.iloc[:cut],
+        lookback=20,
+        va_frac=0.70,
+        n_bins=20,
+    )
+    pd.testing.assert_series_equal(
+        profile["vah"].iloc[:cut], truncated["vah"], check_names=False
+    )
+
+
 def test_nearest_hvn_to_extreme_picks_closest_of_top_n():
     """lookback_nodes>1 can select a secondary node; N=1 stays on POC."""
     index = pd.date_range("2024-01-03", periods=3, freq="h", tz="UTC")

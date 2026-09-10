@@ -1,0 +1,14 @@
+{
+  "family": "rolling_va_extreme_reject",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "Rolling volume-profile value-area extreme reject as one 4h BOTH family. VA is the rolling volume profile on the walk clock from the prior lookback bars (signal bar excluded). Same locked histogram as prior_poc_reclaim_fade / hvn_mean_revert: 20 equal-width price bins; volume spread uniformly across overlapping bins. VA grows one bin at a time from POC until va_frac of volume; VAH/VAL = outer edges. SHORT: high[t] >= VAH - touch_tol_atr*ATR AND VAL < close[t] < VAH. LONG: low[t] <= VAL + touch_tol_atr*ATR AND VAL < close[t] < VAH. require_close_inside_va locked True. ATR period locked 20, known before the signal bar (atr.shift(1)). Fill t+1 open. Free search (3 only): lookback [20, 48], touch_tol_atr [0.0, 0.10], va_frac [0.68, 0.70]. Not prior_poc_reclaim_fade (Job 145 — single prior-day POC). Not hvn_mean_revert (Job 146 — nearest-of-top-N). Not prior_day_vwap_reject / session_vwap_band_fade. Not session_volume_profile_reversal (skip-list). Not prior_day_extreme_reject (118 H/L). Not sma20_stretch_fade / keltner_channel_fade. Not asia / inventory fades. Do not recode spent families 118–146. Do not modify sibling geometry.",
+  "summary": "Fade a 4h tag of the rolling volume-profile value-area extreme that closes back inside the VA (SHORT = VAH reject, LONG = VAL reject) as one 4h BOTH family.",
+  "justification": "A locked rolling walk-clock value-area extreme fade, with ATR20 known before the signal bar and searched lookback + touch_tol_atr + va_frac only, is not a prior-day POC / HVN reclaim, not a VWAP stretch reject, and not a session-volume-profile skip-list family.",
+  "written_at": "2026-09-10T00:00:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/rolling_va_extreme_reject.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward. Do not call mark_done."
+}

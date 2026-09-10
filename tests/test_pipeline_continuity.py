@@ -700,6 +700,7 @@ def test_promote_remaining_into_top5_after_postmortem(tmp_path, monkeypatch) -> 
                     "prior_poc_reclaim_fade@4h/4h": 16,
                     "hvn_mean_revert@4h/4h": 16,
                     "prior_day_vwap_reject@4h/4h": 16,
+                    "rolling_va_extreme_reject@4h/4h": 16,
                     "session_boundary_volume_fade@4h/4h": 16,
                     "vwap_spread_exhaustion@4h/4h": 16,
                     "vwap_volatility_band_fade@1h/1h": 16,
