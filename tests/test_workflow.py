@@ -148,3 +148,32 @@ def test_uncoded_mandate_is_blocker_not_progress(monkeypatch) -> None:
     assert "not coded" in snap["blockers"][0]["text"]
     assert snap["current"]["family"] == "lvn_fill_reject"
     assert snap["current"]["progress_label"] == "coding"
+
+
+def test_failed_walk_is_not_floor_hero_during_code(monkeypatch) -> None:
+    _isolate(monkeypatch)
+    jobs = [
+        {
+            "id": 91,
+            "family": "ascending_triangle_break",
+            "status": "failed",
+            "clock": "4h/4h",
+            "side": "BOTH",
+            "symbols": ["BTCUSDT"],
+            "detail": "0 of 12 pairs",
+        }
+    ]
+    remaining = [
+        {"family": "lvn_fill_reject", "clock": "4h/4h", "side": "BOTH", "coded": False},
+    ]
+    snap = workflow_snapshot(jobs=jobs, remaining=remaining)
+    code = next(s for s in snap["stages"] if s["id"] == "code")
+    assert code["current"] is True
+    assert snap["current"]["family"] == "lvn_fill_reject"
+    assert snap["current"]["status"] == "coding"
+    assert snap["current"]["phase"] == "code"
+    assert "failed" not in str(snap["current"]["status"])
+    # Strip cells stay short — no wrapped family dump.
+    for stage in snap["stages"]:
+        assert "ascending_triangle_break" not in (stage.get("detail") or "")
+

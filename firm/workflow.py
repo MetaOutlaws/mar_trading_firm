@@ -104,7 +104,9 @@ def workflow_snapshot(
         live_off=live_off,
         walk_bar=walk_bar,
     )
-    current = _current_job_card(latest, mandates, walk_bar, paper_scan_family(), stages)
+    current = _current_job_card(
+        latest, mandates, walk_bar, paper_scan_family(), stages, family=family
+    )
     nxt, then = _buffer_cards(remaining, jobs, current.get("family") if current else None)
     blockers = _blockers(
         latest=latest,
@@ -214,12 +216,15 @@ def _current_family(
     mandates: list[dict[str, Any]],
     remaining: list[dict[str, Any]],
 ) -> str:
-    if latest and latest.get("family"):
+    status = str((latest or {}).get("status") or "")
+    if latest and status in {"running", "queued", "standby"}:
         return str(latest.get("family") or "")
     if mandates:
         return str(mandates[0].get("family") or "")
     if remaining:
         return str(remaining[0].get("family") or "")
+    if latest and latest.get("family"):
+        return str(latest.get("family") or "")
     return ""
 
 
@@ -236,14 +241,15 @@ def _paint_stages(
     clock = str((latest or {}).get("clock") or "")
     side = str((latest or {}).get("side") or "BOTH")
     high = high_level_progress(latest, walk_bar)
+    # Keep strip cells short — the current-job card holds the family name.
     details = {
         "hyp": "Catalog intake" if family else "Waiting on Shumba",
         "score": "Ranked queue" if family else "Waiting on Munha",
-        "coo": "Marcus ONE" + (f" · {family}" if family else ""),
-        "ceo": "Brian YES" + (f" · {family}" if family else ""),
-        "stamp": "Garwe lock" + (f" · {family}" if family else ""),
-        "code": family or "Idle",
-        "walk": " ".join(p for p in (family, clock, side) if p) or "Idle",
+        "coo": "Marcus ONE",
+        "ceo": "Brian YES",
+        "stamp": "Garwe lock",
+        "code": "Coding" if family else "Idle",
+        "walk": " ".join(p for p in (clock, side) if p) or "Idle",
         "harvest": "Results in" if str((latest or {}).get("status") or "") in {"done", "failed"} else "Waiting",
         "review": "Marcus review",
         "book": "Paper book",
@@ -282,10 +288,16 @@ def _current_job_card(
     walk_bar: dict[str, Any],
     scan_family: str | None,
     stages: list[dict[str, Any]],
+    family: str = "",
 ) -> dict[str, Any] | None:
     live = next((s for s in stages if s.get("current")), None)
     phase = str((live or {}).get("id") or "walk")
-    if latest and str(latest.get("status") or "") in {"running", "queued", "done", "failed", "standby"}:
+    live_status = str((latest or {}).get("status") or "")
+    # A finished reject is not the Floor hero unless we are harvesting/reviewing it.
+    show_job = live_status in {"running", "queued", "standby"} or (
+        live_status in {"done", "failed"} and phase in {"walk", "harvest", "review", "book"}
+    )
+    if latest and show_job:
         high = high_level_progress(latest, walk_bar)
         return {
             "family": latest.get("family") or "",
@@ -308,6 +320,17 @@ def _current_job_card(
             "progress": 0,
             "progress_label": "coding" if mandate.get("phase") == "implement" else "starting",
             "stalled": mandate.get("phase") == "implement",
+        }
+    if phase == "code" and family:
+        return {
+            "family": family,
+            "clock": str((latest or {}).get("clock") or ""),
+            "side": str((latest or {}).get("side") or "BOTH"),
+            "status": "coding",
+            "phase": "code",
+            "progress": None,
+            "progress_label": "coding",
+            "stalled": False,
         }
     if scan_family:
         return {
