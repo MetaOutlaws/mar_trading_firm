@@ -341,7 +341,7 @@ def _current_job_card(
             "status": "queued",
             "phase": phase,
             "progress": None,
-            "progress_label": phase,
+            "progress_label": "",
             "stalled": False,
         }
     if scan_family:
