@@ -138,6 +138,7 @@ APPROVED = [
     "sma20_stretch_fade",
     "outside_bar_fail_reversion",
     "keltner_channel_fade",
+    "prior_poc_reclaim_fade",
 ]
 
 
@@ -8394,6 +8395,405 @@ def test_keltner_channel_fade_no_lookahead() -> None:
     )
 
 
+def _prior_poc_reclaim_fade_tape(
+    *,
+    long_side: bool,
+    tag: bool = True,
+    reclaim: bool = True,
+    miss_tag: bool = False,
+    forming_day_volume_shock: bool = False,
+) -> tuple[pd.DataFrame, int, float]:
+    """Prior UTC day plants a mid-range volume-profile POC, then a next-day tag.
+
+    Day-0 extremes sit at 97.5 / 102.5 on tiny volume so POC is the high-volume
+    node around 100, not prior-day H/L. Fire is 18:00 UTC so London-close / IB /
+    Asia-London stay dark. Wick vs SMA/Keltner is far smaller than k*ATR.
+    """
+    from core.strategy import indicators as ind
+
+    n = 72
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    volume = np.full(n, 100.0)
+    # Prior UTC day (Jan 2) range occupancy + a concentrated mid-range node.
+    high[1] = 102.5
+    low[1] = 101.5
+    close[1] = 102.0
+    open_[1] = 101.8
+    volume[1] = 50.0
+    high[2] = 98.5
+    low[2] = 97.5
+    close[2] = 98.0
+    open_[2] = 98.2
+    volume[2] = 50.0
+    for i in range(8, 20):
+        high[i] = 100.15
+        low[i] = 99.85
+        close[i] = 100.0
+        open_[i] = 100.0
+        volume[i] = 8_000.0
+    poc_val = float(
+        ind.volume_profile_poc(high[:24], low[:24], volume[:24], n_bins=ind.POC_BINS_LOCKED)
+    )
+    fire = int(index.get_loc(pd.Timestamp("2024-01-03 18:00", tz="UTC")))
+    assert int(index[fire].hour) == 18
+    if forming_day_volume_shock:
+        # Forming Jan 3 node at 110 must not rewrite yesterday's POC.
+        shock = int(index.get_loc(pd.Timestamp("2024-01-03 12:00", tz="UTC")))
+        high[shock] = 110.2
+        low[shock] = 109.8
+        close[shock] = 110.0
+        open_[shock] = 110.0
+        volume[shock] = 1_000_000.0
+    if long_side:
+        if miss_tag:
+            low[fire] = poc_val + 0.04
+            close[fire] = poc_val + 0.12
+            high[fire] = poc_val + 0.20
+            open_[fire] = poc_val + 0.10
+        elif tag:
+            low[fire] = poc_val - 0.12
+            high[fire] = poc_val + 0.20
+            open_[fire] = poc_val + 0.10
+            close[fire] = poc_val + 0.12 if reclaim else poc_val - 0.08
+        else:
+            low[fire] = poc_val + 0.25
+            close[fire] = poc_val + 0.30
+            high[fire] = poc_val + 0.35
+            open_[fire] = poc_val + 0.28
+    else:
+        if miss_tag:
+            high[fire] = poc_val - 0.04
+            close[fire] = poc_val - 0.12
+            low[fire] = poc_val - 0.20
+            open_[fire] = poc_val - 0.10
+        elif tag:
+            high[fire] = poc_val + 0.12
+            low[fire] = poc_val - 0.20
+            open_[fire] = poc_val - 0.10
+            close[fire] = poc_val - 0.12 if reclaim else poc_val + 0.08
+        else:
+            high[fire] = poc_val - 0.25
+            close[fire] = poc_val - 0.30
+            low[fire] = poc_val - 0.35
+            open_[fire] = poc_val - 0.28
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = candles["volume"] * candles["close"]
+    return candles, fire, poc_val
+
+
+def _assert_prior_poc_reclaim_fade_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """This family is not a clone of H/L, SMA/Keltner stretch, VWAP, or parked gap."""
+    from core.strategy.displacement_gap_follow import (
+        DisplacementGapFollowParams,
+        DisplacementGapFollowStrategy,
+    )
+    from core.strategy.registry import list_strategies
+
+    assert int(_signals("prior_day_extreme_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("sma20_stretch_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("keltner_channel_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("keltner_break", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("bb_medium_bw_upper_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("outside_bar_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("asia_range_london_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("utc_session_vwap_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("vwap_volatility_band_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("week_open_reclaim", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("orb_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("classic_floor_pivot_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    gap = DisplacementGapFollowStrategy(DisplacementGapFollowParams(side=side))
+    assert int(gap.generate_signals(candles)["signal"].iloc[fire]) == 0
+    names = set(list_strategies())
+    assert "hvn_mean_revert" not in names
+    assert "prior_day_vwap_reject" not in names
+    assert "session_vwap_band_fade" not in names
+    assert "rolling_va_extreme_reject" not in names
+
+
+def test_prior_poc_reclaim_fade_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy import indicators as ind
+    from core.strategy.prior_poc_reclaim_fade import ATR_N_LOCKED, POC_BINS_LOCKED
+    from research.validate import strategy_kit
+
+    # Quant lock: search touch_tol_atr only. ATR20 + prior-day POC stay fixed.
+    factory, base, space = strategy_kit("prior_poc_reclaim_fade", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.touch_tol_atr == pytest.approx(0.0)
+    assert base.atr_n == ATR_N_LOCKED
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "k" not in space
+    assert "n_bins" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
+    assert POC_BINS_LOCKED == 20
+    assert ind.POC_BINS_LOCKED == 20
+
+    candles, fire, poc_val = _prior_poc_reclaim_fade_tape(long_side=True)
+    signals = _signals("prior_poc_reclaim_fade", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "poc",
+        "atr",
+        "atr_known",
+        "touch",
+        "tagged_from_above",
+        "tagged_from_below",
+        "closed_above_poc",
+        "closed_below_poc",
+    ):
+        assert column in signals.columns
+    # POC node, not H/L, SMA stretch, Keltner, VWAP, or floor P/R1/S1.
+    assert "prior_high" not in signals.columns
+    assert "prior_low" not in signals.columns
+    assert "sma" not in signals.columns
+    assert "keltner_mid" not in signals.columns
+    assert "keltner_upper" not in signals.columns
+    assert "pivot" not in signals.columns
+    assert "week_open" not in signals.columns
+    assert "vwap" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["tagged_from_above"].iloc[fire])
+    assert bool(signals["closed_above_poc"].iloc[fire])
+    assert not bool(signals["closed_below_poc"].iloc[fire])
+    poc = float(signals["poc"].iloc[fire])
+    assert poc == pytest.approx(poc_val)
+    # Mid-range node, not the prior UTC day high/low.
+    assert 99.5 < poc < 100.5
+    low_px = float(candles["low"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    assert low_px <= poc
+    assert close_px > poc
+    atr_known = float(signals["atr_known"].iloc[fire])
+    atr_now = float(signals["atr"].iloc[fire])
+    assert atr_known == pytest.approx(1.0, abs=0.15)
+    assert atr_known > 0
+    # Binning is the locked 20-bin histogram of the completed prior day only.
+    expected = ind.prior_utc_day_volume_poc(
+        candles["high"],
+        candles["low"],
+        candles["volume"],
+        n_bins=20,
+        turnover=candles["turnover"],
+    )
+    assert poc == pytest.approx(float(expected.iloc[fire]))
+    # No tag stays flat.
+    quiet, quiet_fire, _ = _prior_poc_reclaim_fade_tape(long_side=True, tag=False)
+    assert int(
+        _signals("prior_poc_reclaim_fade", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    # Tag without reclaim (close still below POC) is not this fade.
+    held, held_fire, _ = _prior_poc_reclaim_fade_tape(long_side=True, reclaim=False)
+    held_sig = _signals("prior_poc_reclaim_fade", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["tagged_from_above"].iloc[held_fire])
+    assert not bool(held_sig["closed_above_poc"].iloc[held_fire])
+    # Near-miss of POC stays flat at locked touch_tol=0; 0.10 ATR slack can tag it.
+    miss, miss_fire, miss_poc = _prior_poc_reclaim_fade_tape(long_side=True, miss_tag=True)
+    miss_sig = _signals("prior_poc_reclaim_fade", miss)
+    assert int(miss_sig["signal"].iloc[miss_fire]) == 0
+    slack = factory(replace(base, touch_tol_atr=0.10)).generate_signals(miss)
+    atr_prev = float(slack["atr_known"].iloc[miss_fire])
+    low_miss = float(miss["low"].iloc[miss_fire])
+    assert low_miss > miss_poc
+    assert low_miss <= miss_poc + 0.10 * atr_prev
+    assert int(slack["signal"].iloc[miss_fire]) == 1
+    # Caller cannot unlock ATR period — locks stay locked.
+    unlocked = factory(replace(base, atr_n=5)).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    _assert_prior_poc_reclaim_fade_clear_of_siblings(candles, fire, SignalSide.LONG)
+    short_on_long = _signals("prior_poc_reclaim_fade", candles, side=SignalSide.SHORT)
+    assert int(short_on_long["signal"].iloc[fire]) == 0
+    assert int((short_on_long["signal"] == -1).sum()) == 0
+
+
+def test_prior_poc_reclaim_fade_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("prior_poc_reclaim_fade", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+
+    candles, fire, poc_val = _prior_poc_reclaim_fade_tape(long_side=False)
+    signals = _signals("prior_poc_reclaim_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["tagged_from_below"].iloc[fire])
+    assert bool(signals["closed_below_poc"].iloc[fire])
+    assert not bool(signals["closed_above_poc"].iloc[fire])
+    poc = float(signals["poc"].iloc[fire])
+    assert poc == pytest.approx(poc_val)
+    high_px = float(candles["high"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    assert high_px >= poc
+    assert close_px < poc
+    held, held_fire, _ = _prior_poc_reclaim_fade_tape(long_side=False, reclaim=False)
+    held_sig = _signals("prior_poc_reclaim_fade", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["tagged_from_below"].iloc[held_fire])
+    assert not bool(held_sig["closed_below_poc"].iloc[held_fire])
+    miss, miss_fire, miss_poc = _prior_poc_reclaim_fade_tape(long_side=False, miss_tag=True)
+    miss_sig = _signals("prior_poc_reclaim_fade", miss, side=SignalSide.SHORT)
+    assert int(miss_sig["signal"].iloc[miss_fire]) == 0
+    slack = factory(replace(base, touch_tol_atr=0.10)).generate_signals(miss)
+    atr_prev = float(slack["atr_known"].iloc[miss_fire])
+    high_miss = float(miss["high"].iloc[miss_fire])
+    assert high_miss < miss_poc
+    assert high_miss >= miss_poc - 0.10 * atr_prev
+    assert int(slack["signal"].iloc[miss_fire]) == -1
+    _assert_prior_poc_reclaim_fade_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_short = _signals("prior_poc_reclaim_fade", candles, side=SignalSide.LONG)
+    assert int(long_on_short["signal"].iloc[fire]) == 0
+
+
+def test_prior_poc_reclaim_fade_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("prior_poc_reclaim_fade", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+    assert "atr_n" not in space
+    assert "k" not in space
+    assert "n_bins" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("prior_poc_reclaim_fade")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "prior_poc_reclaim_fade"
+
+
+def test_prior_poc_reclaim_fade_no_lookahead() -> None:
+    candles, fire, _poc_val = _prior_poc_reclaim_fade_tape(long_side=True)
+    signals = _signals("prior_poc_reclaim_fade", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "prior_poc_reclaim_fade", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["poc"].iloc[:cut],
+        truncated["poc"],
+        check_names=False,
+    )
+    # Later bars must not rewrite prior-day POC, prior-bar ATR, or the fire.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("volume")] = 5_000_000.0
+    after = _signals("prior_poc_reclaim_fade", shocked, side=SignalSide.LONG)
+    assert after["poc"].iloc[fire] == pytest.approx(signals["poc"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert after["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+    # Fire-bar range cannot lift the ATR used for the tag (known-before).
+    fat = candles.copy()
+    fat.iloc[fire, fat.columns.get_loc("high")] = 130.0
+    fat.iloc[fire, fat.columns.get_loc("low")] = float(candles["low"].iloc[fire])
+    fat_sig = _signals("prior_poc_reclaim_fade", fat, side=SignalSide.LONG)
+    assert fat_sig["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert float(fat_sig["atr"].iloc[fire]) > float(signals["atr"].iloc[fire])
+
+
+def test_prior_poc_reclaim_fade_prior_day_only_forming_day_excluded() -> None:
+    """POC is yesterday's completed histogram. Today's volume cannot move it."""
+    candles, fire, poc_val = _prior_poc_reclaim_fade_tape(long_side=True)
+    signals = _signals("prior_poc_reclaim_fade", candles, side=SignalSide.LONG)
+    assert pd.isna(signals["poc"].iloc[10])
+    assert pd.isna(signals["poc"].iloc[23])
+    assert signals["poc"].iloc[24] == pytest.approx(poc_val)
+    assert signals["poc"].iloc[fire] == pytest.approx(poc_val)
+    shocked, shock_fire, _ = _prior_poc_reclaim_fade_tape(
+        long_side=True, forming_day_volume_shock=True
+    )
+    after = _signals("prior_poc_reclaim_fade", shocked, side=SignalSide.LONG)
+    assert after["poc"].iloc[shock_fire] == pytest.approx(poc_val)
+    assert after["poc"].iloc[shock_fire] != pytest.approx(110.0, abs=1.0)
+    assert int(after["signal"].iloc[shock_fire]) == 1
+    # A 4h tape uses the same UTC-day snapshot: forming day stays dark.
+    four = pd.date_range("2024-01-02", periods=18, freq="4h", tz="UTC")
+    close = np.full(18, 100.0)
+    high = np.full(18, 100.5)
+    low = np.full(18, 99.5)
+    open_ = np.full(18, 100.0)
+    volume = np.full(18, 100.0)
+    high[1] = 102.5
+    low[1] = 101.5
+    volume[1] = 50.0
+    high[2] = 98.5
+    low[2] = 97.5
+    volume[2] = 50.0
+    for i in range(3, 6):
+        high[i] = 100.15
+        low[i] = 99.85
+        volume[i] = 8_000.0
+    from core.strategy import indicators as ind
+
+    poc4 = ind.prior_utc_day_volume_poc(
+        pd.Series(high, index=four),
+        pd.Series(low, index=four),
+        pd.Series(volume, index=four),
+        n_bins=20,
+    )
+    assert pd.isna(poc4.iloc[5])
+    assert poc4.iloc[6] == pytest.approx(
+        float(ind.volume_profile_poc(high[:6], low[:6], volume[:6], n_bins=20))
+    )
+    # Day-1 high-volume print at 110 must not leak into day-1's published POC.
+    high[8] = 110.2
+    low[8] = 109.8
+    volume[8] = 1_000_000.0
+    poc4_shock = ind.prior_utc_day_volume_poc(
+        pd.Series(high, index=four),
+        pd.Series(low, index=four),
+        pd.Series(volume, index=four),
+        n_bins=20,
+    )
+    assert poc4_shock.iloc[6] == pytest.approx(poc4.iloc[6])
+    assert poc4_shock.iloc[8] == pytest.approx(poc4.iloc[6])
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -8435,6 +8835,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("sma20_stretch_fade", {"k"}),
         ("outside_bar_fail_reversion", {"min_outside_atr"}),
         ("keltner_channel_fade", {"k"}),
+        ("prior_poc_reclaim_fade", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -8472,6 +8873,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("sma20_stretch_fade", {"k"}),
         ("outside_bar_fail_reversion", {"min_outside_atr"}),
         ("keltner_channel_fade", {"k"}),
+        ("prior_poc_reclaim_fade", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

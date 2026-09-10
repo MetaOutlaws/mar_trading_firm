@@ -1142,6 +1142,16 @@ def _novel_kit(name: str, side: SignalSide):
             # close back inside locked. Search k only.
             {"k": [1.5, 2.0]},
         ),
+        "prior_poc_reclaim_fade": (
+            "core.strategy.prior_poc_reclaim_fade",
+            "PriorPocReclaimFadeParams",
+            "PriorPocReclaimFadeStrategy",
+            # atr_n locked at 20. Prior completed UTC-day volume-
+            # profile POC (20 equal-width bins) locked. ATR known
+            # before the signal bar. No k-stretch. Search
+            # touch_tol_atr only.
+            {"touch_tol_atr": [0.0, 0.10]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
