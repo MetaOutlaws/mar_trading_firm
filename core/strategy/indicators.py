@@ -896,6 +896,137 @@ def nearest_hvn_to_extreme(
     return stack.where(is_nearest).min(axis=1)
 
 
+def volume_profile_value_area(
+    high: pd.Series | np.ndarray,
+    low: pd.Series | np.ndarray,
+    weight: pd.Series | np.ndarray,
+    *,
+    n_bins: int = POC_BINS_LOCKED,
+    va_frac: float = 0.70,
+) -> tuple[float, float, float]:
+    """Value-area high/low and POC for one completed window of bars.
+
+    Histogram is ``volume_profile_bins`` (same locked equal-width occupancy
+    as prior-day POC / HVN). The value area grows *one bin at a time* from
+    the POC until accumulated volume >= ``va_frac`` of total volume. On a
+    neighbor-volume tie, the lower-price bin is added first (same
+    deterministic rule as ``volume_profile_poc`` argmax).
+
+    VAH / VAL are the *outer edges* of the included bins (the value-area
+    extremes), not bin midpoints. POC remains the highest-volume bin
+    midpoint. A collapsed or empty window returns NaNs so a point VA
+    cannot fire a close-inside fade.
+
+    This is a window value-area, not a prior-day POC, not HVN nodes, and
+    not VWAP.
+    """
+    frac = float(va_frac)
+    if not np.isfinite(frac) or frac <= 0.0:
+        return float("nan"), float("nan"), float("nan")
+    frac = min(frac, 1.0)
+    mids, hist = volume_profile_bins(high, low, weight, n_bins=n_bins)
+    if mids.size < 2 or not np.any(hist > 0):
+        return float("nan"), float("nan"), float("nan")
+    total = float(np.nansum(hist))
+    if total <= 0.0:
+        return float("nan"), float("nan"), float("nan")
+    poc_idx = int(np.argmax(hist))
+    lo = hi = poc_idx
+    acc = float(hist[poc_idx])
+    target = frac * total
+    n = int(hist.size)
+    while acc < target and (lo > 0 or hi < n - 1):
+        below = float(hist[lo - 1]) if lo > 0 else -1.0
+        above = float(hist[hi + 1]) if hi < n - 1 else -1.0
+        # Tie → lower-price neighbor (matches POC argmax on equal volume).
+        if above > below:
+            hi += 1
+            acc += float(hist[hi])
+        elif lo > 0:
+            lo -= 1
+            acc += float(hist[lo])
+        else:
+            hi += 1
+            acc += float(hist[hi])
+    width = float(mids[1] - mids[0])
+    if not np.isfinite(width) or width <= 0.0:
+        return float("nan"), float("nan"), float("nan")
+    val = float(mids[lo] - 0.5 * width)
+    vah = float(mids[hi] + 0.5 * width)
+    poc = float(mids[poc_idx])
+    return vah, val, poc
+
+
+def _window_profile_weight(
+    volume: np.ndarray,
+    turnover: np.ndarray | None,
+    start: int,
+    end: int,
+) -> np.ndarray:
+    """Volume, else turnover, else 1.0 — same weight rule as prior-day POC."""
+    vol = volume[start:end]
+    if np.nansum(np.clip(vol, 0.0, None)) > 0:
+        return vol
+    if turnover is not None:
+        to = turnover[start:end]
+        if np.nansum(np.clip(to, 0.0, None)) > 0:
+            return to
+    return np.ones(end - start, dtype="float64")
+
+
+def rolling_volume_value_area(
+    high: pd.Series,
+    low: pd.Series,
+    volume: pd.Series,
+    *,
+    lookback: int,
+    va_frac: float,
+    n_bins: int = POC_BINS_LOCKED,
+    turnover: pd.Series | None = None,
+) -> pd.DataFrame:
+    """Rolling VAH / VAL / POC from the prior ``lookback`` bars (excluding t).
+
+    Bar t uses bars ``[t-lookback, t-1]``. The signal bar cannot rewrite
+    its own value-area extremes. Weight: volume if the window has any
+    positive volume, else turnover, else 1.0 per bar.
+
+    Same locked 20-bin occupancy histogram as ``volume_profile_poc``.
+    Not a prior-completed-UTC-day profile and not VWAP.
+    """
+    if not high.index.equals(low.index):
+        raise ValueError("high and low must share an index")
+    if not high.index.equals(volume.index):
+        raise ValueError("volume must share the candle index")
+    if turnover is not None and not high.index.equals(turnover.index):
+        raise ValueError("turnover must share the candle index")
+    n_look = max(1, int(lookback))
+    highs = high.to_numpy(dtype="float64", copy=False)
+    lows = low.to_numpy(dtype="float64", copy=False)
+    vols = volume.to_numpy(dtype="float64", copy=False)
+    turns = (
+        turnover.to_numpy(dtype="float64", copy=False) if turnover is not None else None
+    )
+    n = int(highs.size)
+    vah = np.full(n, np.nan, dtype="float64")
+    val = np.full(n, np.nan, dtype="float64")
+    poc = np.full(n, np.nan, dtype="float64")
+    # Window ends at t-1 so bar t tags a known VA, not one it just built.
+    for i in range(n_look, n):
+        start = i - n_look
+        weight = _window_profile_weight(vols, turns, start, i)
+        vah[i], val[i], poc[i] = volume_profile_value_area(
+            highs[start:i],
+            lows[start:i],
+            weight,
+            n_bins=n_bins,
+            va_frac=va_frac,
+        )
+    return pd.DataFrame(
+        {"vah": vah, "val": val, "poc": poc},
+        index=high.index,
+    )
+
+
 def prior_utc_day_session_vwap(
     high: pd.Series,
     low: pd.Series,

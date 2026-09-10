@@ -187,6 +187,7 @@ CLOCK_BY_FAMILY = {
     "prior_poc_reclaim_fade": "4h/4h",
     "hvn_mean_revert": "4h/4h",
     "prior_day_vwap_reject": "4h/4h",
+    "rolling_va_extreme_reject": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -223,6 +224,8 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         return "hvn_mean_revert"
     if "prior_day_vwap" in blob or "prior day vwap" in blob:
         return "prior_day_vwap_reject"
+    if "rolling_va_extreme" in blob or "rolling va extreme" in blob:
+        return "rolling_va_extreme_reject"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

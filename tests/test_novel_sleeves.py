@@ -141,6 +141,7 @@ APPROVED = [
     "prior_poc_reclaim_fade",
     "hvn_mean_revert",
     "prior_day_vwap_reject",
+    "rolling_va_extreme_reject",
 ]
 
 
@@ -8534,7 +8535,8 @@ def _assert_prior_poc_reclaim_fade_clear_of_siblings(
     assert _fire("prior_day_vwap_reject") == 0
     assert "session_vwap_band_fade" not in names
     assert "session_volume_profile_reversal" not in names
-    assert "rolling_va_extreme_reject" not in names
+    assert "rolling_va_extreme_reject" in names
+    assert _fire("rolling_va_extreme_reject") == 0
 
 
 def test_prior_poc_reclaim_fade_schema_and_long_entry() -> None:
@@ -8952,7 +8954,8 @@ def _assert_hvn_mean_revert_clear_of_siblings(
     assert _fire("prior_day_vwap_reject") == 0
     assert "session_vwap_band_fade" not in names
     assert "session_volume_profile_reversal" not in names
-    assert "rolling_va_extreme_reject" not in names
+    assert "rolling_va_extreme_reject" in names
+    assert _fire("rolling_va_extreme_reject") == 0
     # Default kit is lookback_nodes=1 (POC). That path must stay flat here.
     factory, base, _space = strategy_kit("hvn_mean_revert", side)
     assert int(factory(base).generate_signals(candles)["signal"].iloc[fire]) == 0
@@ -9368,7 +9371,8 @@ def _assert_prior_day_vwap_reject_clear_of_siblings(
     names = set(list_strategies())
     assert "prior_day_vwap_reject" in names
     assert "session_vwap_band_fade" not in names
-    assert "rolling_va_extreme_reject" not in names
+    assert "rolling_va_extreme_reject" in names
+    assert _fire("rolling_va_extreme_reject") == 0
 
 
 def test_prior_day_vwap_reject_schema_and_long_entry() -> None:
@@ -9659,6 +9663,327 @@ def test_prior_day_vwap_reject_prior_day_only_forming_day_excluded() -> None:
     )
     assert vwap4_shock.iloc[6] == pytest.approx(vwap4.iloc[6])
     assert vwap4_shock.iloc[8] == pytest.approx(vwap4.iloc[6])
+
+
+def _rolling_va_extreme_reject_tape(
+    *,
+    long_side: bool,
+    tag: bool = True,
+    close_inside: bool = True,
+    miss_tag: bool = False,
+) -> tuple[pd.DataFrame, int, dict[str, float]]:
+    """Quiet tape + a 20-bar fat-node window, then a VA-extreme tag/reject.
+
+    Window bars [fire-20, fire) set range [100, 120] with almost all volume
+    near 110 so VAH/VAL sit around that node. The signal bar is excluded
+    from the profile (rolling lookback ends at t-1).
+    """
+    from core.strategy import indicators as ind
+
+    n = 60
+    fire = 45
+    lookback = 20
+    index = _hourly(n)
+    close = np.full(n, 105.0)
+    high = np.full(n, 105.4)
+    low = np.full(n, 104.6)
+    open_ = np.full(n, 105.0)
+    volume = np.full(n, 100.0)
+    win0 = fire - lookback
+    # Tiny-volume range setters so the window spans [100, 120].
+    high[win0] = 100.4
+    low[win0] = 100.0
+    close[win0] = 100.2
+    open_[win0] = 100.2
+    volume[win0] = 10.0
+    high[win0 + 1] = 120.0
+    low[win0 + 1] = 119.6
+    close[win0 + 1] = 119.8
+    open_[win0 + 1] = 119.8
+    volume[win0 + 1] = 10.0
+    # Fat node around 110 — almost all window volume lives here.
+    for i in range(win0 + 2, fire):
+        high[i] = 110.2
+        low[i] = 109.8
+        close[i] = 110.0
+        open_[i] = 110.0
+        volume[i] = 5_000.0
+    vah, val, poc = ind.volume_profile_value_area(
+        high[win0:fire],
+        low[win0:fire],
+        volume[win0:fire],
+        n_bins=ind.POC_BINS_LOCKED,
+        va_frac=0.68,
+    )
+    mid = 0.5 * (float(vah) + float(val))
+    # Default fire bar sits quietly inside VA so ATR stays defined.
+    close[fire] = mid
+    open_[fire] = mid
+    high[fire] = mid + 0.15
+    low[fire] = mid - 0.15
+    volume[fire] = 100.0
+    if tag and not miss_tag:
+        if long_side:
+            # Tag VAL from below, then close back inside the VA.
+            low[fire] = float(val) - 0.15
+            high[fire] = mid + 0.10
+            close[fire] = mid if close_inside else float(val) - 0.20
+            open_[fire] = mid
+        else:
+            high[fire] = float(vah) + 0.15
+            low[fire] = mid - 0.10
+            close[fire] = mid if close_inside else float(vah) + 0.20
+            open_[fire] = mid
+    elif miss_tag:
+        # Approach the extreme but stay on the inside — no touch at tol=0.
+        if long_side:
+            low[fire] = float(val) + 0.20
+            high[fire] = mid + 0.10
+            close[fire] = mid
+        else:
+            high[fire] = float(vah) - 0.20
+            low[fire] = mid - 0.10
+            close[fire] = mid
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = candles["volume"] * candles["close"]
+    return candles, fire, {"vah": float(vah), "val": float(val), "poc": float(poc)}
+
+
+def _assert_rolling_va_extreme_reject_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """Rolling VA fade is not prior-day POC/HVN, VWAP stretch, or H/L."""
+    from core.strategy.registry import list_strategies
+
+    def _fire(name: str) -> int:
+        try:
+            return int(_signals(name, candles, side=side)["signal"].iloc[fire])
+        except TypeError:
+            return 0
+
+    assert _fire("prior_poc_reclaim_fade") == 0
+    assert _fire("hvn_mean_revert") == 0
+    assert _fire("prior_day_vwap_reject") == 0
+    assert _fire("prior_day_extreme_reject") == 0
+    assert _fire("sma20_stretch_fade") == 0
+    assert _fire("keltner_channel_fade") == 0
+    assert _fire("utc_session_vwap_reversion") == 0
+    assert _fire("vwap_volatility_band_fade") == 0
+    assert _fire("asia_range_london_reject") == 0
+    assert _fire("london_close_inventory_fade") == 0
+    names = set(list_strategies())
+    assert "rolling_va_extreme_reject" in names
+    assert "session_volume_profile_reversal" not in names
+    assert "session_vwap_band_fade" not in names
+    assert "hvn_node_fade" not in names
+
+
+def test_rolling_va_extreme_reject_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy import indicators as ind
+    from core.strategy.rolling_va_extreme_reject import (
+        ATR_N_LOCKED,
+        LOOKBACK_MAX,
+        LOOKBACK_MIN,
+        POC_BINS_LOCKED,
+        REQUIRE_CLOSE_INSIDE_VA_LOCKED,
+        TOUCH_TOL_MAX,
+        TOUCH_TOL_MIN,
+        VA_FRAC_MAX,
+        VA_FRAC_MIN,
+    )
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("rolling_va_extreme_reject", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.lookback == LOOKBACK_MIN
+    assert base.touch_tol == pytest.approx(TOUCH_TOL_MIN)
+    assert base.va_frac == pytest.approx(VA_FRAC_MIN)
+    assert base.atr_n == ATR_N_LOCKED
+    assert base.require_close_inside_va is REQUIRE_CLOSE_INSIDE_VA_LOCKED
+    assert space["lookback"] == [20, 48]
+    assert space["touch_tol"] == [0.0, 0.10]
+    assert space["va_frac"] == [0.68, 0.70]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "touch_tol_atr" not in space
+    assert "n_bins" not in space
+    assert "require_close_inside_va" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "touch_tol", "va_frac"}
+    assert POC_BINS_LOCKED == 20
+    assert ind.POC_BINS_LOCKED == 20
+    assert LOOKBACK_MAX == 48
+    assert TOUCH_TOL_MAX == pytest.approx(0.10)
+    assert VA_FRAC_MAX == pytest.approx(0.70)
+
+    candles, fire, levels = _rolling_va_extreme_reject_tape(long_side=True)
+    signals = _signals("rolling_va_extreme_reject", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "vah",
+        "val",
+        "poc",
+        "atr",
+        "atr_known",
+        "touch",
+        "tagged_vah",
+        "tagged_val",
+        "closed_inside_va",
+    ):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert signals["side"].iloc[fire] == SignalSide.LONG.value
+    assert signals["val"].iloc[fire] == pytest.approx(levels["val"])
+    assert signals["vah"].iloc[fire] == pytest.approx(levels["vah"])
+    assert bool(signals["tagged_val"].iloc[fire])
+    assert bool(signals["closed_inside_va"].iloc[fire])
+    assert float(signals["score"].iloc[fire]) >= 0.0
+    assert "rolling-VA" in str(signals["reason"].iloc[fire])
+
+    quiet, quiet_fire, _ = _rolling_va_extreme_reject_tape(long_side=True, tag=False)
+    assert int(
+        _signals("rolling_va_extreme_reject", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    held, held_fire, _ = _rolling_va_extreme_reject_tape(
+        long_side=True, close_inside=False
+    )
+    held_sig = _signals("rolling_va_extreme_reject", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    miss, miss_fire, _ = _rolling_va_extreme_reject_tape(long_side=True, miss_tag=True)
+    miss_sig = _signals("rolling_va_extreme_reject", miss)
+    assert int(miss_sig["signal"].iloc[miss_fire]) == 0
+
+    _assert_rolling_va_extreme_reject_clear_of_siblings(candles, fire, SignalSide.LONG)
+    short_on_long = _signals("rolling_va_extreme_reject", candles, side=SignalSide.SHORT)
+    assert int(short_on_long["signal"].iloc[fire]) == 0
+    # Locked close-inside cannot be switched off on the params object.
+    unlocked = replace(base, require_close_inside_va=False)
+    locked_sig = factory(unlocked).generate_signals(held)
+    assert int(locked_sig["signal"].iloc[held_fire]) == 0
+
+
+def test_rolling_va_extreme_reject_short_entry() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("rolling_va_extreme_reject", SignalSide.SHORT)
+    assert base.side is SignalSide.SHORT
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "touch_tol", "va_frac"}
+
+    candles, fire, levels = _rolling_va_extreme_reject_tape(long_side=False)
+    signals = _signals("rolling_va_extreme_reject", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert signals["side"].iloc[fire] == SignalSide.SHORT.value
+    assert signals["vah"].iloc[fire] == pytest.approx(levels["vah"])
+    assert bool(signals["tagged_vah"].iloc[fire])
+    assert bool(signals["closed_inside_va"].iloc[fire])
+
+    held, held_fire, _ = _rolling_va_extreme_reject_tape(
+        long_side=False, close_inside=False
+    )
+    held_sig = _signals("rolling_va_extreme_reject", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    miss, miss_fire, _ = _rolling_va_extreme_reject_tape(long_side=False, miss_tag=True)
+    miss_sig = _signals("rolling_va_extreme_reject", miss, side=SignalSide.SHORT)
+    assert int(miss_sig["signal"].iloc[miss_fire]) == 0
+
+    _assert_rolling_va_extreme_reject_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_short = _signals("rolling_va_extreme_reject", candles, side=SignalSide.LONG)
+    assert int(long_on_short["signal"].iloc[fire]) == 0
+
+
+def test_rolling_va_extreme_reject_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("rolling_va_extreme_reject", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "touch_tol", "va_frac"}
+    assert space["lookback"] == [20, 48]
+    assert space["touch_tol"] == [0.0, 0.10]
+    assert space["va_frac"] == [0.68, 0.70]
+    assert "atr_n" not in space
+    assert "k" not in space
+    assert "n_bins" not in space
+    assert "require_close_inside_va" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("rolling_va_extreme_reject")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "rolling_va_extreme_reject"
+
+
+def test_rolling_va_extreme_reject_no_lookahead() -> None:
+    candles, fire, _levels = _rolling_va_extreme_reject_tape(long_side=True)
+    signals = _signals("rolling_va_extreme_reject", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "rolling_va_extreme_reject", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["vah"].iloc[:cut],
+        truncated["vah"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["val"].iloc[:cut],
+        truncated["val"],
+        check_names=False,
+    )
+    # Later bars must not rewrite the rolling VA, prior-bar ATR, or the fire.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("volume")] = 5_000_000.0
+    after = _signals("rolling_va_extreme_reject", shocked, side=SignalSide.LONG)
+    assert after["vah"].iloc[fire] == pytest.approx(signals["vah"].iloc[fire])
+    assert after["val"].iloc[fire] == pytest.approx(signals["val"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    # The signal bar's own wick cannot lift ATR-known or rewrite VAH/VAL.
+    fat = candles.copy()
+    fat.iloc[fire, fat.columns.get_loc("low")] = float(candles["low"].iloc[fire])
+    fat.iloc[fire, fat.columns.get_loc("high")] = 130.0
+    fat_sig = _signals("rolling_va_extreme_reject", fat, side=SignalSide.LONG)
+    assert fat_sig["vah"].iloc[fire] == pytest.approx(signals["vah"].iloc[fire])
+    assert fat_sig["val"].iloc[fire] == pytest.approx(signals["val"].iloc[fire])
+    assert fat_sig["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert float(fat_sig["atr"].iloc[fire]) > float(signals["atr"].iloc[fire])
+
+
+def test_rolling_va_extreme_reject_signal_bar_excluded_from_profile() -> None:
+    """The fire bar is not in the lookback window; shocking it leaves VA put."""
+    candles, fire, levels = _rolling_va_extreme_reject_tape(long_side=True)
+    signals = _signals("rolling_va_extreme_reject", candles, side=SignalSide.LONG)
+    assert signals["vah"].iloc[fire] == pytest.approx(levels["vah"])
+    shocked = candles.copy()
+    shocked.iloc[fire, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[fire, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[fire, shocked.columns.get_loc("volume")] = 5_000_000.0
+    after = _signals("rolling_va_extreme_reject", shocked, side=SignalSide.LONG)
+    assert after["vah"].iloc[fire] == pytest.approx(levels["vah"])
+    assert after["val"].iloc[fire] == pytest.approx(levels["val"])
+    assert after["poc"].iloc[fire] == pytest.approx(signals["poc"].iloc[fire])
 
 
 def test_inbox_walk_kits_max_two_free_params() -> None:

@@ -1173,6 +1173,22 @@ def _novel_kit(name: str, side: SignalSide):
             # VWAP locked. Search k only.
             {"k": [1.0, 1.5]},
         ),
+        "rolling_va_extreme_reject": (
+            "core.strategy.rolling_va_extreme_reject",
+            "RollingVaExtremeRejectParams",
+            "RollingVaExtremeRejectStrategy",
+            # atr_n locked at 20. Rolling walk-clock VA (prior
+            # lookback bars, signal bar excluded) locked. Same
+            # 20-bin occupancy histogram as prior_poc / HVN.
+            # require_close_inside_va locked True. ATR known
+            # before the signal bar. Search lookback + touch_tol
+            # + va_frac only. Garwe stamp — do not widen.
+            {
+                "lookback": [20, 48],
+                "touch_tol": [0.0, 0.10],
+                "va_frac": [0.68, 0.70],
+            },
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

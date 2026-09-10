@@ -1366,6 +1366,44 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "rolling_va_extreme_reject@4h/4h",
+        "family": "rolling_va_extreme_reject",
+        "name": "rolling_va_extreme_reject 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 46,
+        "coded": True,
+        "free_params": 3,
+        "disposition": "new_family",
+        "justification": (
+            "Garwe AUTHORITATIVE stamp for coding only. Fade a "
+            "4h tag of the rolling volume-profile value-area "
+            "extreme that closes back inside the VA. Quant-"
+            "locked grid: rolling VA on the walk clock from the "
+            "prior lookback bars (signal bar excluded), same 20 "
+            "equal-width occupancy bins as prior_poc / HVN, VA "
+            "grows one bin at a time from POC, VAH/VAL = outer "
+            "bin edges, require_close_inside_va=True, ATR "
+            "period=20 known before the signal bar "
+            "(atr.shift(1)), fill t+1 open. SHORT=high[t] >= "
+            "VAH - touch_tol*ATR AND close inside VA / "
+            "LONG=low[t] <= VAL + touch_tol*ATR AND close "
+            "inside VA. Free search (3 only): lookback [20, "
+            "48], touch_tol [0.0, 0.10], va_frac [0.68, 0.70]. "
+            "BOTH sides honest. Walk-forward is not started "
+            "from this coding PR. Live stays off. Not "
+            "prior_poc_reclaim_fade (Job 145), not "
+            "hvn_mean_revert (Job 146), not "
+            "prior_day_vwap_reject / session_vwap_band_fade, "
+            "not session_volume_profile_reversal (skip-list), "
+            "not prior_day_extreme_reject (118 H/L), not "
+            "sma20_stretch_fade / keltner_channel_fade, not "
+            "asia / inventory fades."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
