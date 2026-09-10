@@ -315,6 +315,14 @@ def strategies() -> dict[str, Any]:
                 "oos_expectancy_pct": record.get("oos_expectancy_pct"),
                 "oos_max_drawdown_pct": record.get("oos_max_drawdown_pct"),
                 "failures": record.get("failures") or [],
+                "blocked_regimes": record.get("blocked_regimes")
+                or record.get("regime_disable")
+                or [],
+                "regime_disable": record.get("regime_disable")
+                or record.get("blocked_regimes")
+                or [],
+                "regime_activation_filter": record.get("regime_activation_filter") or [],
+                "activation_mode": record.get("activation_mode") or "",
                 "validated_at": record.get("validated_at"),
             }
         )

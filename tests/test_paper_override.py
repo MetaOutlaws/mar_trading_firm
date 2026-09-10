@@ -112,6 +112,9 @@ def test_paper_plan_scans_override_and_live_does_not(monkeypatch) -> None:
     monkeypatch.setattr("core.execution.engine.get_universe", lambda: universe)
     monkeypatch.setattr("firm.research_jobs.paper_scan_family", lambda: "bb_squeeze_breakout")
     monkeypatch.setattr("firm.research_jobs._active_job_for", lambda family: None)
+    # mama_fama_cross is blocked in bull (legacy failure string). A chop
+    # Soko label keeps the override on the blotter; bull would sit it out.
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda path=None: "chop")
 
     live = build_plan(require_approval=True)
     live_ids = {(e.symbol, e.side.value, e.strategy.name) for e in live.entries}

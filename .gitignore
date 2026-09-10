@@ -27,6 +27,9 @@ data/cache/
 # Luke CT scraper snapshot (example file is committed).
 data/last_sentiment.json
 data/last_sentiment.json.tmp
+# Live Soko trend hook (example is not required; paper fail-closes if missing).
+data/last_soko_trend.json
+data/last_soko_trend.json.tmp
 logs/*.log
 logs/*.log.*
 logs/archive/
