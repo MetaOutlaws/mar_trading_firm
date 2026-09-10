@@ -38,6 +38,7 @@ from firm.research_jobs import pipeline_snapshot
 from firm.standup import build_standup
 from firm.runtime import Agent, AgentResult, Cadence
 from firm.trust import TrustLevel
+from firm.workflow import workflow_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +294,7 @@ class Orchestrator:
     def floor_snapshot(self) -> dict[str, Any]:
         """Everything the Employee Floor dashboard needs in one payload."""
         advice = self.advice_for_engine()
+        plan = research_plan()
         return {
             "employees": [e.status_card() for e in self.employees],
             "activity": memory.recent_runs(limit=40),
@@ -301,9 +303,10 @@ class Orchestrator:
             "regime": memory.latest_regime(),
             "sentiment": _safe_sentiment(),
             "research": memory.research_board(limit=20),
-            "research_plan": research_plan(),
+            "research_plan": plan,
             "org": org_snapshot(),
             "pipeline": pipeline_snapshot(),
+            "workflow": workflow_snapshot(remaining=plan.get("next_tests")),
             "integrity": _safe_integrity(),
             "accountability": _safe_accountability(),
             "standup": _safe_standup(),
