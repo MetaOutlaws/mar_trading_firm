@@ -136,6 +136,7 @@ def paper_record_sitout_reason(
     live_trend: str | None,
     *,
     strategy_name: str = "",
+    sleeve_activation: str | None = None,
 ) -> str | None:
     """Why paper ``build_plan`` must omit this sleeve, or None to scan it.
 
@@ -154,6 +155,11 @@ def paper_record_sitout_reason(
     blocked = blocked_regimes_from_record(record)
     allow = activation_filter_from_record(record)
     name = strategy_name or str((record or {}).get("strategy") or "sleeve")
+    act = str(sleeve_activation or "").strip().upper()
+    if act == "SIT_OUT":
+        return f"regime sit-out: Soko sleeves[].activation=SIT_OUT for {name}"
+    if act == "ON":
+        return None
     if live_trend is None:
         return (
             f"regime sit-out: Soko trend feed missing (fail-closed) for {name}"
@@ -191,12 +197,20 @@ def paper_regime_sitout_reason(
         "strategy": entry.strategy.name,
     }
     trend = current_regime
+    sleeve_act = None
     if lookup_regime and trend is None:
-        from core.data.soko_trend import read_live_soko_trend
+        from core.data.soko_trend import (
+            read_soko_sleeve_activation,
+            read_soko_trend_for_symbol,
+        )
 
-        trend = read_live_soko_trend()
+        sleeve_act = read_soko_sleeve_activation(entry.key)
+        trend = read_soko_trend_for_symbol(entry.symbol)
     return paper_record_sitout_reason(
-        record, None if trend is None else str(trend), strategy_name=entry.strategy.name
+        record,
+        None if trend is None else str(trend),
+        strategy_name=entry.strategy.name,
+        sleeve_activation=sleeve_act,
     )
 
 
@@ -329,8 +343,20 @@ def _append_approved_sleeves(
         name, symbol, side_value = parsed
         rec_name = str(record.get("strategy") or name).strip() or name
         if sit_out:
+            from core.data.soko_trend import (
+                read_soko_sleeve_activation,
+                read_soko_trend_for_symbol,
+            )
+
+            sym_trend = read_soko_trend_for_symbol(symbol)
+            if sym_trend is None:
+                sym_trend = live_trend
+            sleeve_act = read_soko_sleeve_activation(key)
             reason = paper_record_sitout_reason(
-                record, live_trend, strategy_name=rec_name
+                record,
+                sym_trend,
+                strategy_name=rec_name,
+                sleeve_activation=sleeve_act,
             )
             if reason:
                 rec_tf = str(record.get("timeframe") or "")
@@ -586,7 +612,21 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
         if parsed is None:
             continue
         name, symbol, side_value = parsed
-        reason = paper_record_sitout_reason(record, live_trend, strategy_name=name)
+        from core.data.soko_trend import (
+            read_soko_sleeve_activation,
+            read_soko_trend_for_symbol,
+        )
+
+        sym_trend = read_soko_trend_for_symbol(symbol)
+        if sym_trend is None:
+            sym_trend = live_trend
+        sleeve_act = read_soko_sleeve_activation(key)
+        reason = paper_record_sitout_reason(
+            record,
+            sym_trend,
+            strategy_name=name,
+            sleeve_activation=sleeve_act,
+        )
         if reason:
             rec_tf = str(record.get("timeframe") or "")
             plan.regime_sitouts.append(
