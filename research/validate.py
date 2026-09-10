@@ -1152,6 +1152,17 @@ def _novel_kit(name: str, side: SignalSide):
             # touch_tol_atr only.
             {"touch_tol_atr": [0.0, 0.10]},
         ),
+        "hvn_mean_revert": (
+            "core.strategy.hvn_mean_revert",
+            "HvnMeanRevertParams",
+            "HvnMeanRevertStrategy",
+            # atr_n locked at 20. Prior completed UTC-day volume
+            # profile (same 20-bin histogram as prior_poc) locked.
+            # Nearest-of-top-N HVN locked. ATR known before the
+            # signal bar. Search lookback_nodes + touch_tol_atr
+            # only. No leave_atr / bar-lookback / hvn_node_fade.
+            {"lookback_nodes": [1, 3], "touch_tol_atr": [0.0, 0.15]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

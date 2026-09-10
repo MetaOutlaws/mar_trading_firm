@@ -1,0 +1,15 @@
+{
+  "family": "hvn_mean_revert",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "Prior-day HVN mean-revert as one 4h BOTH family. Profile is the prior COMPLETED UTC day only (00:00–24:00 yesterday). Never a forming day. Same locked histogram as prior_poc_reclaim_fade: 20 equal-width price bins; volume spread uniformly across overlapping bins; node = bin midpoint. HVN set = top lookback_nodes volume nodes; signal uses the nearest HVN to the bar extreme among that set (SHORT → high[t], LONG → low[t]). SHORT: high[t] >= HVN - touch_tol_atr*ATR AND close[t] < HVN. LONG: low[t] <= HVN + touch_tol_atr*ATR AND close[t] > HVN. ATR period locked 20, known before the signal bar (atr.shift(1)). Fill t+1 open. Free search (2 only): lookback_nodes [1, 3], touch_tol_atr [0.0, 0.15]. Family id hvn_mean_revert only (not hvn_node_fade). Withdrawn: leave_atr, bar-lookback [20, 48]. Not prior_poc_reclaim_fade (Job 145 — single POC). Not prior_day_vwap_reject / session_vwap_band_fade. Not session_volume_profile_reversal (skip-list). Not asia / inventory fades. Not sma20_stretch_fade / keltner_channel_fade. Not prior_day_extreme_reject (118 H/L). Not rolling_va_extreme_reject. Do not recode spent families 118–145. Do not modify sibling geometry.",
+  "summary": "Fade a 4h tag of the nearest prior-completed-UTC-day HVN (top lookback_nodes volume nodes) that closes back through that HVN (SHORT = tag then close below, LONG = tag then close above) as one 4h BOTH family.",
+  "justification": "A locked prior-completed-UTC-day HVN nearest-of-top-N tag-then-reclaim, with ATR20 known before the signal bar and searched lookback_nodes + touch_tol_atr only, is not a single-POC reclaim, not a raw prior-day H/L reject, not a VWAP / rolling value-area sleeve, and not a session-volume-profile skip-list family.",
+  "status": "Brian Inbox-approved + Quant FINAL-locked for coding",
+  "written_at": "2026-09-10T04:10:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/hvn_mean_revert.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward. Do not call mark_done."
+}

@@ -185,6 +185,7 @@ CLOCK_BY_FAMILY = {
     "outside_bar_fail_reversion": "4h/4h",
     "keltner_channel_fade": "4h/4h",
     "prior_poc_reclaim_fade": "4h/4h",
+    "hvn_mean_revert": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -215,6 +216,10 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         return "ema_adx_trend"
     if "prior_poc_reclaim" in blob or "prior poc reclaim" in blob:
         return "prior_poc_reclaim_fade"
+    # Must beat the generic "mean_rev" → bollinger map below. Family id is
+    # hvn_mean_revert only — do not accept hvn_node_fade as an alias.
+    if "hvn_mean_revert" in blob or "hvn mean revert" in blob:
+        return "hvn_mean_revert"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

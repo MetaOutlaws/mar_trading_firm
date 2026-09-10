@@ -355,6 +355,47 @@ def test_volume_profile_poc_highest_volume_bin_midpoint():
         n_bins=10,
     )
     assert tied == pytest.approx(0.5)
+    # HVN top-1 is the same locked histogram / same midpoint as POC.
+    nodes = ind.volume_profile_hvn_nodes(high, low, weight, n_bins=20, top_n=1)
+    assert len(nodes) == 1
+    assert nodes[0] == pytest.approx(poc)
+    mids, hist = ind.volume_profile_bins(high, low, weight, n_bins=20)
+    assert mids.size == 20
+    assert hist.size == 20
+    assert float(mids[int(np.argmax(hist))]) == pytest.approx(poc)
+
+
+def test_volume_profile_hvn_nodes_ranked_by_volume_same_binning_as_poc():
+    """Top-N HVNs share prior_poc binning; N=1 is POC; N>1 exposes secondaries."""
+    # Range [100, 120] → 20 bins of width 1. Three isolated nodes.
+    high = np.array([100.6, 110.6, 119.6])
+    low = np.array([100.1, 110.1, 119.1])
+    weight = np.array([50.0, 200.0, 100.0])
+    poc = ind.volume_profile_poc(high, low, weight, n_bins=20)
+    nodes = ind.volume_profile_hvn_nodes(high, low, weight, n_bins=20, top_n=3)
+    assert len(nodes) == 3
+    assert nodes[0] == pytest.approx(poc)
+    assert 110.0 < nodes[0] < 111.0
+    assert 119.0 < nodes[1] < 120.0
+    assert 100.0 < nodes[2] < 101.0
+    # Volume-tie: two equal max bins → lowest price first (same as argmax).
+    # Zero-range prints dump each weight into one bin so the volumes match.
+    tied = ind.volume_profile_hvn_nodes(
+        np.array([0.5, 8.5]),
+        np.array([0.5, 8.5]),
+        np.array([10.0, 10.0]),
+        n_bins=10,
+        top_n=2,
+    )
+    assert tied[0] < tied[1]
+    assert tied[0] == pytest.approx(
+        ind.volume_profile_poc(
+            np.array([0.5, 8.5]),
+            np.array([0.5, 8.5]),
+            np.array([10.0, 10.0]),
+            n_bins=10,
+        )
+    )
 
 
 def test_prior_utc_day_volume_poc_publishes_after_midnight_forming_day_excluded():
@@ -406,6 +447,46 @@ def test_prior_utc_day_volume_poc_publishes_after_midnight_forming_day_excluded(
         high.iloc[:cut], low.iloc[:cut], volume.iloc[:cut], n_bins=20
     )
     pd.testing.assert_series_equal(poc.iloc[:cut], truncated, check_names=False)
+    # HVN column 1 is the same prior-day snapshot as POC. Forming-day shock
+    # cannot rewrite either series.
+    hvns = ind.prior_utc_day_volume_hvns(high, low, volume, n_bins=20, top_n=3)
+    assert hvns["hvn_1"].iloc[24] == pytest.approx(expected)
+    assert hvns["hvn_1"].iloc[40] == pytest.approx(expected)
+    shocked_hvns = ind.prior_utc_day_volume_hvns(
+        shocked_high, shocked_low, shocked_vol, n_bins=20, top_n=3
+    )
+    assert shocked_hvns["hvn_1"].iloc[24] == pytest.approx(expected)
+    assert shocked_hvns["hvn_1"].iloc[40] == pytest.approx(expected)
+    truncated_hvns = ind.prior_utc_day_volume_hvns(
+        high.iloc[:cut], low.iloc[:cut], volume.iloc[:cut], n_bins=20, top_n=3
+    )
+    pd.testing.assert_series_equal(
+        hvns["hvn_1"].iloc[:cut], truncated_hvns["hvn_1"], check_names=False
+    )
+
+
+def test_nearest_hvn_to_extreme_picks_closest_of_top_n():
+    """lookback_nodes>1 can select a secondary node; N=1 stays on POC."""
+    index = pd.date_range("2024-01-03", periods=3, freq="h", tz="UTC")
+    hvns = pd.DataFrame(
+        {"hvn_1": [100.0, 100.0, 100.0], "hvn_2": [103.0, 103.0, 103.0], "hvn_3": [97.0, 97.0, 97.0]},
+        index=index,
+    )
+    extreme = pd.Series([102.8, 97.2, 100.1], index=index)
+    one = ind.nearest_hvn_to_extreme(hvns, extreme, lookback_nodes=1)
+    three = ind.nearest_hvn_to_extreme(hvns, extreme, lookback_nodes=3)
+    assert one.iloc[0] == pytest.approx(100.0)
+    assert three.iloc[0] == pytest.approx(103.0)
+    assert three.iloc[1] == pytest.approx(97.0)
+    assert three.iloc[2] == pytest.approx(100.0)
+    # Equal distance → lower-price node (POC tie rule).
+    mid = pd.Series([101.5, 101.5, 101.5], index=index)
+    tied = ind.nearest_hvn_to_extreme(
+        pd.DataFrame({"hvn_1": [100.0] * 3, "hvn_2": [103.0] * 3}, index=index),
+        mid,
+        lookback_nodes=2,
+    )
+    assert tied.iloc[0] == pytest.approx(100.0)
 
 
 def test_utc_window_vwap_is_london_hours_not_utc_midnight():
