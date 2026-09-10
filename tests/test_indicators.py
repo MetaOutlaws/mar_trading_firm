@@ -489,6 +489,71 @@ def test_nearest_hvn_to_extreme_picks_closest_of_top_n():
     assert tied.iloc[0] == pytest.approx(100.0)
 
 
+def test_prior_utc_day_session_vwap_publishes_after_midnight_forming_day_excluded():
+    """Yesterday's completed session VWAP is blank until the next UTC day opens.
+
+    Typical-price volume-weighted. Forming-day volume cannot rewrite the
+    published prior-day VWAP. Matches the last in-day utc_session_vwap of
+    the completed day, not the developing session VWAP of today.
+    """
+    index = pd.date_range("2024-01-02", periods=48, freq="h", tz="UTC")
+    close = pd.Series(100.0, index=index)
+    high = close + 0.5
+    low = close - 0.5
+    volume = pd.Series(100.0, index=index)
+    # Pull Jan 2 VWAP with a heavy mid-day node; extremes stay light.
+    high.iloc[1] = 102.5
+    low.iloc[1] = 101.5
+    close.iloc[1] = 102.0
+    volume.iloc[1] = 10.0
+    high.iloc[2] = 98.5
+    low.iloc[2] = 97.5
+    close.iloc[2] = 98.0
+    volume.iloc[2] = 10.0
+    high.iloc[10:18] = 100.2
+    low.iloc[10:18] = 99.8
+    close.iloc[10:18] = 100.0
+    volume.iloc[10:18] = 5_000.0
+    session = ind.utc_session_vwap(high, low, close, volume)
+    expected = float(session.iloc[23])
+    vwap = ind.prior_utc_day_session_vwap(high, low, close, volume)
+    assert pd.isna(vwap.iloc[10])
+    assert pd.isna(vwap.iloc[23])
+    assert vwap.iloc[24] == pytest.approx(expected)
+    assert vwap.iloc[40] == pytest.approx(expected)
+    assert 99.5 < float(vwap.iloc[24]) < 100.5
+    # Forming Jan 3 volume at 110 must not move the published VWAP.
+    shocked_high = high.copy()
+    shocked_low = low.copy()
+    shocked_close = close.copy()
+    shocked_vol = volume.copy()
+    shocked_high.iloc[30] = 110.5
+    shocked_low.iloc[30] = 109.5
+    shocked_close.iloc[30] = 110.0
+    shocked_vol.iloc[30] = 1_000_000.0
+    shocked = ind.prior_utc_day_session_vwap(
+        shocked_high, shocked_low, shocked_close, shocked_vol
+    )
+    assert shocked.iloc[24] == pytest.approx(expected)
+    assert shocked.iloc[40] == pytest.approx(expected)
+    live = ind.utc_session_vwap(shocked_high, shocked_low, shocked_close, shocked_vol)
+    assert float(live.iloc[40]) != pytest.approx(expected, abs=0.5)
+    # Zero-volume day falls back to turnover weighting.
+    zero_vol = pd.Series(0.0, index=index)
+    turnover = pd.Series(1_000.0, index=index)
+    turnover.iloc[10:18] = 50_000.0
+    via_to = ind.prior_utc_day_session_vwap(
+        high, low, close, zero_vol, turnover=turnover
+    )
+    assert via_to.iloc[24] == pytest.approx(expected, abs=0.5)
+    # Truncation to the first bar of Jan 3 must match the full-tape snapshot.
+    cut = 25
+    truncated = ind.prior_utc_day_session_vwap(
+        high.iloc[:cut], low.iloc[:cut], close.iloc[:cut], volume.iloc[:cut]
+    )
+    pd.testing.assert_series_equal(vwap.iloc[:cut], truncated, check_names=False)
+
+
 def test_utc_window_vwap_is_london_hours_not_utc_midnight():
     """London 08–16 VWAP ignores the Asian session and is not UTC-day VWAP."""
     index = pd.date_range("2024-01-02", periods=24, freq="h", tz="UTC")

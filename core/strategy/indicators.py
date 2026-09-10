@@ -896,6 +896,47 @@ def nearest_hvn_to_extreme(
     return stack.where(is_nearest).min(axis=1)
 
 
+def prior_utc_day_session_vwap(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    volume: pd.Series,
+    *,
+    turnover: pd.Series | None = None,
+) -> pd.Series:
+    """Completed UTC-day session VWAP (typical-price, volume/turnover weighted).
+
+    Published on the first bar of the next UTC day, then ffilled. The forming
+    / incomplete current day never contributes — this is yesterday's *finished*
+    session VWAP, not ``utc_session_vwap`` (developing in-day), not rolling
+    VWAP, and not swing AVWAP.
+
+    Weight: ``volume`` when that completed day has any positive volume, else
+    ``turnover`` if provided and positive, else 1.0 per bar (equal-weight
+    typical). VWAP = Σ(typical × weight) / Σ(weight) with
+    typical = (H+L+C)/3.
+
+    No lookahead: a later bar cannot rewrite yesterday.
+    """
+    if not high.index.equals(close.index):
+        raise ValueError("high, low, close must share an index")
+    day, new_day, frame = _prior_utc_day_profile_frame(high, low, volume, turnover)
+    frame["close"] = close.astype("float64")
+    typical = (frame["high"] + frame["low"] + frame["close"]) / 3.0
+    vwap_by_day: dict[object, float] = {}
+    for day_ts, grp in frame.groupby(day, sort=False):
+        weight = np.asarray(_utc_day_profile_weight(grp), dtype="float64")
+        px = typical.loc[grp.index].to_numpy(dtype="float64")
+        valid = np.isfinite(px) & np.isfinite(weight) & (weight > 0)
+        den = float(weight[valid].sum()) if valid.any() else 0.0
+        if den <= 0:
+            vwap_by_day[day_ts] = float("nan")
+        else:
+            vwap_by_day[day_ts] = float((px[valid] * weight[valid]).sum() / den)
+    aligned = day.map(vwap_by_day)
+    return _snapshot_prior_utc_day(aligned, new_day)
+
+
 def rolling_vwap(
     high: pd.Series,
     low: pd.Series,
