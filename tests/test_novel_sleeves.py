@@ -9293,12 +9293,13 @@ def _prior_day_vwap_reject_tape(
     fire = int(index.get_loc(pd.Timestamp("2024-01-03 18:00", tz="UTC")))
     assert int(index[fire].hour) == 18
     if forming_day_volume_shock:
-        # Forming Jan 3 print at 110 must not rewrite yesterday's VWAP.
+        # Forming Jan 3 print at 102 must not rewrite yesterday's VWAP.
+        # Tight range so Wilder ATR(20) at 18:00 does not swallow the k=1.0 stretch.
         shock = int(index.get_loc(pd.Timestamp("2024-01-03 12:00", tz="UTC")))
-        high[shock] = 110.2
-        low[shock] = 109.8
-        close[shock] = 110.0
-        open_[shock] = 110.0
+        high[shock] = 102.15
+        low[shock] = 101.85
+        close[shock] = 102.00
+        open_[shock] = 102.00
         volume[shock] = 1_000_000.0
     # ~1.0 ATR on this tape. 1.2*ATR stretch fires k=1.0, misses k=1.5.
     delta = float(stretch_atr_mult)
@@ -9605,7 +9606,7 @@ def test_prior_day_vwap_reject_prior_day_only_forming_day_excluded() -> None:
     )
     after = _signals("prior_day_vwap_reject", shocked, side=SignalSide.LONG)
     assert after["vwap"].iloc[shock_fire] == pytest.approx(vwap_val)
-    assert after["vwap"].iloc[shock_fire] != pytest.approx(110.0, abs=1.0)
+    assert after["vwap"].iloc[shock_fire] != pytest.approx(102.0, abs=1.0)
     assert int(after["signal"].iloc[shock_fire]) == 1
     live_after = ind.utc_session_vwap(
         shocked["high"], shocked["low"], shocked["close"], shocked["volume"]
