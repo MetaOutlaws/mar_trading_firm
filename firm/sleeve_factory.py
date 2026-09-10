@@ -2536,6 +2536,54 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "stretch fade, and not a Bollinger medium-BW reject."
         ),
     ),
+    SleeveSpec(
+        name="prior_poc_reclaim_fade",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Prior-day volume-profile POC reclaim fade as one 4h "
+            "BOTH family. POC is the volume-profile point of "
+            "control from the prior COMPLETED UTC day only "
+            "(00:00–24:00 yesterday). Never a forming day. "
+            "Histogram: 20 equal-width price bins across that "
+            "day's [low, high]; volume spread uniformly across "
+            "overlapping bins; POC = highest-volume bin midpoint. "
+            "SHORT: high[t] >= POC - touch_tol_atr*ATR AND "
+            "close[t] < POC (tag then reclaim toward value below "
+            "POC). LONG: low[t] <= POC + touch_tol_atr*ATR AND "
+            "close[t] > POC. ATR period locked 20, known before "
+            "the signal bar (atr.shift(1)). No k-stretch "
+            "geometry. Free search (1 only): touch_tol_atr "
+            "[0.0, 0.10]. Not prior_day_extreme_reject (118 — "
+            "raw prior UTC day H/L). Not sma20_stretch_fade "
+            "(141 — SMA wick stretch + halfway reclaim). Not "
+            "keltner_channel_fade (Job 144 0/12 — do not revive). "
+            "Not keltner_break. Not bb_medium_bw_upper_reject. "
+            "Not outside_bar_fail_reversion (142). Not "
+            "asia_range_london_reject. Not inventory fades. Not "
+            "hvn_mean_revert / rolling_va_extreme_reject. Not "
+            "prior_day_vwap_reject / session_vwap_band_fade. Not "
+            "displacement_gap_follow (PARKED). Not "
+            "week_open_reclaim / orb_fail_reversion. Do not recode "
+            "spent families 118–144. Do not modify sibling "
+            "geometry."
+        ),
+        summary=(
+            "Fade a 4h tag of the prior completed UTC-day "
+            "volume-profile POC that closes back through POC "
+            "(SHORT = tag then close below, LONG = tag then close "
+            "above) as one 4h BOTH family."
+        ),
+        justification=(
+            "A locked prior-completed-UTC-day volume-profile POC "
+            "tag-then-reclaim, with ATR20 known before the signal "
+            "bar and searched touch_tol_atr only, is not a raw "
+            "prior-day H/L reject, not an SMA/Keltner stretch "
+            "fade, and not a VWAP / rolling value-area sleeve."
+        ),
+    ),
 ]
 
 

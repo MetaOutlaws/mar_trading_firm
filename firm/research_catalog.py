@@ -1254,6 +1254,44 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "prior_poc_reclaim_fade@4h/4h",
+        "family": "prior_poc_reclaim_fade",
+        "name": "prior_poc_reclaim_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 43,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Brian Inbox-approved for coding only. Tag the prior "
+            "completed UTC-day volume-profile POC then reclaim "
+            "toward value through POC. Quant-locked grid: POC from "
+            "the prior COMPLETED UTC day only (00:00–24:00 "
+            "yesterday; forming day excluded), 20 equal-width "
+            "price bins, volume histogram, POC = highest-volume "
+            "bin midpoint, ATR period=20 known before the signal "
+            "bar (atr.shift(1)), no k-stretch. SHORT=high[t] >= "
+            "POC - touch_tol_atr*ATR AND close[t] < POC / "
+            "LONG=low[t] <= POC + touch_tol_atr*ATR AND close[t] "
+            "> POC. Free search (1 only): touch_tol_atr [0.0, "
+            "0.10]. BOTH sides honest. Walk-forward is not "
+            "started from this coding PR. Live stays off. Not "
+            "prior_day_extreme_reject (118 H/L), not "
+            "sma20_stretch_fade (141), not keltner_channel_fade "
+            "(Job 144 0/12 — do not revive), not keltner_break, "
+            "not bb_medium_bw_upper_reject, not "
+            "outside_bar_fail_reversion (142), not "
+            "asia_range_london_reject, not inventory fades, not "
+            "hvn_mean_revert / rolling_va_extreme_reject, not "
+            "prior_day_vwap_reject / session_vwap_band_fade, not "
+            "displacement_gap_follow (PARKED), not "
+            "week_open_reclaim / orb_fail_reversion."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

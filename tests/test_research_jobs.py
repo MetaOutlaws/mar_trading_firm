@@ -59,6 +59,10 @@ def test_infer_family_from_title_and_payload() -> None:
     assert infer_family({"family": "keltner_channel_fade"}, "ATR channel breakout") == (
         "keltner_channel_fade"
     )
+    assert infer_family({}, "Next: prior_poc_reclaim_fade") == "prior_poc_reclaim_fade"
+    assert infer_family({"family": "prior_poc_reclaim_fade"}, "ATR channel breakout") == (
+        "prior_poc_reclaim_fade"
+    )
     assert infer_family({"name": "ema_adx_trend"}, "") == "ema_adx_trend"
     assert infer_family({}, "ATR channel breakout") == "atr_channel_breakout"
     assert infer_family({}, "4h trend 1h pullback") == "trend_pullback_htf"
@@ -396,6 +400,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "sma20_stretch_fade" in coded
     assert "outside_bar_fail_reversion" in coded
     assert "keltner_channel_fade" in coded
+    assert "prior_poc_reclaim_fade" in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
     assert "bar_vwap_inflow_surge" not in novel_ready
@@ -447,6 +452,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "sma20_stretch_fade" not in novel_ready
     assert "outside_bar_fail_reversion" not in novel_ready
     assert "keltner_channel_fade" not in novel_ready
+    assert "prior_poc_reclaim_fade" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -922,6 +928,7 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "sma20_stretch_fade" not in families
     assert "outside_bar_fail_reversion" not in families
     assert "keltner_channel_fade" not in families
+    assert "prior_poc_reclaim_fade" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

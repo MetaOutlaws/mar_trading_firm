@@ -184,6 +184,7 @@ CLOCK_BY_FAMILY = {
     "sma20_stretch_fade": "4h/4h",
     "outside_bar_fail_reversion": "4h/4h",
     "keltner_channel_fade": "4h/4h",
+    "prior_poc_reclaim_fade": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -212,6 +213,8 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         return "funding_fade"
     if "ema" in blob and "adx" in blob:
         return "ema_adx_trend"
+    if "prior_poc_reclaim" in blob or "prior poc reclaim" in blob:
+        return "prior_poc_reclaim_fade"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

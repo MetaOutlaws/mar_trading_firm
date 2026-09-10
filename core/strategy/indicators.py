@@ -611,6 +611,139 @@ def prior_utc_day_range(high: pd.Series, low: pd.Series) -> tuple[pd.Series, pd.
     return prev_h, prev_l
 
 
+# Locked volume-profile bin count for prior-UTC-day POC. Not a walk-forward
+# search param: equal-width bins across that completed day's [low, high].
+POC_BINS_LOCKED = 20
+
+
+def volume_profile_poc(
+    high: pd.Series | np.ndarray,
+    low: pd.Series | np.ndarray,
+    weight: pd.Series | np.ndarray,
+    *,
+    n_bins: int = POC_BINS_LOCKED,
+) -> float:
+    """Highest-volume price-bin midpoint for one completed session of bars.
+
+    Binning (locked, documented): ``n_bins`` equal-width bins spanning
+    ``[min(low), max(high)]``. Each bar's weight is spread uniformly across
+    bins that overlap ``[bar.low, bar.high]``. A zero-range bar dumps all
+    weight into the bin containing that price. POC is the midpoint of the
+    max-weight bin; exact ties take the lowest-price max (deterministic).
+
+    This is a price-bin volume histogram, not VWAP, not prior-day H/L, and
+    not a rolling value-area. Callers must pass a *completed* session only.
+    """
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be positive, got {n_bins}")
+    highs = np.asarray(high, dtype="float64").reshape(-1)
+    lows = np.asarray(low, dtype="float64").reshape(-1)
+    weights = np.asarray(weight, dtype="float64").reshape(-1)
+    if highs.shape != lows.shape or highs.shape != weights.shape:
+        raise ValueError("high, low, weight must share a shape")
+    if highs.size == 0:
+        return float("nan")
+    day_low = float(np.nanmin(lows))
+    day_high = float(np.nanmax(highs))
+    if not np.isfinite(day_low) or not np.isfinite(day_high):
+        return float("nan")
+    if day_high <= day_low:
+        return day_low
+    width = (day_high - day_low) / float(n_bins)
+    hist = np.zeros(n_bins, dtype="float64")
+    for h_px, l_px, vol in zip(highs, lows, weights):
+        if not np.isfinite(vol) or vol <= 0:
+            continue
+        if not np.isfinite(h_px) or not np.isfinite(l_px):
+            continue
+        lo, hi = (l_px, h_px) if l_px <= h_px else (h_px, l_px)
+        if hi <= lo:
+            idx = int(np.floor((lo - day_low) / width))
+            idx = min(max(idx, 0), n_bins - 1)
+            hist[idx] += vol
+            continue
+        span = hi - lo
+        i0 = int(np.floor((lo - day_low) / width))
+        i1 = int(np.floor((hi - day_low) / width))
+        i0 = min(max(i0, 0), n_bins - 1)
+        i1 = min(max(i1, 0), n_bins - 1)
+        for i in range(i0, i1 + 1):
+            b0 = day_low + i * width
+            b1 = day_low + (i + 1) * width
+            overlap = min(hi, b1) - max(lo, b0)
+            if overlap > 0:
+                hist[i] += vol * (overlap / span)
+    if not np.any(hist > 0):
+        return float("nan")
+    # argmax returns the first max → lowest-price bin on a tie.
+    poc_i = int(np.argmax(hist))
+    return day_low + (poc_i + 0.5) * width
+
+
+def prior_utc_day_volume_poc(
+    high: pd.Series,
+    low: pd.Series,
+    volume: pd.Series,
+    *,
+    n_bins: int = POC_BINS_LOCKED,
+    turnover: pd.Series | None = None,
+) -> pd.Series:
+    """Volume-profile POC of the prior *completed* UTC day (00:00–24:00).
+
+    Published on the first bar of the next UTC day, then ffilled. Forming /
+    incomplete current-day bars never contribute — the histogram uses only
+    bars whose UTC date is yesterday relative to the published value.
+
+    Weight: ``volume`` when that completed day has any positive volume, else
+    ``turnover`` if provided and positive, else 1.0 per bar (range occupancy).
+    Binning is ``volume_profile_poc`` (locked ``n_bins``, default 20).
+
+    Not prior-day H/L, not floor P/R1/S1, not session/rolling VWAP, and not
+    a rolling value-area. No lookahead: a later bar cannot rewrite yesterday.
+    """
+    if not high.index.equals(low.index):
+        raise ValueError("high and low must share an index")
+    if not high.index.equals(volume.index):
+        raise ValueError("volume must share the candle index")
+    if turnover is not None and not high.index.equals(turnover.index):
+        raise ValueError("turnover must share the candle index")
+    day = utc_day_key(high.index)
+    new_day = day.ne(day.shift(1))
+    frame = pd.DataFrame(
+        {
+            "high": high.astype("float64"),
+            "low": low.astype("float64"),
+            "volume": volume.astype("float64"),
+        },
+        index=high.index,
+    )
+    if turnover is not None:
+        frame["turnover"] = turnover.astype("float64")
+
+    poc_by_day: dict[object, float] = {}
+    for day_ts, grp in frame.groupby(day, sort=False):
+        vol = grp["volume"].to_numpy()
+        if np.nansum(np.clip(vol, 0.0, None)) > 0:
+            weight = vol
+        elif "turnover" in grp.columns:
+            to = grp["turnover"].to_numpy()
+            weight = to if np.nansum(np.clip(to, 0.0, None)) > 0 else np.ones(len(grp))
+        else:
+            weight = np.ones(len(grp))
+        poc_by_day[day_ts] = volume_profile_poc(
+            grp["high"].to_numpy(),
+            grp["low"].to_numpy(),
+            weight,
+            n_bins=n_bins,
+        )
+
+    # Align each day's POC onto that day's bars, then snapshot onto the
+    # *next* day's first bar. Reading aligned on the same day would leak
+    # the still-forming histogram; shift(1).where(new_day) never does.
+    aligned = day.map(poc_by_day)
+    return aligned.shift(1).where(new_day).ffill()
+
+
 def rolling_vwap(
     high: pd.Series,
     low: pd.Series,

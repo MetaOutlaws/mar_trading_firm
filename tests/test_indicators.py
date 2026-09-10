@@ -338,6 +338,76 @@ def test_prior_utc_day_range_publishes_after_midnight():
     assert prev_h.iloc[29] == pytest.approx(110.0)
 
 
+def test_volume_profile_poc_highest_volume_bin_midpoint():
+    """POC is the midpoint of the max-weight equal-width bin (20 bins locked)."""
+    # Day range [100, 120] → 20 bins of width 1. All weight in [109, 111].
+    high = np.array([111.0, 102.0, 119.0])
+    low = np.array([109.0, 100.0, 118.0])
+    weight = np.array([1000.0, 10.0, 10.0])
+    poc = ind.volume_profile_poc(high, low, weight, n_bins=20)
+    # Bins covering 109–111 sit around 109.5 / 110.5.
+    assert 109.0 < poc < 111.0
+    # Ties take the lowest-price max bin: uniform weight across [0, 10] → bin 0.
+    tied = ind.volume_profile_poc(
+        np.array([10.0, 10.0]),
+        np.array([0.0, 0.0]),
+        np.array([1.0, 1.0]),
+        n_bins=10,
+    )
+    assert tied == pytest.approx(0.5)
+
+
+def test_prior_utc_day_volume_poc_publishes_after_midnight_forming_day_excluded():
+    """Yesterday's volume-profile POC is blank until the next UTC day opens.
+
+    Binning (documented): 20 equal-width bins across the completed day's
+    [low, high]; each bar's volume is spread uniformly across overlapping
+    bins; POC = highest-volume bin midpoint. Forming-day volume cannot
+    rewrite the published prior-day POC.
+    """
+    index = pd.date_range("2024-01-02", periods=48, freq="h", tz="UTC")
+    high = pd.Series(100.5, index=index)
+    low = pd.Series(99.5, index=index)
+    volume = pd.Series(100.0, index=index)
+    # Prior day (Jan 2): tiny-volume extremes + a fat node around 100.
+    high.iloc[1] = 102.5
+    low.iloc[1] = 101.5
+    volume.iloc[1] = 10.0
+    high.iloc[2] = 98.5
+    low.iloc[2] = 97.5
+    volume.iloc[2] = 10.0
+    high.iloc[10:18] = 100.2
+    low.iloc[10:18] = 99.8
+    volume.iloc[10:18] = 5_000.0
+    expected = ind.volume_profile_poc(
+        high.iloc[:24], low.iloc[:24], volume.iloc[:24], n_bins=20
+    )
+    poc = ind.prior_utc_day_volume_poc(high, low, volume, n_bins=20)
+    assert pd.isna(poc.iloc[10])
+    assert pd.isna(poc.iloc[23])
+    assert poc.iloc[24] == pytest.approx(expected)
+    assert poc.iloc[40] == pytest.approx(expected)
+    assert 99.5 < float(poc.iloc[24]) < 100.5
+    # Forming Jan 3 volume at 110 must not move the published POC.
+    shocked_high = high.copy()
+    shocked_low = low.copy()
+    shocked_vol = volume.copy()
+    shocked_high.iloc[30] = 110.5
+    shocked_low.iloc[30] = 109.5
+    shocked_vol.iloc[30] = 1_000_000.0
+    shocked = ind.prior_utc_day_volume_poc(
+        shocked_high, shocked_low, shocked_vol, n_bins=20
+    )
+    assert shocked.iloc[24] == pytest.approx(expected)
+    assert shocked.iloc[40] == pytest.approx(expected)
+    # Truncation to the first bar of Jan 3 must match the full-tape snapshot.
+    cut = 25
+    truncated = ind.prior_utc_day_volume_poc(
+        high.iloc[:cut], low.iloc[:cut], volume.iloc[:cut], n_bins=20
+    )
+    pd.testing.assert_series_equal(poc.iloc[:cut], truncated, check_names=False)
+
+
 def test_utc_window_vwap_is_london_hours_not_utc_midnight():
     """London 08–16 VWAP ignores the Asian session and is not UTC-day VWAP."""
     index = pd.date_range("2024-01-02", periods=24, freq="h", tz="UTC")
