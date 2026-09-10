@@ -139,6 +139,7 @@ APPROVED = [
     "outside_bar_fail_reversion",
     "keltner_channel_fade",
     "prior_poc_reclaim_fade",
+    "hvn_mean_revert",
 ]
 
 
@@ -8523,9 +8524,14 @@ def _assert_prior_poc_reclaim_fade_clear_of_siblings(
         gap_sig = 0
     assert gap_sig == 0
     names = set(list_strategies())
-    assert "hvn_mean_revert" not in names
+    # hvn_mean_revert is a coded sibling (nearest-of-top-N). At
+    # lookback_nodes=1 it shares the POC node; distinction is N>1
+    # (tested in test_hvn_mean_revert_nearest_of_top_n).
+    assert "hvn_mean_revert" in names
+    assert "hvn_node_fade" not in names
     assert "prior_day_vwap_reject" not in names
     assert "session_vwap_band_fade" not in names
+    assert "session_volume_profile_reversal" not in names
     assert "rolling_va_extreme_reject" not in names
 
 
@@ -8805,6 +8811,443 @@ def test_prior_poc_reclaim_fade_prior_day_only_forming_day_excluded() -> None:
     assert poc4_shock.iloc[8] == pytest.approx(poc4.iloc[6])
 
 
+def _hvn_mean_revert_multinode_tape(
+    *,
+    long_side: bool,
+    tag: bool = True,
+    reclaim: bool = True,
+    miss_tag: bool = False,
+    forming_day_volume_shock: bool = False,
+) -> tuple[pd.DataFrame, int, dict[str, float]]:
+    """Prior UTC day plants three HVNs; next-day tag aims at the secondary.
+
+    Day-0 range is 96–105 on tiny volume. POC (hvn_1) sits near 100,
+    hvn_2 near 103.5, hvn_3 near 97.5. Fire is 18:00 UTC. Same 20-bin
+    occupancy histogram as prior_poc_reclaim_fade.
+    """
+    from core.strategy import indicators as ind
+
+    n = 72
+    index = _hourly(n, start="2024-01-02")
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    volume = np.full(n, 100.0)
+    # Tiny-volume extremes so the day range is wide and H/L are not HVNs.
+    high[0] = 105.0
+    low[0] = 104.0
+    close[0] = 104.5
+    open_[0] = 104.4
+    volume[0] = 10.0
+    high[1] = 97.0
+    low[1] = 96.0
+    close[1] = 96.5
+    open_[1] = 96.6
+    volume[1] = 10.0
+    # Tertiary HVN near 97.5.
+    for i in range(4, 7):
+        high[i] = 97.7
+        low[i] = 97.3
+        close[i] = 97.5
+        open_[i] = 97.5
+        volume[i] = 2_500.0
+    # POC / hvn_1 near 100 (highest volume).
+    for i in range(8, 16):
+        high[i] = 100.2
+        low[i] = 99.8
+        close[i] = 100.0
+        open_[i] = 100.0
+        volume[i] = 8_000.0
+    # Secondary HVN near 103.5.
+    for i in range(16, 20):
+        high[i] = 103.7
+        low[i] = 103.3
+        close[i] = 103.5
+        open_[i] = 103.5
+        volume[i] = 4_000.0
+    nodes = ind.volume_profile_hvn_nodes(
+        high[:24], low[:24], volume[:24], n_bins=ind.POC_BINS_LOCKED, top_n=3
+    )
+    assert len(nodes) >= 2
+    poc_val, hvn2 = float(nodes[0]), float(nodes[1])
+    hvn3 = float(nodes[2]) if len(nodes) > 2 else float("nan")
+    assert 99.5 < poc_val < 100.5
+    assert 103.0 < hvn2 < 104.0
+    target = hvn2
+    fire = int(index.get_loc(pd.Timestamp("2024-01-03 18:00", tz="UTC")))
+    assert int(index[fire].hour) == 18
+    if forming_day_volume_shock:
+        shock = int(index.get_loc(pd.Timestamp("2024-01-03 12:00", tz="UTC")))
+        high[shock] = 110.2
+        low[shock] = 109.8
+        close[shock] = 110.0
+        open_[shock] = 110.0
+        volume[shock] = 1_000_000.0
+    if long_side:
+        if miss_tag:
+            low[fire] = target + 0.20
+            close[fire] = target + 0.28
+            high[fire] = target + 0.35
+            open_[fire] = target + 0.24
+        elif tag:
+            low[fire] = target - 0.08
+            high[fire] = target + 0.20
+            open_[fire] = target + 0.06
+            close[fire] = target + 0.10 if reclaim else target - 0.08
+        else:
+            low[fire] = target + 0.40
+            close[fire] = target + 0.48
+            high[fire] = target + 0.55
+            open_[fire] = target + 0.44
+    else:
+        if miss_tag:
+            high[fire] = target - 0.20
+            close[fire] = target - 0.28
+            low[fire] = target - 0.35
+            open_[fire] = target - 0.24
+        elif tag:
+            high[fire] = target + 0.08
+            low[fire] = target - 0.20
+            open_[fire] = target - 0.06
+            close[fire] = target - 0.10 if reclaim else target + 0.08
+        else:
+            high[fire] = target - 0.40
+            close[fire] = target - 0.48
+            low[fire] = target - 0.55
+            open_[fire] = target - 0.44
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    candles["turnover"] = candles["volume"] * candles["close"]
+    return candles, fire, {"poc": poc_val, "hvn_2": hvn2, "hvn_3": hvn3}
+
+
+def _assert_hvn_mean_revert_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """Nearest-of-top-N HVN is not POC-only, H/L, SMA/Keltner, VWAP, or VA."""
+    from core.strategy.displacement_gap_follow import (
+        DisplacementGapFollowParams,
+        DisplacementGapFollowStrategy,
+    )
+    from core.strategy.registry import list_strategies
+    from research.validate import strategy_kit
+
+    def _fire(name: str) -> int:
+        try:
+            return int(_signals(name, candles, side=side)["signal"].iloc[fire])
+        except TypeError:
+            return 0
+
+    assert _fire("prior_poc_reclaim_fade") == 0
+    assert _fire("prior_day_extreme_reject") == 0
+    assert _fire("sma20_stretch_fade") == 0
+    assert _fire("keltner_channel_fade") == 0
+    assert _fire("keltner_break") == 0
+    assert _fire("asia_range_london_reject") == 0
+    assert _fire("london_close_inventory_fade") == 0
+    assert _fire("utc_session_vwap_reversion") == 0
+    assert _fire("vwap_volatility_band_fade") == 0
+    assert _fire("classic_floor_pivot_reject") == 0
+    gap = DisplacementGapFollowStrategy(DisplacementGapFollowParams(side=side))
+    try:
+        gap_sig = int(gap.generate_signals(candles)["signal"].iloc[fire])
+    except TypeError:
+        gap_sig = 0
+    assert gap_sig == 0
+    names = set(list_strategies())
+    assert "hvn_mean_revert" in names
+    assert "hvn_node_fade" not in names
+    assert "prior_day_vwap_reject" not in names
+    assert "session_vwap_band_fade" not in names
+    assert "session_volume_profile_reversal" not in names
+    assert "rolling_va_extreme_reject" not in names
+    # Default kit is lookback_nodes=1 (POC). That path must stay flat here.
+    factory, base, _space = strategy_kit("hvn_mean_revert", side)
+    assert int(factory(base).generate_signals(candles)["signal"].iloc[fire]) == 0
+
+
+def test_hvn_mean_revert_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy import indicators as ind
+    from core.strategy.hvn_mean_revert import (
+        ATR_N_LOCKED,
+        LOOKBACK_NODES_MAX,
+        LOOKBACK_NODES_MIN,
+        POC_BINS_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: search lookback_nodes + touch_tol_atr only.
+    factory, base, space = strategy_kit("hvn_mean_revert", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.lookback_nodes == LOOKBACK_NODES_MIN
+    assert base.touch_tol_atr == pytest.approx(0.0)
+    assert base.atr_n == ATR_N_LOCKED
+    assert space["lookback_nodes"] == [1, 3]
+    assert space["touch_tol_atr"] == [0.0, 0.15]
+    assert "atr_n" not in space
+    assert "n_bins" not in space
+    assert "leave_atr" not in space
+    assert "lookback" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback_nodes", "touch_tol_atr"}
+    assert POC_BINS_LOCKED == 20
+    assert LOOKBACK_NODES_MAX == 3
+    assert ind.POC_BINS_LOCKED == 20
+
+    # lookback_nodes=1 on a single-POC tape matches prior_poc geometry.
+    candles, fire, poc_val = _prior_poc_reclaim_fade_tape(long_side=True)
+    signals = _signals("hvn_mean_revert", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "hvn",
+        "hvn_1",
+        "hvn_2",
+        "hvn_3",
+        "lookback_nodes",
+        "atr",
+        "atr_known",
+        "touch",
+        "tagged_from_above",
+        "tagged_from_below",
+        "closed_above_hvn",
+        "closed_below_hvn",
+    ):
+        assert column in signals.columns
+    assert "poc" not in signals.columns
+    assert "prior_high" not in signals.columns
+    assert "sma" not in signals.columns
+    assert "keltner_mid" not in signals.columns
+    assert "vwap" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["tagged_from_above"].iloc[fire])
+    assert bool(signals["closed_above_hvn"].iloc[fire])
+    hvn = float(signals["hvn"].iloc[fire])
+    assert hvn == pytest.approx(poc_val)
+    assert hvn == pytest.approx(float(signals["hvn_1"].iloc[fire]))
+    assert 99.5 < hvn < 100.5
+    assert float(candles["low"].iloc[fire]) <= hvn
+    assert float(candles["close"].iloc[fire]) > hvn
+    # Binning is the locked 20-bin histogram of the completed prior day only.
+    expected = ind.prior_utc_day_volume_poc(
+        candles["high"],
+        candles["low"],
+        candles["volume"],
+        n_bins=20,
+        turnover=candles["turnover"],
+    )
+    assert hvn == pytest.approx(float(expected.iloc[fire]))
+    expected_hvns = ind.prior_utc_day_volume_hvns(
+        candles["high"],
+        candles["low"],
+        candles["volume"],
+        n_bins=20,
+        top_n=3,
+        turnover=candles["turnover"],
+    )
+    assert float(signals["hvn_1"].iloc[fire]) == pytest.approx(
+        float(expected_hvns["hvn_1"].iloc[fire])
+    )
+    quiet, quiet_fire, _ = _prior_poc_reclaim_fade_tape(long_side=True, tag=False)
+    assert int(
+        _signals("hvn_mean_revert", quiet, side=SignalSide.LONG)["signal"].iloc[quiet_fire]
+    ) == 0
+    held, held_fire, _ = _prior_poc_reclaim_fade_tape(long_side=True, reclaim=False)
+    held_sig = _signals("hvn_mean_revert", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["tagged_from_above"].iloc[held_fire])
+    miss, miss_fire, miss_poc = _prior_poc_reclaim_fade_tape(long_side=True, miss_tag=True)
+    miss_sig = _signals("hvn_mean_revert", miss)
+    assert int(miss_sig["signal"].iloc[miss_fire]) == 0
+    slack = factory(replace(base, touch_tol_atr=0.15)).generate_signals(miss)
+    atr_prev = float(slack["atr_known"].iloc[miss_fire])
+    low_miss = float(miss["low"].iloc[miss_fire])
+    assert low_miss > miss_poc
+    assert low_miss <= miss_poc + 0.15 * atr_prev
+    assert int(slack["signal"].iloc[miss_fire]) == 1
+    unlocked = factory(replace(base, atr_n=5)).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    short_on_long = _signals("hvn_mean_revert", candles, side=SignalSide.SHORT)
+    assert int(short_on_long["signal"].iloc[fire]) == 0
+
+
+def test_hvn_mean_revert_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("hvn_mean_revert", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback_nodes", "touch_tol_atr"}
+    assert space["lookback_nodes"] == [1, 3]
+    assert space["touch_tol_atr"] == [0.0, 0.15]
+
+    candles, fire, poc_val = _prior_poc_reclaim_fade_tape(long_side=False)
+    signals = _signals("hvn_mean_revert", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["tagged_from_below"].iloc[fire])
+    assert bool(signals["closed_below_hvn"].iloc[fire])
+    hvn = float(signals["hvn"].iloc[fire])
+    assert hvn == pytest.approx(poc_val)
+    assert float(candles["high"].iloc[fire]) >= hvn
+    assert float(candles["close"].iloc[fire]) < hvn
+    held, held_fire, _ = _prior_poc_reclaim_fade_tape(long_side=False, reclaim=False)
+    held_sig = _signals("hvn_mean_revert", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    miss, miss_fire, miss_poc = _prior_poc_reclaim_fade_tape(long_side=False, miss_tag=True)
+    miss_sig = _signals("hvn_mean_revert", miss, side=SignalSide.SHORT)
+    assert int(miss_sig["signal"].iloc[miss_fire]) == 0
+    slack = factory(replace(base, touch_tol_atr=0.15)).generate_signals(miss)
+    atr_prev = float(slack["atr_known"].iloc[miss_fire])
+    high_miss = float(miss["high"].iloc[miss_fire])
+    assert high_miss < miss_poc
+    assert high_miss >= miss_poc - 0.15 * atr_prev
+    assert int(slack["signal"].iloc[miss_fire]) == -1
+    long_on_short = _signals("hvn_mean_revert", candles, side=SignalSide.LONG)
+    assert int(long_on_short["signal"].iloc[fire]) == 0
+
+
+def test_hvn_mean_revert_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("hvn_mean_revert", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback_nodes", "touch_tol_atr"}
+    assert space["lookback_nodes"] == [1, 3]
+    assert space["touch_tol_atr"] == [0.0, 0.15]
+    assert "atr_n" not in space
+    assert "leave_atr" not in space
+    assert "lookback" not in space
+    assert "n_bins" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("hvn_mean_revert")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "hvn_mean_revert"
+    assert sleeve.name != "hvn_node_fade"
+
+
+def test_hvn_mean_revert_no_lookahead() -> None:
+    candles, fire, _poc_val = _prior_poc_reclaim_fade_tape(long_side=True)
+    signals = _signals("hvn_mean_revert", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals("hvn_mean_revert", candles.iloc[:cut], side=SignalSide.LONG)
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut], truncated["signal"], check_names=False
+    )
+    pd.testing.assert_series_equal(
+        signals["hvn"].iloc[:cut], truncated["hvn"], check_names=False
+    )
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("volume")] = 5_000_000.0
+    after = _signals("hvn_mean_revert", shocked, side=SignalSide.LONG)
+    assert after["hvn"].iloc[fire] == pytest.approx(signals["hvn"].iloc[fire])
+    assert after["hvn_1"].iloc[fire] == pytest.approx(signals["hvn_1"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later], after["signal"].iloc[:later], check_names=False
+    )
+    fat = candles.copy()
+    fat.iloc[fire, fat.columns.get_loc("high")] = 130.0
+    fat.iloc[fire, fat.columns.get_loc("low")] = float(candles["low"].iloc[fire])
+    fat_sig = _signals("hvn_mean_revert", fat, side=SignalSide.LONG)
+    assert fat_sig["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert float(fat_sig["atr"].iloc[fire]) > float(signals["atr"].iloc[fire])
+
+
+def test_hvn_mean_revert_prior_day_only_forming_day_excluded() -> None:
+    """HVN nodes are yesterday's completed histogram. Today cannot move them."""
+    candles, fire, poc_val = _prior_poc_reclaim_fade_tape(long_side=True)
+    signals = _signals("hvn_mean_revert", candles, side=SignalSide.LONG)
+    assert pd.isna(signals["hvn"].iloc[10])
+    assert pd.isna(signals["hvn_1"].iloc[23])
+    assert signals["hvn_1"].iloc[24] == pytest.approx(poc_val)
+    assert signals["hvn"].iloc[fire] == pytest.approx(poc_val)
+    shocked, shock_fire, _ = _prior_poc_reclaim_fade_tape(
+        long_side=True, forming_day_volume_shock=True
+    )
+    after = _signals("hvn_mean_revert", shocked, side=SignalSide.LONG)
+    assert after["hvn"].iloc[shock_fire] == pytest.approx(poc_val)
+    assert after["hvn_1"].iloc[shock_fire] == pytest.approx(poc_val)
+    assert after["hvn"].iloc[shock_fire] != pytest.approx(110.0, abs=1.0)
+    assert int(after["signal"].iloc[shock_fire]) == 1
+    multi, multi_fire, nodes = _hvn_mean_revert_multinode_tape(
+        long_side=True, forming_day_volume_shock=True
+    )
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, _space = strategy_kit("hvn_mean_revert", SignalSide.LONG)
+    shocked_n3 = factory(replace(base, lookback_nodes=3)).generate_signals(multi)
+    assert shocked_n3["hvn_1"].iloc[multi_fire] == pytest.approx(nodes["poc"])
+    assert shocked_n3["hvn_2"].iloc[multi_fire] == pytest.approx(nodes["hvn_2"])
+    assert shocked_n3["hvn_1"].iloc[multi_fire] != pytest.approx(110.0, abs=1.0)
+
+
+def test_hvn_mean_revert_nearest_of_top_n() -> None:
+    """lookback_nodes>1 can fade a secondary HVN that POC-only misses."""
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, _space = strategy_kit("hvn_mean_revert", SignalSide.LONG)
+    candles, fire, nodes = _hvn_mean_revert_multinode_tape(long_side=True)
+    n1 = factory(replace(base, lookback_nodes=1)).generate_signals(candles)
+    n3 = factory(replace(base, lookback_nodes=3)).generate_signals(candles)
+    assert n1["hvn_1"].iloc[fire] == pytest.approx(nodes["poc"])
+    assert n3["hvn_2"].iloc[fire] == pytest.approx(nodes["hvn_2"])
+    assert n1["hvn"].iloc[fire] == pytest.approx(nodes["poc"])
+    assert n3["hvn"].iloc[fire] == pytest.approx(nodes["hvn_2"])
+    assert int(n1["signal"].iloc[fire]) == 0
+    assert int(n3["signal"].iloc[fire]) == 1
+    assert int((n3["signal"] == 1).sum()) >= 1
+    # Caller cannot unlock lookback_nodes past the Quant grid.
+    clamped = factory(replace(base, lookback_nodes=20)).generate_signals(candles)
+    assert int(clamped["lookback_nodes"].iloc[fire]) == 3
+    assert int(clamped["signal"].iloc[fire]) == 1
+    _assert_hvn_mean_revert_clear_of_siblings(candles, fire, SignalSide.LONG)
+
+    short_c, short_fire, short_nodes = _hvn_mean_revert_multinode_tape(long_side=False)
+    s1 = factory(replace(base, lookback_nodes=1, side=SignalSide.SHORT)).generate_signals(
+        short_c
+    )
+    s3 = factory(replace(base, lookback_nodes=3, side=SignalSide.SHORT)).generate_signals(
+        short_c
+    )
+    assert s1["hvn"].iloc[short_fire] == pytest.approx(short_nodes["poc"])
+    assert s3["hvn"].iloc[short_fire] == pytest.approx(short_nodes["hvn_2"])
+    assert int(s1["signal"].iloc[short_fire]) == 0
+    assert int(s3["signal"].iloc[short_fire]) == -1
+    _assert_hvn_mean_revert_clear_of_siblings(short_c, short_fire, SignalSide.SHORT)
+    held, held_fire, _ = _hvn_mean_revert_multinode_tape(long_side=True, reclaim=False)
+    held_n3 = factory(replace(base, lookback_nodes=3)).generate_signals(held)
+    assert int(held_n3["signal"].iloc[held_fire]) == 0
+    assert bool(held_n3["tagged_from_above"].iloc[held_fire])
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -8847,6 +9290,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("outside_bar_fail_reversion", {"min_outside_atr"}),
         ("keltner_channel_fade", {"k"}),
         ("prior_poc_reclaim_fade", {"touch_tol_atr"}),
+        ("hvn_mean_revert", {"lookback_nodes", "touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -8885,6 +9329,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("outside_bar_fail_reversion", {"min_outside_atr"}),
         ("keltner_channel_fade", {"k"}),
         ("prior_poc_reclaim_fade", {"touch_tol_atr"}),
+        ("hvn_mean_revert", {"lookback_nodes", "touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
