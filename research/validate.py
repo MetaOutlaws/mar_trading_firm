@@ -9,11 +9,14 @@ editing a Python file.
 Gate structure, deliberately two-tier:
 
 * **Per-symbol approval** clears one symbol/side to trade. Requires enough
-  out-of-sample trades to be measurable, a profit factor above 1, positive
-  expectancy whose bootstrap interval excludes zero, and stable parameters.
+  out-of-sample trades to be measurable, PF >= 1.15, positive expectancy whose
+  bootstrap interval excludes zero, beats-random, and stable parameters.
+  A net-negative *regime* (bear/bull/chop) is a sit-out, not a research kill:
+  when those overall OOS gates pass, the pair is approved with
+  ``activation_mode=regime_gated`` and ``blocked_regimes`` / ``regime_disable``.
 * **Portfolio go-live** (checked separately, in `scripts/check_go_live.py`)
   requires the full plan gates: 300+ OOS trades across 3+ regimes including a
-  bear, aggregate PF >= 1.3, drawdown < 15%.
+  bear, aggregate PF >= 1.3, drawdown < 15%. This file does not unlock live.
 
 A symbol can be approved for paper trading while the portfolio remains far from
 live-ready. That is the intended state for a long time.
@@ -62,6 +65,84 @@ class ApprovalCriteria:
 
 DEFAULT_CRITERIA = ApprovalCriteria()
 
+#: Coarse labels used by research periods and paper sit-outs.
+KNOWN_REGIMES = ("bear", "bull", "chop")
+_LEGACY_REGIME_LOSS_NEEDLE = "loses money in regime"
+
+
+def _normalize_regime_names(raw: Any) -> list[str]:
+    """Accept a list/tuple/CSV string and return sorted known regime names."""
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        parts = [piece.strip() for piece in raw.replace(";", ",").split(",")]
+    elif isinstance(raw, (list, tuple, set)):
+        parts = [str(piece).strip() for piece in raw]
+    else:
+        return []
+    known = set(KNOWN_REGIMES)
+    seen: set[str] = set()
+    names: list[str] = []
+    for part in parts:
+        name = part.lower().strip(" :")
+        if name in known and name not in seen:
+            seen.add(name)
+            names.append(name)
+    return sorted(names)
+
+
+def adverse_regimes(regime_results: dict[str, dict[str, Any]] | None) -> list[str]:
+    """Regimes with enough OOS trades to measure and non-positive expectancy.
+
+    Used as sit-out metadata, not as a hard approval failure.
+    """
+    if not regime_results:
+        return []
+    losing = [
+        name
+        for name, stats in regime_results.items()
+        if stats.get("trades", 0) >= 5 and float(stats.get("expectancy_pct", 0.0) or 0.0) <= 0
+    ]
+    return _normalize_regime_names(losing)
+
+
+def blocked_regimes_from_record(record: dict[str, Any] | None) -> list[str]:
+    """Read sit-out regimes from an approvals-file row (new or legacy).
+
+    Prefers structured ``regime_disable`` / ``blocked_regimes``, then derives
+    from ``regime_results``, then parses the old hard-fail string so existing
+    paper_override rows can still sit out without a re-run.
+    """
+    if not isinstance(record, dict):
+        return []
+    named = _normalize_regime_names(
+        record.get("regime_disable") or record.get("blocked_regimes")
+    )
+    if named:
+        return named
+    results = record.get("regime_results") or record.get("by_regime")
+    if isinstance(results, dict):
+        derived = adverse_regimes(results)
+        if derived:
+            return derived
+    for msg in record.get("failures") or []:
+        text = str(msg)
+        if _LEGACY_REGIME_LOSS_NEEDLE in text.lower():
+            _, _, tail = text.partition(":")
+            parsed = _normalize_regime_names(tail)
+            if parsed:
+                return parsed
+    return []
+
+
+def activation_mode_for(*, approved: bool, blocked: list[str]) -> str:
+    """How a validated sleeve may trade: unrestricted, regime-gated, or rejected."""
+    if not approved:
+        return "rejected"
+    if blocked:
+        return "regime_gated"
+    return "unrestricted"
+
 
 @dataclass
 class SymbolVerdict:
@@ -75,12 +156,23 @@ class SymbolVerdict:
     walk_forward: WalkForwardResult | None = None
     significance: SignificanceReport | None = None
     regime_results: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Adverse regimes (bear/bull/chop). Sit-out list, not a reject reason.
+    blocked_regimes: list[str] = field(default_factory=list)
     failures: list[str] = field(default_factory=list)
     error: str | None = None
 
     @property
     def approved(self) -> bool:
         return not self.failures and self.error is None and self.walk_forward is not None
+
+    @property
+    def regime_disable(self) -> list[str]:
+        """Alias persisted on approval records for paper sit-outs."""
+        return list(self.blocked_regimes)
+
+    @property
+    def activation_mode(self) -> str:
+        return activation_mode_for(approved=self.approved, blocked=self.blocked_regimes)
 
     @property
     def selected_params(self) -> dict[str, Any]:
@@ -113,6 +205,10 @@ class SymbolVerdict:
             "walk_forward": self.walk_forward.summary() if self.walk_forward else None,
             "significance": self.significance.summary() if self.significance else None,
             "by_regime": self.regime_results,
+            "regime_results": self.regime_results,
+            "blocked_regimes": list(self.blocked_regimes),
+            "regime_disable": list(self.blocked_regimes),
+            "activation_mode": self.activation_mode,
         }
 
     def __str__(self) -> str:
@@ -1292,21 +1388,29 @@ def validate_symbol(
 
     if periods:
         verdict.regime_results = _regime_breakdown(oos_trades, periods)
+        verdict.blocked_regimes = adverse_regimes(verdict.regime_results)
 
-    verdict.failures = _evaluate_gates(wf, verdict.significance, verdict.regime_results, criteria)
+    # Regime losses are recorded on the verdict as sit-outs, not failures.
+    verdict.failures = _evaluate_gates(wf, verdict.significance, criteria)
     return verdict
 
 
 def _evaluate_gates(
     wf: WalkForwardResult,
     significance: SignificanceReport,
-    regime_results: dict[str, dict[str, Any]],
     criteria: ApprovalCriteria,
 ) -> list[str]:
-    """Collect every reason a symbol fails approval.
+    """Collect every *hard* reason a symbol fails approval.
 
-    All gates are evaluated rather than short-circuiting, so the report explains
-    the full picture instead of only the first problem.
+    Overall OOS gates stay hard: enough trades, PF >= 1.15, positive expectancy,
+    drawdown, fold ratio, parameter stability, CI excludes zero, beats-random.
+
+    Per-regime net losses are *not* collected here. Those become
+    ``blocked_regimes`` / ``regime_disable`` so paper can sit out that regime
+    instead of killing a sleeve that already cleared the aggregate gates.
+
+    All remaining gates are evaluated rather than short-circuiting, so the
+    report explains the full picture instead of only the first problem.
     """
     failures: list[str] = []
 
@@ -1349,16 +1453,9 @@ def _evaluate_gates(
     if unstable:
         failures.append("unstable parameters: " + ", ".join(unstable))
 
-    # A strategy that only works in one regime is a bet on that regime.
-    if regime_results:
-        losing = [
-            name
-            for name, stats in regime_results.items()
-            if stats.get("trades", 0) >= 5 and stats.get("expectancy_pct", 0.0) <= 0
-        ]
-        if losing:
-            failures.append(f"loses money in regime(s): {', '.join(sorted(losing))}")
-
+    # Intentionally omitted: "loses money in regime(s): …" used to be a hard
+    # fail even when aggregate OOS already cleared PF / CI / beats-random.
+    # Adverse regimes are sit-outs (see adverse_regimes / blocked_regimes).
     return failures
 
 
@@ -1489,6 +1586,11 @@ def write_approvals(verdicts: list[SymbolVerdict], path=APPROVALS_PATH) -> dict[
             ),
             "oos_expectancy_pct": round(wf.oos_expectancy_pct, 4) if wf else 0.0,
             "oos_max_drawdown_pct": round(wf.oos_max_drawdown_pct, 2) if wf else 0.0,
+            # Regime sit-outs: paper skips new entries while these are active.
+            "regime_results": verdict.regime_results,
+            "blocked_regimes": list(verdict.blocked_regimes),
+            "regime_disable": list(verdict.blocked_regimes),
+            "activation_mode": verdict.activation_mode,
             "validated_at": datetime.now(timezone.utc).isoformat(),
         }
         # Keep an operator paper veto if research still has not fully approved.

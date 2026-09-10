@@ -110,16 +110,73 @@ class PlanEntry:
     strategies genuinely differ: longs were tuned on 15m candles, shorts on 4h.
     Scanning a 4h short strategy on 15m candles would evaluate entirely
     different indicator values from the ones the backtest validated.
+
+    ``blocked_regimes`` comes from the approval record. Paper skips *new*
+    entries while the current market regime is on that list. Open positions
+    are still managed. Live unlock is unchanged.
     """
 
     symbol: str
     side: SignalSide
     strategy: Strategy
     timeframe: str
+    blocked_regimes: tuple[str, ...] = ()
+    activation_mode: str = "unrestricted"
 
     @property
     def key(self) -> str:
         return f"{self.symbol}:{self.side.value}"
+
+
+def _current_paper_regime() -> str | None:
+    """Latest regime-analyst snapshot (bull/bear/chop), or None if unknown.
+
+    Fail-open: a missing or unreadable snapshot must not freeze the blotter.
+    """
+    try:
+        from firm.memory import latest_regime
+
+        snap = latest_regime()
+    except Exception:
+        logger.exception("Could not read latest regime snapshot for paper sit-out")
+        return None
+    if not isinstance(snap, dict):
+        return None
+    name = str(snap.get("regime") or "").strip().lower()
+    if name in {"bull", "bear", "chop"}:
+        return name
+    return None
+
+
+def paper_regime_sitout_reason(
+    entry: PlanEntry,
+    *,
+    current_regime: str | None | object = None,
+    trading_mode: TradingMode | None = None,
+    lookup_regime: bool = True,
+) -> str | None:
+    """Why paper should skip a new fill, or None to proceed.
+
+    Live/testnet never sit out here — go-live remains the live gate.
+    When the current regime is unknown, fail-open (do not skip).
+    """
+    mode = trading_mode if trading_mode is not None else get_settings().trading_mode
+    if mode is not TradingMode.PAPER:
+        return None
+    blocked = tuple(entry.blocked_regimes)
+    if not blocked:
+        return None
+    regime = current_regime
+    if lookup_regime and regime is None:
+        regime = _current_paper_regime()
+    if regime is None:
+        return None
+    if str(regime) in blocked:
+        return (
+            f"regime sit-out: {regime} is blocked for "
+            f"{entry.strategy.name} ({', '.join(blocked)})"
+        )
+    return None
 
 
 @dataclass
@@ -324,7 +381,22 @@ def _entry_from_record(name: str, record: dict, symbol: str, side: SignalSide) -
     if not clock_tf:
         logger.error("%s:%s as %s has no timeframe", symbol, side.value, name)
         return None
-    return PlanEntry(symbol=symbol, side=side, strategy=strategy, timeframe=clock_tf)
+    from research.validate import activation_mode_for, blocked_regimes_from_record
+
+    blocked = tuple(blocked_regimes_from_record(record))
+    mode = str(record.get("activation_mode") or "").strip()
+    if mode not in {"unrestricted", "regime_gated", "rejected"}:
+        mode = activation_mode_for(
+            approved=record.get("approved") is True, blocked=list(blocked)
+        )
+    return PlanEntry(
+        symbol=symbol,
+        side=side,
+        strategy=strategy,
+        timeframe=clock_tf,
+        blocked_regimes=blocked,
+        activation_mode=mode,
+    )
 
 
 def _entry_for(symbol: str, side: SignalSide, *, require_approval: bool = False) -> PlanEntry | None:
@@ -486,6 +558,8 @@ def persist_last_cycle(report: CycleReport, plan: TradingPlan | None = None) -> 
                 "paper_candidate": is_paper_scan_sleeve(
                     entry.strategy.name, entry.symbol, entry.side.value, entry.timeframe
                 ),
+                "blocked_regimes": list(entry.blocked_regimes),
+                "activation_mode": entry.activation_mode,
             }
             for entry in plan.entries
         ]
@@ -637,6 +711,11 @@ class TradingEngine:
 
         for entry in self.plan.entries:
             report.symbols_scanned += 1
+            sitout = paper_regime_sitout_reason(entry)
+            if sitout:
+                report.rejections.append((entry.symbol, sitout))
+                logger.info("%s %s %s: %s", entry.strategy.name, entry.symbol, entry.side.value, sitout)
+                continue
             try:
                 signal, price = self._evaluate(entry)
             except Exception as exc:
