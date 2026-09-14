@@ -6,6 +6,11 @@ services:
       - .:/app
     command: python scripts/run_api.py
     env_file: .env
+    # .env defaults API_HOST to 127.0.0.1. Inside the container that bind is
+    # unreachable via published port 8000, so the host browser gets connection
+    # refused. Force all-interfaces here; run_api.py also remaps in Docker.
+    environment:
+      API_HOST: "0.0.0.0"
     ports:
       - "8000:8000"
 
