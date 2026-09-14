@@ -13,8 +13,8 @@ def test_docker_publish_leaves_loopback() -> None:
     assert bind_host("127.0.0.1", in_docker=True, in_cursor_agent=False) == "0.0.0.0"
 
 
-def test_cursor_agent_uses_dual_stack() -> None:
-    assert bind_host("127.0.0.1", in_docker=False, in_cursor_agent=True) == "::"
+def test_cursor_agent_leaves_loopback() -> None:
+    assert bind_host("127.0.0.1", in_docker=False, in_cursor_agent=True) == "0.0.0.0"
 
 
 def test_explicit_non_loopback_is_honoured() -> None:

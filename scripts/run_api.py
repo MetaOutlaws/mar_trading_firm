@@ -31,9 +31,11 @@ def bind_host(
         in_cursor_agent = os.environ.get("CURSOR_AGENT") == "1"
     if not (in_docker or in_cursor_agent):
         return configured
-    if configured in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}:
-        # Dual-stack. These VMs have bindv6only=0 so IPv4 still works.
-        return "::" if in_cursor_agent else "0.0.0.0"
+    if configured in {"127.0.0.1", "localhost", "::1"}:
+        # IPv4 all-interfaces. Binding "::" on this image is IPv6-only
+        # (Python sets IPV6_V6ONLY), so 127.0.0.1 and the container IP
+        # connection-refuse even though curl to [::1] works.
+        return "0.0.0.0"
     return configured
 
 
