@@ -10591,9 +10591,9 @@ def test_inside_bar_break_fail_schema_and_long_entry() -> None:
     assert base.atr_n == ATR_N_LOCKED
     assert base.require_close_inside_mother is REQUIRE_CLOSE_INSIDE_MOTHER_LOCKED
     assert space["min_mother_atr"] == MIN_MOTHER_ATR_GRID
+    assert space["min_mother_atr"] == [0.8, 1.2]
     assert space["min_mother_atr"][0] == pytest.approx(0.8)
     assert space["min_mother_atr"][-1] == pytest.approx(1.2)
-    assert 1.0 in space["min_mother_atr"]
     assert "atr_n" not in space
     assert "atr_period" not in space
     assert "require_close_inside_mother" not in space
@@ -10713,7 +10713,7 @@ def test_inside_bar_break_fail_short_entry() -> None:
     factory, base, space = strategy_kit("inside_bar_break_fail", SignalSide.SHORT)
     extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
     assert extra == {"min_mother_atr"}
-    assert space["min_mother_atr"] == [0.8, 1.0, 1.2]
+    assert space["min_mother_atr"] == [0.8, 1.2]
 
     candles, fire = _inside_bar_break_fail_tape(long_side=False)
     signals = _signals("inside_bar_break_fail", candles, side=SignalSide.SHORT)
@@ -10754,7 +10754,7 @@ def test_inside_bar_break_fail_kit_locks() -> None:
     factory, base, space = strategy_kit("inside_bar_break_fail", SignalSide.LONG)
     extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
     assert extra == {"min_mother_atr"}
-    assert space["min_mother_atr"] == [0.8, 1.0, 1.2]
+    assert space["min_mother_atr"] == [0.8, 1.2]
     assert "atr_n" not in space
     assert "max_bars_since_break" not in space
     assert "london_ib_open_start" not in space

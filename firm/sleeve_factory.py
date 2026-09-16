@@ -2791,7 +2791,7 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "mother_high. Exclusive one-sided wick. ATR period "
             "locked 20, known before the signal bar "
             "(atr.shift(1)). Fill t+1 open. Free search (1 only): "
-            "min_mother_atr [0.8, 1.0, 1.2]. Not ib_fail_reversion "
+            "min_mother_atr [0.8, 1.2]. Not ib_fail_reversion "
             "(124 — London IB mother, close-through, later fail "
             "inside max_bars_since_break). Not inside_bar_breakout "
             "(follows the close-through). Not nr7_fail_reversion "

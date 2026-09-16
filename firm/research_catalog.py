@@ -1454,7 +1454,8 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "free_params": 1,
         "disposition": "new_family",
         "justification": (
-            "CEO FINAL LOCK for coding only. Fade a 4h inside-bar "
+            "Munhamutapa CHAIR stamp for coding only (Brian YES "
+            "already live). Fade a 4h inside-bar "
             "mother wick-through that fails (close back strictly "
             "inside the mother). Quant-locked grid: mother = "
             "inside-bar mother context (bar t-1 strictly inside "
@@ -1465,8 +1466,8 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
             "mother_high AND mother_low < close[t] < mother_high "
             "/ LONG=low[t] < mother_low AND mother_low < close[t] "
             "< mother_high. Exclusive one-sided wick. Free search "
-            "(1 only): min_mother_atr [0.8, 1.0, 1.2] (endpoints "
-            "0.8 and 1.2 plus 0.2-step interior). BOTH sides "
+            "(1 only): min_mother_atr [0.8, 1.2] (endpoints only, "
+            "same sibling float-grid as min_outside_atr). BOTH sides "
             "honest. Walk-forward is not started from this coding "
             "PR. Live stays off. Not ib_fail_reversion (124 — "
             "London IB close-through then later fail), not "

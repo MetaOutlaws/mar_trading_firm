@@ -1,6 +1,6 @@
 """Inside-bar break-fail — wick through the mother, close back inside.
 
-Family F. Classic two-bar inside-bar mother (``inside_bar_mother``): bar
+Family F. Munhamutapa CHAIR stamp. Classic two-bar inside-bar mother (``inside_bar_mother``): bar
 t-1 sits *strictly* inside bar t-2, published on bar t (the first bar that
 may break the mother). This is a same-bar *rejection / fail-through*:
 
@@ -27,9 +27,9 @@ Quant-locked (not searched):
 
 Free search (1 only):
 
-    - ``min_mother_atr`` grid ``[0.8, 1.0, 1.2]``
-      (endpoints 0.8 and 1.2 plus the 0.2-step interior, matching how
-      sibling single-float grids list discrete search points)
+    - ``min_mother_atr`` grid ``[0.8, 1.2]``
+      (endpoints only — same sibling float-grid convention as
+      ``outside_bar_fail_reversion.min_outside_atr``)
 
 OHLCV only. Causal: bars ``<= t``. No volume gate. No London IB open
 window. No ``max_bars_since_break``.
@@ -63,10 +63,10 @@ from core.strategy.base import SignalSide, Strategy, StrategyParams
 ATR_N_LOCKED = 20
 # Quant-locked True: fail close must sit strictly inside the mother.
 REQUIRE_CLOSE_INSIDE_MOTHER_LOCKED = True
-# Free-grid mother-range floor. Endpoints 0.8 / 1.2 plus 0.2-step interior.
+# Free-grid mother-range floor. Endpoints only, matching sibling [0.8, 1.2].
 MIN_MOTHER_ATR_MIN = 0.8
 MIN_MOTHER_ATR_MAX = 1.2
-MIN_MOTHER_ATR_GRID = [0.8, 1.0, 1.2]
+MIN_MOTHER_ATR_GRID = [0.8, 1.2]
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,7 @@ class InsideBarBreakFailParams(StrategyParams):
     side: SignalSide = SignalSide.LONG
     # Wilder ATR period. Quant-locked at 20 — not a free search param.
     atr_n: int = ATR_N_LOCKED
-    # Mother-range floor in ATR units. Quant grid: [0.8, 1.0, 1.2].
+    # Mother-range floor in ATR units. Quant grid: [0.8, 1.2].
     min_mother_atr: float = MIN_MOTHER_ATR_MIN
     # Quant-locked True: fade only if close_t is strictly inside the mother.
     require_close_inside_mother: bool = REQUIRE_CLOSE_INSIDE_MOTHER_LOCKED
