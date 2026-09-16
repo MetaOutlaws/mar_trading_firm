@@ -1444,6 +1444,44 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "inside_bar_break_fail@4h/4h",
+        "family": "inside_bar_break_fail",
+        "name": "inside_bar_break_fail 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 48,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "CEO FINAL LOCK for coding only. Fade a 4h inside-bar "
+            "mother wick-through that fails (close back strictly "
+            "inside the mother). Quant-locked grid: mother = "
+            "inside-bar mother context (bar t-1 strictly inside "
+            "t-2; any bar, not a London 07:00–11:00 session lock), "
+            "require_close_inside_mother=True (strict inside), ATR "
+            "period=20 known before the signal bar "
+            "(atr.shift(1)), fill t+1 open. SHORT=high[t] > "
+            "mother_high AND mother_low < close[t] < mother_high "
+            "/ LONG=low[t] < mother_low AND mother_low < close[t] "
+            "< mother_high. Exclusive one-sided wick. Free search "
+            "(1 only): min_mother_atr [0.8, 1.0, 1.2] (endpoints "
+            "0.8 and 1.2 plus 0.2-step interior). BOTH sides "
+            "honest. Walk-forward is not started from this coding "
+            "PR. Live stays off. Not ib_fail_reversion (124 — "
+            "London IB close-through then later fail), not "
+            "inside_bar_breakout (follows the close-through), not "
+            "nr7_fail_reversion (123), not "
+            "outside_bar_fail_reversion, not "
+            "failed_range_break_reversion (119), not "
+            "failed_break_reclaim (130), not "
+            "engulfing_fail_reversion (126), not lvn_fill_reject "
+            "(family E)."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

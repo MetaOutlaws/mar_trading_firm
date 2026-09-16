@@ -143,6 +143,7 @@ APPROVED = [
     "prior_day_vwap_reject",
     "rolling_va_extreme_reject",
     "lvn_fill_reject",
+    "inside_bar_break_fail",
 ]
 
 
@@ -10133,7 +10134,10 @@ def _assert_lvn_fill_reject_clear_of_siblings(
     assert _fire("classic_floor_pivot_reject") == 0
     names = set(list_strategies())
     assert "lvn_fill_reject" in names
-    assert "inside_bar_break_fail" not in names
+    # Family F is a coded sibling (inside-bar mother wick-fail). LVN tape
+    # must not fire it — distinction is the level, not a rename.
+    assert "inside_bar_break_fail" in names
+    assert _fire("inside_bar_break_fail") == 0
     assert "session_volume_profile_reversal" not in names
     assert "session_vwap_band_fade" not in names
     assert "hvn_node_fade" not in names
@@ -10443,6 +10447,375 @@ def test_lvn_fill_reject_prior_day_only_forming_day_excluded() -> None:
     assert lvn4_shock.iloc[8] == pytest.approx(lvn4.iloc[6])
 
 
+def _inside_bar_break_fail_tape(
+    *,
+    long_side: bool,
+    close_inside: bool = True,
+    close_on_rail: bool = False,
+    tiny_mother: bool = False,
+    no_inside: bool = False,
+    no_break: bool = False,
+    two_sided: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet ATR~1 tape, one inside-bar mother, then a same-bar wick fail.
+
+    Quiet bars sit at 100.5/99.5 so ATR20 stays near 1.0. Mother range is
+    1.0 so min_mother_atr=0.8 fires and 1.2 does not. Inside bar is
+    strictly inside. Fail close is strictly inside the mother after a
+    one-sided wick through the low (LONG) or high (SHORT). Fire hour is
+    18:00 UTC so London-close / IB mothers stay dark.
+    """
+    n = 50
+    fire = 42
+    inside_i = 41
+    mother_i = 40
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    if tiny_mother:
+        high[mother_i] = 100.05
+        low[mother_i] = 99.95
+    else:
+        high[mother_i] = 100.5
+        low[mother_i] = 99.5
+    close[mother_i] = 100.0
+    open_[mother_i] = 100.0
+    m_high = float(high[mother_i])
+    m_low = float(low[mother_i])
+    m_mid = (m_high + m_low) / 2.0
+    if no_inside:
+        # Equal rails — not a strict inside bar.
+        high[inside_i] = m_high
+        low[inside_i] = m_low
+    else:
+        pad = max(0.02, 0.20 * (m_high - m_low))
+        high[inside_i] = m_high - pad
+        low[inside_i] = m_low + pad
+    close[inside_i] = m_mid
+    open_[inside_i] = m_mid
+    # Body stays fat vs a hammer / hanging-man so candle_reject stays dark.
+    if close_on_rail:
+        close[fire] = m_high if not long_side else m_low
+        open_[fire] = m_mid
+        high[fire] = m_high + 0.15 if not long_side else m_high - 0.05
+        low[fire] = m_low - 0.15 if long_side else m_low + 0.05
+    elif not close_inside:
+        # Held close-through — that is inside_bar_breakout, not this fade.
+        if long_side:
+            close[fire] = m_low - 0.20
+            open_[fire] = m_mid
+            high[fire] = m_mid
+            low[fire] = close[fire] - 0.05
+        else:
+            close[fire] = m_high + 0.20
+            open_[fire] = m_mid
+            low[fire] = m_mid
+            high[fire] = close[fire] + 0.05
+    elif no_break:
+        close[fire] = m_mid + 0.10 if long_side else m_mid - 0.10
+        open_[fire] = m_mid
+        high[fire] = min(m_high - 0.02, close[fire] + 0.08)
+        low[fire] = max(m_low + 0.02, close[fire] - 0.08)
+    elif two_sided:
+        close[fire] = m_mid
+        open_[fire] = m_mid
+        high[fire] = m_high + 0.20
+        low[fire] = m_low - 0.20
+    elif long_side:
+        # Downside wick-through, close back inside. Fat body vs hammer.
+        close[fire] = m_mid - 0.05
+        open_[fire] = m_mid + 0.15
+        high[fire] = m_high - 0.05
+        low[fire] = m_low - 0.20
+    else:
+        close[fire] = m_mid + 0.05
+        open_[fire] = m_mid - 0.15
+        low[fire] = m_low + 0.05
+        high[fire] = m_high + 0.20
+    index = _hourly(n)
+    assert int(index[fire].hour) == 18
+    assert int(index[mother_i].hour) not in {7, 8, 9, 10, 15}
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    # Prior-day thin extreme so family-E LVN is not the 100-area mother.
+    candles.iloc[0, candles.columns.get_loc("high")] = 96.1
+    candles.iloc[0, candles.columns.get_loc("low")] = 95.9
+    candles.iloc[0, candles.columns.get_loc("close")] = 96.0
+    candles.iloc[0, candles.columns.get_loc("open")] = 96.0
+    candles.iloc[0, candles.columns.get_loc("volume")] = 1.0
+    candles["turnover"] = candles["volume"] * candles["close"]
+    return candles, fire
+
+
+def _assert_inside_bar_break_fail_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """This family is not a clone of London IB fail or IB follow."""
+    assert int(_signals("ib_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("inside_bar_breakout", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("nr7_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("outside_bar_fail_reversion", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(
+        _signals("failed_range_break_reversion", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("failed_break_reclaim", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("engulfing_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("candle_reject_reversal", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("lvn_fill_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("atr_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("utc_day_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("sma20_stretch_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("outside_bar_reversal", candles, side=side)["signal"].iloc[fire]) == 0
+
+
+def test_inside_bar_break_fail_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.inside_bar_break_fail import (
+        ATR_N_LOCKED,
+        MIN_MOTHER_ATR_GRID,
+        REQUIRE_CLOSE_INSIDE_MOTHER_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: search min_mother_atr only. ATR20 + strict inside stay fixed.
+    factory, base, space = strategy_kit("inside_bar_break_fail", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.min_mother_atr == pytest.approx(0.8)
+    assert base.atr_n == ATR_N_LOCKED
+    assert base.require_close_inside_mother is REQUIRE_CLOSE_INSIDE_MOTHER_LOCKED
+    assert space["min_mother_atr"] == MIN_MOTHER_ATR_GRID
+    assert space["min_mother_atr"][0] == pytest.approx(0.8)
+    assert space["min_mother_atr"][-1] == pytest.approx(1.2)
+    assert 1.0 in space["min_mother_atr"]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "require_close_inside_mother" not in space
+    assert "require_close_inside" not in space
+    assert "max_bars_since_break" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_mother_atr"}
+
+    candles, fire = _inside_bar_break_fail_tape(long_side=True)
+    signals = _signals("inside_bar_break_fail", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "atr",
+        "atr_known",
+        "inside",
+        "mother_high",
+        "mother_low",
+        "mother_mid",
+        "mother_range",
+        "mother_atr",
+        "sized_enough",
+        "close_inside_mother",
+        "broke_up",
+        "broke_down",
+    ):
+        assert column in signals.columns
+    # Not a London IB / NR7 / Donchian / engulf / outside clone.
+    assert "london_mother" not in signals.columns
+    assert "nr7_high" not in signals.columns
+    assert "range_high" not in signals.columns
+    assert "engulf_open" not in signals.columns
+    assert "outside_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["inside"].iloc[fire])
+    assert bool(signals["sized_enough"].iloc[fire])
+    assert bool(signals["close_inside_mother"].iloc[fire])
+    assert bool(signals["broke_down"].iloc[fire])
+    assert not bool(signals["broke_up"].iloc[fire])
+    mother_high = float(signals["mother_high"].iloc[fire])
+    mother_low = float(signals["mother_low"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    assert close_px > mother_low
+    assert close_px < mother_high
+    assert float(candles["low"].iloc[fire]) < mother_low
+    assert (mother_high - mother_low) >= 0.8 * atr_known
+    assert (mother_high - mother_low) < 1.2 * atr_known
+    # min_mother_atr=1.2 needs a wider mother — search grid matters.
+    tight = factory(replace(base, min_mother_atr=1.2)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    missing, missing_fire = _inside_bar_break_fail_tape(long_side=True, no_inside=True)
+    assert int(
+        _signals("inside_bar_break_fail", missing, side=SignalSide.LONG)["signal"].iloc[
+            missing_fire
+        ]
+    ) == 0
+    held, held_fire = _inside_bar_break_fail_tape(long_side=True, close_inside=False)
+    held_sig = _signals("inside_bar_break_fail", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert not bool(held_sig["close_inside_mother"].iloc[held_fire])
+    # Held close-through of the mother low is the breakout sibling SHORT,
+    # not this LONG fade (failed breakdown that closed back inside).
+    assert int(
+        _signals("inside_bar_breakout", held, side=SignalSide.SHORT)["signal"].iloc[
+            held_fire
+        ]
+    ) == -1
+    rail, rail_fire = _inside_bar_break_fail_tape(long_side=True, close_on_rail=True)
+    rail_sig = _signals("inside_bar_break_fail", rail, side=SignalSide.LONG)
+    assert int(rail_sig["signal"].iloc[rail_fire]) == 0
+    # Caller cannot unlock the strict-inside lock.
+    unlocked_inside = factory(
+        replace(base, require_close_inside_mother=False)
+    ).generate_signals(rail)
+    assert int(unlocked_inside["signal"].iloc[rail_fire]) == 0
+    quiet, quiet_fire = _inside_bar_break_fail_tape(long_side=True, no_break=True)
+    assert int(
+        _signals("inside_bar_break_fail", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    both, both_fire = _inside_bar_break_fail_tape(long_side=True, two_sided=True)
+    assert int(
+        _signals("inside_bar_break_fail", both, side=SignalSide.LONG)["signal"].iloc[
+            both_fire
+        ]
+    ) == 0
+    tiny, tiny_fire = _inside_bar_break_fail_tape(long_side=True, tiny_mother=True)
+    assert int(
+        _signals("inside_bar_break_fail", tiny, side=SignalSide.LONG)["signal"].iloc[
+            tiny_fire
+        ]
+    ) == 0
+    # Caller cannot unlock ATR20 — locks stay locked.
+    unlocked = factory(replace(base, atr_n=5)).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert unlocked["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    _assert_inside_bar_break_fail_clear_of_siblings(candles, fire, SignalSide.LONG)
+    # SHORT side does not take the downside-wick fail.
+    short_on_down = _signals("inside_bar_break_fail", candles, side=SignalSide.SHORT)
+    assert int(short_on_down["signal"].iloc[fire]) == 0
+    assert int((short_on_down["signal"] == -1).sum()) == 0
+
+
+def test_inside_bar_break_fail_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("inside_bar_break_fail", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_mother_atr"}
+    assert space["min_mother_atr"] == [0.8, 1.0, 1.2]
+
+    candles, fire = _inside_bar_break_fail_tape(long_side=False)
+    signals = _signals("inside_bar_break_fail", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["inside"].iloc[fire])
+    assert bool(signals["broke_up"].iloc[fire])
+    assert not bool(signals["broke_down"].iloc[fire])
+    assert bool(signals["close_inside_mother"].iloc[fire])
+    mother_high = float(signals["mother_high"].iloc[fire])
+    mother_low = float(signals["mother_low"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    assert close_px > mother_low
+    assert close_px < mother_high
+    assert float(candles["high"].iloc[fire]) > mother_high
+    assert (mother_high - mother_low) >= 0.8 * atr_known
+    assert (mother_high - mother_low) < 1.2 * atr_known
+    tight = factory(replace(base, min_mother_atr=1.2)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    held, held_fire = _inside_bar_break_fail_tape(long_side=False, close_inside=False)
+    held_sig = _signals("inside_bar_break_fail", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert int(
+        _signals("inside_bar_breakout", held, side=SignalSide.LONG)["signal"].iloc[
+            held_fire
+        ]
+    ) == 1
+    _assert_inside_bar_break_fail_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_up = _signals("inside_bar_break_fail", candles, side=SignalSide.LONG)
+    assert int(long_on_up["signal"].iloc[fire]) == 0
+
+
+def test_inside_bar_break_fail_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("inside_bar_break_fail", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_mother_atr"}
+    assert space["min_mother_atr"] == [0.8, 1.0, 1.2]
+    assert "atr_n" not in space
+    assert "max_bars_since_break" not in space
+    assert "london_ib_open_start" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("inside_bar_break_fail")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "inside_bar_break_fail"
+
+
+def test_inside_bar_break_fail_no_lookahead() -> None:
+    candles, fire = _inside_bar_break_fail_tape(long_side=True)
+    signals = _signals("inside_bar_break_fail", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "inside_bar_break_fail", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["mother_high"].iloc[:cut],
+        truncated["mother_high"],
+        check_names=False,
+    )
+    # Later bars must not rewrite prior mother, prior-bar ATR, or the fire.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("inside_bar_break_fail", shocked, side=SignalSide.LONG)
+    assert after["mother_high"].iloc[fire] == pytest.approx(signals["mother_high"].iloc[fire])
+    assert after["mother_low"].iloc[fire] == pytest.approx(signals["mother_low"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert after["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+    # Fire-bar range cannot lift the ATR used for the size gate (known-before).
+    fat = candles.copy()
+    fat.iloc[fire, fat.columns.get_loc("high")] = 130.0
+    fat.iloc[fire, fat.columns.get_loc("low")] = float(candles["low"].iloc[fire])
+    fat_sig = _signals("inside_bar_break_fail", fat, side=SignalSide.LONG)
+    assert fat_sig["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert fat_sig["mother_high"].iloc[fire] == pytest.approx(
+        signals["mother_high"].iloc[fire]
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -10488,6 +10861,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("hvn_mean_revert", {"lookback_nodes", "touch_tol_atr"}),
         ("prior_day_vwap_reject", {"k"}),
         ("lvn_fill_reject", {"touch_tol_atr"}),
+        ("inside_bar_break_fail", {"min_mother_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -10529,6 +10903,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("hvn_mean_revert", {"lookback_nodes", "touch_tol_atr"}),
         ("prior_day_vwap_reject", {"k"}),
         ("lvn_fill_reject", {"touch_tol_atr"}),
+        ("inside_bar_break_fail", {"min_mother_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
