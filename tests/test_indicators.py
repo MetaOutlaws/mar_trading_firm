@@ -398,6 +398,50 @@ def test_volume_profile_hvn_nodes_ranked_by_volume_same_binning_as_poc():
     )
 
 
+def test_volume_profile_lvn_lowest_positive_volume_bin_midpoint():
+    """LVN is the min-weight positive bin midpoint; empty bins are skipped."""
+    # Range [100, 120] → 20 bins of width 1. Fat node ~110, thin node ~100.3.
+    high = np.array([111.0, 100.6, 119.6])
+    low = np.array([109.0, 100.1, 119.1])
+    weight = np.array([1000.0, 1.0, 10.0])
+    poc = ind.volume_profile_poc(high, low, weight, n_bins=20)
+    lvn = ind.volume_profile_lvn(high, low, weight, n_bins=20)
+    assert 109.0 < poc < 111.0
+    assert 100.0 < lvn < 101.0
+    assert lvn != pytest.approx(poc)
+    mids, hist = ind.volume_profile_bins(high, low, weight, n_bins=20)
+    positive = hist > 0
+    masked = np.where(positive, hist, np.inf)
+    assert float(mids[int(np.argmin(masked))]) == pytest.approx(lvn)
+    # Zero-weight bins must not win: a hole in the middle is not the LVN.
+    # Range [0, 10] / 10 bins; weight only at 0.5 (vol 5) and 9.5 (vol 1).
+    hole = ind.volume_profile_lvn(
+        np.array([0.5, 9.5]),
+        np.array([0.5, 9.5]),
+        np.array([5.0, 1.0]),
+        n_bins=10,
+    )
+    assert 9.0 < hole < 10.0
+    # Volume-tie: two equal min-positive bins → lowest-price min (argmin).
+    # Zero-weight prints at 0 and 10 lock the range without adding volume.
+    tied = ind.volume_profile_lvn(
+        np.array([0.0, 0.5, 8.5, 10.0]),
+        np.array([0.0, 0.5, 8.5, 10.0]),
+        np.array([0.0, 3.0, 3.0, 0.0]),
+        n_bins=10,
+    )
+    assert tied == pytest.approx(0.5)
+    # Collapsed day: single midpoint is both POC and LVN.
+    collapsed = ind.volume_profile_lvn(
+        np.array([100.0]), np.array([100.0]), np.array([10.0]), n_bins=20
+    )
+    assert collapsed == pytest.approx(
+        ind.volume_profile_poc(
+            np.array([100.0]), np.array([100.0]), np.array([10.0]), n_bins=20
+        )
+    )
+
+
 def test_prior_utc_day_volume_poc_publishes_after_midnight_forming_day_excluded():
     """Yesterday's volume-profile POC is blank until the next UTC day opens.
 
@@ -462,6 +506,26 @@ def test_prior_utc_day_volume_poc_publishes_after_midnight_forming_day_excluded(
     )
     pd.testing.assert_series_equal(
         hvns["hvn_1"].iloc[:cut], truncated_hvns["hvn_1"], check_names=False
+    )
+    # LVN uses the same prior-day snapshot. Forming-day shock cannot rewrite it.
+    lvn_series = ind.prior_utc_day_volume_lvn(high, low, volume, n_bins=20)
+    expected_lvn = ind.volume_profile_lvn(
+        high.iloc[:24], low.iloc[:24], volume.iloc[:24], n_bins=20
+    )
+    assert pd.isna(lvn_series.iloc[10])
+    assert pd.isna(lvn_series.iloc[23])
+    assert lvn_series.iloc[24] == pytest.approx(expected_lvn)
+    assert lvn_series.iloc[40] == pytest.approx(expected_lvn)
+    shocked_lvn = ind.prior_utc_day_volume_lvn(
+        shocked_high, shocked_low, shocked_vol, n_bins=20
+    )
+    assert shocked_lvn.iloc[24] == pytest.approx(expected_lvn)
+    assert shocked_lvn.iloc[40] == pytest.approx(expected_lvn)
+    truncated_lvn = ind.prior_utc_day_volume_lvn(
+        high.iloc[:cut], low.iloc[:cut], volume.iloc[:cut], n_bins=20
+    )
+    pd.testing.assert_series_equal(
+        lvn_series.iloc[:cut], truncated_lvn, check_names=False
     )
 
 

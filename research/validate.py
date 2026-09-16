@@ -1308,6 +1308,17 @@ def _novel_kit(name: str, side: SignalSide):
                 "va_frac": [0.68, 0.70],
             },
         ),
+        "lvn_fill_reject": (
+            "core.strategy.lvn_fill_reject",
+            "LvnFillRejectParams",
+            "LvnFillRejectStrategy",
+            # atr_n locked at 20. Prior completed UTC-day volume-
+            # profile LVN (same 20-bin occupancy histogram as
+            # prior_poc / HVN) locked. ATR known before the
+            # signal bar. Search touch_tol_atr only. Garwe stamp
+            # — endpoints 0.0 and 0.15 plus 0.05-step interiors.
+            {"touch_tol_atr": [0.0, 0.05, 0.10, 0.15]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
