@@ -75,6 +75,7 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "hvn_mean_revert" not in names
     assert "prior_day_vwap_reject" not in names
     assert "rolling_va_extreme_reject" not in names
+    assert "lvn_fill_reject" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

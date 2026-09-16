@@ -2726,6 +2726,54 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "skip-list family."
         ),
     ),
+    SleeveSpec(
+        name="lvn_fill_reject",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Prior-day LVN fill-reject as one 4h BOTH family. LVN "
+            "is the low-volume node from the prior COMPLETED UTC "
+            "day only (00:00–24:00 yesterday). Never a forming "
+            "day. Same locked histogram as prior_poc_reclaim_fade "
+            "/ hvn_mean_revert: 20 equal-width price bins; volume "
+            "spread uniformly across overlapping bins; LVN = "
+            "lowest-positive-volume bin midpoint (zero-weight "
+            "bins skipped; ties take the lowest-price min). "
+            "SHORT: high[t] >= LVN - touch_tol_atr*ATR AND "
+            "close[t] < LVN. LONG: low[t] <= LVN + "
+            "touch_tol_atr*ATR AND close[t] > LVN. ATR period "
+            "locked 20, known before the signal bar "
+            "(atr.shift(1)). Fill t+1 open. Free search (1 "
+            "only): touch_tol_atr [0.0, 0.05, 0.10, 0.15]. Not "
+            "prior_poc_reclaim_fade (Job 145 — single prior-day "
+            "POC). Not hvn_mean_revert (Job 146 — "
+            "nearest-of-top-N). Not prior_day_vwap_reject / "
+            "session_vwap_band_fade. Not "
+            "rolling_va_extreme_reject. Not "
+            "session_volume_profile_reversal (skip-list). Not "
+            "prior_day_extreme_reject (118 H/L). Not "
+            "sma20_stretch_fade / keltner_channel_fade. Not "
+            "asia / inventory fades. Not inside_bar_break_fail "
+            "(family F — do not code here). Do not recode spent "
+            "families 118–148. Do not modify sibling geometry."
+        ),
+        summary=(
+            "Fade a 4h fill into the prior completed UTC-day "
+            "volume-profile LVN that closes back on the fade "
+            "side of LVN (SHORT = tag then close below, LONG = "
+            "tag then close above) as one 4h BOTH family."
+        ),
+        justification=(
+            "A locked prior-completed-UTC-day LVN fill-then-reject, "
+            "with ATR20 known before the signal bar and searched "
+            "touch_tol_atr only, is not a prior-day POC / HVN "
+            "reclaim, not a VWAP stretch reject, not a rolling "
+            "value-area extreme, and not a session-volume-profile "
+            "skip-list family."
+        ),
+    ),
 ]
 
 

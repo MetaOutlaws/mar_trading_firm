@@ -711,6 +711,37 @@ def volume_profile_poc(
     return float(mids[int(np.argmax(hist))])
 
 
+def volume_profile_lvn(
+    high: pd.Series | np.ndarray,
+    low: pd.Series | np.ndarray,
+    weight: pd.Series | np.ndarray,
+    *,
+    n_bins: int = POC_BINS_LOCKED,
+) -> float:
+    """Lowest-volume price-bin midpoint for one completed session of bars.
+
+    Binning is ``volume_profile_bins`` (locked ``n_bins``, default 20) — the
+    same histogram as ``volume_profile_poc``. LVN is the midpoint of the
+    *min-weight* bin among bins with positive volume. Zero-weight bins are
+    skipped (empty prices are not a fillable node). Exact ties take the
+    lowest-price min (deterministic, ``argmin`` on the positive mask).
+
+    A collapsed ``high <= low`` day that publishes a single midpoint is
+    both POC and LVN. Not HVN/POC, not VAH/VAL, not prior-day H/L. Callers
+    must pass a *completed* session only.
+    """
+    mids, hist = volume_profile_bins(high, low, weight, n_bins=n_bins)
+    if mids.size == 0:
+        return float("nan")
+    positive = hist > 0
+    if not np.any(positive):
+        return float("nan")
+    # Mask empty bins to +inf so argmin never picks a zero-weight slot.
+    masked = np.where(positive, hist, np.inf)
+    # argmin returns the first min → lowest-price bin on a tie.
+    return float(mids[int(np.argmin(masked))])
+
+
 def volume_profile_hvn_nodes(
     high: pd.Series | np.ndarray,
     low: pd.Series | np.ndarray,
@@ -762,7 +793,7 @@ def _prior_utc_day_profile_frame(
     volume: pd.Series,
     turnover: pd.Series | None = None,
 ) -> tuple[pd.Series, pd.Series, pd.DataFrame]:
-    """Shared UTC-day grouping for prior-day POC / HVN. Forming day excluded."""
+    """Shared UTC-day grouping for prior-day POC / HVN / LVN. Forming day excluded."""
     if not high.index.equals(low.index):
         raise ValueError("high and low must share an index")
     if not high.index.equals(volume.index):
@@ -824,6 +855,39 @@ def prior_utc_day_volume_poc(
             n_bins=n_bins,
         )
     aligned = day.map(poc_by_day)
+    return _snapshot_prior_utc_day(aligned, new_day)
+
+
+def prior_utc_day_volume_lvn(
+    high: pd.Series,
+    low: pd.Series,
+    volume: pd.Series,
+    *,
+    n_bins: int = POC_BINS_LOCKED,
+    turnover: pd.Series | None = None,
+) -> pd.Series:
+    """Volume-profile LVN of the prior *completed* UTC day (00:00–24:00).
+
+    Published on the first bar of the next UTC day, then ffilled. Forming /
+    incomplete current-day bars never contribute — the histogram uses only
+    bars whose UTC date is yesterday relative to the published value.
+
+    Same weight rule and locked 20-bin occupancy histogram as
+    ``prior_utc_day_volume_poc``. LVN is the lowest-positive-volume bin
+    midpoint (zero-weight bins skipped). Not POC, not nearest-of-top-N HVN,
+    not a rolling value-area. No lookahead: a later bar cannot rewrite
+    yesterday.
+    """
+    day, new_day, frame = _prior_utc_day_profile_frame(high, low, volume, turnover)
+    lvn_by_day: dict[object, float] = {}
+    for day_ts, grp in frame.groupby(day, sort=False):
+        lvn_by_day[day_ts] = volume_profile_lvn(
+            grp["high"].to_numpy(),
+            grp["low"].to_numpy(),
+            _utc_day_profile_weight(grp),
+            n_bins=n_bins,
+        )
+    aligned = day.map(lvn_by_day)
     return _snapshot_prior_utc_day(aligned, new_day)
 
 

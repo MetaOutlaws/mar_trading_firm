@@ -1405,6 +1405,45 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "lvn_fill_reject@4h/4h",
+        "family": "lvn_fill_reject",
+        "name": "lvn_fill_reject 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 47,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Garwe AUTHORITATIVE stamp for coding only. Fade a "
+            "4h fill into the prior completed UTC-day volume-"
+            "profile LVN that closes back on the fade side of "
+            "LVN. Quant-locked grid: LVN from the prior "
+            "COMPLETED UTC day only (00:00–24:00 yesterday; "
+            "forming day excluded), same 20 equal-width occupancy "
+            "bins as prior_poc / HVN, LVN = lowest-positive-"
+            "volume bin midpoint (zero-weight bins skipped), ATR "
+            "period=20 known before the signal bar "
+            "(atr.shift(1)), fill t+1 open. SHORT=high[t] >= "
+            "LVN - touch_tol_atr*ATR AND close[t] < LVN / "
+            "LONG=low[t] <= LVN + touch_tol_atr*ATR AND "
+            "close[t] > LVN. Free search (1 only): touch_tol_atr "
+            "[0.0, 0.05, 0.10, 0.15] (endpoints 0.0 and 0.15 "
+            "plus 0.05-step interiors). BOTH sides honest. Walk-"
+            "forward is not started from this coding PR. Live "
+            "stays off. Not prior_poc_reclaim_fade (Job 145), not "
+            "hvn_mean_revert (Job 146), not "
+            "prior_day_vwap_reject / session_vwap_band_fade, not "
+            "rolling_va_extreme_reject, not "
+            "session_volume_profile_reversal (skip-list), not "
+            "prior_day_extreme_reject (118 H/L), not "
+            "sma20_stretch_fade / keltner_channel_fade, not "
+            "asia / inventory fades, not inside_bar_break_fail."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
