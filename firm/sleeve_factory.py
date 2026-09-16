@@ -2774,6 +2774,49 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "skip-list family."
         ),
     ),
+    SleeveSpec(
+        name="inside_bar_break_fail",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Inside-bar break-fail as one 4h BOTH family. Mother is "
+            "the classic two-bar inside-bar context (bar t-1 sits "
+            "strictly inside bar t-2), published on bar t. Fail is "
+            "a same-bar wick through one mother rail that closes "
+            "strictly back inside the mother. SHORT: high[t] > "
+            "mother_high AND mother_low < close[t] < mother_high. "
+            "LONG: low[t] < mother_low AND mother_low < close[t] < "
+            "mother_high. Exclusive one-sided wick. ATR period "
+            "locked 20, known before the signal bar "
+            "(atr.shift(1)). Fill t+1 open. Free search (1 only): "
+            "min_mother_atr [0.8, 1.2]. Not ib_fail_reversion "
+            "(124 — London IB mother, close-through, later fail "
+            "inside max_bars_since_break). Not inside_bar_breakout "
+            "(follows the close-through). Not nr7_fail_reversion "
+            "(123). Not outside_bar_fail_reversion. Not "
+            "failed_range_break_reversion (119). Not "
+            "failed_break_reclaim (130). Not "
+            "engulfing_fail_reversion (126). Not lvn_fill_reject "
+            "(family E). Do not recode spent families 118–149. Do "
+            "not modify sibling geometry."
+        ),
+        summary=(
+            "Fade a 4h inside-bar mother wick-through that fails "
+            "(close back strictly inside the mother; SHORT = "
+            "upside fail, LONG = downside fail) as one 4h BOTH "
+            "family."
+        ),
+        justification=(
+            "A locked ATR20 inside-bar mother wick-through that "
+            "closes strictly back inside, with searched "
+            "min_mother_atr only and no London session lock, is "
+            "not a London IB later-bar fail-reversion, not an IB "
+            "breakout follow, not an NR7 / Donchian / outside-bar "
+            "fail, and not a multi-bar wick reclaim."
+        ),
+    ),
 ]
 
 

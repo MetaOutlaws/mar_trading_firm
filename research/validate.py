@@ -1319,6 +1319,18 @@ def _novel_kit(name: str, side: SignalSide):
             # — endpoints 0.0 and 0.15 plus 0.05-step interiors.
             {"touch_tol_atr": [0.0, 0.05, 0.10, 0.15]},
         ),
+        "inside_bar_break_fail": (
+            "core.strategy.inside_bar_break_fail",
+            "InsideBarBreakFailParams",
+            "InsideBarBreakFailStrategy",
+            # atr_n locked at 20. Mother = inside-bar mother
+            # context (not a London IB session lock). Strict
+            # close-inside-mother locked. Same-bar wick-through
+            # then fail. Search min_mother_atr only. CHAIR stamp
+            # — endpoints [0.8, 1.2], same sibling float-grid
+            # convention as min_outside_atr (no invented interior).
+            {"min_mother_atr": [0.8, 1.2]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
