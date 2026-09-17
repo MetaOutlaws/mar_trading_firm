@@ -47,6 +47,8 @@ Not ``engulfing_fail_reversion`` (126 — body engulf then fail through
 engulf open).
 Not ``expansion_fail_fade`` / ``candle_reject_reversal``.
 Not ``lvn_fill_reject`` (family E — prior-day LVN fill-reject).
+Not ``swing_break_fail_reversion`` (family I — prior-lookback swing
+wick-fail; do not code in this sleeve).
 Do not recode spent families 118–149. Do not modify sibling geometry.
 """
 

@@ -2909,6 +2909,63 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "a thrust-bar fail, and not a rectangle / VP recode."
         ),
     ),
+    SleeveSpec(
+        name="swing_break_fail_reversion",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Swing-break fail reversion as one 4h BOTH family "
+            "(SHORT priority). Swing high = max(high[t-1 .. "
+            "t-swing_lookback]); swing low = min(low[t-1 .. "
+            "t-swing_lookback]) (bar t excluded). Fail is a "
+            "same-bar wick through that "
+            "swing by at least min_break_atr*ATR20 that closes "
+            "back through the broken level. SHORT: "
+            "high[t] > swing_high + min_break_atr*ATR AND "
+            "close[t] < swing_high. LONG: low[t] < swing_low - "
+            "min_break_atr*ATR AND close[t] > swing_low. "
+            "Two-sided fail prints SHORT, not LONG. ATR period "
+            "locked 20, known before the signal bar "
+            "(atr.shift(1)). Fill t+1 open. No volume/session "
+            "gate. Free search (2 only): "
+            "swing_lookback [3, 5], min_break_atr [0.2, 0.5]. Not "
+            "swing_failure_reversal (confirmed N-bar pivots, any "
+            "wick, no ATR size floor). Not failed_higher_high. Not "
+            "failed_range_break_reversion (119). Not "
+            "failed_break_reclaim (130). Not "
+            "wyckoff_spring_reclaim (127). Not "
+            "equal_high_low_restest_fade. Not "
+            "williams_fractal_break. Not inside_bar_break_fail "
+            "(family F). Not thrust_bar_fail_reversion (family G / "
+            "Job 151). Not key_reversal_bar (family H / Job 152). "
+            "Not outside_bar_reversal / outside_bar_fail_reversion. "
+            "Not dead VP (prior_poc / hvn / lvn / rolling VA). Not "
+            "Job 133 bullish_rectangle_fail_reclaim (DEAD 0/12). Not "
+            "keltner_channel_fade (Job 144 0/12). Not "
+            "utc_open_fail_reversion (0/12). Not measured_move_break "
+            "(job 86 0/12). Hold H&S / asia / wyckoff alone. Do not "
+            "recode spent families 118–152. Do not revive Job 133 "
+            "rectangle. Do not modify sibling geometry."
+        ),
+        summary=(
+            "Fade a 4h sized break of the prior lookback swing "
+            "that fails (close back through the broken swing "
+            "level; SHORT = upside fail, LONG = downside fail) "
+            "as one 4h BOTH family with SHORT priority."
+        ),
+        justification=(
+            "A locked ATR20 prior-bar lookback-swing wick-through "
+            "that closes back through the broken level, with "
+            "searched swing_lookback + min_break_atr only, is not "
+            "a confirmed-pivot wick fail, not a 16/20 Donchian "
+            "later-bar fail, not a t-1 thrust/key-reversal, not an "
+            "inside-bar mother wick-fail, not an outside-bar "
+            "containment clone, not a dead VP cluster, and not "
+            "Job 133 rectangle / other finished 0/12 clones."
+        ),
+    ),
 ]
 
 
