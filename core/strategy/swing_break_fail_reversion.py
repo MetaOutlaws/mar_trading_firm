@@ -1,12 +1,11 @@
 """Swing-break fail reversion — sized break of a prior lookback swing, close back through.
 
-Family I. CEO YES exploratory stamp (Job ~153). Prior swing is the rolling high/low of
-the last ``swing_lookback`` bars *excluding* the signal bar (same prior-bar
-Donchian geometry as ``wyckoff_spring_reclaim`` / ``failed_range_break_reversion``,
-but the searched window is the short swing ``[3, 5]``, not 16/20):
+Family I. FINAL AUTHORITATIVE stamp (Garwe CONFIRMED + Munha AUTHORIZED,
+Job ~153 Option B exploratory). Implement exactly. Prior swing is bars
+``t-1 .. t-swing_lookback`` only — bar ``t`` is not in the window:
 
-    swing_high = max(high[t-swing_lookback : t])   # bars t-N .. t-1
-    swing_low  = min(low[t-swing_lookback : t])
+    swing_high = max(high[t-1 .. t-swing_lookback])
+    swing_low  = min(low[t-1 .. t-swing_lookback])
 
 Bar ``t`` cannot lift its own swing. A fail is a same-bar *sized wick-through*
 that then *closes back through* the broken swing level:
@@ -19,16 +18,18 @@ that then *closes back through* the broken swing level:
 BOTH sides honest, SHORT priority: when both raw conditions print on the
 same bar, SHORT fires and LONG does not. ATR is Wilder ATR(20) known
 *before* the signal bar (``atr.shift(1)``) so bar ``t`` cannot lift its
-own size gate. The engine fills at ``t+1`` open.
+own size gate. The engine fills at ``t+1`` open. No volume gate. No
+session gate.
 
 Quant-locked (not searched):
 
     - Clock 4h/4h, side BOTH (SHORT priority on two-sided bars)
     - Family id ``swing_break_fail_reversion`` only
     - ATR period = 20, known before the signal bar (``atr.shift(1)``)
-    - Swing = prior-bar rolling high/low over ``swing_lookback``
+    - Swing = max/min of bars t-1 .. t-swing_lookback (signal bar excluded)
     - Fail = same-bar close back through the broken swing level
     - Fill at t+1 open (engine convention)
+    - No volume / session gate
 
 Free search (2 only):
 
@@ -36,9 +37,6 @@ Free search (2 only):
     - ``min_break_atr`` grid ``[0.2, 0.5]`` (endpoints only — same sibling
       float-grid convention as ``outside_bar_fail_reversion.min_outside_atr``
       / ``inside_bar_break_fail.min_mother_atr``; do not invent interiors)
-
-OHLCV only. Causal: bars ``<= t``. No volume gate. No max_bars_since_break.
-No confirmed-pivot ``pivot_left``. No London / session lock.
 
 Not ``swing_failure_reversal`` (confirmed N-bar pivots, any wick, no ATR
 size floor).
@@ -128,7 +126,8 @@ class SwingBreakFailReversionStrategy(Strategy):
         min_break = float(params.min_break_atr)
         atr_n = ATR_N_LOCKED
 
-        # Prior-bar swing. Current bar cannot lift or lower its own level.
+        # FINAL stamp: swing = max/min of bars t-1 .. t-swing_lookback.
+        # shift(1) drops bar t; rolling(N) is the prior N bars. Causal.
         swing_high = high.shift(1).rolling(lookback, min_periods=lookback).max()
         swing_low = low.shift(1).rolling(lookback, min_periods=lookback).min()
 

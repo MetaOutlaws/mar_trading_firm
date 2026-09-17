@@ -11872,6 +11872,13 @@ def test_swing_break_fail_reversion_schema_and_long_entry() -> None:
     atr_known = float(signals["atr_known"].iloc[fire])
     assert close_px > swing_low
     assert float(candles["low"].iloc[fire]) < swing_low
+    lookback = int(signals["swing_lookback"].iloc[fire])
+    # FINAL stamp: swing = max/min of iloc[t-lookback : t] (bar t excluded).
+    prior_highs = candles["high"].iloc[fire - lookback : fire]
+    prior_lows = candles["low"].iloc[fire - lookback : fire]
+    assert float(signals["swing_high"].iloc[fire]) == pytest.approx(float(prior_highs.max()))
+    assert swing_low == pytest.approx(float(prior_lows.min()))
+    assert float(candles["low"].iloc[fire]) < float(prior_lows.min())
     break_atr = (swing_low - float(candles["low"].iloc[fire])) / atr_known
     assert break_atr > 0.2
     assert break_atr < 0.5
@@ -11957,6 +11964,12 @@ def test_swing_break_fail_reversion_short_entry() -> None:
     atr_known = float(signals["atr_known"].iloc[fire])
     assert close_px < swing_high
     assert float(candles["high"].iloc[fire]) > swing_high
+    lookback = int(signals["swing_lookback"].iloc[fire])
+    prior_highs = candles["high"].iloc[fire - lookback : fire]
+    prior_lows = candles["low"].iloc[fire - lookback : fire]
+    assert swing_high == pytest.approx(float(prior_highs.max()))
+    assert float(signals["swing_low"].iloc[fire]) == pytest.approx(float(prior_lows.min()))
+    assert float(candles["high"].iloc[fire]) > float(prior_highs.max())
     break_atr = (float(candles["high"].iloc[fire]) - swing_high) / atr_known
     assert break_atr > 0.2
     assert break_atr < 0.5
@@ -11998,6 +12011,10 @@ def test_swing_break_fail_reversion_kit_locks() -> None:
     assert "atr_n" not in space
     assert "pivot_left" not in space
     assert "max_bars_since_break" not in space
+    assert "volume" not in space
+    assert "vol_lookback" not in space
+    assert "end_hour" not in space
+    assert "session" not in " ".join(space)
     from firm.sleeve_factory import spec_for_family
 
     spec = spec_for_family("swing_break_fail_reversion")
@@ -12047,12 +12064,14 @@ def test_swing_break_fail_reversion_no_lookahead() -> None:
         after["signal"].iloc[:later],
         check_names=False,
     )
-    # Fire-bar range cannot lift the ATR used for the size gate (known-before).
+    # Fire-bar range cannot lift ATR (known-before) or the swing (bar t
+    # is not in max(high[t-1 .. t-N]) / min(low[t-1 .. t-N])).
     fat = candles.copy()
     fat.iloc[fire, fat.columns.get_loc("low")] = 70.0
     fat_sig = _signals("swing_break_fail_reversion", fat, side=SignalSide.LONG)
     assert fat_sig["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
     assert fat_sig["swing_low"].iloc[fire] == pytest.approx(signals["swing_low"].iloc[fire])
+    assert fat_sig["swing_high"].iloc[fire] == pytest.approx(signals["swing_high"].iloc[fire])
 
 
 def test_inbox_walk_kits_max_two_free_params() -> None:

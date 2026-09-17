@@ -2917,9 +2917,10 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
         needs_feed=False,
         novel_reason=(
             "Swing-break fail reversion as one 4h BOTH family "
-            "(SHORT priority). Swing is the prior-bar rolling "
-            "high/low over swing_lookback (bars t-N..t-1; signal "
-            "bar excluded). Fail is a same-bar wick through that "
+            "(SHORT priority). Swing high = max(high[t-1 .. "
+            "t-swing_lookback]); swing low = min(low[t-1 .. "
+            "t-swing_lookback]) (bar t excluded). Fail is a "
+            "same-bar wick through that "
             "swing by at least min_break_atr*ATR20 that closes "
             "back through the broken level. SHORT: "
             "high[t] > swing_high + min_break_atr*ATR AND "
@@ -2927,7 +2928,8 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "min_break_atr*ATR AND close[t] > swing_low. "
             "Two-sided fail prints SHORT, not LONG. ATR period "
             "locked 20, known before the signal bar "
-            "(atr.shift(1)). Fill t+1 open. Free search (2 only): "
+            "(atr.shift(1)). Fill t+1 open. No volume/session "
+            "gate. Free search (2 only): "
             "swing_lookback [3, 5], min_break_atr [0.2, 0.5]. Not "
             "swing_failure_reversal (confirmed N-bar pivots, any "
             "wick, no ATR size floor). Not failed_higher_high. Not "

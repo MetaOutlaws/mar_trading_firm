@@ -1573,13 +1573,16 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "free_params": 2,
         "disposition": "new_family",
         "justification": (
-            "CEO YES exploratory stamp for coding only (Job ~153). "
+            "CEO YES / Garwe CONFIRMED + Munha AUTHORIZED FINAL "
+            "stamp for coding only (Job ~153). "
             "Fade a 4h sized break of the prior lookback swing that "
             "fails (close back through the broken swing level). "
-            "Quant-locked grid: swing = prior-bar rolling high/low "
-            "over swing_lookback (signal bar excluded), ATR "
+            "Quant-locked grid: swing_high = max(high[t-1 .. "
+            "t-swing_lookback]), swing_low = min(low[t-1 .. "
+            "t-swing_lookback]) (bar t excluded), ATR "
             "period=20 known before the signal bar "
-            "(atr.shift(1)), fill t+1 open. SHORT="
+            "(atr.shift(1)), fill t+1 open, no volume/session "
+            "gate. SHORT="
             "high[t] > swing_high + min_break_atr*ATR AND "
             "close[t] < swing_high / LONG=low[t] < swing_low - "
             "min_break_atr*ATR AND close[t] > swing_low. BOTH "
