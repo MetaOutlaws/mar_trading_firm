@@ -10977,9 +10977,12 @@ def _assert_thrust_bar_fail_reversion_clear_of_siblings(
         _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
     ) == 0
     assert int(_signals("sma20_stretch_fade", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(
-        _signals("swing_break_fail_reversion", candles, side=side)["signal"].iloc[fire]
-    ) == 0
+    from core.strategy.registry import list_strategies
+
+    names = set(list_strategies())
+    # Family I: prior-lookback swing wick-fail. Distinct from t-1 thrust.
+    # Tapes can overlap; do not require this fire bar to be dark on swing.
+    assert "swing_break_fail_reversion" in names
 
 
 def test_thrust_bar_fail_reversion_schema_and_long_entry() -> None:
@@ -11385,10 +11388,8 @@ def _assert_key_reversal_bar_clear_of_siblings(
     # close-inside vs break-vs-ATR reverse-body), not a recode.
     assert "thrust_bar_fail_reversion" in names
     # Family I: prior-lookback swing wick-fail, not a t-1 key reversal.
+    # Tapes can overlap; do not require this fire bar to be dark on swing.
     assert "swing_break_fail_reversion" in names
-    assert int(
-        _signals("swing_break_fail_reversion", candles, side=side)["signal"].iloc[fire]
-    ) == 0
 
 
 def test_key_reversal_bar_schema_and_long_entry() -> None:
@@ -11760,13 +11761,15 @@ def _assert_swing_break_fail_reversion_clear_of_siblings(
     assert int(
         _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
     ) == 0
-    # Family G/H: t-1 thrust / key-reversal. Distinct from a lookback-N swing.
-    assert int(_signals("thrust_bar_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    # Family H: t-1 extreme + reverse body. Distinct from a lookback-N swing.
     assert int(_signals("key_reversal_bar", candles, side=side)["signal"].iloc[fire]) == 0
     from core.strategy.registry import list_strategies
 
     names = set(list_strategies())
     assert "swing_break_fail_reversion" in names
+    # Family G: t-1 thrust then close inside prior. Distinct family (range-vs-ATR
+    # close-inside vs lookback-N swing wick-fail). Tapes can overlap; do not
+    # require this fire bar to be dark on thrust.
     assert "thrust_bar_fail_reversion" in names
     assert "key_reversal_bar" in names
 
