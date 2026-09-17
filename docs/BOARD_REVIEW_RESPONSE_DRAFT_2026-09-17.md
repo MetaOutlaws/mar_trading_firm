@@ -4,13 +4,44 @@ Prepared for Brian Zhanda (CEO) to send the Board.
 
 **Review under reply:** `docs/MAR_Trading_Firm_Review_2026-09-12.md`  
 **Reviewed commit:** `c04028cbcb00f3eabfafbcad8a4912bdd20aa4d3`  
-**This assessment HEAD:** `1c9f857b34a6019119564bb441a57a6af85691c4` (`feat/employee-floor-and-openai`)
+**This assessment HEAD:** `787f7af` (`feat/employee-floor-and-openai`) — includes F01 #60 and F02 #59  
+**Board calendar (CEO LOCK):** [`docs/BOARD_REMEDIATION_CALENDAR_2026-09-17.md`](BOARD_REMEDIATION_CALENDAR_2026-09-17.md) — **HARD 1-week deadline Thu 2026-09-24 Asia/Dubai (GST).** This **replaces** any 3-week implication.
 
-**Method:** each finding F01–F21 and go-live §5 was re-read on **current HEAD**, not only at `c04028c`. A finding is **not** marked resolved because nearby files changed. Resolution requires the verification criterion below.
+**Method:** each finding F01–F21 and go-live §5 was re-read on **current HEAD**, not only at `c04028c`. A finding is **not** marked resolved because nearby files changed. Resolution requires the verification criterion below. F01 and F02 are **merged on HEAD**; remaining P0 this week is deploy + F03/F05/F04 + kit + §5 (see calendar).
 
-**Commits after the reviewed snapshot:** only four — PR #54 `lvn_fill_reject` (`405beef`), PR #55 `inside_bar_break_fail` (`20e4313`), PR #56 `thrust_bar_fail_reversion` (`44a6a3f`), and the review document itself (`1c9f857`). Those add sleeves and the review text. They do **not** repair execution, ledger, walk-forward, go-live, or worker-delivery paths. PR #51/#52 (regime sit-out) are **already inside** `c04028c`; F13 was written against that post-sit-out code.
+**Commits after the reviewed snapshot (material to this reply):** sleeve PRs #54–#57 and the review document (`1c9f857`) did **not** repair execution/ledger/WF. Then: Board response draft #58 (`479b4dc`); **F02 paper cash #59 (`b3a606a`)**; **F01 OOS window #60 (`787f7af`)**. PR #51/#52 (regime sit-out) are **already inside** `c04028c`; F13 was written against that post-sit-out code.
 
-**Verdict in one line:** the review’s P0 execution and measurement defects are still open on HEAD. Adopt the repair sequence. Do not adopt the proposed Grokbot worker redesign. Keep live off until Board approval after the P0 gates below. Preserve the paper trading history.
+**Verdict in one line:** F01 and F02 are merged; remaining P0 measurement/execution defects are still open. The Board lock is **one week (complete by 24 Sep GST)**, not a three-week sequence. Do not adopt the proposed Grokbot worker redesign. Keep live off. Preserve the paper trading history. No new `approved=true` until the revalidation kit is green.
+
+---
+
+## Board lock — 1-week calendar (replaces any 3-week read)
+
+**HARD deadline: Thursday 2026-09-24, end of Asia/Dubai (GST).** This is **not** a three-week program. Review §9’s eight sequential packages and this memo’s earlier “sequence is acceptance gates, not a calendar” wording are **superseded**. Missing a mid-week day does not slide 24 Sep.
+
+Full day plan and verification-report checklist: [`docs/BOARD_REMEDIATION_CALENDAR_2026-09-17.md`](BOARD_REMEDIATION_CALENDAR_2026-09-17.md).
+
+**DONE this week (P0 only):**
+
+- F01 OOS window: **MERGED** (#60)
+- F02 paper cash: **MERGED** (#59)
+- F03 fees/funding: merge + deploy by **Fri 2026-09-18**
+- F05 exit supervision under halt / empty plan
+- F04 research/paper execution contract + golden tape
+- Revalidation kit keyed to `RESEARCH_VERSION wf-f01-oos-window-v1`; re-run ATR BTC/ETH 4h SHORT + doji SOL 1h SHORT; report deltas; **no new `approved=true` until kit green**
+- §5 promotion gate **fails closed**
+- History preserved; live off
+
+| GST date | Work |
+|---|---|
+| Thu 17 | F03 PR; **deploy F01/F02** |
+| Fri 18 | F03 merge/deploy; start F05 |
+| Sat–Sun 19–20 | F05 land; F04 + kit scaffold |
+| Mon–Tue 21–22 | F04 golden tape; kit revalidation runs |
+| Wed 23 | §5 gate PR; evidence pack draft |
+| Thu 24 | **Board complete** / verification report |
+
+P1 F10–F21: after the week gate unless free parallel capacity that does not steal F03/F05/F04/kit/§5 owners. F06–F09 remain P0; they do **not** extend this deadline.
 
 ---
 
@@ -47,10 +78,13 @@ The named seats (Mukanya, Chiremba, Tsuro, Marcus, Munha, Hammer, John) are the 
 
 | Classification | IDs |
 |---|---|
-| **AGREE still open** | F01, F02, F03, F04, F05, F06, F07, F08, F09, F10, F11, F12, F14, F15, F16, F17, F18, F19, F20, F21, §5 |
+| **MERGED on HEAD this week (deploy still in the 1-week DONE)** | F01 (#60 `787f7af`), F02 (#59 `b3a606a`) |
+| **AGREE still open — in this week’s DONE** | F03, F04, F05, §5 (plus kit revalidation; no new `approved=true` until kit green) |
+| **AGREE still open — P0, not in this week’s DONE** | F06, F07, F08, F09 (must not slide 24 Sep) |
+| **AGREE still open** | F10, F11, F12, F14, F15, F16, F17, F18, F19, F20, F21 |
 | **AGREE still open, with a policy caveat** | F13 (paper defects still open; live/testnet sit-out bypass is explicit product policy while live is off) |
-| **AGREE partially mitigated since `c04028c`** | none — no P0/P1 path was repaired after the review commit |
-| **ALREADY RESOLVED since `c04028c`** | none |
+| **AGREE partially mitigated since `c04028c`** | F01, F02 — code merged; paper-box deploy and kit revalidation remain |
+| **ALREADY RESOLVED since `c04028c`** | none — F01/F02 are merged, not Board-closed until deploy + kit rules in the calendar |
 | **DISAGREE** | review §8 worker-org redesign; “Grokbot may modify these components” as an in-repo gap |
 | **NEED MORE EVIDENCE** | the seven paper trades (review §6/§12); deployed `.env` / commit / `data/firm.db` from the running box |
 
@@ -64,9 +98,9 @@ Priority labels are the review’s. Owner names are the actual org seats.
 
 | | |
 |---|---|
-| **Classification** | **AGREE still open** |
-| **HEAD evidence** | `research/walkforward.py` 309, 361–362, 398–400, 410–420. `_slice_with_warmup()` prepends 300 bars. `walk_forward()` passes that whole frame to `BacktestEngine.run()` with **no eligible-entry cutoff**. Comment at 415–416 still relies on each strategy’s `min_bars`. ATR channel `min_bars = max(ema+5, atr+40) = 54` (`core/strategy/atr_channel_breakout.py` 47). Doji `min_bars = 12` (`core/strategy/doji_star_reversal.py` 31). Default `max_holding_bars = 96` is documented as “96 × 15m = 24h” (`core/strategy/base.py` 91) which is false on 4h (16 days). Inclusive `searchsorted(..., side="right")` endpoints (419–420) still share fold boundaries. |
-| **Since `c04028c`** | none |
+| **Classification** | **MERGED on HEAD** (#60 `787f7af`). Remaining this week: **deploy** + kit revalidation keyed to `wf-f01-oos-window-v1`. Not Board-closed until those calendar items. |
+| **HEAD evidence** | Repair is on HEAD: `BacktestEngine.run(..., tradable_start=, tradable_end=)` skips fills outside half-open `[test_start, test_end)`; warmup still seeds indicators; `RESEARCH_VERSION = "wf-f01-oos-window-v1"`; `assert_oos_ledger_invariants()`. Pre-#60 defect (review): warmed slice had no entry cutoff; ATR `min_bars=54`, doji `min_bars=12`. |
+| **Since `c04028c`** | **PR #60 merged.** Stored `approved_strategies.json` rows are **not** rewritten. No new `approved=true` until the kit is green. |
 | **Owner** | Munha (research) + Hammer (independent replay) |
 | **Corrective action** | Pass an explicit `test_start` into the engine (or filter trades). Indicators may use the prefix; **no fill with `entry_time < test_start` may enter the OOS ledger**. Use half-open windows; define boundary exits and carry. Bump research version; revalidate surviving candidates. |
 | **Verification** | Regression: synthetic ATR, 7 folds, **zero** OOS entries before each fold’s `test_start`; no duplicate trade identities across folds. Re-run ATR BTC/ETH 4h SHORT and doji SOL 1h SHORT under the new version and show the delta vs stored `oos_*` fields. |
@@ -75,9 +109,9 @@ Priority labels are the review’s. Owner names are the actual org seats.
 
 | | |
 |---|---|
-| **Classification** | **AGREE still open** |
-| **HEAD evidence** | `core/execution/paper.py` 80–108: `hydrate()` restores positions, **explicitly leaves cash at starting equity**. Comment 85–86 claims fees “already sit in the trade history” — they do not for open positions, and closed-trade ledger fees are incomplete (F03). `core/execution/engine.py` 1200–1202: `build_engine()` constructs a **new** `PaperBroker(starting_equity=...)` then hydrates. Existing test `tests/test_execution.py` 322–344 only asserts positions reappear, **not** cash. |
-| **Since `c04028c`** | none |
+| **Classification** | **MERGED on HEAD** (#59 `b3a606a`). Remaining this week: **deploy** the cash journal with the paper box. Do **not** wipe `data/firm.db`. |
+| **HEAD evidence** | Repair is on HEAD: append-only `data/paper_cash.json` (`PaperCashStore`); `hydrate()` replays the event ledger then overlays open SQLite rows. Pre-#59 defect (review): new `PaperBroker(starting_equity=...)` then hydrate restored positions only, cash jumped back to start. F03 still omits entry fees from the trade table — first deploy seeds capital at starting equity; that is expected, not a ledger reset. |
+| **Since `c04028c`** | **PR #59 merged.** Journal is gitignored; back it up with `firm.db`. |
 | **Owner** | John / Eng |
 | **Corrective action** | Persist cash (and entry fees on open positions) in a replayable event ledger. Restart with the same marks must leave cash, equity, and exposure unchanged. Do **not** wipe `data/firm.db` to “fix” this. |
 | **Verification** | Round-trip then reconstruct+hydrate: cash, `realised_pnl`, `total_fees`, open qty, and ledger equity match pre-restart at identical marks. Include an **open** position with entry fee deducted. |
@@ -86,7 +120,7 @@ Priority labels are the review’s. Owner names are the actual org seats.
 
 | | |
 |---|---|
-| **Classification** | **AGREE still open** |
+| **Classification** | **AGREE still open — in this week’s DONE** (merge + deploy by **Fri 2026-09-18**) |
 | **HEAD evidence** | Paper deducts the entry fee from cash (`paper.py` 250–251) but `_place_order()` never stores it (`engine.py` 1118–1133). `Ledger.open_position()` (`store.py` 52–100) has **no fee field**. `Ledger.close_position()` (`store.py` 102–123) computes `net_pnl = gross_pnl - fees - funding` using only the **exit** `fees=` argument (`engine.py` 1149–1156). Paper never accrues funding (`paper.py` 11–12, no funding path). Research charges both-leg fees **and** funding (`research/engine.py` 433–442). Validation uses `DEFAULT_COSTS.for_symbol(symbol)` (`scripts/validate_strategy.py` 299–304); paper uses unscaled `DEFAULT_COSTS` (`paper.py` 64). |
 | **Since `c04028c`** | none |
 | **Owner** | John / Eng |
@@ -97,7 +131,7 @@ Priority labels are the review’s. Owner names are the actual org seats.
 
 | | |
 |---|---|
-| **Classification** | **AGREE still open** |
+| **Classification** | **AGREE still open — in this week’s DONE** (contract + golden tape by Tue 22) |
 | **HEAD evidence** | Research: next-bar **open**, TP/SL from **slipped fill**, `max_holding_bars`, stop fills **without** extra exit slippage (`research/engine.py` 384–425, 508–520). Runtime: TP/SL from **signal close** (`engine.py` 1011–1018), submit later at **current** price (`paper.py` 181–213), **no** `max_holding` in `_manage_open_positions` (`engine.py` 1135–1159), paper stop check is a **single sampled** `get_price` (`paper.py` 340–370), paper **does** apply exit slippage on SL (`paper.py` 206–213). One position per symbol (`paper.py` 233–234). Signal window is 15 minutes after close (`engine.py` 48, 950–955). |
 | **Since `c04028c`** | none |
 | **Owner** | John / Eng + Munha (contract) |
@@ -108,7 +142,7 @@ Priority labels are the review’s. Owner names are the actual org seats.
 
 | | |
 |---|---|
-| **Classification** | **AGREE still open** (sit-out makes empty-plan exit more likely) |
+| **Classification** | **AGREE still open — in this week’s DONE** (land Sat–Sun 19–20; sit-out makes empty-plan exit more likely) |
 | **HEAD evidence** | Kill switch returns **before** `_manage_open_positions()` (`engine.py` 823–829 vs 860). Empty plan at startup **exits the process** (`scripts/run_paper_trading.py` 160–163) after hydrate. Halted cycle **breaks** the loop (203–209). Paper sit-out can omit every entry (`engine.py` 334–375) while comments claim “Open positions are still managed” (`engine.py` 117–118) — true only if the process stays in `run_cycle`. |
 | **Since `c04028c`** | none (sit-out already in reviewed commit via #51/#52) |
 | **Owner** | John / Eng + Tsuro (ops) |
@@ -295,7 +329,7 @@ Priority labels are the review’s. Owner names are the actual org seats.
 
 ## 4. Go-live §5 — still not a sufficient gate
 
-**Classification: AGREE still open.** Source on HEAD: `scripts/check_go_live.py` (unchanged since `c04028c`).
+**Classification: AGREE still open — in this week’s DONE (PR Wed 23; must fail closed by Thu 24).** Source on HEAD: `scripts/check_go_live.py` (unchanged since `c04028c`).
 
 | Review claim | HEAD evidence | Still true? |
 |---|---|---|
@@ -335,8 +369,8 @@ Priority labels are the review’s. Owner names are the actual org seats.
 
 ### Adopt (repair the measurement/execution system)
 
-- Work packages 1–4 and 6 in review §9, mapped to actual owners (see §6 below): cash/fees/funding; order/exit state machine; exit supervision under halt; OOS boundary + research/paper parity; honest promotion gate.
-- Revalidate the **narrow** candidate set (ATR BTC/ETH 4h SHORT, doji SOL 1h SHORT) only after F01/F04 are proven.
+- **This week’s P0 DONE only** (see calendar): F01/F02 already merged; F03 by Fri 18; F05; F04 + golden tape; kit revalidation (`wf-f01-oos-window-v1`); §5 fails closed. Do **not** adopt review §9 as an eight-package / multi-week schedule.
+- Revalidate the **narrow** candidate set (ATR BTC/ETH 4h SHORT, doji SOL 1h SHORT) under `wf-f01-oos-window-v1` this week. **No new `approved=true` until the kit is green.**
 - Three operator scorecards (reliability / investment / organization economics) — useful, and they match Hammer + Tsuro + Brian.
 - Do not tune seven paper trades into seven historical winners.
 
@@ -352,21 +386,27 @@ Priority labels are the review’s. Owner names are the actual org seats.
 
 ---
 
-## 6. P0 repair order (live off, history preserved)
+## 6. P0 repair order — compressed to the 1-week Board lock
 
-Sequence is acceptance gates, not a calendar. Live remains off at every step.
+**Superseded:** “Sequence is acceptance gates, not a calendar,” and any 3-week read of review §9.  
+**In force:** [`docs/BOARD_REMEDIATION_CALENDAR_2026-09-17.md`](BOARD_REMEDIATION_CALENDAR_2026-09-17.md). **HARD complete by Thu 2026-09-24 GST.** Live remains off at every step.
 
-| Order | Package | Owner | Unblocks | Acceptance (must pass before the next step) |
+Acceptance criteria below still apply. They are **not** a license to serialize this into three weeks. This week’s DONE is F01 (merged) + F02 (merged) + F03 deploy by Fri 18 + F05 + F04 + kit + §5 fail-closed. F06–F09 and P1 F10–F21 do not extend 24 Sep.
+
+| Order | Package | Owner | This week? | Acceptance |
 |---|---|---|---|---|
-| 0 | **Archive, don’t erase.** Export `firm.db` + WAL, logs, deployed commit, sanitized config. Identify the seven trades if present. | Tsuro + Hammer | All later diagnosis | Byte-stable backup; seven trades labeled or documented missing; no DROP/truncate of `trades` / `positions` / `equity_snapshots`. |
-| 1 | **Exit supervision under halt / empty plan** (F05, overlap F15 stop path) | John + Tsuro | Existing paper book is safe while we repair | Tests: kill switch and empty plan still run `check_stops`; process does not exit with open paper positions. |
-| 2 | **Cash, fees, funding ledger** (F02, F03, F19 snapshot fields) | John | Trustworthy paper P&L | Restart invariance; cash == ledger identity; entry fees on open positions; funding events. |
-| 3 | **Order / exit / recon state machine** (F07, F06, F09, F08) | John | No phantom fills/closes | Failed close ≠ ledger close; recon exception blocks entries; external close settles once (even though live is off, the code path must be correct). |
-| 4 | **OOS boundaries + execution contract** (F01, F04) | Munha + John + Hammer | Honest candidate evidence | Zero warm-up OOS entries; research/paper golden tape; then **revalidate** ATR/doji only. |
-| 5 | **Promotion gate** (§5, F17 serialize) | Hammer + Marcus + Munha | Cannot print READY by accident | Paper ledger always; rejected OOS excluded; missing DD fails; tripped KS fails; min paper trades + expectancy. |
-| 6 | **Advice / cooldown / identity / allocation measurement** (F13–F16, F18, F20, F21, F10–F12) | Mixed (see table) | After P0, not instead of it | Per-finding verification above. Global sit-out (F14) should be pulled forward if the desk needs a working “everyone flat” switch. |
+| 0 | **Archive, don’t erase.** Export `firm.db` + WAL + `paper_cash.json`, logs, deployed commit, sanitized config. | Tsuro + Hammer | **Thu 17 with F01/F02 deploy** | Byte-stable backup; no DROP/truncate of `trades` / `positions` / `equity_snapshots`. |
+| 1 | **F01 OOS window** | Munha + Hammer | **MERGED #60; deploy Thu 17** | Zero warm-up OOS entries; version `wf-f01-oos-window-v1`. |
+| 2 | **F02 paper cash** | John | **MERGED #59; deploy Thu 17** | Restart invariance at identical marks. Do not wipe `firm.db`. |
+| 3 | **F03 fees / funding** | John | **Merge + deploy Fri 18** | Cash == ledger identity; entry fees on open positions; funding events. |
+| 4 | **F05 exit supervision under halt / empty plan** | John + Tsuro | **Start Fri 18; land Sat–Sun 19–20** | Kill switch and empty plan still run `check_stops`; process does not exit with open paper positions. |
+| 5 | **F04 execution contract + golden tape** | John + Munha | **Scaffold Sat–Sun; tape Mon–Tue 21–22** | Identical candles → identical fills/exits/costs/P&L; timeout at `max_holding_bars`. |
+| 6 | **Revalidation kit** | Munha + Hammer | **Scaffold Sat–Sun; runs Mon–Tue 21–22** | Keyed to `wf-f01-oos-window-v1`; ATR BTC/ETH 4h SHORT + doji SOL 1h SHORT deltas; **no new `approved=true` until kit green**. |
+| 7 | **§5 promotion gate** | Hammer + Marcus + Munha | **PR Wed 23; Board complete Thu 24** | Fails closed: paper ledger always; rejected OOS excluded; missing DD fails; tripped KS fails. |
+| — | **F06–F09 order/exit/recon** | John | **Not in week DONE** | Still P0; do not steal the week to finish these; do not slide 24 Sep. |
+| — | **P1 F10–F21** | Mixed | **After week gate** unless free parallel capacity | Per-finding verification above. |
 
-**Explicit non-goals until Board approval:** `TRADING_MODE=live`, `GO_LIVE_CONFIRMED`, Bybit live keys, pooling overrides with approved sleeves, auto-advance on, wiping paper history, promoting any employee above L1.
+**Explicit non-goals until Board approval:** `TRADING_MODE=live`, `GO_LIVE_CONFIRMED`, Bybit live keys, pooling overrides with approved sleeves, auto-advance on, wiping paper history, promoting any employee above L1, new `approved=true` before the kit is green.
 
 ---
 
@@ -376,7 +416,7 @@ From the running paper box, not from git:
 
 1. `data/firm.db` backup including WAL.
 2. Trading log covering the reported seven trades.
-3. Deployed commit SHA vs this HEAD (`1c9f857`).
+3. Deployed commit SHA vs this HEAD (`787f7af`) and subsequent F03/F05/F04/§5 merges.
 4. Sanitized `.env`: `TRADING_MODE`, `PIPELINE_AUTO_ADVANCE`, `GO_LIVE_CONFIRMED` empty, no keys.
 5. Runtime `approved_strategies.json`, `last_cycle.json`, Soko/sentiment files.
 
@@ -384,4 +424,4 @@ Until those arrive, the seven-trade story stays **user-reported**. Code on HEAD 
 
 ---
 
-*Draft for Brian. Not a code change. Not a go-live recommendation.*
+*Draft for Brian. Calendar lock is 1 week (by 24 Sep GST), not 3. Not a go-live recommendation. Live stays off.*
