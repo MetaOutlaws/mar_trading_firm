@@ -533,6 +533,10 @@ def risk() -> dict[str, Any]:
             "take_profit": p.take_profit_price,
             "stop_loss": p.stop_loss_price,
             "strategy": p.strategy,
+            "timeframe": getattr(p, "timeframe", "") or "",
+            "max_holding_bars": int(getattr(p, "max_holding_bars", 0) or 0),
+            "execution_contract": getattr(p, "execution_contract", "") or "",
+            "expiry_at": p.expiry_at.isoformat() if getattr(p, "expiry_at", None) else None,
             "opened_at": p.opened_at.isoformat() if p.opened_at else None,
             "agents": p.contributing_agents,
         }

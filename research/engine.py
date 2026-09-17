@@ -21,6 +21,10 @@ against gaps.
 
 **Full cost charging.** Taker fees both legs, slippage both legs, and funding
 for every 8-hour settlement inside the holding period.
+
+Fill timing, TP/SL origin, holding expiry and stop-slippage live in
+``core.execution.contract`` (F04). This engine is the research implementation
+of that contract; ``core.execution.replay.run_paper_replay`` is the paper one.
 """
 
 from __future__ import annotations
@@ -28,25 +32,32 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 
 import numpy as np
 import pandas as pd
 
 from core.data.funding import FundingHistory
+from core.execution.contract import (
+    ExitReason,
+    exit_fill_price,
+    fill_in_tradable_window,
+    find_exit_on_path,
+    risk_levels,
+)
 from core.strategy.base import SignalSide, Strategy
 from research.costs import DEFAULT_COSTS, CostModel
 
 logger = logging.getLogger(__name__)
 
-
-class ExitReason(str, Enum):
-    """Why a position was closed."""
-
-    TAKE_PROFIT = "take_profit"
-    STOP_LOSS = "stop_loss"
-    TIMEOUT = "timeout"
-    END_OF_DATA = "end_of_data"
+# Re-exported so walk-forward, tests and the golden tape keep a stable import.
+__all__ = [
+    "BacktestConfig",
+    "BacktestEngine",
+    "BacktestResult",
+    "ExitReason",
+    "Trade",
+    "fill_in_tradable_window",
+]
 
 
 @dataclass
@@ -314,25 +325,6 @@ class BacktestResult:
         )
 
 
-def fill_in_tradable_window(
-    fill_time: datetime | pd.Timestamp,
-    tradable_start: datetime | pd.Timestamp | None,
-    tradable_end: datetime | pd.Timestamp | None,
-) -> bool:
-    """Whether an entry fill belongs in a half-open `[start, end)` window.
-
-    `None` on a bound means that side is unbounded. Walk-forward passes the
-    fold's train/test edges so warmup bars can seed indicators without
-    becoming fills (F01).
-    """
-    stamp = pd.Timestamp(fill_time)
-    if tradable_start is not None and stamp < pd.Timestamp(tradable_start):
-        return False
-    if tradable_end is not None and stamp >= pd.Timestamp(tradable_end):
-        return False
-    return True
-
-
 class BacktestEngine:
     """Simulates a single strategy on a single symbol."""
 
@@ -435,16 +427,13 @@ class BacktestEngine:
                 break
             quantity = notional / entry_price
 
-            # ---- target levels off the actual fill -----------------------
-            if side is SignalSide.LONG:
-                take_profit = entry_price * (1.0 + take_profit_pct)
-                stop_loss = entry_price * (1.0 - stop_loss_pct)
-            else:
-                take_profit = entry_price * (1.0 - take_profit_pct)
-                stop_loss = entry_price * (1.0 + stop_loss_pct)
+            # ---- target levels off the actual fill (F04 contract) --------
+            take_profit, stop_loss = risk_levels(
+                entry_price, side, take_profit_pct, stop_loss_pct
+            )
 
             # ---- walk forward to an exit ---------------------------------
-            exit_bar, exit_quote, reason = self._find_exit(
+            exit_bar, exit_quote, reason = find_exit_on_path(
                 entry_bar=entry_bar,
                 total_bars=total_bars,
                 side=side,
@@ -455,13 +444,10 @@ class BacktestEngine:
                 take_profit=take_profit,
                 stop_loss=stop_loss,
                 max_holding=max_holding,
+                pessimistic_intrabar=config.pessimistic_intrabar,
             )
 
-            exit_price = (
-                costs.exit_price(exit_quote, side.value)
-                if reason not in (ExitReason.STOP_LOSS,)
-                else exit_quote  # stop fills already reflect the adverse level
-            )
+            exit_price = exit_fill_price(costs, exit_quote, side, reason)
 
             # ---- P&L -----------------------------------------------------
             if side is SignalSide.LONG:
@@ -531,76 +517,6 @@ class BacktestEngine:
             equity_curve=equity_curve,
             signals_generated=signal_count,
         )
-
-    def _find_exit(
-        self,
-        *,
-        entry_bar: int,
-        total_bars: int,
-        side: SignalSide,
-        opens: np.ndarray,
-        highs: np.ndarray,
-        lows: np.ndarray,
-        closes: np.ndarray,
-        take_profit: float,
-        stop_loss: float,
-        max_holding: int,
-    ) -> tuple[int, float, ExitReason]:
-        """Locate the exit bar, fill price and reason.
-
-        Resolution order within a bar, most to least adverse:
-          1. Gap through the stop at the open -> fill at the open.
-          2. Both TP and SL inside the bar's range -> assume the stop
-             (`pessimistic_intrabar`).
-          3. Stop touched -> fill at the stop level.
-          4. Target touched -> fill at the target level.
-        """
-        pessimistic = self.config.pessimistic_intrabar
-        last_bar = min(entry_bar + max_holding, total_bars - 1)
-
-        for bar in range(entry_bar, last_bar + 1):
-            bar_open = opens[bar]
-            bar_high = highs[bar]
-            bar_low = lows[bar]
-
-            if side is SignalSide.LONG:
-                # A gap below the stop fills at the open, not the stop.
-                if bar > entry_bar and bar_open <= stop_loss:
-                    return bar, bar_open, ExitReason.STOP_LOSS
-
-                hit_stop = bar_low <= stop_loss
-                hit_target = bar_high >= take_profit
-
-                if hit_stop and hit_target:
-                    if pessimistic:
-                        return bar, stop_loss, ExitReason.STOP_LOSS
-                    return bar, take_profit, ExitReason.TAKE_PROFIT
-                if hit_stop:
-                    return bar, stop_loss, ExitReason.STOP_LOSS
-                if hit_target:
-                    return bar, take_profit, ExitReason.TAKE_PROFIT
-            else:
-                # A gap above the stop fills at the open.
-                if bar > entry_bar and bar_open >= stop_loss:
-                    return bar, bar_open, ExitReason.STOP_LOSS
-
-                hit_stop = bar_high >= stop_loss
-                hit_target = bar_low <= take_profit
-
-                if hit_stop and hit_target:
-                    if pessimistic:
-                        return bar, stop_loss, ExitReason.STOP_LOSS
-                    return bar, take_profit, ExitReason.TAKE_PROFIT
-                if hit_stop:
-                    return bar, stop_loss, ExitReason.STOP_LOSS
-                if hit_target:
-                    return bar, take_profit, ExitReason.TAKE_PROFIT
-
-        # Neither level touched inside the holding window.
-        reason = (
-            ExitReason.TIMEOUT if last_bar < total_bars - 1 else ExitReason.END_OF_DATA
-        )
-        return last_bar, closes[last_bar], reason
 
     def _empty_result(self, symbol: str, strategy: Strategy) -> BacktestResult:
         return BacktestResult(

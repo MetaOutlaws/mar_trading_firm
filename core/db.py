@@ -160,8 +160,14 @@ def _migrate_sqlite_columns() -> None:
             "severity_promoted": "BOOLEAN DEFAULT 0",
         },
         # F03: entry fee on the open row so TradeRecord can sum both legs.
+        # F04: execution-contract identity (version, params, clock, expiry).
         "positions": {
             "entry_fee": "FLOAT DEFAULT 0.0",
+            "execution_contract": "VARCHAR(64) DEFAULT ''",
+            "strategy_params": "TEXT DEFAULT '{}'",
+            "timeframe": "VARCHAR(16) DEFAULT ''",
+            "max_holding_bars": "INTEGER DEFAULT 0",
+            "expiry_at": "DATETIME",
         },
         "trades": {
             "entry_fees": "FLOAT DEFAULT 0.0",

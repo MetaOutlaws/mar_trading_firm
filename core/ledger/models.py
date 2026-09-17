@@ -83,6 +83,15 @@ class Position(Base):
     #: Indicator readings at entry, for post-trade analysis.
     entry_indicators: Mapped[dict] = mapped_column(JSON, default=dict)
 
+    # F04 execution-contract identity. Research compared paper against a
+    # backtest that knew version, params, clock and expiry; the open row
+    # used to store only the strategy name.
+    execution_contract: Mapped[str] = mapped_column(String(64), default="")
+    strategy_params: Mapped[dict] = mapped_column(JSON, default=dict)
+    timeframe: Mapped[str] = mapped_column(String(16), default="")
+    max_holding_bars: Mapped[int] = mapped_column(Integer, default=0)
+    expiry_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
     trades: Mapped[list["TradeRecord"]] = relationship(back_populates="position")
 
     __table_args__ = (Index("ix_positions_status_mode", "status", "mode"),)
