@@ -191,6 +191,7 @@ CLOCK_BY_FAMILY = {
     "lvn_fill_reject": "4h/4h",
     "inside_bar_break_fail": "4h/4h",
     "thrust_bar_fail_reversion": "4h/4h",
+    "key_reversal_bar": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -239,6 +240,10 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
     # Family id is thrust_bar_fail_reversion only.
     if "thrust_bar_fail" in blob or "thrust bar fail" in blob:
         return "thrust_bar_fail_reversion"
+    # Must beat a generic "reversal" / outside_bar map. Family id is
+    # key_reversal_bar only — not candle_reject_reversal.
+    if "key_reversal_bar" in blob or "key reversal bar" in blob:
+        return "key_reversal_bar"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

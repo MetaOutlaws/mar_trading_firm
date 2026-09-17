@@ -1345,6 +1345,17 @@ def _novel_kit(name: str, side: SignalSide):
             # interior). BOTH with SHORT priority. Fill t+1.
             {"min_thrust_atr": [1.0, 1.5]},
         ),
+        "key_reversal_bar": (
+            "core.strategy.key_reversal_bar",
+            "KeyReversalBarParams",
+            "KeyReversalBarStrategy",
+            # atr_n locked at 20. Reverse body locked
+            # (SHORT close<open / LONG close>open). Close
+            # reverse vs prior close locked. Search
+            # min_break_atr only. Brian YES / Munha stamp —
+            # endpoints [0.2, 0.5], no invented interiors.
+            {"min_break_atr": [0.2, 0.5]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
