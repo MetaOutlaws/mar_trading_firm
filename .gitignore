@@ -30,6 +30,9 @@ data/last_sentiment.json.tmp
 # Live Soko trend hook (example is not required; paper fail-closes if missing).
 data/last_soko_trend.json
 data/last_soko_trend.json.tmp
+# Paper cash / event journal (F02). Back up with firm.db; do not commit.
+data/paper_cash.json
+data/paper_cash.json.tmp
 logs/*.log
 logs/*.log.*
 logs/archive/

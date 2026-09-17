@@ -36,6 +36,7 @@ from config.universe import get_universe, parse_approval_key
 from core.data.ohlcv import TIMEFRAME_DELTAS, BybitOHLCV, closed_candles, normalise_timeframe
 from core.execution.broker import Broker
 from core.execution.paper import PaperBroker
+from core.execution.paper_cash import PAPER_CASH_PATH, PaperCashStore
 from core.ledger.store import Ledger
 from core.risk.engine import RiskDecision, RiskEngine, RiskVerdict, TradeIntent
 from core.risk.killswitch import TripReason
@@ -1188,8 +1189,9 @@ def build_engine(
 
     Paper mode uses the simulated broker and permits unapproved candidates so
     the forward test can gather evidence. Testnet and live use the real broker
-    and require research approval. Paper hydrates the in-memory book from the
-    ledger so a process restart does not trip reconciliation.
+    and require research approval. Paper hydrates cash from the event journal
+    first, then open positions from the SQLite ledger, so a restart does not
+    reset cash or trip reconciliation (F02).
     """
     settings = get_settings()
     mode = settings.trading_mode
@@ -1198,7 +1200,11 @@ def build_engine(
     from core.risk.limits import INITIAL_LIVE_LIMITS, PAPER_LIMITS
 
     if mode is TradingMode.PAPER:
-        broker: Broker = PaperBroker(starting_equity=starting_equity)
+        broker: Broker = PaperBroker(
+            starting_equity=starting_equity,
+            cash_store=PaperCashStore(PAPER_CASH_PATH),
+        )
+        # Restore order lives in PaperBroker.hydrate: cash journal, then rows.
         broker.hydrate(ledger.open_positions())
         limits = PAPER_LIMITS
         plan = build_plan(require_approval=False, candidates=candidates)

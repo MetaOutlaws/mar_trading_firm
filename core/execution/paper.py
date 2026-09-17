@@ -9,6 +9,8 @@ uses. That makes paper results directly comparable to backtest results, which is
 the whole point of the 60-day forward test.
 
 What it does model: slippage, taker fees, TP/SL triggering, position state.
+Cash, realised P&L and the fill event journal persist across process restarts
+(see ``paper_cash.py``). Open positions still come from the SQLite ledger.
 What it does not model: partial fills, order-book depth, exchange outages. The
 Bybit testnet broker covers those; run both.
 """
@@ -27,6 +29,12 @@ from core.execution.broker import (
     InvalidOrder,
     OrderResult,
     PositionSnapshot,
+)
+from core.execution.paper_cash import (
+    KIND_CAPITAL,
+    KIND_CLOSE,
+    KIND_OPEN,
+    PaperCashStore,
 )
 from research.costs import DEFAULT_COSTS, CostModel
 
@@ -60,11 +68,17 @@ class PaperBroker(Broker):
         starting_equity: float = 10_000.0,
         costs: CostModel | None = None,
         data_source: BybitOHLCV | None = None,
+        cash_store: PaperCashStore | None = None,
     ) -> None:
         self.costs = costs or DEFAULT_COSTS
         self._data = data_source or BybitOHLCV()
         self._owns_data_source = data_source is None
+        self._cash_store = cash_store
 
+        #: Constructor argument is the *first* capital contribution only when
+        #: no cash journal exists yet. Restarts replay persisted capital.
+        self._starting_equity = starting_equity
+        self._contributed_capital = starting_equity
         self._cash = starting_equity
         self._positions: dict[str, PaperPosition] = {}
         self._instruments: dict[str, Instrument] = {}
@@ -78,13 +92,23 @@ class PaperBroker(Broker):
             self._data.close()
 
     def hydrate(self, positions: list[object]) -> None:
-        """Restore the in-memory book from ledger rows after a process restart.
+        """Restore cash, then open positions, after a process restart.
 
-        PaperBroker is RAM-only. Without this, a restart shows an empty book
-        against open SQLite rows and reconciliation trips the kill switch.
-        Cash is left at starting equity: paper never deducts notional, only fees,
-        and those fees already sit in the trade history.
+        Restore order (do not invert):
+
+        1. Replay the cash/event ledger. That puts cash, realised P&L, fees
+           and contributed capital back, including entry fees on still-open
+           positions. A missing journal seeds one ``capital`` event from
+           ``starting_equity`` so later fills have a contribution to replay.
+        2. Overlay open SQLite rows onto the RAM book. Paper never deducts
+           notional from cash, so this step must not change cash.
+
+        Without step 1, a restart resets cash to starting equity while the
+        position ledger still shows the closed-trade loss (F02). Without
+        step 2, an empty RAM book against open SQLite rows trips the kill
+        switch.
         """
+        self._restore_cash()
         restored = 0
         for row in positions:
             symbol = str(getattr(row, "symbol", "") or "")
@@ -121,6 +145,36 @@ class PaperBroker(Broker):
     def cash(self) -> float:
         """Realised cash balance, excluding open-position marks."""
         return self._cash
+
+    @property
+    def contributed_capital(self) -> float:
+        """External deposits/withdrawals. Never mixed into realised P&L."""
+        return self._contributed_capital
+
+    def exposure(self, marks: dict[str, float] | None = None) -> float:
+        """Gross notional of open positions at ``marks`` (else live marks)."""
+        total = 0.0
+        for position in self._positions.values():
+            price = (marks or {}).get(position.symbol)
+            if price is None:
+                price = self.get_price(position.symbol) or position.entry_price
+            total += abs(position.quantity * price)
+        return total
+
+    def contribute_capital(self, amount: float) -> None:
+        """Record an external deposit (+) or withdrawal (-), not trading P&L."""
+        if amount == 0.0:
+            return
+        self._cash += amount
+        self._contributed_capital += amount
+        self._record_cash_event(
+            {
+                "kind": KIND_CAPITAL,
+                "amount": amount,
+                "cash_after": self._cash,
+                "contributed_capital": self._contributed_capital,
+            }
+        )
 
     def get_positions(self) -> list[PositionSnapshot]:
         snapshots = []
@@ -249,6 +303,20 @@ class PaperBroker(Broker):
         )
         self._cash -= fee
         self.total_fees += fee
+        self._record_cash_event(
+            {
+                "kind": KIND_OPEN,
+                "symbol": symbol,
+                "side": direction,
+                "quantity": quantity,
+                "fill_price": fill_price,
+                "fee": fee,
+                "notional": notional,
+                "cash_after": self._cash,
+                "realised_pnl": self.realised_pnl,
+                "total_fees": self.total_fees,
+            }
+        )
 
         result = OrderResult(
             success=True,
@@ -292,6 +360,20 @@ class PaperBroker(Broker):
         self._cash += gross_pnl - fee
         self.realised_pnl += gross_pnl - fee
         self.total_fees += fee
+        self._record_cash_event(
+            {
+                "kind": KIND_CLOSE,
+                "symbol": symbol,
+                "side": position.side,
+                "quantity": closing_quantity,
+                "fill_price": fill_price,
+                "fee": fee,
+                "gross_pnl": gross_pnl,
+                "cash_after": self._cash,
+                "realised_pnl": self.realised_pnl,
+                "total_fees": self.total_fees,
+            }
+        )
 
         if closing_quantity >= position.quantity - 1e-12:
             del self._positions[symbol]
@@ -368,6 +450,54 @@ class PaperBroker(Broker):
                 triggered.append((symbol, "take_profit", self.close_position(symbol)))
 
         return triggered
+
+    # -- cash journal ------------------------------------------------------
+    def _restore_cash(self) -> None:
+        """Step 1 of hydrate: replay persisted events or seed starting capital."""
+        if self._cash_store is None:
+            return
+        if self._cash_store.has_events():
+            state = self._cash_store.replay()
+            self._contributed_capital = state.contributed_capital
+            self._cash = state.cash
+            self.realised_pnl = state.realised_pnl
+            self.total_fees = state.total_fees
+            logger.warning(
+                "Paper cash replayed from %s: cash=%.4f realised=%.4f "
+                "fees=%.4f contributed=%.4f (%d events)",
+                self._cash_store.path,
+                self._cash,
+                self.realised_pnl,
+                self.total_fees,
+                self._contributed_capital,
+                len(state.events),
+            )
+            return
+        self._seed_starting_capital()
+
+    def _seed_starting_capital(self) -> None:
+        """First persist: starting equity is a capital contribution, not P&L."""
+        if self._cash_store is None or self._cash_store.has_events():
+            return
+        self._contributed_capital = self._starting_equity
+        self._cash = self._starting_equity
+        self.realised_pnl = 0.0
+        self.total_fees = 0.0
+        self._cash_store.record(
+            {
+                "kind": KIND_CAPITAL,
+                "amount": self._starting_equity,
+                "cash_after": self._cash,
+                "contributed_capital": self._contributed_capital,
+            }
+        )
+
+    def _record_cash_event(self, event: dict) -> None:
+        if self._cash_store is None:
+            return
+        # A fill before hydrate still needs a capital event to replay.
+        self._seed_starting_capital()
+        self._cash_store.record(event)
 
     # -- helpers -----------------------------------------------------------
     @staticmethod
