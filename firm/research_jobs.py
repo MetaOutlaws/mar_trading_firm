@@ -190,6 +190,7 @@ CLOCK_BY_FAMILY = {
     "rolling_va_extreme_reject": "4h/4h",
     "lvn_fill_reject": "4h/4h",
     "inside_bar_break_fail": "4h/4h",
+    "thrust_bar_fail_reversion": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -234,6 +235,10 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
     # is inside_bar_break_fail only — not London ib_fail_reversion.
     if "inside_bar_break_fail" in blob or "inside bar break fail" in blob:
         return "inside_bar_break_fail"
+    # Must beat a generic "thrust" / range_compression_volume_thrust map.
+    # Family id is thrust_bar_fail_reversion only.
+    if "thrust_bar_fail" in blob or "thrust bar fail" in blob:
+        return "thrust_bar_fail_reversion"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

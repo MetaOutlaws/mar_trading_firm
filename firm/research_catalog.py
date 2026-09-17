@@ -1483,6 +1483,50 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "thrust_bar_fail_reversion@4h/4h",
+        "family": "thrust_bar_fail_reversion",
+        "name": "thrust_bar_fail_reversion 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 49,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "AUTHORITATIVE Munha/Garwe stamp for coding only "
+            "(Brian YES already live). Fade a 4h sized thrust "
+            "that breaks the immediate prior high or prior low "
+            "then closes back inside that prior bar. SHORT "
+            "priority: failed upside thrust is the primary "
+            "edge; LONG is the downside mirror. Quant-locked "
+            "grid: prior = bar t-1, thrust/fail = same bar t, "
+            "thrust = (high-low) >= min_thrust_atr * ATR20 AND "
+            "exclusive high/low break of prior (wick counts), "
+            "require_close_inside=True (close back inside "
+            "prior), ATR period=20 known before the signal bar "
+            "(atr.shift(1)), fill t+1 open. SHORT=high[t] > "
+            "prior_high AND prior_low < close[t] < prior_high / "
+            "LONG=low[t] < prior_low AND prior_low < close[t] "
+            "< prior_high. Free search (1 only): min_thrust_atr "
+            "[1.0, 1.5] (endpoints only, same sibling "
+            "float-grid as min_outside_atr / min_mother_atr). "
+            "BOTH sides honest (registered BOTH, not a "
+            "SHORT-only clone). Walk-forward is not started "
+            "from this coding PR. Live stays off. Desk walks "
+            "Job ~151 ONE after merge. Not "
+            "failed_range_break_reversion (119 — rolling "
+            "Donchian), not nr7 / ib / orb fail, not "
+            "outside_bar_fail_reversion, not "
+            "inside_bar_break_fail (family F), not "
+            "expansion_fail_fade (131), not "
+            "candle_reject_reversal, not VP cluster / "
+            "lvn_fill_reject (family E). Hold H&S/asia/wyckoff "
+            "alone. No DOGE/DOT/NEAR/LDO universe adds."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

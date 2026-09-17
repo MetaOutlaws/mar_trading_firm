@@ -1,0 +1,14 @@
+{
+  "family": "thrust_bar_fail_reversion",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "Thrust-bar fail reversion as one 4h BOTH family (SHORT priority). AUTHORITATIVE Munha/Garwe: thrust is range >= k·ATR AND breaks prior high or prior low (wick counts; exclusive one-sided); fail is close back inside the prior bar. Same-bar: prior is t-1, thrust/fail is t. SHORT: high[t] > prior_high AND not low[t] < prior_low AND prior_low < close[t] < prior_high. LONG: low[t] < prior_low AND not high[t] > prior_high AND prior_low < close[t] < prior_high. ATR period locked 20, known before the signal bar (atr.shift(1)). Fill t+1 open. Free search (1 only): min_thrust_atr [1.0, 1.5] (endpoints only, same sibling float-grid as min_outside_atr / min_mother_atr). No volume gate. Not failed_range_break_reversion (119 — rolling N-bar Donchian). Not nr7_fail_reversion (123). Not ib_fail_reversion (124). Not orb_fail_reversion. Not outside_bar_fail_reversion (both rails then next close-inside vs mid). Not inside_bar_break_fail (family F — IB mother wick-fail). Not expansion_fail_fade (131). Not candle_reject_reversal. Not range_compression_volume_thrust (102 — follow). Not atr_open_flush_fade (138). Not engulfing_fail_reversion (126). Not VP cluster / lvn_fill_reject (family E). Do not recode family F. Do not recode spent families 118–150. Do not modify sibling geometry. Hold H&S/asia/wyckoff alone. No DOGE/DOT/NEAR/LDO universe adds.",
+  "summary": "Fade a 4h sized thrust that breaks the prior high or prior low then closes back inside that prior bar (SHORT = failed upside thrust, LONG = failed downside thrust) as one 4h BOTH family with SHORT priority.",
+  "justification": "A locked ATR20 same-bar high/low break of the immediate prior bar, sized by min_thrust_atr, then close back inside that prior bar, is not a rolling Donchian fail, not an NR7 / London-IB / ORB fail, not an outside-bar both-rail next-bar mid-split, not family-F IB-mother wick-fail, not expansion TR+weak-vol, and not a hammer reject or VP cluster.",
+  "written_at": "2026-09-17T00:00:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/thrust_bar_fail_reversion.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not LLM-dump an unverified file. Do not start walk-forward. Do not call mark_done."
+}

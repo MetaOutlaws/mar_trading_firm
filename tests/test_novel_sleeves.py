@@ -144,6 +144,7 @@ APPROVED = [
     "rolling_va_extreme_reject",
     "lvn_fill_reject",
     "inside_bar_break_fail",
+    "thrust_bar_fail_reversion",
 ]
 
 
@@ -10816,6 +10817,410 @@ def test_inside_bar_break_fail_no_lookahead() -> None:
     )
 
 
+def _thrust_bar_fail_reversion_tape(
+    *,
+    long_side: bool,
+    close_inside: bool = True,
+    close_on_rail: bool = False,
+    tiny_thrust: bool = False,
+    wick_only: bool = False,
+    no_break: bool = False,
+    two_sided: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet ATR~1 tape: same-bar high/low break of prior, close back inside.
+
+    Quiet bars sit at 100.5/99.5 so ATR20 stays near 1.0. Prior (t-1) overlaps
+    t-2 one-sided so it is neither an IB mother nor an outside bar. Thrust
+    range is 1.20 so min_thrust_atr=1.0 fires and 1.5 does not. A stale
+    narrow bar keeps NR7 off the thrust. Fire hour is 18:00 UTC so
+    London-close / IB mothers stay dark. Wick-break is the stamped path
+    (close-through is not required).
+    """
+    n = 50
+    fire = 42
+    prior_i = 41
+    t2_i = 40
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    # Stale NR7 so the last-7 window at prior/thrust is not uniquely narrow.
+    high[35] = 100.05
+    low[35] = 99.95
+    close[35] = 100.0
+    open_[35] = 100.0
+    # t-2 vs prior: overlapping one-sided — not inside, not outside.
+    high[t2_i] = 100.50
+    low[t2_i] = 99.80
+    close[t2_i] = 100.10
+    open_[t2_i] = 100.10
+    prior_high = 100.40
+    prior_low = 99.70
+    high[prior_i] = prior_high
+    low[prior_i] = prior_low
+    close[prior_i] = 100.05
+    open_[prior_i] = 100.05
+    thrust_range = 0.80 if tiny_thrust else 1.20
+    if long_side:
+        # DOWN thrust: wick through prior_low only, close back inside prior.
+        # High pins the prior high (not through) so range 1.20 stays one-sided
+        # and the low (99.20) is <1.0 ATR below UTC day-open ~100.
+        t_high = prior_high
+        t_low = t_high - thrust_range
+        high[fire] = t_high
+        low[fire] = t_low
+        open_[fire] = 99.50
+        if two_sided:
+            high[fire] = prior_high + 0.15
+            low[fire] = high[fire] - thrust_range
+            close[fire] = 99.85
+            open_[fire] = 99.50
+        elif no_break:
+            close[fire] = 99.85
+            open_[fire] = 100.00
+            high[fire] = 100.30
+            low[fire] = 99.85
+        elif close_on_rail:
+            close[fire] = prior_low
+            open_[fire] = 99.50
+        elif not close_inside:
+            close[fire] = prior_low - 0.20
+            open_[fire] = 99.80
+        else:
+            # Wick-only and the happy path are the same stamped geometry:
+            # low breaks prior, close sits strictly back inside (below day-open
+            # so utc_day_open_flush_fade LONG stays dark).
+            close[fire] = 99.85
+            open_[fire] = 99.50
+            if wick_only:
+                close[fire] = 99.90
+    else:
+        # UP thrust: wick through prior_high only, close back inside prior.
+        t_low = 99.90
+        t_high = t_low + thrust_range
+        high[fire] = t_high
+        low[fire] = t_low
+        open_[fire] = 100.50
+        if two_sided:
+            low[fire] = prior_low - 0.15
+            high[fire] = low[fire] + thrust_range
+            close[fire] = 100.05
+            open_[fire] = 100.50
+        elif no_break:
+            close[fire] = 100.05
+            open_[fire] = 100.00
+            high[fire] = 100.30
+            low[fire] = 99.85
+        elif close_on_rail:
+            close[fire] = prior_high
+            open_[fire] = 100.50
+        elif not close_inside:
+            close[fire] = prior_high + 0.20
+            open_[fire] = 100.20
+        else:
+            close[fire] = 100.10
+            open_[fire] = 100.50
+            if wick_only:
+                close[fire] = 100.05
+    # Quiet bars after the thrust must not pierce the fire bar (that would
+    # print the opposite one-sided fail on t+1).
+    for i in range(fire + 1, n):
+        high[i] = 100.20
+        low[i] = 99.90
+        close[i] = 100.05
+        open_[i] = 100.05
+    index = _hourly(n)
+    assert int(index[fire].hour) == 18
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    # Prior-day thin extreme so family-E LVN / POC is not the 100-area prior.
+    candles.iloc[0, candles.columns.get_loc("high")] = 96.1
+    candles.iloc[0, candles.columns.get_loc("low")] = 95.9
+    candles.iloc[0, candles.columns.get_loc("close")] = 96.0
+    candles.iloc[0, candles.columns.get_loc("open")] = 96.0
+    candles.iloc[0, candles.columns.get_loc("volume")] = 1.0
+    candles["turnover"] = candles["volume"] * candles["close"]
+    return candles, fire
+
+
+def _assert_thrust_bar_fail_reversion_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """This family is not a clone of Donchian / NR7 / IB / outside fail-reversion."""
+    assert int(
+        _signals("failed_range_break_reversion", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("nr7_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("ib_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("orb_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("outside_bar_fail_reversion", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("outside_bar_reversal", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("inside_bar_break_fail", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("expansion_fail_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("range_compression_volume_thrust", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("atr_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("utc_day_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("engulfing_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("failed_break_reclaim", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("candle_reject_reversal", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("body_efficiency_follow", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(_signals("lvn_fill_reject", candles, side=side)["signal"].iloc[fire]) == 0
+    assert int(
+        _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
+    ) == 0
+    assert int(_signals("sma20_stretch_fade", candles, side=side)["signal"].iloc[fire]) == 0
+
+
+def test_thrust_bar_fail_reversion_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.thrust_bar_fail_reversion import (
+        ATR_N_LOCKED,
+        MIN_THRUST_ATR_GRID,
+        REQUIRE_CLOSE_INSIDE_LOCKED,
+    )
+    from research.validate import strategy_kit
+
+    # Quant lock: search min_thrust_atr only. ATR20 + inside-prior stay fixed.
+    factory, base, space = strategy_kit("thrust_bar_fail_reversion", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.min_thrust_atr == pytest.approx(1.0)
+    assert base.atr_n == ATR_N_LOCKED
+    assert base.require_close_inside is REQUIRE_CLOSE_INSIDE_LOCKED
+    assert space["min_thrust_atr"] == MIN_THRUST_ATR_GRID
+    assert space["min_thrust_atr"] == [1.0, 1.5]
+    assert space["min_thrust_atr"][0] == pytest.approx(1.0)
+    assert space["min_thrust_atr"][-1] == pytest.approx(1.5)
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "require_close_inside" not in space
+    assert "require_close_inside_thrust" not in space
+    assert "max_bars_since_break" not in space
+    assert "lookback" not in space
+    assert "expansion_mult" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_thrust_atr"}
+
+    candles, fire = _thrust_bar_fail_reversion_tape(long_side=True)
+    signals = _signals("thrust_bar_fail_reversion", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "atr",
+        "atr_known",
+        "prior_high",
+        "prior_low",
+        "thrust_high",
+        "thrust_low",
+        "thrust_close",
+        "thrust_range",
+        "thrust_atr",
+        "sized_enough",
+        "broke_up",
+        "broke_down",
+        "close_inside_prior",
+    ):
+        assert column in signals.columns
+    # Not a Donchian / NR7 / outside / expansion clone.
+    assert "range_high" not in signals.columns
+    assert "nr7_high" not in signals.columns
+    assert "expansion_tr" not in signals.columns
+    assert "outside_high" not in signals.columns
+    assert "thrust_mid" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["broke_down"].iloc[fire])
+    assert not bool(signals["broke_up"].iloc[fire])
+    assert bool(signals["sized_enough"].iloc[fire])
+    assert bool(signals["close_inside_prior"].iloc[fire])
+    prior_high = float(signals["prior_high"].iloc[fire])
+    prior_low = float(signals["prior_low"].iloc[fire])
+    thrust_high = float(signals["thrust_high"].iloc[fire])
+    thrust_low = float(signals["thrust_low"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    # Stamp: range ≥ k·ATR AND low breaks prior_low; close back inside prior.
+    assert thrust_low < prior_low
+    assert thrust_high <= prior_high
+    assert close_px > prior_low
+    assert close_px < prior_high
+    assert (thrust_high - thrust_low) >= (1.0 * atr_known)
+    assert (thrust_high - thrust_low) < (1.5 * atr_known)
+    # min_thrust_atr=1.5 needs a wider thrust — search grid matters.
+    tight = factory(replace(base, min_thrust_atr=1.5)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    held, held_fire = _thrust_bar_fail_reversion_tape(long_side=True, close_inside=False)
+    held_sig = _signals("thrust_bar_fail_reversion", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert not bool(held_sig["close_inside_prior"].iloc[held_fire])
+    rail, rail_fire = _thrust_bar_fail_reversion_tape(long_side=True, close_on_rail=True)
+    rail_sig = _signals("thrust_bar_fail_reversion", rail, side=SignalSide.LONG)
+    assert int(rail_sig["signal"].iloc[rail_fire]) == 0
+    # Caller cannot unlock the inside-prior lock.
+    unlocked_inside = factory(replace(base, require_close_inside=False)).generate_signals(
+        rail
+    )
+    assert int(unlocked_inside["signal"].iloc[rail_fire]) == 0
+    wick, wick_fire = _thrust_bar_fail_reversion_tape(long_side=True, wick_only=True)
+    wick_sig = _signals("thrust_bar_fail_reversion", wick, side=SignalSide.LONG)
+    assert int(wick_sig["signal"].iloc[wick_fire]) == 1
+    assert float(wick_sig["thrust_low"].iloc[wick_fire]) < float(
+        wick_sig["prior_low"].iloc[wick_fire]
+    )
+    assert float(wick["close"].iloc[wick_fire]) > float(wick_sig["prior_low"].iloc[wick_fire])
+    both, both_fire = _thrust_bar_fail_reversion_tape(long_side=True, two_sided=True)
+    assert int(
+        _signals("thrust_bar_fail_reversion", both, side=SignalSide.LONG)["signal"].iloc[
+            both_fire
+        ]
+    ) == 0
+    quiet, quiet_fire = _thrust_bar_fail_reversion_tape(long_side=True, no_break=True)
+    assert int(
+        _signals("thrust_bar_fail_reversion", quiet, side=SignalSide.LONG)["signal"].iloc[
+            quiet_fire
+        ]
+    ) == 0
+    tiny, tiny_fire = _thrust_bar_fail_reversion_tape(long_side=True, tiny_thrust=True)
+    assert int(
+        _signals("thrust_bar_fail_reversion", tiny, side=SignalSide.LONG)["signal"].iloc[
+            tiny_fire
+        ]
+    ) == 0
+    # Caller cannot unlock ATR20 — locks stay locked.
+    unlocked = factory(replace(base, atr_n=5)).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert unlocked["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    _assert_thrust_bar_fail_reversion_clear_of_siblings(candles, fire, SignalSide.LONG)
+    # SHORT side does not take the failed downside thrust-break.
+    short_on_down = _signals("thrust_bar_fail_reversion", candles, side=SignalSide.SHORT)
+    assert int(short_on_down["signal"].iloc[fire]) == 0
+    assert int((short_on_down["signal"] == -1).sum()) == 0
+
+
+def test_thrust_bar_fail_reversion_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("thrust_bar_fail_reversion", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_thrust_atr"}
+    assert space["min_thrust_atr"] == [1.0, 1.5]
+    assert "max_bars_since_break" not in space
+
+    candles, fire = _thrust_bar_fail_reversion_tape(long_side=False)
+    signals = _signals("thrust_bar_fail_reversion", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["broke_up"].iloc[fire])
+    assert not bool(signals["broke_down"].iloc[fire])
+    assert bool(signals["close_inside_prior"].iloc[fire])
+    prior_high = float(signals["prior_high"].iloc[fire])
+    prior_low = float(signals["prior_low"].iloc[fire])
+    thrust_high = float(signals["thrust_high"].iloc[fire])
+    thrust_low = float(signals["thrust_low"].iloc[fire])
+    close_px = float(candles["close"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    # Stamp: range ≥ k·ATR AND high breaks prior_high; close back inside prior.
+    assert thrust_high > prior_high
+    assert thrust_low >= prior_low
+    assert close_px < prior_high
+    assert close_px > prior_low
+    assert (thrust_high - thrust_low) >= (1.0 * atr_known)
+    assert (thrust_high - thrust_low) < (1.5 * atr_known)
+    tight = factory(replace(base, min_thrust_atr=1.5)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    held, held_fire = _thrust_bar_fail_reversion_tape(long_side=False, close_inside=False)
+    held_sig = _signals("thrust_bar_fail_reversion", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    _assert_thrust_bar_fail_reversion_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_up = _signals("thrust_bar_fail_reversion", candles, side=SignalSide.LONG)
+    assert int(long_on_up["signal"].iloc[fire]) == 0
+
+
+def test_thrust_bar_fail_reversion_kit_locks() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("thrust_bar_fail_reversion", SignalSide.LONG)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_thrust_atr"}
+    assert space["min_thrust_atr"] == [1.0, 1.5]
+    assert "atr_n" not in space
+    assert "max_bars_since_break" not in space
+    assert "lookback" not in space
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("thrust_bar_fail_reversion")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    assert "SHORT priority" in spec.novel_reason
+    assert "prior" in spec.novel_reason
+    assert "close-through" not in spec.novel_reason
+    assert "breaks prior high or prior low" in spec.novel_reason
+    sleeve = factory(base)
+    assert sleeve.name == "thrust_bar_fail_reversion"
+
+
+def test_thrust_bar_fail_reversion_no_lookahead() -> None:
+    candles, fire = _thrust_bar_fail_reversion_tape(long_side=True)
+    signals = _signals("thrust_bar_fail_reversion", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "thrust_bar_fail_reversion", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["prior_high"].iloc[:cut],
+        truncated["prior_high"],
+        check_names=False,
+    )
+    # Later bars must not rewrite prior range, prior-bar ATR, or the fire.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("thrust_bar_fail_reversion", shocked, side=SignalSide.LONG)
+    assert after["prior_high"].iloc[fire] == pytest.approx(signals["prior_high"].iloc[fire])
+    assert after["prior_low"].iloc[fire] == pytest.approx(signals["prior_low"].iloc[fire])
+    assert after["thrust_close"].iloc[fire] == pytest.approx(signals["thrust_close"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert after["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+    # Fire-bar range cannot lift the ATR used for the size gate (known-before).
+    # Fatten the already-broken rail so the bar stays exclusive one-sided.
+    fat = candles.copy()
+    fat.iloc[fire, fat.columns.get_loc("low")] = 50.0
+    fat.iloc[fire, fat.columns.get_loc("high")] = float(candles["high"].iloc[fire])
+    fat_sig = _signals("thrust_bar_fail_reversion", fat, side=SignalSide.LONG)
+    assert fat_sig["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert fat_sig["prior_high"].iloc[fire] == pytest.approx(signals["prior_high"].iloc[fire])
+    assert fat_sig["prior_low"].iloc[fire] == pytest.approx(signals["prior_low"].iloc[fire])
+    assert fat_sig["thrust_low"].iloc[fire] == pytest.approx(50.0)
+    assert int(fat_sig["signal"].iloc[fire]) == 1
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -10862,6 +11267,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("prior_day_vwap_reject", {"k"}),
         ("lvn_fill_reject", {"touch_tol_atr"}),
         ("inside_bar_break_fail", {"min_mother_atr"}),
+        ("thrust_bar_fail_reversion", {"min_thrust_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -10904,6 +11310,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("prior_day_vwap_reject", {"k"}),
         ("lvn_fill_reject", {"touch_tol_atr"}),
         ("inside_bar_break_fail", {"min_mother_atr"}),
+        ("thrust_bar_fail_reversion", {"min_thrust_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

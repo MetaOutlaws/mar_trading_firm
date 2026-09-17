@@ -1,0 +1,19 @@
+# Proposal: `thrust_bar_fail_reversion`
+
+Thrust-bar fail reversion — a sized bar that breaks the immediate prior high or prior low, then closes back inside that prior bar. SHORT (priority) when an upside thrust fails (high breaks prior high, close back inside prior); LONG when a downside thrust fails (low breaks prior low, close back inside prior). Clock: `4h/4h`. Side: BOTH with SHORT priority. Family id: `thrust_bar_fail_reversion` only. This is a FADE / failed-thrust edge — not a rolling Donchian, not an NR7 / London-IB / ORB box, not family-F IB-mother wick-fail, not an outside-bar both-rail next-bar mid-split, not expansion TR+weak-vol, not a hammer reject, not a VP cluster.
+
+## Coding brief (AUTHORITATIVE Munha/Garwe stamp — Brian YES already live)
+
+- Clock: `4h/4h`
+- Side: `BOTH` (SHORT priority: implement BOTH; walk registration is BOTH, not a SHORT-only clone)
+- Status: Munha/Garwe stamp for coding (do not start walk-forward). Brian YES already live. Live trading stays off. Desk walks Job ~151 ONE after merge.
+- Quant lock: ATR period = 20 LOCKED / not searched; ATR known before the signal bar (`atr.shift(1)`). Prior = immediate previous bar (t-1) LOCKED (not a rolling N-bar Donchian). Thrust/fail = bar t LOCKED: `(high[t]-low[t]) >= min_thrust_atr * ATR20` AND exclusive high/low break of prior (`high[t] > prior_high` XOR `low[t] < prior_low`; wick counts). Fail = close back inside the prior bar (`require_close_inside=True` LOCKED). SHORT = `high[t] > prior_high` AND `prior_low < close[t] < prior_high`. LONG = `low[t] < prior_low` AND `prior_low < close[t] < prior_high`. Free search (1 only): `min_thrust_atr` `[1.0, 1.5]` (endpoints only — same sibling float-grid convention as `outside_bar_fail_reversion.min_outside_atr` / `inside_bar_break_fail.min_mother_atr`; do not invent interiors). Fill at `t+1` open. Family id `thrust_bar_fail_reversion` only. Do not rename free params. Do not clone `failed_range_break_reversion`. Do not recode `lvn_fill_reject` or `inside_bar_break_fail`. Hold H&S/asia/wyckoff families alone. No DOGE/DOT/NEAR/LDO universe adds.
+- Why this is novel: Thrust-bar fail reversion as one 4h BOTH family (SHORT priority). The break is a sized high/low pierce of the *immediate prior bar*, not a rolling Donchian, not NR7 / London IB / ORB, not an IB mother, and not both-rail outside containment. The fail is the same-bar close back inside that prior bar.
+
+## What to write
+
+1. `core/strategy/thrust_bar_fail_reversion.py` — `Strategy` subclass, `name = "thrust_bar_fail_reversion"`.
+2. Signals may use bars `<= t` only; the engine fills at `t+1` open.
+3. Tests: schema, no lookahead (truncation + future shock), LONG downside thrust fail, SHORT upside thrust fail (priority edge), kit lock asserts search only `min_thrust_atr` `[1.0, 1.5]`, ATR20 + require_close_inside locked, sibling-distinction vs `failed_range_break_reversion`, `nr7_fail_reversion`, `ib_fail_reversion`, `orb_fail_reversion`, `outside_bar_fail_reversion`, `inside_bar_break_fail`, `expansion_fail_fade`, `candle_reject_reversal`, `range_compression_volume_thrust`, `atr_open_flush_fade`, `engulfing_fail_reversion`, `failed_break_reclaim`, and `lvn_fill_reject`. Size grid matters (1.0 fires, 1.5 does not on a medium thrust). Wick-break fires. Held close outside prior does not fire. Both-rail outside does not fire.
+4. Distinct from: `failed_range_break_reversion` (119 — do not clone), `nr7_fail_reversion` (123), `ib_fail_reversion` (124), `orb_fail_reversion`, `outside_bar_fail_reversion`, `inside_bar_break_fail` (family F), `expansion_fail_fade`, `candle_reject_reversal`, VP cluster. Do not recode family E `lvn_fill_reject`.
+5. Do not call `firm.cursor_coding.mark_done` (that starts walk-forward). Coding only. Do not edit `config/approved_strategies.json`. Do not loosen research gates / touch `PIPELINE_AUTO_ADVANCE`. Do not empty or revert the `PAPER_SCAN_SLEEVES` blotter fix.
