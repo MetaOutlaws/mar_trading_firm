@@ -146,25 +146,41 @@ def _migrate_sqlite_columns() -> None:
     engine = get_engine()
     if engine.dialect.name != "sqlite":
         return
-    wanted = {
-        "lifecycle": "VARCHAR(16) DEFAULT 'open'",
-        "owner_seat": "VARCHAR(48) DEFAULT ''",
-        "root_cause": "VARCHAR(128) DEFAULT ''",
-        "occurrence_count": "INTEGER DEFAULT 1",
-        "last_seen_at": "DATETIME",
-        "resolved_at": "DATETIME",
-        "timeout_hours": "FLOAT DEFAULT 24.0",
-        "severity_promoted": "BOOLEAN DEFAULT 0",
+    # Per-table columns introduced after the original create_all. SQLite
+    # cannot ALTER in place any other way; ADD COLUMN is additive only.
+    wanted_by_table = {
+        "escalations": {
+            "lifecycle": "VARCHAR(16) DEFAULT 'open'",
+            "owner_seat": "VARCHAR(48) DEFAULT ''",
+            "root_cause": "VARCHAR(128) DEFAULT ''",
+            "occurrence_count": "INTEGER DEFAULT 1",
+            "last_seen_at": "DATETIME",
+            "resolved_at": "DATETIME",
+            "timeout_hours": "FLOAT DEFAULT 24.0",
+            "severity_promoted": "BOOLEAN DEFAULT 0",
+        },
+        # F03: entry fee on the open row so TradeRecord can sum both legs.
+        "positions": {
+            "entry_fee": "FLOAT DEFAULT 0.0",
+        },
+        "trades": {
+            "entry_fees": "FLOAT DEFAULT 0.0",
+            "exit_fees": "FLOAT DEFAULT 0.0",
+        },
     }
     inspector = inspect(engine)
-    if "escalations" not in inspector.get_table_names():
-        return
-    existing = {col["name"] for col in inspector.get_columns("escalations")}
+    tables = set(inspector.get_table_names())
     with engine.begin() as conn:
-        for name, ddl in wanted.items():
-            if name not in existing:
-                conn.execute(text(f"ALTER TABLE escalations ADD COLUMN {name} {ddl}"))
-                logger.info("Migrated escalations.%s", name)
+        for table, wanted in wanted_by_table.items():
+            if table not in tables:
+                continue
+            existing = {col["name"] for col in inspector.get_columns(table)}
+            for name, ddl in wanted.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+                    logger.info("Migrated %s.%s", table, name)
+        if "escalations" not in tables:
+            return
         # Title used to be VARCHAR(200); widen if SQLite stored it that way.
         try:
             conn.execute(text("UPDATE escalations SET lifecycle = 'open' WHERE lifecycle IS NULL OR lifecycle = ''"))

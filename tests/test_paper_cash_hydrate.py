@@ -49,7 +49,8 @@ def _ledger_rows(broker: PaperBroker) -> list[SimpleNamespace]:
             entry_price=snap.entry_price,
             take_profit_price=snap.take_profit,
             stop_loss_price=snap.stop_loss,
-            opened_at=None,
+            opened_at=broker._positions[snap.symbol].opened_at,
+            entry_fee=broker._positions[snap.symbol].entry_fee,
         )
         for snap in broker.get_positions()
     ]
@@ -179,10 +180,11 @@ def test_capital_contributions_stay_separate_from_pnl(prices, cash_store) -> Non
     broker.close_position("BTCUSDT")
 
     assert broker.contributed_capital == pytest.approx(11_000.0)
-    # Both legs of cost leave cash; realised_pnl still follows today's
-    # close-only formula (entry fees are F03). Restart must preserve both.
+    # Both legs of cost leave cash. F03 folds the entry fee into realised
+    # so cash - contributed == realised_pnl on a flat book.
     assert broker.cash == pytest.approx(11_000.0 - 6.0, abs=0.05)
-    assert broker.realised_pnl == pytest.approx(-4.998, abs=0.05)
+    assert broker.realised_pnl == pytest.approx(broker.cash - 11_000.0)
+    assert broker.realised_pnl == pytest.approx(-6.0, abs=0.05)
 
     revived = _restart(broker, prices, cash_store)
     assert revived.contributed_capital == pytest.approx(11_000.0)

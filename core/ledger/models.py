@@ -58,6 +58,10 @@ class Position(Base):
     entry_price: Mapped[float] = mapped_column(Float)
     notional: Mapped[float] = mapped_column(Float)
 
+    #: Taker fee paid on the entry fill. Stored here because TradeRecord is
+    #: written only on close; without this, entry costs vanish from P&L (F03).
+    entry_fee: Mapped[float] = mapped_column(Float, default=0.0)
+
     #: What the strategy expected to pay, for slippage measurement.
     expected_entry_price: Mapped[float] = mapped_column(Float, default=0.0)
 
@@ -121,7 +125,11 @@ class TradeRecord(Base):
     exit_time: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
 
     gross_pnl: Mapped[float] = mapped_column(Float, default=0.0)
+    #: Round-trip fees (entry + exit). Split fields exist so cash can
+    #: reconcile to trade P&L without guessing which leg was stored.
     fees: Mapped[float] = mapped_column(Float, default=0.0)
+    entry_fees: Mapped[float] = mapped_column(Float, default=0.0)
+    exit_fees: Mapped[float] = mapped_column(Float, default=0.0)
     funding: Mapped[float] = mapped_column(Float, default=0.0)
     net_pnl: Mapped[float] = mapped_column(Float, default=0.0)
     return_pct: Mapped[float] = mapped_column(Float, default=0.0)

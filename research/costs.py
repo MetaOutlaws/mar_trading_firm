@@ -30,6 +30,23 @@ logger = logging.getLogger(__name__)
 BYBIT_TAKER_FEE = 0.00055  # 0.055%
 BYBIT_MAKER_FEE = 0.0002  # 0.02%
 
+#: Version stamp for comparison runs (research vs paper). Bump when the
+#: default fee schedule, base slippage, or sector multipliers change.
+COST_MODEL_VERSION = "bybit-linear-v1"
+
+#: Sector liquidity multipliers applied to base slippage by `for_symbol`.
+SLIPPAGE_SECTOR_MULTIPLIER: dict[str, float] = {
+    "majors": 1.0,
+    "layer1": 1.5,
+    "layer2": 2.0,
+    "defi": 2.0,
+    "infra": 2.0,
+    "ai": 2.5,
+    "gaming": 2.5,
+    "memes": 3.0,
+    "emerging": 3.0,
+}
+
 
 @dataclass(frozen=True)
 class CostModel:
@@ -116,18 +133,7 @@ class CostModel:
         from config.universe import get_universe
 
         sector = get_universe().sector_of(symbol)
-
-        multiplier = {
-            "majors": 1.0,
-            "layer1": 1.5,
-            "layer2": 2.0,
-            "defi": 2.0,
-            "infra": 2.0,
-            "ai": 2.5,
-            "gaming": 2.5,
-            "memes": 3.0,
-            "emerging": 3.0,
-        }.get(sector, 2.5)
+        multiplier = SLIPPAGE_SECTOR_MULTIPLIER.get(sector, 2.5)
 
         return CostModel(
             taker_fee=self.taker_fee,
@@ -136,6 +142,28 @@ class CostModel:
             include_funding=self.include_funding,
             default_funding_rate=self.default_funding_rate,
         )
+
+    def snapshot(self, symbol: str | None = None) -> dict[str, object]:
+        """Versioned parameters so paper and research comparison runs match.
+
+        Without ``symbol`` this is the base schedule (the same keys historically
+        written into validation reports). With ``symbol`` slippage is the
+        sector-adjusted figure ``for_symbol`` would use.
+        """
+        model = self.for_symbol(symbol) if symbol else self
+        payload: dict[str, object] = {
+            "version": COST_MODEL_VERSION,
+            "taker_fee": model.taker_fee,
+            "maker_fee": model.maker_fee,
+            "base_slippage": self.slippage,
+            "slippage": model.slippage,
+            "funding_included": model.include_funding,
+            "default_funding_rate": model.default_funding_rate,
+            "round_trip_cost_pct": round(model.round_trip_cost_pct() * 100, 4),
+        }
+        if symbol:
+            payload["symbol"] = symbol
+        return payload
 
 
 #: Baseline assumptions used unless a study overrides them.

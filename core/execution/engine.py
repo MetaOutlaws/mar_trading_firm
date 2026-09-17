@@ -829,6 +829,14 @@ class TradingEngine:
             persist_last_cycle(report, self.plan)
             return report
 
+        # Paper: settle 8h funding into cash before equity/risk see the book,
+        # using the same CostModel.funding_cost research uses (F03).
+        if isinstance(self.broker, PaperBroker):
+            try:
+                self.broker.accrue_funding()
+            except Exception:
+                logger.exception("Paper funding accrual failed; continuing with last cash")
+
         equity = self.broker.get_balance()
         report.equity = equity
 
@@ -1131,6 +1139,7 @@ class TradingEngine:
             broker_order_id=result.order_id,
             contributing_agents=self.active_agent_context,
             entry_indicators=signal.indicators,
+            entry_fee=result.fee or 0.0,
         )
 
     def _manage_open_positions(self) -> int:
@@ -1154,7 +1163,9 @@ class TradingEngine:
                     if reason == "take_profit"
                     else position.stop_loss_price,
                     exit_reason=reason,
-                    fees=result.fee,
+                    entry_fees=float(getattr(position, "entry_fee", 0.0) or 0.0),
+                    exit_fees=result.fee or 0.0,
+                    funding=float(getattr(result, "funding", 0.0) or 0.0),
                 )
                 closed += 1
             return closed
@@ -1171,6 +1182,7 @@ class TradingEngine:
                 exit_price=exit_price,
                 expected_exit_price=exit_price,
                 exit_reason="broker_closed",
+                entry_fees=float(getattr(position, "entry_fee", 0.0) or 0.0),
             )
             logger.info(
                 "%s closed at the exchange (stop or target filled); ledger updated.",
