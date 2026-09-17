@@ -2817,6 +2817,57 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "fail, and not a multi-bar wick reclaim."
         ),
     ),
+    SleeveSpec(
+        name="thrust_bar_fail_reversion",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Thrust-bar fail reversion as one 4h BOTH family "
+            "(SHORT priority). Thrust is bar t-1: directional "
+            "H-L range (close vs open AND close vs mid), sized vs "
+            "ATR20. Fail/reversion is bar t closing strictly "
+            "inside that thrust high-low AND through the thrust "
+            "mid. SHORT: UP thrust then close[t] < mid. LONG: "
+            "DOWN thrust then close[t] > mid. ATR period locked "
+            "20, known before the signal bar (atr.shift(1)). Fill "
+            "t+1 open. Free search (1 only): min_thrust_atr "
+            "[1.0, 1.5] (endpoints only, same sibling float-grid "
+            "as min_outside_atr / min_mother_atr). No volume "
+            "gate. Not expansion_fail_fade (131 — TR expansion + "
+            "weak-vol; inclusive inside; fail need not cross "
+            "mid). Not range_compression_volume_thrust (102 — "
+            "follow squeeze thrust). Not atr_open_flush_fade "
+            "(138 — same-bar bar-open flush). Not "
+            "utc_day_open_flush_fade (139). Not "
+            "outside_bar_fail_reversion. Not "
+            "engulfing_fail_reversion (126). Not "
+            "failed_range_break_reversion (119). Not "
+            "failed_break_reclaim (130). Not ib_fail / "
+            "inside_bar_break_fail / nr7_fail. Not candle_reject "
+            "/ body_efficiency_follow. Not lvn_fill_reject "
+            "(family E). Do not recode family F "
+            "inside_bar_break_fail. Do not recode spent families "
+            "118–150. Do not modify sibling geometry."
+        ),
+        summary=(
+            "Fade a failed 4h directional thrust bar when the "
+            "next close sits strictly back inside that bar and "
+            "through its mid (SHORT = failed up-thrust, LONG = "
+            "failed down-thrust) as one 4h BOTH family with "
+            "SHORT priority."
+        ),
+        justification=(
+            "A locked ATR20 directional H-L thrust at t-1 then "
+            "next-bar strict close-inside through mid, with "
+            "searched min_thrust_atr only and no volume / squeeze "
+            "overlay, is not a true-range expansion-fail, not a "
+            "squeeze-then-volume follow, not a same-bar open "
+            "flush, and not an outside-bar / engulf / Donchian "
+            "fail."
+        ),
+    ),
 ]
 
 

@@ -1331,6 +1331,19 @@ def _novel_kit(name: str, side: SignalSide):
             # convention as min_outside_atr (no invented interior).
             {"min_mother_atr": [0.8, 1.2]},
         ),
+        "thrust_bar_fail_reversion": (
+            "core.strategy.thrust_bar_fail_reversion",
+            "ThrustBarFailReversionParams",
+            "ThrustBarFailReversionStrategy",
+            # atr_n locked at 20. Thrust = directional H-L bar
+            # at t-1 (not TR expansion, not same-bar open flush).
+            # Strict close-inside-thrust + mid-cross fail locked.
+            # Search min_thrust_atr only. Garwe/Munha stamp —
+            # endpoints [1.0, 1.5], same sibling float-grid
+            # convention as min_outside_atr / min_mother_atr
+            # (no invented interior). BOTH with SHORT priority.
+            {"min_thrust_atr": [1.0, 1.5]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
