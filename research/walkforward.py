@@ -19,6 +19,29 @@ The objective function deserves a note. Ranking by profit factor alone rewards a
 itself a 10-trade sample proved a 90% win rate. Here the objective is a
 t-statistic-like quantity, `mean_return * sqrt(n)`, which grows with both edge
 size and sample size, and a hard minimum trade count discards thin samples.
+
+## Fold windows (F01 — OOS warmup)
+
+Every train and test interval is half-open: **start inclusive, end exclusive**.
+`warmup_bars` of history are prepended so indicators can seed. Those prefix
+bars are **not** tradable.
+
+Eligible **entry fill** times (the engine fills at next-bar open):
+
+* Train: ``train_start <= entry_time < train_end``
+* OOS / test: ``test_start <= entry_time < test_end``
+
+A signal on the last warmup bar that fills at `test_start` is a valid OOS
+entry. A fill before `test_start` is a pre-test fill and never enters the OOS
+ledger. A fill at exactly `test_end` belongs to the next fold, not this one.
+
+Strategy `min_bars` only suppresses indicator-warmup *noise*; it is shorter
+than the walk-forward prefix on many sleeves (ATR channel 54, doji star 12,
+default prefix 300) and must not be treated as the OOS trade-start boundary.
+
+**Boundary exits / position carry.** Each fold starts flat. A position opened
+inside the window that has not hit TP/SL by the last bar of the sliced frame
+exits `END_OF_DATA` there. It is not carried into the next fold's ledger.
 """
 
 from __future__ import annotations
@@ -34,12 +57,23 @@ import pandas as pd
 
 from core.data.funding import FundingHistory
 from core.strategy.base import Strategy, StrategyParams
-from research.engine import BacktestConfig, BacktestEngine, BacktestResult, Trade
+from research.engine import (
+    BacktestConfig,
+    BacktestEngine,
+    BacktestResult,
+    Trade,
+    fill_in_tradable_window,
+)
 
 logger = logging.getLogger(__name__)
 
 #: Folds with fewer trades than this are treated as uninformative.
 MIN_TRADES_PER_FOLD = 5
+
+#: Research-run identity for walk-forward semantics. Bump when windowing,
+#: fills, or costs that change OOS interpretation change. Revalidation keys
+#: off this string; F01 gated OOS entries to half-open ``[test_start, test_end)``.
+RESEARCH_VERSION = "wf-f01-oos-window-v1"
 
 
 def objective_t_stat(result: BacktestResult, min_trades: int = MIN_TRADES_PER_FOLD) -> float:
@@ -78,11 +112,29 @@ class Fold:
         """Whether this fold produced a usable out-of-sample measurement."""
         return self.test_result is not None and self.test_result.total_trades > 0
 
+    @property
+    def oos_entry_start(self) -> datetime:
+        """Inclusive start of eligible OOS entry fills."""
+        return self.test_start
+
+    @property
+    def oos_entry_end(self) -> datetime:
+        """Exclusive end of eligible OOS entry fills."""
+        return self.test_end
+
+    def entry_in_oos_window(self, entry_time: datetime) -> bool:
+        """True if `entry_time` is a valid OOS fill for this fold."""
+        return fill_in_tradable_window(entry_time, self.test_start, self.test_end)
+
     def summary(self) -> dict[str, Any]:
         return {
             "fold": self.index,
             "train": f"{self.train_start.date()}..{self.train_end.date()}",
             "test": f"{self.test_start.date()}..{self.test_end.date()}",
+            # Explicit half-open OOS fill window for revalidation / auditors.
+            "oos_entry_window": (
+                f"[{self.test_start.isoformat()}, {self.test_end.isoformat()})"
+            ),
             "best_params": self.best_params,
             "train_trades": self.train_result.total_trades if self.train_result else 0,
             "train_win_rate": round(self.train_result.win_rate, 2) if self.train_result else 0.0,
@@ -105,6 +157,7 @@ class WalkForwardResult:
     strategy: str
     side: str
     folds: list[Fold] = field(default_factory=list)
+    research_version: str = RESEARCH_VERSION
 
     @property
     def oos_trades(self) -> list[Trade]:
@@ -224,6 +277,7 @@ class WalkForwardResult:
             "symbol": self.symbol,
             "strategy": self.strategy,
             "side": self.side,
+            "research_version": self.research_version,
             "folds": len(self.folds),
             "valid_folds": sum(1 for f in self.folds if f.is_valid),
             "oos_trades": self.total_oos_trades,
@@ -256,6 +310,9 @@ def grid_search(
     config: BacktestConfig,
     funding: FundingHistory | None = None,
     objective: Callable[[BacktestResult], float] = objective_t_stat,
+    *,
+    tradable_start: datetime | None = None,
+    tradable_end: datetime | None = None,
 ) -> tuple[StrategyParams, BacktestResult | None, float]:
     """Exhaustively search `search_space` and return the best parameter set.
 
@@ -268,6 +325,8 @@ def grid_search(
         config: Backtest configuration (costs, sizing).
         funding: Funding history for realistic carry.
         objective: Scoring function; higher is better.
+        tradable_start: Inclusive start of eligible train fills (warmup gated).
+        tradable_end: Exclusive end of eligible train fills.
 
     Returns:
         (best_params, best_result, best_score). Score is -inf when nothing
@@ -285,7 +344,14 @@ def grid_search(
     for combination in combinations:
         candidate = replace(base_params, **dict(zip(keys, combination)))
         try:
-            result = engine.run(symbol, candles, strategy_factory(candidate), funding)
+            result = engine.run(
+                symbol,
+                candles,
+                strategy_factory(candidate),
+                funding,
+                tradable_start=tradable_start,
+                tradable_end=tradable_end,
+            )
         except Exception as exc:
             logger.debug("Parameter set %s failed: %s", dict(zip(keys, combination)), exc)
             continue
@@ -324,6 +390,7 @@ def walk_forward(
         test_days: Length of each out-of-sample window; also the roll step, so
             test windows tile the history without overlapping.
         warmup_bars: Bars prepended to each window for indicator warm-up.
+            Indicators may consume this prefix; fills may not.
         funding: Funding history.
         objective: Fold scoring function.
     """
@@ -334,6 +401,7 @@ def walk_forward(
         symbol=symbol,
         strategy=strategy_factory(base_params).name,
         side=side_label,
+        research_version=RESEARCH_VERSION,
     )
 
     if candles.empty:
@@ -376,6 +444,8 @@ def walk_forward(
                 chosen, train_result, score = grid_search(
                     symbol, train_candles, strategy_factory, base_params,
                     search_space, config, funding, objective,
+                    tradable_start=train_start,
+                    tradable_end=train_end,
                 )
                 # A training window that never cleared the trade minimum gives
                 # no basis for choosing parameters, so the fold is discarded
@@ -392,17 +462,28 @@ def walk_forward(
             else:
                 chosen = base_params
                 fold.train_result = engine.run(
-                    symbol, train_candles, strategy_factory(chosen), funding
+                    symbol,
+                    train_candles,
+                    strategy_factory(chosen),
+                    funding,
+                    tradable_start=train_start,
+                    tradable_end=train_end,
                 )
 
             fold.test_result = engine.run(
-                symbol, test_candles, strategy_factory(chosen), funding
+                symbol,
+                test_candles,
+                strategy_factory(chosen),
+                funding,
+                tradable_start=test_start,
+                tradable_end=test_end,
             )
 
         result.folds.append(fold)
         fold_index += 1
         train_start = train_start + test_span  # roll by one test window
 
+    assert_oos_ledger_invariants(result)
     logger.info("%s", result)
     return result
 
@@ -410,11 +491,76 @@ def walk_forward(
 def _slice_with_warmup(
     candles: pd.DataFrame, start: datetime, end: datetime, warmup_bars: int
 ) -> pd.DataFrame:
-    """Slice [start, end] with `warmup_bars` of preceding history attached.
+    """Slice half-open `[start, end)` with `warmup_bars` of preceding history.
 
-    The warm-up prefix is needed for indicators but must not be traded; the
-    strategy's own `min_bars` suppression handles that.
+    The prefix is for indicator seeding only. Eligible fills for this slice
+    are still `[start, end)` -- the engine must be given those bounds; strategy
+    `min_bars` is not a substitute (F01).
     """
-    start_index = candles.index.searchsorted(pd.Timestamp(start))
-    end_index = candles.index.searchsorted(pd.Timestamp(end), side="right")
+    start_index = candles.index.searchsorted(pd.Timestamp(start), side="left")
+    # side="left" at `end` drops a bar whose timestamp equals `end`, which is
+    # the next fold's inclusive start. The previous side="right" closed the
+    # interval and double-counted the boundary bar across adjacent folds.
+    end_index = candles.index.searchsorted(pd.Timestamp(end), side="left")
     return candles.iloc[max(0, start_index - warmup_bars) : end_index]
+
+
+def oos_trade_identity(trade: Trade) -> tuple[str, str, str, float]:
+    """Stable identity used to detect duplicated fold exposure."""
+    side = trade.side.value if hasattr(trade.side, "value") else str(trade.side)
+    return (
+        trade.symbol,
+        side,
+        pd.Timestamp(trade.entry_time).isoformat(),
+        round(float(trade.entry_price), 8),
+    )
+
+
+def assert_oos_ledger_invariants(result: WalkForwardResult) -> None:
+    """Raise if any OOS fill sits outside its fold window or collides with another.
+
+    Called at the end of every walk-forward so a regression cannot silently
+    reintroduce warmup contamination into approval evidence.
+    """
+    seen: dict[tuple[str, str, str, float], int] = {}
+    holding: list[tuple[int, str, str, pd.Timestamp, pd.Timestamp]] = []
+
+    for fold in result.folds:
+        if fold.test_result is None:
+            continue
+        for trade in fold.test_result.trades:
+            if not fold.entry_in_oos_window(trade.entry_time):
+                raise RuntimeError(
+                    f"F01 OOS window violation: fold {fold.index} entry "
+                    f"{pd.Timestamp(trade.entry_time).isoformat()} is outside "
+                    f"[{pd.Timestamp(fold.test_start).isoformat()}, "
+                    f"{pd.Timestamp(fold.test_end).isoformat()})"
+                )
+            identity = oos_trade_identity(trade)
+            if identity in seen:
+                raise RuntimeError(
+                    f"F01 duplicate OOS trade identity {identity} in folds "
+                    f"{seen[identity]} and {fold.index}"
+                )
+            seen[identity] = fold.index
+            holding.append(
+                (
+                    fold.index,
+                    trade.symbol,
+                    identity[1],
+                    pd.Timestamp(trade.entry_time),
+                    pd.Timestamp(trade.exit_time),
+                )
+            )
+
+    for i, (fold_a, symbol_a, side_a, entry_a, exit_a) in enumerate(holding):
+        for fold_b, symbol_b, side_b, entry_b, exit_b in holding[i + 1 :]:
+            if fold_a == fold_b or symbol_a != symbol_b or side_a != side_b:
+                continue
+            # Half-open holding intervals: exit == next entry is adjacent, not overlap.
+            if entry_a < exit_b and entry_b < exit_a:
+                raise RuntimeError(
+                    f"F01 overlapping OOS exposure: fold {fold_a} "
+                    f"[{entry_a.isoformat()}, {exit_a.isoformat()}) vs fold "
+                    f"{fold_b} [{entry_b.isoformat()}, {exit_b.isoformat()})"
+                )

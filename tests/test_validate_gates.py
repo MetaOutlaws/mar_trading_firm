@@ -152,6 +152,7 @@ def test_write_approvals_persists_regime_sitout_metadata(tmp_path) -> None:
     assert rec["activation_mode"] == "regime_gated"
     assert rec["regime_activation_filter"] == []
     assert rec["regime_results"]["bull"]["expectancy_pct"] == -0.2
+    assert rec["research_version"] == "wf-f01-oos-window-v1"
 
 
 def test_symbol_verdict_approved_despite_blocked_regimes() -> None:

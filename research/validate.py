@@ -40,7 +40,7 @@ from core.strategy.rsi_golden_cross import RsiTrendParams, RsiTrendStrategy
 from research.datasets import Period, Regime
 from research.engine import BacktestConfig, BacktestEngine
 from research.significance import SignificanceReport, assess
-from research.walkforward import WalkForwardResult, walk_forward
+from research.walkforward import RESEARCH_VERSION, WalkForwardResult, walk_forward
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +219,7 @@ class SymbolVerdict:
             "side": self.side,
             "strategy": self.strategy,
             "timeframe": self.timeframe,
+            "research_version": RESEARCH_VERSION,
             "approved": self.approved,
             "failures": self.failures,
             "error": self.error,
@@ -1683,6 +1684,10 @@ def write_approvals(verdicts: list[SymbolVerdict], path=APPROVALS_PATH) -> dict[
             ),
             "oos_expectancy_pct": round(wf.oos_expectancy_pct, 4) if wf else 0.0,
             "oos_max_drawdown_pct": round(wf.oos_max_drawdown_pct, 2) if wf else 0.0,
+            # Walk-forward window/fill semantics. Revalidation keys off this.
+            "research_version": (
+                getattr(wf, "research_version", RESEARCH_VERSION) if wf else RESEARCH_VERSION
+            ),
             # Regime sit-outs: paper skips new entries while these are active.
             "regime_results": verdict.regime_results,
             "blocked_regimes": list(verdict.blocked_regimes),
