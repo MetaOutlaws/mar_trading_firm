@@ -51,6 +51,7 @@ Not ``inside_bar_break_fail`` (family F — IB mother wick-fail).
 Not ``thrust_bar_fail_reversion`` (family G / Job 151 — t-1 thrust then close inside prior).
 Not ``key_reversal_bar`` (family H / Job 152 — t-1 extreme + reverse body vs prior close).
 Not ``outside_bar_reversal`` / ``outside_bar_fail_reversion`` (both-rail containment).
+Not ``expansion_fail_fade``. Not ``candle_reject_reversal``.
 Not ``ib_fail_reversion`` / ``nr7_fail_reversion``.
 Not dead VP (``prior_poc_reclaim_fade`` / ``hvn_mean_revert`` /
 ``lvn_fill_reject`` / ``rolling_va_extreme_reject``). Not
