@@ -31,7 +31,13 @@ from datetime import datetime, timezone
 from config.logging_setup import setup_logging
 from config.settings import TradingMode, get_settings
 from core.db import init_db, session_scope
-from core.execution.engine import build_engine
+from core.execution.engine import (
+    PAPER_EXIT_POLL_SECONDS,
+    build_engine,
+    may_break_on_halt,
+    may_stop_for_empty_plan,
+)
+from core.execution.paper import PaperBroker
 from core.ledger.store import Ledger
 from firm.locks import PAPER_PID_PATH, acquire_pidfile, release_pidfile
 
@@ -49,6 +55,48 @@ def _handle_shutdown(signum, _frame) -> None:  # noqa: ANN001
     global _shutdown_requested
     _shutdown_requested = True
     logger.warning("Signal %s received; finishing the current cycle then stopping.", signum)
+
+
+def _open_count(engine) -> int:  # noqa: ANN001
+    """Open exposure the runner must keep supervising. Fail closed."""
+    try:
+        return engine.open_exposure_count()
+    except Exception:
+        logger.exception("Could not count open exposure; assuming the book is live")
+        return 1
+
+
+def wait_for_next_cycle(
+    engine,  # noqa: ANN001
+    interval: int,
+    *,
+    shutdown=None,  # noqa: ANN001
+    sleep=time.sleep,  # noqa: ANN001
+    poll_seconds: int = PAPER_EXIT_POLL_SECONDS,
+) -> None:
+    """Sleep until the next scan, polling paper stops on a tight cadence.
+
+    The scan interval (default 900s) used to be the only TP/SL check. Under
+    halt the process used to ``break`` before the next cycle, so even that
+    check vanished (F05). Keep polling ``supervise_exits`` here so an empty
+    plan or ENTRY_HALT cannot orphan paper stops for a full candle.
+    """
+    if interval <= 0:
+        return
+    is_shutdown = shutdown if shutdown is not None else lambda: _shutdown_requested
+    poll = max(1, min(int(poll_seconds), int(interval)))
+    slept = 0
+    while slept < interval and not is_shutdown():
+        chunk = min(poll, interval - slept)
+        sleep(chunk)
+        slept += chunk
+        if is_shutdown():
+            return
+        try:
+            if isinstance(engine.broker, PaperBroker):
+                engine.supervise_exits()
+        except Exception:
+            logger.exception("Paper exit poll failed; will retry")
 
 
 def parse_args() -> argparse.Namespace:
@@ -158,16 +206,23 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
         logger.warning("Orchestrator unavailable (%s); trading continues without agents.", exc)
 
     if not engine.plan.entries:
-        logger.error("Nothing to trade: the plan is empty. Check config/asset_params.json.")
-        engine.close()
-        return 1
-
-    logger.info("Trading plan (%d pairs):", len(engine.plan.entries))
-    for entry in engine.plan.entries:
-        logger.info(
-            "  %-14s %-6s %-5s %s",
-            entry.symbol, entry.side.value, entry.timeframe, entry.strategy.name,
+        open_n = _open_count(engine)
+        if may_stop_for_empty_plan(plan_empty=True, open_count=open_n):
+            logger.error("Nothing to trade: the plan is empty. Check config/asset_params.json.")
+            engine.close()
+            return 1
+        logger.warning(
+            "Scan plan is empty but %d open position(s) remain; staying up for "
+            "exit supervision (F05). No new entries until a sleeve is eligible.",
+            open_n,
         )
+    else:
+        logger.info("Trading plan (%d pairs):", len(engine.plan.entries))
+        for entry in engine.plan.entries:
+            logger.info(
+                "  %-14s %-6s %-5s %s",
+                entry.symbol, entry.side.value, entry.timeframe, entry.strategy.name,
+            )
 
     cycle = 0
     try:
@@ -201,12 +256,21 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
                         except Exception:
                             logger.exception("Paper cycle could not refill walk-forward slots")
                 if report.halted:
+                    open_n = _open_count(engine)
+                    if may_break_on_halt(halted=True, open_count=open_n):
+                        logger.critical(
+                            "Trading halted and the book is flat: %s. Investigate, then "
+                            "reset the kill switch with scripts/reset_killswitch.py.",
+                            report.halt_reason,
+                        )
+                        break
                     logger.critical(
-                        "Trading halted: %s. Investigate, then reset the kill switch "
-                        "with scripts/reset_killswitch.py.",
+                        "ENTRY_HALT: %s. Entries blocked; exit supervision continues "
+                        "for %d open position(s). Reset the kill switch with "
+                        "scripts/reset_killswitch.py after investigation.",
                         report.halt_reason,
+                        open_n,
                     )
-                    break
             except Exception:
                 logger.exception("Cycle %d failed; continuing to the next cycle.", cycle)
 
@@ -214,10 +278,7 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
                 logger.info("Reached the requested %d cycles; stopping.", args.cycles)
                 break
 
-            slept = 0
-            while slept < args.interval and not _shutdown_requested:
-                time.sleep(min(5, args.interval - slept))
-                slept += 5
+            wait_for_next_cycle(engine, args.interval)
     finally:
         if orchestrator is not None:
             orchestrator.close()
