@@ -1,20 +1,23 @@
 """
-Evaluate every go-live gate against measured data.
+Evaluate every go-live / promotion gate against measured data.
 
 The gates are the product. If any one fails, we stay in paper. This script is
 what the dashboard's go-live panel and a human review both read; it never
-flips TRADING_MODE itself.
+flips TRADING_MODE itself and it never writes ``approved=true``.
+
+§5 (docs/MAR_Trading_Firm_Review_2026-09-12.md, Board DONE): fail closed.
+Rejected OOS is excluded; missing drawdown fails; a tripped kill switch fails;
+paper-ledger evidence is used even when settings say LIVE.
 """
 
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
-from config.settings import PROJECT_ROOT, get_settings
-from config.universe import APPROVALS_PATH, get_universe
+from config.settings import PROJECT_ROOT, TradingMode, get_settings
+from config.universe import APPROVALS_PATH, parse_approval_key
 from core.db import init_db
 from core.ledger.store import Ledger
 from core.risk.killswitch import KillSwitch
@@ -27,29 +30,55 @@ MIN_OOS_TRADES = 300
 MIN_PROFIT_FACTOR = 1.3
 MAX_DRAWDOWN_PCT = 15.0
 MIN_REGIMES = 3
+#: Board §5: promotion needs a real paper sample, not an empty blotter.
+#: Matches research.significance.MIN_SAMPLE_FOR_INFERENCE.
+MIN_PAPER_TRADES = 30
+#: Promotion evidence is always the paper book. LIVE settings must not redirect
+#: this script at live rows (review §5: "under LIVE settings, the claimed paper
+#: checks read live records").
+LEDGER_MODE_PAPER = TradingMode.PAPER.value
 
 
 def _gate(name: str, passed: bool, detail: str, measured: Any = None) -> dict[str, Any]:
     return {"name": name, "passed": passed, "detail": detail, "measured": measured}
 
 
-def evaluate_gates() -> dict[str, Any]:
-    """Return a structured report of every go-live gate."""
-    init_db()
-    settings = get_settings()
-    ledger = Ledger(mode=settings.trading_mode.value)
-    performance = ledger.performance()
-    universe = get_universe()
-    approvals = _load_approvals()
+def evaluate_gates(
+    *,
+    approvals: dict[str, dict[str, Any]] | None = None,
+    ledger: Ledger | None = None,
+    kill_switch: KillSwitch | None = None,
+    performance: dict[str, Any] | None = None,
+    trust_records: list[Any] | None = None,
+) -> dict[str, Any]:
+    """Return a structured report of every go-live gate.
 
+    Optional keyword arguments exist so tests can inject evidence. Production
+    callers (API, ``python scripts/check_go_live.py``, the paper runner) omit
+    them. Injecting a non-paper ledger still fails ``paper_ledger``; paper
+    metrics are then read from a paper ledger so live rows cannot sneak through.
+    """
+    init_db()
+    if approvals is None:
+        approvals = _load_approvals()
+    constructed = Ledger(mode=LEDGER_MODE_PAPER) if ledger is None else ledger
+    paper_ledger_ok = constructed.mode == LEDGER_MODE_PAPER
+    # Paper evidence is always paper-mode, even if a live ledger was injected.
+    evidence = constructed if paper_ledger_ok else Ledger(mode=LEDGER_MODE_PAPER)
+    perf = performance if performance is not None else evidence.performance()
+    kill = kill_switch if kill_switch is not None else KillSwitch()
+    records = trust_records if trust_records is not None else all_records()
+
+    approved = _approved_records(approvals)
     gates: list[dict[str, Any]] = []
 
-    oos_trades = sum(int(v.get("oos_trades") or 0) for v in approvals.values())
+    # Rejected / override OOS must not pad the promotion sample (review §5).
+    oos_trades = sum(int(rec.get("oos_trades") or 0) for rec in approved)
     gates.append(
         _gate(
             "walk_forward_sample",
             oos_trades >= MIN_OOS_TRADES,
-            f"{oos_trades} out-of-sample trades (need >= {MIN_OOS_TRADES})",
+            f"{oos_trades} approved out-of-sample trades (need >= {MIN_OOS_TRADES})",
             oos_trades,
         )
     )
@@ -67,14 +96,7 @@ def evaluate_gates() -> dict[str, Any]:
         )
     )
 
-    pf_values = [
-        v.get("oos_profit_factor")
-        for v in approvals.values()
-        if v.get("approved") and v.get("oos_profit_factor") is not None
-    ]
-    # Portfolio PF is approximated by the trade-weighted approved set; if nothing
-    # is approved the gate fails, which is the correct default.
-    portfolio_pf = _weighted_pf(approvals)
+    portfolio_pf = _weighted_pf(approved)
     gates.append(
         _gate(
             "profit_factor",
@@ -84,28 +106,38 @@ def evaluate_gates() -> dict[str, Any]:
         )
     )
 
-    dd_values = [
-        float(v.get("oos_max_drawdown_pct") or 0.0)
-        for v in approvals.values()
-        if v.get("approved")
-    ]
-    max_dd = max(dd_values) if dd_values else None
-    paper_dd = performance.get("max_drawdown_pct")
+    oos_dd, oos_dd_complete = _max_approved_oos_drawdown(approved)
+    paper_dd = _paper_drawdown_pct(perf)
     dd_ok = (
-        max_dd is not None
-        and max_dd < MAX_DRAWDOWN_PCT
-        and (paper_dd is None or paper_dd < MAX_DRAWDOWN_PCT)
+        oos_dd_complete
+        and oos_dd is not None
+        and oos_dd < MAX_DRAWDOWN_PCT
+        and paper_dd is not None
+        and paper_dd < MAX_DRAWDOWN_PCT
     )
+    dd_detail = (
+        f"validation DD {oos_dd}%, paper DD {paper_dd}% (need < {MAX_DRAWDOWN_PCT}%)"
+    )
+    if not oos_dd_complete:
+        dd_detail = (
+            "missing approved OOS drawdown — fail closed "
+            f"(validation DD {oos_dd}%, paper DD {paper_dd}%)"
+        )
+    elif paper_dd is None:
+        dd_detail = (
+            "missing paper max_drawdown_pct — fail closed "
+            f"(validation DD {oos_dd}%)"
+        )
     gates.append(
         _gate(
             "drawdown",
             bool(dd_ok),
-            f"validation DD {max_dd}%, paper DD {paper_dd}% (need < {MAX_DRAWDOWN_PCT}%)",
-            {"validation": max_dd, "paper": paper_dd},
+            dd_detail,
+            {"validation": oos_dd, "paper": paper_dd, "oos_complete": oos_dd_complete},
         )
     )
 
-    paper_days = _paper_days(ledger)
+    paper_days = _paper_days()
     gates.append(
         _gate(
             "paper_duration",
@@ -115,7 +147,31 @@ def evaluate_gates() -> dict[str, Any]:
         )
     )
 
-    measured_slip = performance.get("measured_slippage_bps")
+    paper_trades = int(perf.get("trades") or 0)
+    gates.append(
+        _gate(
+            "paper_sample",
+            paper_trades >= MIN_PAPER_TRADES,
+            f"{paper_trades} completed paper trades (need >= {MIN_PAPER_TRADES})",
+            paper_trades,
+        )
+    )
+
+    paper_expectancy = _optional_float(perf.get("avg_return_pct"))
+    gates.append(
+        _gate(
+            "paper_expectancy",
+            paper_expectancy is not None and paper_expectancy > 0.0,
+            (
+                f"paper expectancy {paper_expectancy}% per trade (need > 0)"
+                if paper_expectancy is not None
+                else "missing paper expectancy — fail closed"
+            ),
+            paper_expectancy,
+        )
+    )
+
+    measured_slip = perf.get("measured_slippage_bps")
     slip_ok = (
         measured_slip is not None
         and abs(float(measured_slip) - MODELLED_SLIPPAGE_BPS) <= SLIPPAGE_TOLERANCE_BPS
@@ -129,19 +185,27 @@ def evaluate_gates() -> dict[str, Any]:
         )
     )
 
-    kill = KillSwitch()
-    # Presence of a kill-switch file that can trip and refuse a sloppy reset
-    # is verified by unit tests; here we only confirm the mechanism is wired.
+    # Kill switch (KS): a tripped halt fails promotion. Hardcoding True was
+    # the review §5 fail-open. Missing/corrupt state still reads as not
+    # tripped inside KillSwitch.read(); the trip flag is what this gate uses.
+    ks_state = kill.read()
+    ks_tripped = bool(ks_state.tripped)
     gates.append(
         _gate(
-            "kill_switch_wired",
-            True,
-            "Kill switch is file-backed and human-reset-only (see tests/test_risk.py)",
-            {"tripped": kill.is_tripped},
+            "kill_switch",
+            not ks_tripped,
+            (
+                "kill switch is clear"
+                if not ks_tripped
+                else (
+                    f"kill switch TRIPPED ({ks_state.reason.value}: "
+                    f"{ks_state.detail}) — fail closed"
+                )
+            ),
+            {"tripped": ks_tripped, "reason": ks_state.reason.value},
         )
     )
 
-    records = all_records()
     agents_ready = [
         r for r in records if r.level >= STARTING_LEVEL and r.decisions_logged > 0
     ]
@@ -150,11 +214,11 @@ def evaluate_gates() -> dict[str, Any]:
             "agent_track_records",
             len(agents_ready) >= 6,
             f"{len(agents_ready)} employees have a logged track record (need >= 6 at L1+)",
-            [r.agent for r in agents_ready],
+            [getattr(r, "agent", None) for r in agents_ready],
         )
     )
 
-    approved_pairs = universe.approved_pairs
+    approved_pairs = _approved_pairs(approvals)
     gates.append(
         _gate(
             "approved_universe",
@@ -168,6 +232,18 @@ def evaluate_gates() -> dict[str, Any]:
         )
     )
 
+    gates.append(
+        _gate(
+            "paper_ledger",
+            paper_ledger_ok,
+            (
+                f"promotion evidence mode={constructed.mode} "
+                f"(need {LEDGER_MODE_PAPER})"
+            ),
+            constructed.mode,
+        )
+    )
+
     passed = all(g["passed"] for g in gates)
     return {
         "evaluated_at": datetime.now(timezone.utc).isoformat(),
@@ -175,7 +251,9 @@ def evaluate_gates() -> dict[str, Any]:
         "verdict": "READY FOR LIVE" if passed else "STAY IN PAPER",
         "gates": gates,
         "approved_pairs": [f"{s}:{side}" for s, side in approved_pairs],
-        "paper_performance": performance,
+        "paper_performance": perf,
+        "ledger_mode": constructed.mode,
+        "evidence_mode": evidence.mode,
     }
 
 
@@ -186,7 +264,93 @@ def _load_approvals() -> dict[str, dict[str, Any]]:
     return {k: v for k, v in raw.items() if isinstance(v, dict) and "approved" in v}
 
 
-def _regime_coverage(approvals: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _approved_records(approvals: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Promotion set: ``approved is True`` only. Rejected and overrides are out."""
+    return [
+        rec
+        for rec in approvals.values()
+        if isinstance(rec, dict) and rec.get("approved") is True
+    ]
+
+
+def _approved_pairs(approvals: dict[str, dict[str, Any]]) -> list[tuple[str, str]]:
+    """Unique (symbol, side) among approved=True keys. Same rule as Universe."""
+    out: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for key, rec in sorted(approvals.items()):
+        if not isinstance(rec, dict) or rec.get("approved") is not True:
+            continue
+        parsed = parse_approval_key(key)
+        if parsed is None:
+            continue
+        _strategy, symbol, side = parsed
+        pair = (symbol, side)
+        if pair not in seen:
+            seen.add(pair)
+            out.append(pair)
+    return out
+
+
+def _optional_float(value: Any) -> float | None:
+    """Return a float, or None when the measurement is missing / unusable.
+
+    ``or 0.0`` is fail-open for drawdown: a missing field becomes a perfect
+    0% DD. None must stay None so the gate can fail closed.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:  # NaN
+        return None
+    return number
+
+
+def _max_approved_oos_drawdown(
+    approved: list[dict[str, Any]],
+) -> tuple[float | None, bool]:
+    """Max OOS DD across approved rows. Incomplete if any row is missing DD."""
+    if not approved:
+        return None, False
+    values: list[float] = []
+    for rec in approved:
+        dd = _optional_float(rec.get("oos_max_drawdown_pct"))
+        if dd is None:
+            return None, False
+        values.append(dd)
+    return max(values), True
+
+
+def _paper_drawdown_pct(performance: dict[str, Any]) -> float | None:
+    """Paper DD from performance, else max snapshot drawdown. Missing → None."""
+    measured = _optional_float(performance.get("max_drawdown_pct"))
+    if measured is not None:
+        return measured
+    return _max_snapshot_drawdown()
+
+
+def _max_snapshot_drawdown() -> float | None:
+    """Worst paper-mode equity-snapshot drawdown, or None if none recorded."""
+    from sqlalchemy import func, select
+
+    from core.db import session_scope
+    from core.ledger.models import EquitySnapshot
+
+    with session_scope() as session:
+        value = session.scalar(
+            select(func.max(EquitySnapshot.drawdown_pct)).where(
+                EquitySnapshot.mode == LEDGER_MODE_PAPER
+            )
+        )
+    if value is None:
+        return None
+    return float(value)
+
+
+def _regime_coverage(_approvals: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    # Shared report is still the source; pair-level coverage is a P1 follow-up.
     report = PROJECT_ROOT / "research" / "artifacts" / "validation_report.json"
     if not report.exists():
         return {"distinct": 0, "has_bear": False}
@@ -197,17 +361,20 @@ def _regime_coverage(approvals: dict[str, dict[str, Any]]) -> dict[str, Any]:
     return {"distinct": distinct, "has_bear": bool(by.get("bear")), "by_regime": by}
 
 
-def _weighted_pf(approvals: dict[str, dict[str, Any]]) -> float | None:
-    approved = [v for v in approvals.values() if v.get("approved")]
+def _weighted_pf(approved: list[dict[str, Any]]) -> float | None:
     if not approved:
         return None
     # Without per-trade lists here, use the minimum approved PF: the portfolio
     # cannot be healthier than its weakest cleared sleeve.
-    pfs = [v.get("oos_profit_factor") for v in approved if v.get("oos_profit_factor")]
+    pfs = [
+        pf
+        for rec in approved
+        if (pf := _optional_float(rec.get("oos_profit_factor"))) is not None
+    ]
     return min(pfs) if pfs else None
 
 
-def _paper_days(ledger: Ledger) -> int:
+def _paper_days() -> int:
     from sqlalchemy import func, select
 
     from core.db import session_scope
@@ -216,7 +383,7 @@ def _paper_days(ledger: Ledger) -> int:
     with session_scope() as session:
         first = session.scalar(
             select(func.min(EquitySnapshot.recorded_at)).where(
-                EquitySnapshot.mode == ledger.mode
+                EquitySnapshot.mode == LEDGER_MODE_PAPER
             )
         )
     if first is None:
