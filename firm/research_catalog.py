@@ -1563,6 +1563,48 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "swing_break_fail_reversion@4h/4h",
+        "family": "swing_break_fail_reversion",
+        "name": "swing_break_fail_reversion 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 51,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "CEO YES exploratory stamp for coding only (Job ~153). "
+            "Fade a 4h sized break of the prior lookback swing that "
+            "fails (close back through the broken swing level). "
+            "Quant-locked grid: swing = prior-bar rolling high/low "
+            "over swing_lookback (signal bar excluded), ATR "
+            "period=20 known before the signal bar "
+            "(atr.shift(1)), fill t+1 open. SHORT="
+            "(high[t]-swing_high) >= min_break_atr*ATR AND "
+            "close[t] < swing_high / LONG=(swing_low-low[t]) >= "
+            "min_break_atr*ATR AND close[t] > swing_low. BOTH "
+            "sides honest, SHORT priority on two-sided bars. "
+            "Free search (2 only): swing_lookback [3, 5], "
+            "min_break_atr [0.2, 0.5] (endpoints only, same "
+            "sibling float-grid as min_outside_atr / "
+            "min_mother_atr). Walk-forward is not started from "
+            "this coding PR — register for Desk ONE walk after "
+            "merge (Mukanya starts walks). Live stays off. Not "
+            "swing_failure_reversal (confirmed pivots), not "
+            "failed_higher_high, not "
+            "failed_range_break_reversion (119), not "
+            "failed_break_reclaim (130), not "
+            "wyckoff_spring_reclaim (127), not "
+            "equal_high_low_restest_fade, not "
+            "williams_fractal_break, not inside_bar_break_fail "
+            "(family F), not thrust_bar_fail_reversion (family G), "
+            "not key_reversal_bar (family H). Do not revive Job "
+            "133 rectangle."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

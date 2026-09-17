@@ -1,0 +1,19 @@
+# Proposal: `swing_break_fail_reversion`
+
+Swing-break fail reversion — wick through the prior lookback swing by at least `min_break_atr` · ATR20, then the same bar closes back through the broken swing level. SHORT when the high breaks the prior swing high and the close fails back through it; LONG when the low breaks the prior swing low and the close fails back through it. Clock: `4h/4h`. Side: BOTH with SHORT priority. Family id: `swing_break_fail_reversion` only. This is a FADE / failed-swing-break edge — not a confirmed-pivot wick fail, not a 16/20 Donchian later-bar fail.
+
+## Coding brief (CEO YES — Job ~153 exploratory)
+
+- Clock: `4h/4h`
+- Side: `BOTH` with SHORT priority (two-sided fail prints SHORT, not LONG)
+- Status: CEO YES exploratory stamp for coding (do not start walk-forward). Live trading stays off. Mukanya starts Desk ONE walk after merge.
+- Quant lock: ATR period = 20 LOCKED / not searched; ATR known before the signal bar (`atr.shift(1)`). Swing = prior-bar rolling high/low over `swing_lookback` LOCKED (bars `t-N .. t-1`; signal bar excluded). Fail = same-bar close back through the broken swing level LOCKED (`close[t] < swing_high` SHORT / `close[t] > swing_low` LONG). SHORT = `(high[t] - swing_high) >= min_break_atr * ATR` AND close back through. LONG = `(swing_low - low[t]) >= min_break_atr * ATR` AND close back through. Free search (2 only): `swing_lookback` `[3, 5]`, `min_break_atr` `[0.2, 0.5]` (endpoints only — same sibling float-grid convention as `outside_bar_fail_reversion.min_outside_atr` / `inside_bar_break_fail.min_mother_atr`; do not invent interiors). Fill at `t+1` open. Family id `swing_break_fail_reversion` only. Do not rename free params. Do not clone `swing_failure_reversal`. Do not recode `inside_bar_break_fail`. Do not revive Job 133 rectangle.
+- Why this is novel: Sized same-bar fail of a short prior-bar lookback swing as one 4h BOTH family. The swing is rolling N-bar high/low of bars before `t`, not a confirmed centered pivot and not a 16/20 Donchian. The fail is a min-ATR wick-through that closes back through the broken level, not a later-bar close-through fail and not an unsized wick tag.
+
+## What to write
+
+1. `core/strategy/swing_break_fail_reversion.py` — `Strategy` subclass, `name = "swing_break_fail_reversion"`.
+2. Signals may use bars `<= t` only; the engine fills at `t+1` open.
+3. Tests: schema, no lookahead (truncation + future shock), LONG downside-break fail, SHORT upside-break fail, kit lock asserts search only `swing_lookback` `[3, 5]` and `min_break_atr` `[0.2, 0.5]`, ATR20 locked, lookback grid matters (3 fires, 5 does not on a medium swing), size grid matters (0.2 fires, 0.5 does not on a medium break), sibling-distinction vs `swing_failure_reversal`, `failed_higher_high`, `failed_range_break_reversion`, `failed_break_reclaim`, `wyckoff_spring_reclaim`, `equal_high_low_restest_fade`, `williams_fractal_break`, `inside_bar_break_fail`, `thrust_bar_fail_reversion`, `key_reversal_bar`, `ib_fail_reversion`, `nr7_fail_reversion`, and `outside_bar_fail_reversion`.
+4. Distinct from: `swing_failure_reversal` (confirmed pivots — do not clone), `failed_range_break_reversion` (119), `failed_break_reclaim` (130), `wyckoff_spring_reclaim` (127), `inside_bar_break_fail` (family F), `thrust_bar_fail_reversion` (family G), `key_reversal_bar` (family H). Do not recode spent families 118–152. Do not revive Job 133 rectangle.
+5. Do not call `firm.cursor_coding.mark_done` (that starts walk-forward). Coding only. Do not edit `config/approved_strategies.json`. Do not stamp `approved=true`. Do not loosen research gates. Do not touch Floor UI. Register for Desk ONE walk after merge; Mukanya starts walks.

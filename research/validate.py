@@ -1357,6 +1357,21 @@ def _novel_kit(name: str, side: SignalSide):
             # endpoints [0.2, 0.5], no invented interiors.
             {"min_break_atr": [0.2, 0.5]},
         ),
+        "swing_break_fail_reversion": (
+            "core.strategy.swing_break_fail_reversion",
+            "SwingBreakFailReversionParams",
+            "SwingBreakFailReversionStrategy",
+            # atr_n locked at 20. Swing = prior-bar rolling
+            # high/low over swing_lookback (not confirmed
+            # pivots, not Donchian 16/20, not t-1 only). Same-bar
+            # sized wick-through then close back through the
+            # broken swing level. Search swing_lookback +
+            # min_break_atr only. CEO YES exploratory stamp
+            # — endpoints [3, 5] and [0.2, 0.5], same sibling
+            # float-grid convention as min_outside_atr /
+            # min_mother_atr (no invented interior).
+            {"swing_lookback": [3, 5], "min_break_atr": [0.2, 0.5]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

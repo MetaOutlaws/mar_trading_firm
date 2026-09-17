@@ -2909,6 +2909,53 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "a thrust-bar fail, and not a rectangle / VP recode."
         ),
     ),
+    SleeveSpec(
+        name="swing_break_fail_reversion",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Swing-break fail reversion as one 4h BOTH family "
+            "(SHORT priority). Swing is the prior-bar rolling "
+            "high/low over swing_lookback (bars t-N..t-1; signal "
+            "bar excluded). Fail is a same-bar wick through that "
+            "swing by at least min_break_atr*ATR20 that closes "
+            "back through the broken level. SHORT: "
+            "(high[t]-swing_high) >= min_break_atr*ATR AND "
+            "close[t] < swing_high. LONG: (swing_low-low[t]) >= "
+            "min_break_atr*ATR AND close[t] > swing_low. "
+            "Two-sided fail prints SHORT, not LONG. ATR period "
+            "locked 20, known before the signal bar "
+            "(atr.shift(1)). Fill t+1 open. Free search (2 only): "
+            "swing_lookback [3, 5], min_break_atr [0.2, 0.5]. Not "
+            "swing_failure_reversal (confirmed N-bar pivots, any "
+            "wick, no ATR size floor). Not failed_higher_high. Not "
+            "failed_range_break_reversion (119). Not "
+            "failed_break_reclaim (130). Not "
+            "wyckoff_spring_reclaim (127). Not "
+            "equal_high_low_restest_fade. Not "
+            "williams_fractal_break. Not inside_bar_break_fail "
+            "(family F). Not thrust_bar_fail_reversion (family G). "
+            "Not key_reversal_bar (family H). Do not recode spent "
+            "families 118–152. Do not revive Job 133 rectangle. "
+            "Do not modify sibling geometry."
+        ),
+        summary=(
+            "Fade a 4h sized break of the prior lookback swing "
+            "that fails (close back through the broken swing "
+            "level; SHORT = upside fail, LONG = downside fail) "
+            "as one 4h BOTH family with SHORT priority."
+        ),
+        justification=(
+            "A locked ATR20 prior-bar lookback-swing wick-through "
+            "that closes back through the broken level, with "
+            "searched swing_lookback + min_break_atr only, is not "
+            "a confirmed-pivot wick fail, not a 16/20 Donchian "
+            "later-bar fail, not a t-1 thrust/key-reversal, and "
+            "not an inside-bar mother wick-fail."
+        ),
+    ),
 ]
 
 
