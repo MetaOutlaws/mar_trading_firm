@@ -314,6 +314,25 @@ class BacktestResult:
         )
 
 
+def fill_in_tradable_window(
+    fill_time: datetime | pd.Timestamp,
+    tradable_start: datetime | pd.Timestamp | None,
+    tradable_end: datetime | pd.Timestamp | None,
+) -> bool:
+    """Whether an entry fill belongs in a half-open `[start, end)` window.
+
+    `None` on a bound means that side is unbounded. Walk-forward passes the
+    fold's train/test edges so warmup bars can seed indicators without
+    becoming fills (F01).
+    """
+    stamp = pd.Timestamp(fill_time)
+    if tradable_start is not None and stamp < pd.Timestamp(tradable_start):
+        return False
+    if tradable_end is not None and stamp >= pd.Timestamp(tradable_end):
+        return False
+    return True
+
+
 class BacktestEngine:
     """Simulates a single strategy on a single symbol."""
 
@@ -326,16 +345,24 @@ class BacktestEngine:
         candles: pd.DataFrame,
         strategy: Strategy,
         funding: FundingHistory | None = None,
+        *,
+        tradable_start: datetime | None = None,
+        tradable_end: datetime | None = None,
     ) -> BacktestResult:
         """Run the simulation.
 
         Args:
             symbol: Traded symbol, for labelling and cost lookup.
-            candles: Canonical OHLCV frame.
+            candles: Canonical OHLCV frame. May include warmup bars before
+                `tradable_start`; those bars seed indicators only.
             strategy: Any `Strategy`. Signals come from the same code the live
                 engine uses.
             funding: Funding history for realistic perp carry. Falls back to the
                 cost model's default rate when omitted.
+            tradable_start: Inclusive start of eligible *entry fill* times.
+                Signals may fire earlier (last warmup bar → first-window fill).
+            tradable_end: Exclusive end of eligible entry fill times. A fill
+                at exactly `tradable_end` is not in this window.
 
         Returns:
             A `BacktestResult` with trades, equity curve and metrics.
@@ -383,6 +410,18 @@ class BacktestEngine:
 
             # ---- entry: next bar's open, never this bar's close ----------
             entry_bar = bar + 1
+            fill_time = timestamps[entry_bar]
+            # Gate on fill time, not signal time. A last-warmup-bar signal
+            # that fills at/after tradable_start is a valid window entry;
+            # a fill before tradable_start is F01 warmup contamination.
+            if not fill_in_tradable_window(fill_time, tradable_start, tradable_end):
+                if tradable_end is not None and pd.Timestamp(fill_time) >= pd.Timestamp(
+                    tradable_end
+                ):
+                    break
+                bar += 1
+                continue
+
             entry_quote = opens[entry_bar]
             if not np.isfinite(entry_quote) or entry_quote <= 0:
                 bar += 1

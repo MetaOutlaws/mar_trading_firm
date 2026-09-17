@@ -16,7 +16,12 @@ import pytest
 
 from core.strategy.base import SignalSide, Strategy, StrategyParams
 from research.costs import FRICTIONLESS, CostModel
-from research.engine import BacktestConfig, BacktestEngine, ExitReason
+from research.engine import (
+    BacktestConfig,
+    BacktestEngine,
+    ExitReason,
+    fill_in_tradable_window,
+)
 
 
 class ScriptedStrategy(Strategy):
@@ -397,3 +402,13 @@ def test_summary_is_serialisable():
     payload = json.dumps(result.summary())
     assert "win_rate" in payload
     assert json.dumps(result.trades[0].to_dict())
+
+
+def test_tradable_window_is_half_open_on_fill_time() -> None:
+    """F01 helper: start inclusive, end exclusive, compared on the fill bar."""
+    start = pd.Timestamp("2024-01-01", tz="UTC")
+    end = start + pd.Timedelta(days=1)
+    assert fill_in_tradable_window(start, start, end)
+    assert not fill_in_tradable_window(start - pd.Timedelta(hours=1), start, end)
+    assert not fill_in_tradable_window(end, start, end)
+    assert fill_in_tradable_window(start, None, None)
