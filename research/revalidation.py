@@ -261,6 +261,12 @@ def current_snapshot(
     bootstrap = significance.bootstrap if significance else None
     permutation = significance.permutation if significance else None
     pf = wf.oos_profit_factor
+    if np.isfinite(pf):
+        pf_out: float | str | None = round(pf, 3)
+    elif pf == float("inf"):
+        pf_out = "inf"
+    else:
+        pf_out = None
     windows = [fold.summary()["oos_entry_window"] for fold in wf.folds]
     return {
         "approved_flag": False,  # kit never stamps; this is a measurement
@@ -268,7 +274,7 @@ def current_snapshot(
         "research_version": wf.research_version,
         "oos_trades": wf.total_oos_trades,
         "oos_win_rate": round(wf.oos_win_rate, 2),
-        "oos_profit_factor": round(pf, 3) if np.isfinite(pf) else None,
+        "oos_profit_factor": pf_out,
         "oos_expectancy_pct": round(wf.oos_expectancy_pct, 4),
         "oos_max_drawdown_pct": round(wf.oos_max_drawdown_pct, 2),
         "profitable_fold_ratio": round(wf.profitable_fold_ratio, 1),
@@ -297,13 +303,46 @@ def current_snapshot(
     }
 
 
-def still_clears_hard_gates(failures: Sequence[str]) -> bool:
-    """True when PF ≥ 1.15, CI excludes 0, and beats-random all hold.
-
-    Same ``_evaluate_gates`` used by promotion. The kit reports this; it does
-    not write ``approved=true`` even when True.
-    """
-    return not list(failures)
+def blocked_survivor_row(key: str, record: dict[str, Any], error: str) -> dict[str, Any]:
+    """Report row when candles cannot be loaded. Still does not stamp."""
+    parsed = parse_approval_key(key)
+    strategy_name, symbol, side_label = parsed if parsed else ("", "", "")
+    prior = prior_snapshot(record)
+    current = {
+        "approved_flag": False,
+        "params": dict(record.get("params") or {}),
+        "research_version": KIT_RESEARCH_VERSION,
+        "error": error,
+        "gate_failures": [error],
+        "still_clears_gates": False,
+        "oos_trades": None,
+        "oos_profit_factor": None,
+        "oos_expectancy_pct": None,
+        "oos_win_rate": None,
+        "oos_max_drawdown_pct": None,
+        "ci95_low_pct": None,
+        "ci95_high_pct": None,
+        "ci_excludes_zero": None,
+        "beats_random": None,
+        "permutation_p_value": None,
+        "oos_entry_windows": None,
+        "folds": None,
+    }
+    return {
+        "key": key,
+        "classification": "certified_survivor",
+        "strategy": strategy_name or record.get("strategy"),
+        "symbol": symbol,
+        "side": side_label,
+        "timeframe": record.get("timeframe"),
+        "research_version": KIT_RESEARCH_VERSION,
+        "promotion": False,
+        "would_write_approved": False,
+        "error": error,
+        "prior": prior,
+        "current": current,
+        "deltas": compute_metric_deltas(prior, current),
+    }
 
 
 def revalidate_survivor(

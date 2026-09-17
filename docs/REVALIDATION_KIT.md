@@ -62,9 +62,13 @@ Artifacts (gitignored, same as other research reports):
 - `research/artifacts/revalidation_kit_<UTC>.md`
 - copies at `research/artifacts/revalidation_kit_latest.{json,md}`
 
-There is **no** `--write` / `--stamp` flag. `scripts/validate_strategy.py`
-without `--no-write` is the approvals writer; **do not** point it at these
-survivors during the freeze.
+Survivor walk-forward needs Bybit public klines (or a populated
+`data/cache/` parquet). If the fetch is blocked, the kit still writes a report
+that keeps stored `oos_*`, sets `kit_green=false`, and does **not** stamp the
+book. Run `--survivors-only` on the paper box that already has candle cache.
+
+The pytest suite re-runs ATR BTC SHORT on a synthetic downtrend to prove the
+deltas path without writing the book. That smoke path is **not** Board evidence.
 
 ## What the survivor re-run measures
 

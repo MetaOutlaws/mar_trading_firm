@@ -406,3 +406,23 @@ def test_offline_survivors_cli_reports_without_stamping(tmp_path) -> None:
     assert len(payload["survivors"]) == 3
     assert all(row.get("would_write_approved") is False for row in payload["survivors"])
     assert all(row.get("error") for row in payload["survivors"])
+    btc = next(
+        row for row in payload["survivors"]
+        if row["key"] == "atr_channel_breakout:BTCUSDT:SHORT:4h"
+    )
+    assert btc["prior"]["oos_profit_factor"] == 1.447
+    assert btc["prior"]["oos_trades"] == 284
+    assert btc["would_write_approved"] is False
+
+
+def test_blocked_survivor_row_keeps_prior_oos() -> None:
+    book = load_approval_book()
+    key = "doji_star_reversal:SOLUSDT:SHORT:1h"
+    from research.revalidation import blocked_survivor_row
+
+    row = blocked_survivor_row(key, book[key], "no candles")
+    assert row["prior"]["oos_profit_factor"] == 1.504
+    assert row["prior"]["oos_trades"] == 119
+    assert row["current"]["still_clears_gates"] is False
+    assert row["would_write_approved"] is False
+    assert row["deltas"]["oos_profit_factor"] is None

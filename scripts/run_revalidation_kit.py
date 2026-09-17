@@ -36,6 +36,7 @@ from research.revalidation import (
     CertifiedInventoryError,
     assert_certified_inventory,
     assert_not_stamping,
+    blocked_survivor_row,
     empty_report_shell,
     exploratory_records,
     finalise_report,
@@ -135,25 +136,12 @@ def _run_survivor_block(
 
     if args.offline:
         for key in CERTIFIED_SURVIVOR_KEYS:
-            record = payload[key]
             report["survivors"].append(
-                {
-                    "key": key,
-                    "classification": "certified_survivor",
-                    "promotion": False,
-                    "would_write_approved": False,
-                    "error": "offline: survivor walk-forward skipped (no fetch)",
-                    "prior": {
-                        "oos_trades": record.get("oos_trades"),
-                        "oos_profit_factor": record.get("oos_profit_factor"),
-                        "oos_expectancy_pct": record.get("oos_expectancy_pct"),
-                        "oos_win_rate": record.get("oos_win_rate"),
-                        "oos_max_drawdown_pct": record.get("oos_max_drawdown_pct"),
-                        "research_version": record.get("research_version"),
-                    },
-                    "current": {"still_clears_gates": False, "research_version": RESEARCH_VERSION},
-                    "deltas": {},
-                }
+                blocked_survivor_row(
+                    key,
+                    payload[key],
+                    "offline: survivor walk-forward skipped (no fetch)",
+                )
             )
         logger.warning("Offline mode: survivor walk-forward skipped.")
         return
@@ -175,34 +163,13 @@ def _run_survivor_block(
             except Exception as exc:
                 logger.warning("%s: candle load failed: %s", key, exc)
                 report["survivors"].append(
-                    {
-                        "key": key,
-                        "classification": "certified_survivor",
-                        "promotion": False,
-                        "would_write_approved": False,
-                        "error": f"candle load failed: {exc}",
-                        "prior": {
-                            "oos_trades": record.get("oos_trades"),
-                            "oos_profit_factor": record.get("oos_profit_factor"),
-                        },
-                        "current": {"still_clears_gates": False},
-                        "deltas": {},
-                    }
+                    blocked_survivor_row(key, record, f"candle load failed: {exc}")
                 )
                 continue
 
             if candles is None or candles.empty:
                 report["survivors"].append(
-                    {
-                        "key": key,
-                        "classification": "certified_survivor",
-                        "promotion": False,
-                        "would_write_approved": False,
-                        "error": "no candles available",
-                        "prior": {"oos_trades": record.get("oos_trades")},
-                        "current": {"still_clears_gates": False},
-                        "deltas": {},
-                    }
+                    blocked_survivor_row(key, record, "no candles available")
                 )
                 continue
 
@@ -298,6 +265,7 @@ def main() -> int:
             report = empty_report_shell(
                 fingerprint=lock.before, inventory_ok=inventory_ok
             )
+            report["exploratory_skipped"] = paper_override_keys(payload)
             if inventory_error:
                 report["inventory_error"] = inventory_error
 
