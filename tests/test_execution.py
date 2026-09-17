@@ -117,6 +117,9 @@ def test_round_trip_costs_are_charged_in_the_unfavourable_direction(broker):
     # Entry 100,200 and exit 99,800 on 0.01 units is a $4.00 price loss.
     # Fees are 0.1% of each leg: ~1.002 + ~0.998 = ~2.00.
     assert loss == pytest.approx(6.0, abs=0.05)
+    # F03: realised P&L must include the entry fee, not only the exit leg.
+    assert broker.realised_pnl == pytest.approx(-loss)
+    assert broker.realised_pnl == pytest.approx(broker.cash - 10_000.0)
 
 
 def test_frictionless_round_trip_is_flat(free_broker):
@@ -333,6 +336,7 @@ def test_paper_broker_hydrates_ledger_rows_so_restart_does_not_ghost(free_broker
                 take_profit_price=2568.77,
                 stop_loss_price=2420.57,
                 opened_at=None,
+                entry_fee=1.36,
             )
         ]
     )
@@ -342,3 +346,4 @@ def test_paper_broker_hydrates_ledger_rows_so_restart_does_not_ghost(free_broker
     assert snaps[0].quantity == pytest.approx(0.4)
     assert snaps[0].stop_loss == pytest.approx(2420.57)
     assert snaps[0].take_profit == pytest.approx(2568.77)
+    assert free_broker._positions["ETHUSDT"].entry_fee == pytest.approx(1.36)

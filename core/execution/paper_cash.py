@@ -13,9 +13,13 @@ What is persisted (``data/paper_cash.json``)
     - ``capital``: external contribution or withdrawal. Not P&L.
     - ``open``:   entry fill; cash falls by the entry fee only (paper does
                   not reserve notional).
-    - ``close``:  exit fill; cash changes by ``gross_pnl - fee``.
+    - ``funding``: 8h funding step (F03). ``amount`` positive means paid;
+                  cash falls by ``amount``. Not realised until close.
+    - ``close``:  exit fill; cash changes by ``gross_pnl - fee`` (exit fee).
+                  Realised P&L also subtracts ``entry_fee`` and ``funding``
+                  when those fields are present (F03).
 * Snapshot fields (``contributed_capital``, ``cash``, ``realised_pnl``,
-  ``total_fees``) are derived from a replay and stored for inspection.
+  ``total_fees``, ``total_funding``) are derived from a replay.
 
 What is *not* persisted here
 ----------------------------
@@ -26,11 +30,12 @@ Restore order
 -------------
 1. Replay this event ledger from an empty book (capital first, then fills).
    That restores cash, realised P&L, fees and contributed capital, including
-   entry fees still sitting on open positions.
+   entry fees and funding still sitting on open positions.
 2. Overlay open positions from SQLite. Position restore must not touch cash.
 
-Do not reconstruct cash from ``trades`` rows: those currently omit entry
-fees (F03). Replay this journal instead.
+Do not reconstruct cash from ``trades`` rows alone. Replay this journal.
+After F03, ``TradeRecord`` does include entry fees and funding, so a
+closed book can also reconcile cash to sum(net_pnl).
 """
 
 from __future__ import annotations
@@ -53,6 +58,7 @@ LEDGER_VERSION = 1
 KIND_CAPITAL = "capital"
 KIND_OPEN = "open"
 KIND_CLOSE = "close"
+KIND_FUNDING = "funding"
 
 
 def _utcnow_iso() -> str:
@@ -67,22 +73,30 @@ class PaperCashState:
     cash: float = 0.0
     realised_pnl: float = 0.0
     total_fees: float = 0.0
+    total_funding: float = 0.0
+    #: Funding already taken from cash for symbols still open.
+    open_funding: dict[str, float] = field(default_factory=dict)
     events: list[dict[str, Any]] = field(default_factory=list)
 
 
 def replay_events(events: list[dict[str, Any]]) -> PaperCashState:
     """Apply every cash event from a zero book.
 
-    Unknown kinds are skipped so a later funding hook (F03) can append
-    events without breaking restart restore.
+    ``funding`` events (F03) debit cash during a hold. Close events keep the
+    F02 cash formula (``gross - exit fee``) and, when present, fold
+    ``entry_fee`` + ``funding`` into realised P&L so a flat book satisfies
+    cash - contributed == realised_pnl. Unknown kinds are still skipped.
     """
     contributed = 0.0
     cash = 0.0
     realised = 0.0
     fees = 0.0
+    total_funding = 0.0
+    open_funding: dict[str, float] = {}
 
     for event in events:
         kind = str(event.get("kind") or "")
+        symbol = str(event.get("symbol") or "")
         if kind == KIND_CAPITAL:
             amount = float(event.get("amount") or 0.0)
             contributed += amount
@@ -91,12 +105,26 @@ def replay_events(events: list[dict[str, Any]]) -> PaperCashState:
             fee = float(event.get("fee") or 0.0)
             cash -= fee
             fees += fee
+        elif kind == KIND_FUNDING:
+            amount = float(event.get("amount") or 0.0)
+            cash -= amount
+            if symbol:
+                open_funding[symbol] = open_funding.get(symbol, 0.0) + amount
         elif kind == KIND_CLOSE:
             fee = float(event.get("fee") or 0.0)
             gross = float(event.get("gross_pnl") or 0.0)
+            entry_fee = float(event.get("entry_fee") or 0.0)
+            funding = float(event.get("funding") or 0.0)
             cash += gross - fee
-            realised += gross - fee
+            realised += gross - fee - entry_fee - funding
             fees += fee
+            total_funding += funding
+            if symbol:
+                remaining = open_funding.get(symbol, 0.0) - funding
+                if abs(remaining) < 1e-12:
+                    open_funding.pop(symbol, None)
+                else:
+                    open_funding[symbol] = remaining
         else:
             logger.warning("Skipping unknown paper cash event kind %r", kind)
 
@@ -105,6 +133,8 @@ def replay_events(events: list[dict[str, Any]]) -> PaperCashState:
         cash=cash,
         realised_pnl=realised,
         total_fees=fees,
+        total_funding=total_funding,
+        open_funding=open_funding,
         events=list(events),
     )
 
@@ -152,6 +182,7 @@ class PaperCashStore:
             "cash": state.cash,
             "realised_pnl": state.realised_pnl,
             "total_fees": state.total_fees,
+            "total_funding": state.total_funding,
             "events": self._events,
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)

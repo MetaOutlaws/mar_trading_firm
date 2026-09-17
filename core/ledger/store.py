@@ -68,6 +68,7 @@ class Ledger:
         broker_order_id: str,
         contributing_agents: Sequence[str] = (),
         entry_indicators: dict | None = None,
+        entry_fee: float = 0.0,
     ) -> int:
         """Record a newly opened position and return its id."""
         with session_scope() as session:
@@ -79,6 +80,7 @@ class Ledger:
                 quantity=quantity,
                 entry_price=entry_price,
                 notional=quantity * entry_price,
+                entry_fee=entry_fee,
                 expected_entry_price=expected_entry_price,
                 take_profit_price=take_profit,
                 stop_loss_price=stop_loss,
@@ -105,10 +107,17 @@ class Ledger:
         exit_price: float,
         expected_exit_price: float,
         exit_reason: str,
-        fees: float = 0.0,
+        fees: float | None = None,
         funding: float = 0.0,
+        entry_fees: float | None = None,
+        exit_fees: float = 0.0,
     ) -> TradeRecord | None:
-        """Close a position and write the resulting trade record."""
+        """Close a position and write the resulting trade record.
+
+        ``entry_fees`` defaults to the fee stored on the open row. ``fees`` is
+        the round-trip total; when omitted it is entry + exit. Pass both legs
+        explicitly so cash can reconcile to ``net_pnl`` (F03).
+        """
         with session_scope() as session:
             position = session.get(Position, position_id)
             if position is None:
@@ -117,6 +126,12 @@ class Ledger:
             if position.status != PositionStatus.OPEN.value:
                 logger.warning("Ledger: position %d is already %s", position_id, position.status)
                 return None
+
+            stored_entry = float(position.entry_fee or 0.0)
+            if entry_fees is None:
+                entry_fees = stored_entry
+            if fees is None:
+                fees = entry_fees + exit_fees
 
             direction = 1.0 if position.side == "LONG" else -1.0
             gross_pnl = (exit_price - position.entry_price) * position.quantity * direction
@@ -142,6 +157,8 @@ class Ledger:
                 exit_time=utcnow(),
                 gross_pnl=gross_pnl,
                 fees=fees,
+                entry_fees=entry_fees,
+                exit_fees=exit_fees,
                 funding=funding,
                 net_pnl=net_pnl,
                 return_pct=(net_pnl / position.notional * 100.0) if position.notional else 0.0,

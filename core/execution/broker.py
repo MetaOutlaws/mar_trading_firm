@@ -89,6 +89,9 @@ class OrderResult:
     #: Price actually received.
     fill_price: float = 0.0
     fee: float = 0.0
+    #: Funding paid (positive) or received (negative) over the hold. Paper
+    #: closes populate this from the shared CostModel; other brokers leave 0.
+    funding: float = 0.0
     submitted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     error: str = ""
     raw: dict = field(default_factory=dict)

@@ -363,12 +363,7 @@ def _write_report(
         "train_days": args.train_days,
         "test_days": args.test_days,
         "regimes": summary,
-        "cost_assumptions": {
-            "taker_fee": DEFAULT_COSTS.taker_fee,
-            "base_slippage": DEFAULT_COSTS.slippage,
-            "funding_included": DEFAULT_COSTS.include_funding,
-            "round_trip_cost_pct": round(DEFAULT_COSTS.round_trip_cost_pct() * 100, 4),
-        },
+        "cost_assumptions": DEFAULT_COSTS.snapshot(),
         "baseline_by_regime": baselines,
         "verdicts": [v.summary() for v in verdicts],
     }

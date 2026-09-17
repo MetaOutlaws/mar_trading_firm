@@ -8,11 +8,18 @@ trade against -- and simulates the fill using the same cost model the backtester
 uses. That makes paper results directly comparable to backtest results, which is
 the whole point of the 60-day forward test.
 
-What it does model: slippage, taker fees, TP/SL triggering, position state.
-Cash, realised P&L and the fill event journal persist across process restarts
+What it does model: slippage, taker fees on *both* legs, 8h funding accrual
+via the same ``CostModel`` the backtester uses (including ``for_symbol``),
+TP/SL triggering, position state.
+Cash, realised P&L, fees and funding persist across process restarts
 (see ``paper_cash.py``). Open positions still come from the SQLite ledger.
 What it does not model: partial fills, order-book depth, exchange outages. The
 Bybit testnet broker covers those; run both.
+
+Entry fees hit cash on the open and are stored on the position so the ledger
+can write a round-trip ``TradeRecord`` (F03). Funding is accrued into cash as
+settlements elapse, journaled as ``funding`` events (F02 store), and realised
+onto the close.
 """
 
 from __future__ import annotations
@@ -22,6 +29,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from core.data.funding import FundingHistory
 from core.data.ohlcv import BybitOHLCV
 from core.execution.broker import (
     Broker,
@@ -33,6 +41,7 @@ from core.execution.broker import (
 from core.execution.paper_cash import (
     KIND_CAPITAL,
     KIND_CLOSE,
+    KIND_FUNDING,
     KIND_OPEN,
     PaperCashStore,
 )
@@ -52,10 +61,21 @@ class PaperPosition:
     take_profit: float | None = None
     stop_loss: float | None = None
     opened_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    #: Taker fee paid on the entry fill. Cash already deducted this; the
+    #: ledger stores it so close P&L includes both legs.
+    entry_fee: float = 0.0
+    #: Funding already taken from cash for this hold (CostModel.funding_cost
+    #: from opened_at through the last accrue). Close realises the total.
+    funding_accrued: float = 0.0
 
     def unrealised_pnl(self, mark_price: float) -> float:
         direction = 1.0 if self.side == "LONG" else -1.0
         return (mark_price - self.entry_price) * self.quantity * direction
+
+    @property
+    def notional(self) -> float:
+        """Entry notional — the same base research uses for funding."""
+        return self.quantity * self.entry_price
 
 
 class PaperBroker(Broker):
@@ -82,10 +102,18 @@ class PaperBroker(Broker):
         self._cash = starting_equity
         self._positions: dict[str, PaperPosition] = {}
         self._instruments: dict[str, Instrument] = {}
+        #: Optional per-symbol funding history for CostModel parity with research.
+        #: Missing symbols fall back to CostModel.default_funding_rate.
+        self._funding: dict[str, FundingHistory] = {}
+        #: Per-symbol funding already in cash for still-open rows (journal replay).
+        self._open_funding: dict[str, float] = {}
 
         #: Realised P&L, tracked separately so equity reconciles exactly.
+        #: Closed-book identity: cash - contributed_capital == realised_pnl ==
+        #: sum(TradeRecord.net_pnl), with entry fees and funding included.
         self.realised_pnl = 0.0
         self.total_fees = 0.0
+        self.total_funding = 0.0
 
     def close(self) -> None:
         if self._owns_data_source:
@@ -97,11 +125,13 @@ class PaperBroker(Broker):
         Restore order (do not invert):
 
         1. Replay the cash/event ledger. That puts cash, realised P&L, fees
-           and contributed capital back, including entry fees on still-open
-           positions. A missing journal seeds one ``capital`` event from
-           ``starting_equity`` so later fills have a contribution to replay.
+           and contributed capital back, including entry fees and funding on
+           still-open positions. A missing journal seeds one ``capital`` event
+           from ``starting_equity`` so later fills have a contribution to replay.
         2. Overlay open SQLite rows onto the RAM book. Paper never deducts
-           notional from cash, so this step must not change cash.
+           notional from cash, so this step must not change cash. Entry fee
+           comes from the SQLite row (F03); funding already in cash is copied
+           from the journal so the next accrue does not double-charge.
 
         Without step 1, a restart resets cash to starting equity while the
         position ledger still shows the closed-trade loss (F02). Without
@@ -123,6 +153,8 @@ class PaperBroker(Broker):
                 take_profit=getattr(row, "take_profit_price", None),
                 stop_loss=getattr(row, "stop_loss_price", None),
                 opened_at=opened if isinstance(opened, datetime) else datetime.now(timezone.utc),
+                entry_fee=float(getattr(row, "entry_fee", 0.0) or 0.0),
+                funding_accrued=float(self._open_funding.get(symbol, 0.0)),
             )
             restored += 1
         if restored:
@@ -221,6 +253,59 @@ class PaperBroker(Broker):
         self._instruments[symbol] = instrument
         return instrument
 
+    def costs_for(self, symbol: str) -> CostModel:
+        """Per-symbol schedule — same ``for_symbol`` research validation uses."""
+        return self.costs.for_symbol(symbol)
+
+    def set_funding_history(self, symbol: str, history: FundingHistory) -> None:
+        """Attach a research-style funding series for one symbol."""
+        self._funding[symbol] = history
+
+    def _now(self) -> datetime:
+        """Clock seam so tests can freeze the funding hold window."""
+        return datetime.now(timezone.utc)
+
+    def _funding_cost(self, position: PaperPosition, now: datetime) -> float:
+        """Funding for [opened_at, now] via the shared CostModel formula."""
+        costs = self.costs_for(position.symbol)
+        history = self._funding.get(position.symbol)
+        return costs.funding_cost(
+            position.side,
+            position.opened_at,
+            now,
+            position.notional,
+            history,
+        )
+
+    def accrue_funding(self, now: datetime | None = None) -> float:
+        """Move cash by funding since the last accrue. Returns net cash delta.
+
+        Positive delta means cash increased (shorts receiving a positive rate).
+        Uses ``CostModel.funding_cost`` so a closed paper trade matches a
+        research run with the same model, window, notional and history.
+        Each non-zero step is appended to the F02 cash journal as ``funding``.
+        """
+        now = now or self._now()
+        cash_delta = 0.0
+        for position in self._positions.values():
+            target = self._funding_cost(position, now)
+            step = target - position.funding_accrued
+            if abs(step) < 1e-12:
+                continue
+            self._cash -= step
+            position.funding_accrued = target
+            cash_delta -= step
+            self._record_cash_event(
+                {
+                    "kind": KIND_FUNDING,
+                    "symbol": position.symbol,
+                    "amount": step,
+                    "cash_after": self._cash,
+                    "funding_accrued": position.funding_accrued,
+                }
+            )
+        return cash_delta
+
     # -- orders ------------------------------------------------------------
     def place_market_order(
         self,
@@ -257,18 +342,21 @@ class PaperBroker(Broker):
                 error=why_not,
             )
 
+        costs = self.costs_for(symbol)
         # Fill worse than the quote, in the direction that hurts. Both
         # `entry_price` and `exit_price` take the *position* direction, so
         # `direction` is passed unchanged: closing a long sells below the quote.
         fill_price = (
-            self.costs.exit_price(price, direction)
+            costs.exit_price(price, direction)
             if reduce_only
-            else self.costs.entry_price(price, direction)
+            else costs.entry_price(price, direction)
         )
         notional = quantity * fill_price
-        fee = self.costs.fee_for(notional)
+        fee = costs.fee_for(notional)
 
         if reduce_only:
+            # Settle funding through this instant before the exit fill.
+            self.accrue_funding()
             return self._apply_close(symbol, quantity, fill_price, fee, expected_price)
         return self._apply_open(
             symbol, direction, quantity, fill_price, fee, expected_price, notional
@@ -299,7 +387,12 @@ class PaperBroker(Broker):
             )
 
         self._positions[symbol] = PaperPosition(
-            symbol=symbol, side=direction, quantity=quantity, entry_price=fill_price
+            symbol=symbol,
+            side=direction,
+            quantity=quantity,
+            entry_price=fill_price,
+            opened_at=self._now(),
+            entry_fee=fee,
         )
         self._cash -= fee
         self.total_fees += fee
@@ -354,24 +447,38 @@ class PaperBroker(Broker):
             )
 
         closing_quantity = min(quantity, position.quantity)
+        fraction = closing_quantity / position.quantity if position.quantity else 1.0
         direction = 1.0 if position.side == "LONG" else -1.0
         gross_pnl = (fill_price - position.entry_price) * closing_quantity * direction
+        entry_fee_share = position.entry_fee * fraction
+        # Accrue already brought funding_accrued up to `_now()` for the full
+        # size. Realise the closed slice; leftover stays on the stub.
+        funding_share = position.funding_accrued * fraction
+        position_side = position.side
 
+        # Entry fee already left cash on the open. Close moves cash by
+        # gross minus the *exit* fee; funding for this slice is already in cash
+        # via accrue_funding. realised_pnl gets every cost so a flat book
+        # satisfies cash - contributed == realised_pnl.
         self._cash += gross_pnl - fee
-        self.realised_pnl += gross_pnl - fee
+        self.realised_pnl += gross_pnl - entry_fee_share - fee - funding_share
         self.total_fees += fee
+        self.total_funding += funding_share
         self._record_cash_event(
             {
                 "kind": KIND_CLOSE,
                 "symbol": symbol,
-                "side": position.side,
+                "side": position_side,
                 "quantity": closing_quantity,
                 "fill_price": fill_price,
                 "fee": fee,
+                "entry_fee": entry_fee_share,
                 "gross_pnl": gross_pnl,
+                "funding": funding_share,
                 "cash_after": self._cash,
                 "realised_pnl": self.realised_pnl,
                 "total_fees": self.total_fees,
+                "total_funding": self.total_funding,
             }
         )
 
@@ -379,21 +486,26 @@ class PaperBroker(Broker):
             del self._positions[symbol]
         else:
             position.quantity -= closing_quantity
+            position.entry_fee -= entry_fee_share
+            position.funding_accrued -= funding_share
 
         result = OrderResult(
             success=True,
             order_id=f"paper-{uuid.uuid4().hex[:12]}",
             symbol=symbol,
-            side="SELL" if position.side == "LONG" else "BUY",
+            side="SELL" if position_side == "LONG" else "BUY",
             requested_quantity=quantity,
             filled_quantity=closing_quantity,
             expected_price=expected_price,
             fill_price=fill_price,
             fee=fee,
+            funding=funding_share,
         )
         logger.info(
-            "PAPER CLOSE %s qty=%.6f @ %.6f | gross P&L %.4f, fee %.4f, cash %.2f",
-            symbol, closing_quantity, fill_price, gross_pnl, fee, self._cash,
+            "PAPER CLOSE %s qty=%.6f @ %.6f | gross P&L %.4f, exit fee %.4f, "
+            "entry fee %.4f, funding %.4f, cash %.2f",
+            symbol, closing_quantity, fill_price, gross_pnl, fee,
+            entry_fee_share, funding_share, self._cash,
         )
         return result
 
@@ -462,13 +574,16 @@ class PaperBroker(Broker):
             self._cash = state.cash
             self.realised_pnl = state.realised_pnl
             self.total_fees = state.total_fees
+            self.total_funding = state.total_funding
+            self._open_funding = dict(state.open_funding)
             logger.warning(
                 "Paper cash replayed from %s: cash=%.4f realised=%.4f "
-                "fees=%.4f contributed=%.4f (%d events)",
+                "fees=%.4f funding=%.4f contributed=%.4f (%d events)",
                 self._cash_store.path,
                 self._cash,
                 self.realised_pnl,
                 self.total_fees,
+                self.total_funding,
                 self._contributed_capital,
                 len(state.events),
             )
@@ -483,6 +598,8 @@ class PaperBroker(Broker):
         self._cash = self._starting_equity
         self.realised_pnl = 0.0
         self.total_fees = 0.0
+        self.total_funding = 0.0
+        self._open_funding = {}
         self._cash_store.record(
             {
                 "kind": KIND_CAPITAL,
