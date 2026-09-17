@@ -1364,7 +1364,8 @@ def _novel_kit(name: str, side: SignalSide):
             # atr_n locked at 20. Swing = prior-bar rolling
             # high/low over swing_lookback (not confirmed
             # pivots, not Donchian 16/20, not t-1 only). Same-bar
-            # sized wick-through then close back through the
+            # sized wick-through (strict `>` of min_break_atr·ATR)
+            # then close back through the
             # broken swing level. Search swing_lookback +
             # min_break_atr only. CEO YES exploratory stamp
             # — endpoints [3, 5] and [0.2, 0.5], same sibling

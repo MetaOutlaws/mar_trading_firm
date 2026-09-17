@@ -11,9 +11,9 @@ but the searched window is the short swing ``[3, 5]``, not 16/20):
 Bar ``t`` cannot lift its own swing. A fail is a same-bar *sized wick-through*
 that then *closes back through* the broken swing level:
 
-    SHORT: (high[t] - swing_high) >= min_break_atr * ATR20
+    SHORT: high[t] > swing_high + min_break_atr * ATR20
            AND close[t] < swing_high
-    LONG:  (swing_low - low[t])  >= min_break_atr * ATR20
+    LONG:  low[t]  < swing_low  - min_break_atr * ATR20
            AND close[t] > swing_low
 
 BOTH sides honest, SHORT priority: when both raw conditions print on the
@@ -140,8 +140,10 @@ class SwingBreakFailReversionStrategy(Strategy):
         up_break_atr = (high - swing_high) / atr_safe
         dn_break_atr = (swing_low - low) / atr_safe
 
-        broke_up = atr_ok & up_break_atr.ge(min_break)
-        broke_down = atr_ok & dn_break_atr.ge(min_break)
+        # Munha + Marcus lock: size gate is strict `>` — a poke that lands
+        # exactly on swing ± min_break_atr·ATR is not a break.
+        broke_up = atr_ok & high.gt(swing_high + min_break * atr_known)
+        broke_down = atr_ok & low.lt(swing_low - min_break * atr_known)
         # Close back *through* the broken level (strict). A rail tag is not a fail.
         closed_through_high = close.lt(swing_high)
         closed_through_low = close.gt(swing_low)
@@ -189,7 +191,7 @@ class SwingBreakFailReversionStrategy(Strategy):
                 (
                     f"{side_value}: swing-break fail-reversion close {close.loc[i]:.4f} "
                     f"through swing {swing_high.loc[i]:.4f}/{swing_low.loc[i]:.4f} "
-                    f"lookback {lookback} break>={min_break:.2f}×ATR "
+                    f"lookback {lookback} break>{min_break:.2f}×ATR "
                     f"{atr_known.loc[i]:.4f}"
                 )
                 for i in entry[entry].index

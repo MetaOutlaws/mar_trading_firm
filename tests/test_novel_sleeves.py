@@ -11873,7 +11873,7 @@ def test_swing_break_fail_reversion_schema_and_long_entry() -> None:
     assert close_px > swing_low
     assert float(candles["low"].iloc[fire]) < swing_low
     break_atr = (swing_low - float(candles["low"].iloc[fire])) / atr_known
-    assert break_atr >= 0.2
+    assert break_atr > 0.2
     assert break_atr < 0.5
     # min_break_atr=0.5 needs a deeper poke — search grid matters.
     tight = factory(replace(base, min_break_atr=0.5)).generate_signals(candles)
@@ -11898,6 +11898,17 @@ def test_swing_break_fail_reversion_schema_and_long_entry() -> None:
             tiny_fire
         ]
     ) == 0
+    # Munha + Marcus lock: exact min_break_atr·ATR poke is NOT a break (`>`).
+    exact = candles.copy()
+    exact_low = swing_low - 0.2 * atr_known
+    exact.iloc[fire, exact.columns.get_loc("low")] = exact_low
+    exact_sig = factory(base).generate_signals(exact)
+    assert int(exact_sig["signal"].iloc[fire]) == 0
+    assert not bool(exact_sig["broke_down"].iloc[fire])
+    over = exact.copy()
+    over.iloc[fire, over.columns.get_loc("low")] = exact_low - 1e-9
+    over_sig = factory(base).generate_signals(over)
+    assert int(over_sig["signal"].iloc[fire]) == 1
     both, both_fire = _swing_break_fail_reversion_tape(long_side=True, two_sided=True)
     # SHORT priority: two-sided fail is SHORT, not LONG.
     assert int(
@@ -11947,7 +11958,7 @@ def test_swing_break_fail_reversion_short_entry() -> None:
     assert close_px < swing_high
     assert float(candles["high"].iloc[fire]) > swing_high
     break_atr = (float(candles["high"].iloc[fire]) - swing_high) / atr_known
-    assert break_atr >= 0.2
+    assert break_atr > 0.2
     assert break_atr < 0.5
     tight = factory(replace(base, min_break_atr=0.5)).generate_signals(candles)
     assert int(tight["signal"].iloc[fire]) == 0
@@ -11959,6 +11970,17 @@ def test_swing_break_fail_reversion_short_entry() -> None:
     )
     held_sig = _signals("swing_break_fail_reversion", held, side=SignalSide.SHORT)
     assert int(held_sig["signal"].iloc[held_fire]) == 0
+    # Munha + Marcus lock: exact min_break_atr·ATR poke is NOT a break (`>`).
+    exact = candles.copy()
+    exact_high = swing_high + 0.2 * atr_known
+    exact.iloc[fire, exact.columns.get_loc("high")] = exact_high
+    exact_sig = factory(base).generate_signals(exact)
+    assert int(exact_sig["signal"].iloc[fire]) == 0
+    assert not bool(exact_sig["broke_up"].iloc[fire])
+    over = exact.copy()
+    over.iloc[fire, over.columns.get_loc("high")] = exact_high + 1e-9
+    over_sig = factory(base).generate_signals(over)
+    assert int(over_sig["signal"].iloc[fire]) == -1
     _assert_swing_break_fail_reversion_clear_of_siblings(candles, fire, SignalSide.SHORT)
     long_on_up = _signals("swing_break_fail_reversion", candles, side=SignalSide.LONG)
     assert int(long_on_up["signal"].iloc[fire]) == 0
