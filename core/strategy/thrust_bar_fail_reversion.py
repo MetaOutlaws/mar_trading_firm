@@ -1,43 +1,39 @@
-"""Thrust-bar fail reversion — close back inside prior after a thrust break.
+"""Thrust-bar fail reversion — sized high/low break of prior, close back inside.
 
-Family G. Munha stamp (Brian YES already live). Sibling fail-reversion
-geometry: a *thrust break* of the immediate prior bar, then the next bar
-fails and closes back *inside that prior range*. Not a close-inside of
-the thrust bar itself, and not a mid-cross of the thrust.
+Family G. AUTHORITATIVE Munha/Garwe stamp (Brian YES live — lock exactly).
+Same-bar geometry. Not a clone of family F ``inside_bar_break_fail``,
+``outside_bar_fail_reversion``, ``expansion_fail_fade``,
+``candle_reject_reversal``, or a dead VP cluster.
 
-Prior range is bar ``t-2``. Thrust / break is bar ``t-1``. Fail is bar
-``t`` (next bar only; ``max_bars_since_break`` is not a free param).
+Prior range is bar ``t-1``. Thrust and fail live on bar ``t`` (same bar;
+``max_bars_since_break`` is not a free param). Fill is engine ``t+1`` open.
 
-Thrust size uses the break bar's high-low (not true range) vs Wilder
-ATR(20) known *before* the signal bar so bar ``t`` cannot lift the gate:
+Thrust (k = ``min_thrust_atr``) is range vs Wilder ATR(20) known *before*
+the signal bar so bar ``t`` cannot lift the gate, AND a high/low break of
+the immediate prior bar (a wick counts; close-through is not required):
 
-    (high[t-1] - low[t-1]) >= min_thrust_atr * ATR20
+    (high[t] - low[t]) >= min_thrust_atr * ATR20
+    AND (high[t] > prior_high  XOR  low[t] < prior_low)
 
-Break is a *close-through* of the prior bar (sibling convention — not a
-wick tag):
+Exclusive one-sided: both rails is outside-bar territory, not this family.
 
-    UP:   close[t-1] > high[t-2]
-    DOWN: close[t-1] < low[t-2]
+Fail / reversion is close back inside the *prior* bar (Quant-locked
+``require_close_inside``):
 
-Fail / reversion is close back inside the *prior* range (Quant-locked
-``require_close_inside``), same rail rules as NR7 / IB / ORB /
-failed-range fail-reversion:
+    SHORT: broke prior high only, then prior_low < close[t] < prior_high
+    LONG:  broke prior low only,  then prior_low < close[t] < prior_high
 
-    SHORT: UP break, then close[t] < prior_high AND close[t] >= prior_low
-    LONG:  DOWN break, then close[t] > prior_low AND close[t] <= prior_high
-
-A close on the broken rail has not come back through. SHORT is the
-priority edge; LONG is the honest mirror. No volume gate. No rolling
-Donchian lookback. The engine fills at ``t+1`` open.
+A close on a rail has not come back inside. SHORT is the priority edge;
+LONG is the honest mirror. No volume gate. No rolling Donchian lookback.
 
 Quant-locked (not searched):
 
     - Clock 4h/4h, side BOTH (SHORT priority documented, not a SHORT-only grid)
     - Family id ``thrust_bar_fail_reversion`` only
     - ATR period = 20, known before the signal bar (``atr.shift(1)``)
-    - Prior = immediate previous bar (t-2), not a rolling N-bar channel
-    - Break = close-through of that prior (not a wick)
-    - Fail = next bar only, close back inside the prior range
+    - Prior = immediate previous bar (t-1), not a rolling N-bar channel
+    - Break = high[t] > prior_high or low[t] < prior_low (wick counts)
+    - Fail = same bar, close back inside the prior range
     - require_close_inside = True
     - Fill at t+1 open (engine convention)
 
@@ -56,18 +52,22 @@ close-through, searched lookback + max_bars_since_break).
 Not ``nr7_fail_reversion`` (123 — narrowest-of-7 box).
 Not ``ib_fail_reversion`` (124 — London IB mother, later fail).
 Not ``orb_fail_reversion`` (121 — UTC-day ORB).
-Not ``outside_bar_fail_reversion`` (outside containment t-1 vs t-2, then
-close-inside the *outside* bar vs mid).
-Not ``inside_bar_break_fail`` (family F — same-bar wick-fail of an IB mother).
+Not ``outside_bar_fail_reversion`` (both-rail containment t-1 vs t-2, then
+next-bar close-inside the *outside* bar vs mid).
+Not ``inside_bar_break_fail`` (family F — IB mother, then same-bar wick-fail
+of the *mother*; size is mother range, not thrust range).
 Not ``expansion_fail_fade`` (131 — ATR true-range expansion + weak-vol;
 fail close-inside the *expansion* bar).
+Not ``candle_reject_reversal`` (hammer / hanging-man wick fractions).
 Not ``range_compression_volume_thrust`` (102 — FOLLOW a squeeze thrust).
 Not ``atr_open_flush_fade`` (138 — same-bar flush of *bar open*).
 Not ``utc_day_open_flush_fade`` (139).
 Not ``engulfing_fail_reversion`` (126).
 Not ``failed_break_reclaim`` (130).
-Not ``lvn_fill_reject`` (family E). Do not recode family F.
+Not VP cluster (``prior_poc_reclaim_fade`` / ``hvn_mean_revert`` /
+``lvn_fill_reject`` / rolling VA / VWAP). Do not recode family F.
 Do not recode spent families 118–150. Do not modify sibling geometry.
+Hold H&S / asia / wyckoff families alone. No DOGE/DOT/NEAR/LDO universe adds.
 """
 
 from __future__ import annotations
@@ -108,8 +108,8 @@ class ThrustBarFailReversionStrategy(Strategy):
     def __init__(self, params: ThrustBarFailReversionParams | None = None) -> None:
         super().__init__(params or ThrustBarFailReversionParams())
         self.params: ThrustBarFailReversionParams = self.params
-        # ATR seed + prior bar + thrust/break bar + the fail/reversion print.
-        self.min_bars = ATR_N_LOCKED + 3
+        # ATR seed + prior bar + the same-bar thrust/fail print.
+        self.min_bars = ATR_N_LOCKED + 2
 
     def generate_signals(self, candles: pd.DataFrame) -> pd.DataFrame:
         self.validate_candles(candles)
@@ -126,54 +126,40 @@ class ThrustBarFailReversionStrategy(Strategy):
         min_atr = float(params.min_thrust_atr)
         atr_n = ATR_N_LOCKED
 
-        # Prior range is the bar immediately before the thrust. Not Donchian.
-        prior_high = high.shift(2)
-        prior_low = low.shift(2)
-        thrust_high = high.shift(1)
-        thrust_low = low.shift(1)
-        thrust_close = close.shift(1)
+        # Prior is the bar immediately before the thrust. Not Donchian. Not IB mother.
+        prior_high = high.shift(1)
+        prior_low = low.shift(1)
+        # Thrust *is* the signal bar. Range and rails are published on t.
+        thrust_high = high
+        thrust_low = low
+        thrust_close = close
         thrust_range = thrust_high - thrust_low
 
         atr20 = ind.atr(high, low, close, atr_n)
-        # ATR known before the signal bar — bar t cannot lift the size gate.
+        # ATR known before the thrust/signal bar — bar t cannot lift the size gate.
         atr_known = atr20.shift(1)
         atr_ok = atr_known.gt(0)
         atr_safe = atr_known.replace(0, pd.NA)
         thrust_atr = thrust_range / atr_safe
         sized = atr_ok & thrust_range.ge(min_atr * atr_known)
 
-        # Close-through of the prior bar. A wick tag is not a thrust break.
-        broke_up = (
-            prior_high.notna() & thrust_close.notna() & thrust_close.gt(prior_high)
-        )
-        broke_down = (
-            prior_low.notna() & thrust_close.notna() & thrust_close.lt(prior_low)
-        )
+        # High/low break of the prior bar. A wick tag is a thrust break.
+        broke_up = prior_high.notna() & thrust_high.gt(prior_high)
+        broke_down = prior_low.notna() & thrust_low.lt(prior_low)
+        # Exclusive one-sided — both rails is outside_bar_fail_reversion territory.
+        one_sided_up = broke_up & ~broke_down
+        one_sided_down = broke_down & ~broke_up
 
-        # Locked inside-prior. A rail tag of the broken rail is not a fail,
-        # even if a caller passes require_close_inside=False. Other rail is
-        # inclusive, matching NR7 / IB / ORB / failed-range fail-reversion.
+        # Locked inside-prior. A rail tag is not a fail, even if a caller
+        # passes require_close_inside=False.
         close_inside_prior = (
             prior_high.notna()
             & prior_low.notna()
             & close.lt(prior_high)
             & close.gt(prior_low)
         )
-        # Back through the broken rail, still inside the other rail.
-        short_raw = (
-            sized
-            & broke_up
-            & close.lt(prior_high)
-            & close.ge(prior_low)
-            & close_inside_prior
-        )
-        long_raw = (
-            sized
-            & broke_down
-            & close.gt(prior_low)
-            & close.le(prior_high)
-            & close_inside_prior
-        )
+        short_raw = sized & one_sided_up & close_inside_prior
+        long_raw = sized & one_sided_down & close_inside_prior
 
         signals["atr"] = atr20
         signals["atr_known"] = atr_known
@@ -217,7 +203,7 @@ class ThrustBarFailReversionStrategy(Strategy):
                 (
                     f"{side_value}: thrust-bar fail-reversion close {close.loc[i]:.4f} "
                     f"inside prior ({prior_low.loc[i]:.4f}, {prior_high.loc[i]:.4f}) "
-                    f"after thrust close {thrust_close.loc[i]:.4f} "
+                    f"after {'high' if signal_value < 0 else 'low'} break "
                     f"range {thrust_range.loc[i]:.4f}>={min_atr:.2f}×ATR "
                     f"{atr_known.loc[i]:.4f}"
                 )

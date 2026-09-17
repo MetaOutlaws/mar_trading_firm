@@ -1335,15 +1335,14 @@ def _novel_kit(name: str, side: SignalSide):
             "core.strategy.thrust_bar_fail_reversion",
             "ThrustBarFailReversionParams",
             "ThrustBarFailReversionStrategy",
-            # atr_n locked at 20. Thrust break = close-through
-            # of the immediate prior bar (t-2), sized by H-L vs
-            # ATR. Fail = next bar closes back inside that prior
-            # range (sibling fail-reversion). Search
-            # min_thrust_atr only. Munha stamp — endpoints
+            # atr_n locked at 20. Thrust = range >= k·ATR AND
+            # exclusive high/low break of the immediate prior
+            # bar (t-1; wick counts). Fail = same-bar close
+            # back inside that prior bar. Search min_thrust_atr
+            # only. AUTHORITATIVE Munha/Garwe stamp — endpoints
             # [1.0, 1.5], same sibling float-grid as
             # min_outside_atr / min_mother_atr (no invented
-            # interior). BOTH with SHORT priority. Next-bar
-            # only (max_bars_since_break is not searched).
+            # interior). BOTH with SHORT priority. Fill t+1.
             {"min_thrust_atr": [1.0, 1.5]},
         ),
         "outside_bar_reversal": (
