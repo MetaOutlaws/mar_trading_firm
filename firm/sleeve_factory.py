@@ -2871,6 +2871,44 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "TR+weak-vol, and not a hammer reject or VP cluster."
         ),
     ),
+    SleeveSpec(
+        name="key_reversal_bar",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Classic key reversal bar as one 4h BOTH family with "
+            "SHORT priority. Brian YES geometry lock. SHORT: "
+            "high[t] > high[t-1] AND (high[t]-high[t-1]) >= "
+            "min_break_atr*ATR20 AND close[t] < close[t-1] AND "
+            "close[t] < open[t]. LONG: low[t] < low[t-1] AND "
+            "(low[t-1]-low[t]) >= min_break_atr*ATR20 AND "
+            "close[t] > close[t-1] AND close[t] > open[t]. ATR20 "
+            "known before the signal bar (atr.shift(1)). Fill t+1 "
+            "open. Free search (1 only): min_break_atr [0.2, 0.5] "
+            "(endpoints only — no invented interiors). Not "
+            "inside_bar_break_fail (family F). Not "
+            "outside_bar_reversal / outside_bar_fail_reversion. "
+            "Not a thrust-bar fail-reversion. Not dead VP. Not "
+            "Job 133 bullish_rectangle_fail_reclaim (DEAD). Hold "
+            "H&S / asia / wyckoff alone. Do not recode spent "
+            "families 118–151. Do not modify sibling geometry."
+        ),
+        summary=(
+            "Fade a 4h prior-extreme break that closes reverse vs "
+            "prior close and vs open (SHORT = upside key "
+            "reversal, LONG = downside key reversal) as one 4h "
+            "BOTH family with SHORT priority."
+        ),
+        justification=(
+            "A locked ATR20 prior-extreme takeout that closes "
+            "reverse vs prior close and vs open, with searched "
+            "min_break_atr only, is not an inside-bar mother "
+            "wick-fail, not an outside-bar containment clone, not "
+            "a thrust-bar fail, and not a rectangle / VP recode."
+        ),
+    ),
 ]
 
 

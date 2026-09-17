@@ -78,6 +78,7 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "lvn_fill_reject" not in names
     assert "inside_bar_break_fail" not in names
     assert "thrust_bar_fail_reversion" not in names
+    assert "key_reversal_bar" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

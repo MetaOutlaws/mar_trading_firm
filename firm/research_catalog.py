@@ -1527,6 +1527,42 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "key_reversal_bar@4h/4h",
+        "family": "key_reversal_bar",
+        "name": "key_reversal_bar 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 49,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Munha AUTHORITATIVE stamp / Brian YES geometry lock "
+            "for coding only. Classic key reversal bar as one 4h "
+            "BOTH family with SHORT priority. Quant-locked: ATR "
+            "period=20 known before the signal bar "
+            "(atr.shift(1)), reverse body locked, fill t+1 open. "
+            "SHORT=high[t] > high[t-1] AND "
+            "(high[t]-high[t-1]) >= min_break_atr*ATR AND "
+            "close[t] < close[t-1] AND close[t] < open[t] / "
+            "LONG=low[t] < low[t-1] AND "
+            "(low[t-1]-low[t]) >= min_break_atr*ATR AND "
+            "close[t] > close[t-1] AND close[t] > open[t]. Free "
+            "search (1 only): min_break_atr [0.2, 0.5] (endpoints "
+            "only — no invented interiors). BOTH sides honest; "
+            "SHORT is the priority edge. Register for ONE "
+            "walk-forward after merge (Job ~152). Walk-forward is "
+            "not started from this coding PR. Live stays off. Not "
+            "inside_bar_break_fail (family F), not "
+            "outside_bar_reversal / outside_bar_fail_reversion, "
+            "not a thrust-bar fail-reversion, not dead VP, not "
+            "Job 133 bullish_rectangle_fail_reclaim (DEAD). Hold "
+            "H&S / asia / wyckoff alone."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
