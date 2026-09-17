@@ -5,17 +5,22 @@ Order of operations is deliberate and matters:
 
 1. **Health check.** A broker that cannot be reached, or candles that have gone
    stale, means the engine is blind. It trips the kill switch instead of trading
-   on stale information.
+   on stale information. This is the only cycle state that skips exit
+   supervision: we cannot quote, so we must not invent fills (F05 ``BLIND``).
 2. **Reconcile.** Compare the ledger against the broker *before* deciding
    anything. Sizing new trades against a book that disagrees with reality is how
-   small errors compound into large ones.
-3. **Manage open positions.** Exits come before entries. Freeing a position slot
-   by taking profit should let a new signal through in the same cycle.
+   small errors compound into large ones. A mismatch blocks *entries*; it does
+   not skip paper stop polling (F05). Live exchange-close settlement on a dirty
+   book remains F06 and is not done here.
+3. **Manage open positions.** Exits come before entries. This step still runs
+   under an entry halt and when the scan plan is empty (F05). Freeing a
+   position slot by taking profit should let a new signal through in the same
+   cycle *only when entries are allowed*.
 4. **Scan for entries.** Signals come from `core.strategy` -- the same code the
-   backtester ran.
+   backtester ran. Skipped while ``ENTRY_HALT`` is active.
 5. **Risk-check every candidate.** Nothing reaches the broker without a
    `RiskDecision`, and every rejection is recorded.
-6. **Record equity.**
+6. **Record equity.** Accounting stays active under halt and empty plan.
 
 The engine never decides *whether* a trade is safe; that is the risk engine's
 job. It also never decides what a good signal is; that is the strategy's job.
@@ -48,9 +53,38 @@ logger = logging.getLogger(__name__)
 #: exchange publication lag and cycle scheduling jitter.
 MAX_CANDLE_LATENCY = timedelta(minutes=15)
 
+#: Paper stop-poll cadence independent of the 15-minute scan clock.
+#: Review F05 / F15 overlap: sequential workers plus a 900s sleep used to be
+#: the only TP/SL check, and a halt `break` removed even that. The paper
+#: runner calls ``supervise_exits`` on this interval while waiting. Not a
+#: new process — F15's full worker/scan split is out of scope.
+PAPER_EXIT_POLL_SECONDS = 15
+
 #: Last completed cycle, written so the dashboard can explain a quiet blotter
 #: even though paper trading and the API are separate processes.
 LAST_CYCLE_PATH = PROJECT_ROOT / "data" / "last_cycle.json"
+
+# ---------------------------------------------------------------------------
+# F05 halt / empty-plan policy (paper desk)
+#
+# Three distinct postures. Do not collapse them into "the cycle returned":
+#
+# 1. ENTRY_HALT — kill switch tripped (manual, daily loss, drawdown, prior
+#    broker error, recon mismatch). New orders are forbidden. Exit
+#    supervision and equity accounting still run whenever the broker can
+#    quote. Flatten-on-halt is a *different* explicit policy and is not
+#    implemented here.
+# 2. EMPTY_PLAN — sit-out / no approved or override sleeves. This is also
+#    an entry gate, not permission to orphan open risk. ``supervise_exits``
+#    still runs. The paper process stays up while the book is open.
+# 3. BLIND — ``health_check`` failed this cycle. We cannot poll stops
+#    against a dead feed. Skip this cycle's stop poll; do not invent fills.
+#    The runner keeps the process alive while exposure remains so a later
+#    healthy cycle can supervise.
+# 4. STOP_SERVICE — operator SIGINT/SIGTERM, or (ENTRY_HALT or empty plan)
+#    *and* the book is already flat. Never stop solely because the plan is
+#    empty or the kill switch is tripped while positions remain.
+# ---------------------------------------------------------------------------
 
 
 def _now() -> datetime:
@@ -74,6 +108,10 @@ class CycleReport:
     equity: float = 0.0
     crowding_skips: int = 0
     crowding_size_cuts: int = 0
+    #: F05: kill switch / recon mismatch blocked new entries this cycle.
+    entries_blocked: bool = False
+    #: F05: ``supervise_exits`` ran (False only for BLIND / unhealthy broker).
+    exit_supervision_ran: bool = False
 
     def summary(self) -> dict[str, object]:
         return {
@@ -89,6 +127,8 @@ class CycleReport:
             "errors": self.errors,
             "halted": self.halted,
             "halt_reason": self.halt_reason,
+            "entries_blocked": self.entries_blocked,
+            "exit_supervision_ran": self.exit_supervision_ran,
             "equity": round(self.equity, 2),
             "crowding_skips": self.crowding_skips,
             "crowding_size_cuts": self.crowding_size_cuts,
@@ -96,12 +136,37 @@ class CycleReport:
 
     def __str__(self) -> str:
         if self.halted:
-            return f"cycle HALTED: {self.halt_reason}"
+            extra = ""
+            if self.exit_supervision_ran:
+                extra = f" (exits supervised, {self.positions_closed} closed)"
+            return f"cycle HALTED: {self.halt_reason}{extra}"
         return (
             f"cycle: {self.symbols_scanned} scanned, {self.signals_found} signals, "
             f"{self.orders_placed} orders, {self.positions_closed} closed, "
             f"{len(self.rejections)} rejected, equity {self.equity:.2f}"
         )
+
+
+def may_stop_for_empty_plan(*, plan_empty: bool, open_count: int) -> bool:
+    """True only when there is nothing to scan AND nothing left to supervise.
+
+    An empty scan plan (regime sit-out, no approved/override sleeves) must
+    not take the paper process down while the book is open. That was the
+    F05 empty-plan orphan: hydrate restored positions, then the runner
+    exited because ``plan.entries`` was empty.
+    """
+    return bool(plan_empty) and int(open_count) <= 0
+
+
+def may_break_on_halt(*, halted: bool, open_count: int) -> bool:
+    """True only when the cycle is halted AND the book is already flat.
+
+    A tripped kill switch is ``ENTRY_HALT``, not ``STOP_SERVICE``. The
+    review reproduced: trip → ``run_cycle`` returned before
+    ``_manage_open_positions`` → runner ``break``. Keep the loop alive
+    until exposure is gone (or the operator signals shutdown).
+    """
+    return bool(halted) and int(open_count) <= 0
 
 
 @dataclass(frozen=True)
@@ -772,6 +837,9 @@ class TradingEngine:
         self._crowding: dict[str, dict] = {}
         self._crowding_skips = 0
         self._crowding_cuts = 0
+        #: F05/F06 seam: paper always polls stops. Live exchange-close
+        #: settlement on a dirty recon book is F06 and stays skipped.
+        self._allow_live_exchange_close = True
 
     def refresh_scan_plan(self) -> bool:
         """Rebuild the paper sleeve from the latest coded research job.
@@ -798,39 +866,110 @@ class TradingEngine:
         if self._owns_data:
             self._data.close()
 
+    def open_exposure_count(self) -> int:
+        """Open rows the desk must still supervise.
+
+        Fail closed: if ledger or broker cannot be read, assume exposure so
+        the paper runner will not walk away from a book it cannot see.
+        """
+        ledger_n = 0
+        broker_n = 0
+        ledger_ok = False
+        broker_ok = False
+        try:
+            ledger_n = len(self.ledger.open_positions())
+            ledger_ok = True
+        except Exception:
+            logger.exception("Could not read ledger open positions")
+        try:
+            broker_n = len(self.broker.get_positions())
+            broker_ok = True
+        except Exception:
+            logger.exception("Could not read broker positions")
+        if not ledger_ok and not broker_ok:
+            return 1
+        return max(ledger_n, broker_n)
+
+    def supervise_exits(self, *, allow_live_exchange_close: bool = True) -> int:
+        """Poll paper TP/SL (and live exchange closes when allowed).
+
+        F05: ``ENTRY_HALT`` and an empty scan plan must still call this.
+        ``BLIND`` (unhealthy broker) must not — we cannot quote.
+
+        Live exchange-close settlement on a dirty recon book is F06; pass
+        ``allow_live_exchange_close=False`` so this method does not invent
+        ticker fills for unreconciled live positions.
+        """
+        self._allow_live_exchange_close = allow_live_exchange_close
+        return self._manage_open_positions()
+
+    def _record_cycle_accounting(self, report: CycleReport, equity: float, marks: dict[str, float]) -> None:
+        """Persist equity / risk warnings. Runs under halt and empty plan."""
+        positions = self.ledger.open_positions()
+        exposure = sum(p.quantity * marks.get(p.symbol, p.entry_price) for p in positions)
+        self.ledger.record_equity(
+            equity=equity,
+            exposure=exposure,
+            open_position_count=len(positions),
+        )
+        for warning in self.risk.check_portfolio_health(
+            self.ledger.portfolio_state(equity, marks)
+        ):
+            logger.warning("Risk warning: %s", warning)
+            self.ledger.record_risk_event("risk_warning", "warning", detail=warning)
+
     # -----------------------------------------------------------------
     # Main cycle
     # -----------------------------------------------------------------
     def run_cycle(self) -> CycleReport:
-        """Execute one full trading cycle."""
+        """Execute one full trading cycle.
+
+        Kill switch and empty plan are entry gates (F05). They do not skip
+        paper stop polling or equity accounting when the broker can quote.
+        """
         report = CycleReport()
         try:
             self.refresh_scan_plan()
         except Exception:
             logger.exception("Could not refresh the paper scan plan this cycle")
 
+        if not self.plan.entries:
+            logger.info(
+                "Scan plan is empty (%d sit-out(s)); exit supervision still runs (F05).",
+                len(self.plan.regime_sitouts),
+            )
+
         # ---- 1. health ---------------------------------------------------
         healthy, message = self.broker.health_check()
         if not healthy:
+            # BLIND: cannot quote, so we must not invent stop fills.
             self.risk.kill_switch.trip(TripReason.BROKER_ERROR, message, tripped_by="engine")
             report.halted = True
             report.halt_reason = f"broker unhealthy: {message}"
+            report.entries_blocked = True
+            report.exit_supervision_ran = False
             self.ledger.record_risk_event(
                 "broker_unhealthy", "critical", detail=message, action_taken="kill switch tripped"
             )
             persist_last_cycle(report, self.plan)
             return report
 
+        entries_blocked = False
         if self.risk.kill_switch.is_tripped:
+            # ENTRY_HALT: do not return. Exits still run below.
             state = self.risk.kill_switch.read()
             report.halted = True
             report.halt_reason = f"kill switch tripped: {state.reason.value} - {state.detail}"
-            logger.warning("Cycle skipped: %s", report.halt_reason)
-            persist_last_cycle(report, self.plan)
-            return report
+            report.entries_blocked = True
+            entries_blocked = True
+            logger.warning(
+                "ENTRY_HALT: %s. Exit supervision continues; no new orders.",
+                report.halt_reason,
+            )
 
         # Paper: settle 8h funding into cash before equity/risk see the book,
-        # using the same CostModel.funding_cost research uses (F03).
+        # using the same CostModel.funding_cost research uses (F03). Still
+        # runs under ENTRY_HALT so accounting stays live.
         if isinstance(self.broker, PaperBroker):
             try:
                 self.broker.accrue_funding()
@@ -841,9 +980,11 @@ class TradingEngine:
         report.equity = equity
 
         # ---- 2. reconcile ------------------------------------------------
+        recon_dirty = False
         try:
             discrepancies = self.ledger.reconcile(self.broker.get_positions())
         except Exception as exc:
+            # F09 (fail-open on recon exception) is unchanged here.
             report.errors.append(f"reconciliation failed: {exc}")
             logger.exception("Reconciliation error")
             discrepancies = []
@@ -857,16 +998,31 @@ class TradingEngine:
                 "reconciliation_mismatch",
                 "critical",
                 detail=detail,
-                action_taken="kill switch tripped",
+                action_taken="kill switch tripped; entries blocked, paper exits still polled",
                 context={"discrepancies": discrepancies},
             )
             report.halted = True
             report.halt_reason = f"reconciliation mismatch: {detail}"
+            report.entries_blocked = True
+            entries_blocked = True
+            recon_dirty = True
+            # F05: do not return. Paper check_stops still runs. Live
+            # exchange-close settlement on this dirty book is F06.
+
+        # ---- 3. manage open positions (halt / empty plan included) --------
+        report.positions_closed = self.supervise_exits(
+            allow_live_exchange_close=not recon_dirty
+        )
+        report.exit_supervision_ran = True
+
+        if entries_blocked:
+            # Refresh equity after possible stop fills; skip the scan.
+            equity = self.broker.get_balance()
+            report.equity = equity
+            self._record_cycle_accounting(report, equity, {})
+            logger.info("%s", report)
             persist_last_cycle(report, self.plan)
             return report
-
-        # ---- 3. manage open positions ------------------------------------
-        report.positions_closed = self._manage_open_positions()
 
         # ---- 4/5. scan and execute ---------------------------------------
         marks: dict[str, float] = {}
@@ -905,19 +1061,7 @@ class TradingEngine:
         report.crowding_size_cuts = self._crowding_cuts
 
         # ---- 6. record equity --------------------------------------------
-        positions = self.ledger.open_positions()
-        exposure = sum(p.quantity * marks.get(p.symbol, p.entry_price) for p in positions)
-        self.ledger.record_equity(
-            equity=equity,
-            exposure=exposure,
-            open_position_count=len(positions),
-        )
-
-        for warning in self.risk.check_portfolio_health(
-            self.ledger.portfolio_state(equity, marks)
-        ):
-            logger.warning("Risk warning: %s", warning)
-            self.ledger.record_risk_event("risk_warning", "warning", detail=warning)
+        self._record_cycle_accounting(report, equity, marks)
 
         logger.info("%s", report)
         persist_last_cycle(report, self.plan)
@@ -1148,6 +1292,10 @@ class TradingEngine:
         In paper mode the engine polls the stops itself, because there is no
         exchange to enforce them. On a real broker the exchange fills them
         server-side and reconciliation notices the change.
+
+        F05: this method is an exit supervisor, not an entry path. Callers
+        under kill switch / empty plan must still invoke it. The no-arg
+        signature is kept so existing tests can mock it as ``lambda: 0``.
         """
         closed = 0
 
@@ -1169,6 +1317,13 @@ class TradingEngine:
                 )
                 closed += 1
             return closed
+
+        if not getattr(self, "_allow_live_exchange_close", True):
+            # Dirty recon: do not treat missing live rows as fills (F06).
+            logger.warning(
+                "Skipping live exchange-close settlement; reconciliation is dirty (F06)."
+            )
+            return 0
 
         # Real broker: a position missing from the exchange means a stop filled.
         broker_symbols = {p.symbol for p in self.broker.get_positions()}
