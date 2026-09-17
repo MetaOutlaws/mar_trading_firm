@@ -1,49 +1,56 @@
-"""Three-push exhaustion fail — three sized successive extremes, then fail to extend.
+"""Three-push exhaustion fail — three prior HH/LL, then fail + strong close.
 
-Family J. FINAL AUTHORITATIVE stamp (Brian), Job ~154 Option B exploratory.
-Implement exactly. Three successive *pushes* live on bars ``t-3, t-2, t-1``.
-Bar ``t`` is the fail-to-extend print (not a fourth push):
+Family J. FINAL AUTHORITATIVE stamp (Garwe + Marcus — Garwe geometry
+SUPERSEDES looser Munha fail-to-extend OR). Job ~154 Option B
+exploratory. Implement exactly.
 
-    SHORT: three successive higher-highs, each sized vs ATR20
-           high[t-3] > high[t-4] AND (high[t-3]-high[t-4]) > min_push_atr·ATR
-           high[t-2] > high[t-3] AND (high[t-2]-high[t-3]) > min_push_atr·ATR
-           high[t-1] > high[t-2] AND (high[t-1]-high[t-2]) > min_push_atr·ATR
-           AND high[t] <= high[t-1]          # fail to make a 4th higher high
-           AND t-4 was not also a sized HH   # exact n_pushes=3, not 4+
-    LONG:  three successive lower-lows, each sized vs ATR20 (mirror)
-           low[t-3] < low[t-4] AND (low[t-4]-low[t-3]) > min_push_atr·ATR
-           low[t-2] < low[t-3] AND (low[t-3]-low[t-2]) > min_push_atr·ATR
-           low[t-1] < low[t-2] AND (low[t-2]-low[t-1]) > min_push_atr·ATR
-           AND low[t] >= low[t-1]            # fail to make a 4th lower low
-           AND t-4 was not also a sized LL
+Three prior pushes live on bars ``t-3, t-2, t-1``. Bar ``t`` is the
+exhaustion print. Size is the two successive advances among those
+three extremes vs Wilder ATR(20) known *before* the signal bar
+(``atr.shift(1)``). Fail is *not* fail-to-extend alone: bar ``t`` must
+also print a strong reverse close.
+
+    SHORT:
+        high[t-3] < high[t-2] < high[t-1]
+        AND (high[t-2] - high[t-3]) >= min_push_atr * ATR20
+        AND (high[t-1] - high[t-2]) >= min_push_atr * ATR20
+        AND high[t] <= high[t-1]
+        AND close[t] < open[t]
+        AND close[t] < close[t-1]
+    LONG (inverse):
+        low[t-3] > low[t-2] > low[t-1]
+        AND (low[t-3] - low[t-2]) >= min_push_atr * ATR20
+        AND (low[t-2] - low[t-1]) >= min_push_atr * ATR20
+        AND low[t] >= low[t-1]
+        AND close[t] > open[t]
+        AND close[t] > close[t-1]
 
 BOTH sides honest, SHORT priority: when both raw conditions print on the
-same bar, SHORT fires and LONG does not. ATR is Wilder ATR(20) known
-*before* the signal bar (``atr.shift(1)``) so bar ``t`` cannot lift the
-size gate. All three push sizes are measured against that same known-before
-ATR. The engine fills at ``t+1`` open. No volume gate. No session gate.
+same bar, SHORT fires and LONG does not. The engine fills at ``t+1``
+open. No volume gate. No session gate. No VP.
 
-A push is a *successive bar extreme*, not a confirmed pivot and not a
-lookback-N swing. Fail-to-extend is "did not print a 4th extreme" — not a
-same-bar wick-through that closes back, not a reverse-body key reversal.
+A push is a successive *bar* extreme, not a confirmed pivot and not a
+lookback-N swing. The fail conjuncts are fail-new-extreme AND strong
+close — not a same-bar wick-through that closes back, not a key
+reversal (that family *breaks* t-1's extreme on bar t).
 
 Quant-locked (not searched):
 
     - Clock 4h/4h, side BOTH (SHORT priority on two-sided bars)
     - Family id ``three_push_exhaustion_fail`` only
-    - n_pushes = 3 (exact run ending at t-1; 2 or 4+ do not fire)
+    - Exactly 3 prior pushes (bars t-3, t-2, t-1; n_pushes not searched)
     - ATR period = 20, known before the signal bar (``atr.shift(1)``)
-    - Fail = bar t does not extend the 3rd push extreme
-    - Size gate is strict ``>`` (an exact min_push_atr·ATR step is not a push)
+    - Size gate is ``>=`` (an exact min_push_atr·ATR advance *is* a push)
+    - Fail = no 4th extreme AND strong reverse close vs open and vs prior close
     - Fill at t+1 open (engine convention)
-    - No volume / session gate
+    - No volume / session / VP gate
 
 Free search (1 only):
 
     - ``min_push_atr`` grid ``[0.15, 0.35]`` (endpoints only — same sibling
       float-grid convention as ``outside_bar_fail_reversion.min_outside_atr``
-      / ``inside_bar_break_fail.min_mother_atr`` / ``key_reversal_bar.min_break_atr``;
-      do not invent interiors)
+      / ``inside_bar_break_fail.min_mother_atr`` / ``key_reversal_bar.min_break_atr``.
+      Do NOT use ``[0.3, 0.6]``. Do not invent interiors)
 
 Not ``consecutive_bar_exhaustion`` (fade after N directional *closes*, no
 ATR push floor, no fail-to-extend bar).
@@ -52,8 +59,8 @@ Not ``swing_break_fail_reversion`` (family I — lookback-N wick-through then
 close back through the swing).
 Not ``swing_failure_reversal`` (confirmed N-bar pivots, any wick, no ATR
 size floor).
-Not ``key_reversal_bar`` (family H / Job 152 — single t vs t-1 extreme +
-reverse body).
+Not ``key_reversal_bar`` (family H / Job 152 — bar t *breaks* t-1 extreme
+then reverse body; this family fails to make a 4th extreme).
 Not ``thrust_bar_fail_reversion`` (family G / Job 151 — t-1 thrust then
 close inside prior).
 Not ``inside_bar_break_fail`` (family F — IB mother wick-fail).
@@ -84,9 +91,11 @@ from core.strategy.base import SignalSide, Strategy, StrategyParams
 
 # Locked ATR window. Walk-forward searches min_push_atr only.
 ATR_N_LOCKED = 20
-# Locked push count. Three successive extremes, then fail. Not searched.
+# Locked push count: bars t-3, t-2, t-1. Not searched.
 N_PUSHES_LOCKED = 3
-# Free-grid push size in ATR units. Endpoints only.
+# Quant-locked True: fail close must reverse vs open and vs prior close.
+REQUIRE_STRONG_CLOSE_LOCKED = True
+# Free-grid push size in ATR units. Endpoints only. Do NOT use [0.3, 0.6].
 MIN_PUSH_ATR_MIN = 0.15
 MIN_PUSH_ATR_MAX = 0.35
 MIN_PUSH_ATR_GRID = [0.15, 0.35]
@@ -99,8 +108,10 @@ class ThreePushExhaustionFailParams(StrategyParams):
     atr_n: int = ATR_N_LOCKED
     # Successive-push count. Quant-locked at 3 — not a free search param.
     n_pushes: int = N_PUSHES_LOCKED
-    # Minimum successive-extreme size in ATR units. Quant grid: [0.15, 0.35].
+    # Minimum successive-extreme advance in ATR units. Quant grid: [0.15, 0.35].
     min_push_atr: float = MIN_PUSH_ATR_MIN
+    # Quant-locked True: fade only if bar t prints a strong reverse close.
+    require_strong_close: bool = REQUIRE_STRONG_CLOSE_LOCKED
     take_profit_pct: float = 0.04
     stop_loss_pct: float = 0.02
 
@@ -111,8 +122,8 @@ class ThreePushExhaustionFailStrategy(Strategy):
     def __init__(self, params: ThreePushExhaustionFailParams | None = None) -> None:
         super().__init__(params or ThreePushExhaustionFailParams())
         self.params: ThreePushExhaustionFailParams = self.params
-        # ATR seed + 3 pushes + baseline t-4 + exact-3 predecessor t-5 + fail t.
-        self.min_bars = ATR_N_LOCKED + N_PUSHES_LOCKED + 3
+        # ATR seed + exactly 3 prior push bars + the fail/strong-close print.
+        self.min_bars = ATR_N_LOCKED + N_PUSHES_LOCKED + 1
 
     def generate_signals(self, candles: pd.DataFrame) -> pd.DataFrame:
         self.validate_candles(candles)
@@ -122,11 +133,12 @@ class ThreePushExhaustionFailStrategy(Strategy):
             signals["reason"] = "insufficient history"
             return signals
 
+        open_ = candles["open"]
         high = candles["high"]
         low = candles["low"]
         close = candles["close"]
         # Searched push floor stays caller-set so the 0.15 vs 0.35 grid matters.
-        # n_pushes / atr_n stay locked even if a caller overrides the dataclass.
+        # n_pushes / atr_n / strong-close stay locked even if a caller overrides.
         min_push = float(params.min_push_atr)
         atr_n = ATR_N_LOCKED
         n_pushes = N_PUSHES_LOCKED
@@ -137,76 +149,80 @@ class ThreePushExhaustionFailStrategy(Strategy):
         atr_ok = atr_known.gt(0)
         atr_safe = atr_known.replace(0, pd.NA)
 
-        # Pushes live on t-3, t-2, t-1. Each step is vs the prior bar's extreme.
-        # Size uses the same known-before ATR at t (causal at the signal bar).
-        hh1 = high.shift(3) - high.shift(4)
-        hh2 = high.shift(2) - high.shift(3)
-        hh3 = high.shift(1) - high.shift(2)
-        # Predecessor at t-4: a sized HH here would make the run 4+, not 3.
-        hh0 = high.shift(4) - high.shift(5)
-        ll1 = low.shift(4) - low.shift(3)
-        ll2 = low.shift(3) - low.shift(2)
-        ll3 = low.shift(2) - low.shift(1)
-        ll0 = low.shift(5) - low.shift(4)
+        high_t3 = high.shift(3)
+        high_t2 = high.shift(2)
+        high_t1 = high.shift(1)
+        low_t3 = low.shift(3)
+        low_t2 = low.shift(2)
+        low_t1 = low.shift(1)
+        prior_close = close.shift(1)
 
-        # Munha + Marcus lock (same as family I): size gate is strict `>`.
-        # A step that lands exactly on min_push_atr·ATR is not a push.
-        sized_hh1 = atr_ok & hh1.gt(min_push * atr_known)
-        sized_hh2 = atr_ok & hh2.gt(min_push * atr_known)
-        sized_hh3 = atr_ok & hh3.gt(min_push * atr_known)
-        sized_hh0 = atr_ok & hh0.gt(min_push * atr_known)
-        sized_ll1 = atr_ok & ll1.gt(min_push * atr_known)
-        sized_ll2 = atr_ok & ll2.gt(min_push * atr_known)
-        sized_ll3 = atr_ok & ll3.gt(min_push * atr_known)
-        sized_ll0 = atr_ok & ll0.gt(min_push * atr_known)
+        # Two successive advances among the three prior extremes.
+        # Garwe lock: size gate is ``>=`` — an exact min_push_atr·ATR step counts.
+        push1_up = high_t2 - high_t3
+        push2_up = high_t1 - high_t2
+        push1_dn = low_t3 - low_t2
+        push2_dn = low_t2 - low_t1
+        rising = high_t3.notna() & high_t3.lt(high_t2) & high_t2.lt(high_t1)
+        falling = low_t3.notna() & low_t3.gt(low_t2) & low_t2.gt(low_t1)
+        sized_up1 = atr_ok & push1_up.ge(min_push * atr_known)
+        sized_up2 = atr_ok & push2_up.ge(min_push * atr_known)
+        sized_dn1 = atr_ok & push1_dn.ge(min_push * atr_known)
+        sized_dn2 = atr_ok & push2_dn.ge(min_push * atr_known)
+        three_up = rising & sized_up1 & sized_up2
+        three_down = falling & sized_dn1 & sized_dn2
 
-        three_up = sized_hh1 & sized_hh2 & sized_hh3
-        three_down = sized_ll1 & sized_ll2 & sized_ll3
-        # Exact n_pushes=3: the bar before the first push was not a sized push.
-        exact_three_up = three_up & (~sized_hh0)
-        exact_three_down = three_down & (~sized_ll0)
+        # Fail new extreme (equal extreme is a fail). Key reversal *breaks* t-1.
+        fail_extend_up = high_t1.notna() & ~high.gt(high_t1)
+        fail_extend_down = low_t1.notna() & ~low.lt(low_t1)
+        # Strong reverse close is locked. A caller cannot pass
+        # require_strong_close=False to take a weak body.
+        close_lt_open = close.lt(open_)
+        close_gt_open = close.gt(open_)
+        close_lt_prior = prior_close.notna() & close.lt(prior_close)
+        close_gt_prior = prior_close.notna() & close.gt(prior_close)
+        strong_short = close_lt_open & close_lt_prior
+        strong_long = close_gt_open & close_gt_prior
 
-        prior_high = high.shift(1)
-        prior_low = low.shift(1)
-        # Fail-to-extend: bar t does not print a 4th higher high / lower low.
-        # An equal extreme is a fail (did not extend). A 4th push is not.
-        fail_extend_up = prior_high.notna() & ~high.gt(prior_high)
-        fail_extend_down = prior_low.notna() & ~low.lt(prior_low)
-
-        short_raw = exact_three_up & fail_extend_up
-        long_raw = exact_three_down & fail_extend_down
+        short_raw = three_up & fail_extend_up & strong_short
+        long_raw = three_down & fail_extend_down & strong_long
         # SHORT priority: a two-sided fail is SHORT, not LONG.
         long_raw = long_raw & (~short_raw)
 
         signals["atr"] = atr20
         signals["atr_known"] = atr_known
         signals["n_pushes"] = n_pushes
-        signals["prior_high"] = prior_high
-        signals["prior_low"] = prior_low
-        signals["hh1"] = hh1
-        signals["hh2"] = hh2
-        signals["hh3"] = hh3
-        signals["ll1"] = ll1
-        signals["ll2"] = ll2
-        signals["ll3"] = ll3
-        signals["push1_up_atr"] = hh1 / atr_safe
-        signals["push2_up_atr"] = hh2 / atr_safe
-        signals["push3_up_atr"] = hh3 / atr_safe
-        signals["push1_dn_atr"] = ll1 / atr_safe
-        signals["push2_dn_atr"] = ll2 / atr_safe
-        signals["push3_dn_atr"] = ll3 / atr_safe
-        signals["sized_hh1"] = sized_hh1.fillna(False)
-        signals["sized_hh2"] = sized_hh2.fillna(False)
-        signals["sized_hh3"] = sized_hh3.fillna(False)
-        signals["sized_ll1"] = sized_ll1.fillna(False)
-        signals["sized_ll2"] = sized_ll2.fillna(False)
-        signals["sized_ll3"] = sized_ll3.fillna(False)
+        signals["high_t3"] = high_t3
+        signals["high_t2"] = high_t2
+        signals["high_t1"] = high_t1
+        signals["low_t3"] = low_t3
+        signals["low_t2"] = low_t2
+        signals["low_t1"] = low_t1
+        signals["prior_high"] = high_t1
+        signals["prior_low"] = low_t1
+        signals["prior_close"] = prior_close
+        signals["push1_up"] = push1_up
+        signals["push2_up"] = push2_up
+        signals["push1_dn"] = push1_dn
+        signals["push2_dn"] = push2_dn
+        signals["push1_up_atr"] = push1_up / atr_safe
+        signals["push2_up_atr"] = push2_up / atr_safe
+        signals["push1_dn_atr"] = push1_dn / atr_safe
+        signals["push2_dn_atr"] = push2_dn / atr_safe
+        signals["sized_up1"] = sized_up1.fillna(False)
+        signals["sized_up2"] = sized_up2.fillna(False)
+        signals["sized_dn1"] = sized_dn1.fillna(False)
+        signals["sized_dn2"] = sized_dn2.fillna(False)
         signals["three_up"] = three_up.fillna(False)
         signals["three_down"] = three_down.fillna(False)
-        signals["exact_three_up"] = exact_three_up.fillna(False)
-        signals["exact_three_down"] = exact_three_down.fillna(False)
         signals["fail_extend_up"] = fail_extend_up.fillna(False)
         signals["fail_extend_down"] = fail_extend_down.fillna(False)
+        signals["close_lt_open"] = close_lt_open.fillna(False)
+        signals["close_gt_open"] = close_gt_open.fillna(False)
+        signals["close_lt_prior"] = close_lt_prior.fillna(False)
+        signals["close_gt_prior"] = close_gt_prior.fillna(False)
+        signals["strong_short"] = strong_short.fillna(False)
+        signals["strong_long"] = strong_long.fillna(False)
 
         if params.side is SignalSide.SHORT:
             entry = short_raw
@@ -223,11 +239,11 @@ class ThreePushExhaustionFailStrategy(Strategy):
         if signal_value != 0:
             signals.loc[entry, "signal"] = signal_value
             signals.loc[entry, "side"] = side_value
-            # Stronger when the fail sits further from extending the 3rd push.
+            # Stronger when the fail close sits further through prior close.
             if params.side is SignalSide.SHORT:
-                score = ((prior_high - high) / atr_safe).clip(0.0, 1.0)
+                score = ((prior_close - close) / atr_safe).clip(0.0, 1.0)
             else:
-                score = ((low - prior_low) / atr_safe).clip(0.0, 1.0)
+                score = ((close - prior_close) / atr_safe).clip(0.0, 1.0)
             signals.loc[entry, "score"] = score.fillna(0.0)[entry]
         reasons = pd.Series("", index=candles.index, dtype="object")
         if entry.any() and signal_value != 0:
@@ -235,9 +251,11 @@ class ThreePushExhaustionFailStrategy(Strategy):
                 (
                     f"{side_value}: three-push exhaustion-fail "
                     f"n={n_pushes} close {close.loc[i]:.4f} "
+                    f"{'<' if params.side is SignalSide.SHORT else '>'} "
+                    f"open {open_.loc[i]:.4f} vs prior close {prior_close.loc[i]:.4f} "
                     f"after 3rd {'HH' if params.side is SignalSide.SHORT else 'LL'} "
-                    f"{prior_high.loc[i]:.4f}/{prior_low.loc[i]:.4f} "
-                    f"push>{min_push:.2f}×ATR {atr_known.loc[i]:.4f}"
+                    f"{high_t1.loc[i]:.4f}/{low_t1.loc[i]:.4f} "
+                    f"push>={min_push:.2f}×ATR {atr_known.loc[i]:.4f}"
                 )
                 for i in entry[entry].index
             ]
@@ -251,6 +269,7 @@ __all__ = [
     "MIN_PUSH_ATR_MAX",
     "MIN_PUSH_ATR_MIN",
     "N_PUSHES_LOCKED",
+    "REQUIRE_STRONG_CLOSE_LOCKED",
     "ThreePushExhaustionFailParams",
     "ThreePushExhaustionFailStrategy",
 ]

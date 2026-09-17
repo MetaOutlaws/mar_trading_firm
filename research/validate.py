@@ -1377,16 +1377,15 @@ def _novel_kit(name: str, side: SignalSide):
             "core.strategy.three_push_exhaustion_fail",
             "ThreePushExhaustionFailParams",
             "ThreePushExhaustionFailStrategy",
-            # atr_n locked at 20. n_pushes locked at 3.
-            # Three successive sized bar-extreme pushes on
-            # t-3..t-1 (HH SHORT / LL LONG, strict `>` of
-            # min_push_atr·ATR), then bar t fails to extend
-            # (no 4th HH / LL). Exact 3: t-4 was not a sized
-            # push. Search min_push_atr only. Brian stamp
-            # Job ~154 — endpoints [0.15, 0.35], same sibling
-            # float-grid convention as min_outside_atr /
-            # min_mother_atr / min_break_atr (no invented
-            # interior). BOTH with SHORT priority. Fill t+1.
+            # atr_n locked at 20. n_pushes locked at 3
+            # (bars t-3, t-2, t-1). Two successive advances
+            # among those three extremes sized `>=`
+            # min_push_atr·ATR. Fail on bar t is no 4th
+            # extreme AND strong reverse close vs open and
+            # vs prior close (Garwe SUPERSEDES looser Munha
+            # fail-to-extend OR). Search min_push_atr only.
+            # Endpoints [0.15, 0.35] — do NOT use [0.3, 0.6].
+            # BOTH with SHORT priority. Fill t+1.
             {"min_push_atr": [0.15, 0.35]},
         ),
         "outside_bar_reversal": (
