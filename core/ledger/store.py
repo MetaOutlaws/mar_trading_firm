@@ -69,6 +69,11 @@ class Ledger:
         contributing_agents: Sequence[str] = (),
         entry_indicators: dict | None = None,
         entry_fee: float = 0.0,
+        execution_contract: str = "",
+        strategy_params: dict | None = None,
+        timeframe: str = "",
+        max_holding_bars: int = 0,
+        expiry_at: datetime | None = None,
     ) -> int:
         """Record a newly opened position and return its id."""
         with session_scope() as session:
@@ -91,6 +96,11 @@ class Ledger:
                 broker_order_id=broker_order_id,
                 contributing_agents=list(contributing_agents),
                 entry_indicators=entry_indicators or {},
+                execution_contract=execution_contract,
+                strategy_params=strategy_params or {},
+                timeframe=timeframe,
+                max_holding_bars=max_holding_bars,
+                expiry_at=expiry_at,
             )
             session.add(position)
             session.flush()

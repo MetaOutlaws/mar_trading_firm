@@ -20,6 +20,11 @@ Entry fees hit cash on the open and are stored on the position so the ledger
 can write a round-trip ``TradeRecord`` (F03). Funding is accrued into cash as
 settlements elapse, journaled as ``funding`` events (F02 store), and realised
 onto the close.
+
+F04 comparison runs do not poll live marks. ``close_at_fill`` plus
+``core.execution.replay.run_paper_replay`` drive this broker over the same
+OHLC tape ``BacktestEngine`` uses (next-bar open, fill-based TP/SL, no extra
+stop slippage, ``max_holding_bars``).
 """
 
 from __future__ import annotations
@@ -89,6 +94,7 @@ class PaperBroker(Broker):
         costs: CostModel | None = None,
         data_source: BybitOHLCV | None = None,
         cash_store: PaperCashStore | None = None,
+        lock_cost_model: bool = False,
     ) -> None:
         self.costs = costs or DEFAULT_COSTS
         self._data = data_source or BybitOHLCV()
@@ -102,6 +108,10 @@ class PaperBroker(Broker):
         self._cash = starting_equity
         self._positions: dict[str, PaperPosition] = {}
         self._instruments: dict[str, Instrument] = {}
+        #: When True, ``costs_for`` returns ``self.costs`` unchanged. Golden-tape
+        #: replay locks the same CostModel instance the backtest used so a second
+        #: ``for_symbol`` pass cannot silently re-scale slippage.
+        self._lock_cost_model = lock_cost_model
         #: Optional per-symbol funding history for CostModel parity with research.
         #: Missing symbols fall back to CostModel.default_funding_rate.
         self._funding: dict[str, FundingHistory] = {}
@@ -254,7 +264,13 @@ class PaperBroker(Broker):
         return instrument
 
     def costs_for(self, symbol: str) -> CostModel:
-        """Per-symbol schedule — same ``for_symbol`` research validation uses."""
+        """Per-symbol schedule — same ``for_symbol`` research validation uses.
+
+        Golden-tape replay passes ``lock_cost_model=True`` so this returns the
+        CostModel the backtest was given, without a second sector multiplier.
+        """
+        if self._lock_cost_model:
+            return self.costs
         return self.costs.for_symbol(symbol)
 
     def set_funding_history(self, symbol: str, history: FundingHistory) -> None:
@@ -530,6 +546,26 @@ class PaperBroker(Broker):
             symbol, position.side, position.quantity, expected_price=price, reduce_only=True
         )
 
+    def close_at_fill(
+        self, symbol: str, fill_price: float, expected_price: float
+    ) -> OrderResult:
+        """Close at an already-resolved contract fill (no extra slip).
+
+        Replay uses this after ``exit_fill_price`` so a stop does not take a
+        second ``CostModel.exit_price`` tick. Live ``close_position`` still
+        applies exit slippage to a sampled mark — that path is not the tape.
+        """
+        position = self._positions.get(symbol)
+        if position is None:
+            return OrderResult(
+                success=False, symbol=symbol, error=f"no open position in {symbol}"
+            )
+        costs = self.costs_for(symbol)
+        quantity = position.quantity
+        fee = costs.fee_for(quantity * fill_price)
+        self.accrue_funding()
+        return self._apply_close(symbol, quantity, fill_price, fee, expected_price)
+
     # -- simulated stop monitoring ----------------------------------------
     def check_stops(self) -> list[tuple[str, str, OrderResult]]:
         """Trigger any TP/SL that the current price has reached.
@@ -557,8 +593,20 @@ class PaperBroker(Broker):
                 hit_target = position.take_profit is not None and price <= position.take_profit
 
             if hit_stop:
-                triggered.append((symbol, "stop_loss", self.close_position(symbol)))
+                # Sampled last-price poll: fill at the last mark without a
+                # second exit-slippage tick (F04). Replay uses OHLC +
+                # ``close_at_fill`` and does not come through here.
+                triggered.append(
+                    (
+                        symbol,
+                        "stop_loss",
+                        self.close_at_fill(symbol, price, position.stop_loss or price),
+                    )
+                )
             elif hit_target:
+                # TP: contract applies exit slippage to the target level. The
+                # sampled mark may already be through the target; still fill
+                # at that mark (live limitation) but charge exit slip once.
                 triggered.append((symbol, "take_profit", self.close_position(symbol)))
 
         return triggered

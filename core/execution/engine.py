@@ -22,6 +22,10 @@ Order of operations is deliberate and matters:
    `RiskDecision`, and every rejection is recorded.
 6. **Record equity.** Accounting stays active under halt and empty plan.
 
+Paper protection levels are rebuilt from the slipped fill, and every open row
+stores execution-contract identity (version, params, timeframe, expiry). That
+is F04; the golden tape is ``run_paper_replay``, not ``run_cycle``.
+
 The engine never decides *whether* a trade is safe; that is the risk engine's
 job. It also never decides what a good signal is; that is the strategy's job.
 Keeping those responsibilities separate is what makes each of them testable.
@@ -40,6 +44,11 @@ from config.pipeline import APPROVED_RESEARCH_SYMBOLS, PAPER_SCAN_SLEEVES, is_pa
 from config.universe import get_universe, parse_approval_key
 from core.data.ohlcv import TIMEFRAME_DELTAS, BybitOHLCV, closed_candles, normalise_timeframe
 from core.execution.broker import Broker
+from core.execution.contract import (
+    EXECUTION_CONTRACT_VERSION,
+    position_identity,
+    risk_levels,
+)
 from core.execution.paper import PaperBroker
 from core.execution.paper_cash import PAPER_CASH_PATH, PaperCashStore
 from core.ledger.store import Ledger
@@ -1161,8 +1170,10 @@ class TradingEngine:
         universe = get_universe()
         sector = universe.sector_of(signal.symbol)
 
-        # Levels are derived from the signal's own TP/SL percentages, so the
-        # live stop matches what the backtest assumed.
+        # Levels for the *risk check* still use the signal close: we do not
+        # have a fill yet. Protection levels are rebuilt from the slipped
+        # fill in ``_place_order`` (F04). Using signal.price here keeps the
+        # stop distance the risk engine sized against.
         if signal.side is SignalSide.LONG:
             stop_price = signal.price * (1.0 - signal.stop_loss_pct)
             take_profit = signal.price * (1.0 + signal.take_profit_pct)
@@ -1225,6 +1236,26 @@ class TradingEngine:
         self._place_order(signal, decision, stop_price, take_profit, sector)
         return decision
 
+    def _plan_entry_for_signal(self, signal: Signal) -> PlanEntry | None:
+        """Match a fill back to the plan row that produced it (clock + params)."""
+        exact = [
+            entry
+            for entry in self.plan.entries
+            if entry.symbol == signal.symbol
+            and entry.side == signal.side
+            and entry.strategy.name == signal.strategy
+        ]
+        if exact:
+            return exact[0]
+        return next(
+            (
+                entry
+                for entry in self.plan.entries
+                if entry.symbol == signal.symbol and entry.side == signal.side
+            ),
+            None,
+        )
+
     def _place_order(
         self,
         signal: Signal,
@@ -1248,6 +1279,14 @@ class TradingEngine:
             )
             return
 
+        # F04: TP/SL from the slipped fill, not the signal-bar close. Research
+        # always did this; runtime used to attach levels computed before the
+        # fill and never revalidate them.
+        fill_price = result.fill_price or signal.price
+        take_profit, stop_price = risk_levels(
+            fill_price, signal.side, signal.take_profit_pct, signal.stop_loss_pct
+        )
+
         # Stops are attached immediately. A filled position without a stop is
         # unbounded risk, so a failure here closes the position rather than
         # leaving it naked.
@@ -1268,6 +1307,22 @@ class TradingEngine:
             )
             return
 
+        plan_row = self._plan_entry_for_signal(signal)
+        timeframe = plan_row.timeframe if plan_row is not None else ""
+        max_holding = int(getattr(signal, "max_holding_bars", 0) or 0)
+        params_blob = {}
+        if plan_row is not None:
+            params_blob = plan_row.strategy.params.to_dict()
+        opened_at = datetime.now(timezone.utc)
+        identity = position_identity(
+            strategy_name=signal.strategy,
+            params=params_blob,
+            timeframe=timeframe,
+            max_holding_bars=max_holding,
+            opened_at=opened_at,
+            execution_contract=EXECUTION_CONTRACT_VERSION,
+        )
+
         self.ledger.open_position(
             symbol=signal.symbol,
             side=signal.side.value,
@@ -1284,6 +1339,11 @@ class TradingEngine:
             contributing_agents=self.active_agent_context,
             entry_indicators=signal.indicators,
             entry_fee=result.fee or 0.0,
+            execution_contract=str(identity["execution_contract"]),
+            strategy_params=dict(identity["strategy_params"] or {}),
+            timeframe=str(identity["timeframe"] or ""),
+            max_holding_bars=int(identity["max_holding_bars"] or 0),
+            expiry_at=identity["expiry_at"] if isinstance(identity["expiry_at"], datetime) else None,
         )
 
     def _manage_open_positions(self) -> int:
@@ -1316,6 +1376,7 @@ class TradingEngine:
                     funding=float(getattr(result, "funding", 0.0) or 0.0),
                 )
                 closed += 1
+            closed += self._timeout_paper_positions()
             return closed
 
         if not getattr(self, "_allow_live_exchange_close", True):
@@ -1345,6 +1406,38 @@ class TradingEngine:
             )
             closed += 1
 
+        return closed
+
+    def _timeout_paper_positions(self) -> int:
+        """Flatten paper rows whose ``max_holding_bars`` window has elapsed.
+
+        Stops are polled first so a last-bar TP/SL still wins, matching
+        ``find_exit_on_path``. Replay uses the candle path; this is the live
+        sampled-clock equivalent (F04).
+        """
+        if not isinstance(self.broker, PaperBroker):
+            return 0
+        now = _now()
+        closed = 0
+        for position in list(self.ledger.open_positions()):
+            expiry = getattr(position, "expiry_at", None)
+            if expiry is None:
+                continue
+            if now < expiry:
+                continue
+            result = self.broker.close_position(position.symbol)
+            if not result.success:
+                continue
+            self.ledger.close_position(
+                position_id=position.id,
+                exit_price=result.fill_price,
+                expected_exit_price=result.fill_price,
+                exit_reason="timeout",
+                entry_fees=float(getattr(position, "entry_fee", 0.0) or 0.0),
+                exit_fees=result.fee or 0.0,
+                funding=float(getattr(result, "funding", 0.0) or 0.0),
+            )
+            closed += 1
         return closed
 
 

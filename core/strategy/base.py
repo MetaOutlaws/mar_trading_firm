@@ -69,6 +69,7 @@ class Signal:
     strategy: str
     take_profit_pct: float
     stop_loss_pct: float
+    max_holding_bars: int = 96
     indicators: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -176,6 +177,7 @@ class Strategy(ABC):
             strategy=self.name,
             take_profit_pct=self.params.take_profit_pct,
             stop_loss_pct=self.params.stop_loss_pct,
+            max_holding_bars=self.params.max_holding_bars,
             indicators=indicators,
         )
 
