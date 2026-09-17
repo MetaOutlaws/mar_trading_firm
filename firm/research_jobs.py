@@ -193,6 +193,7 @@ CLOCK_BY_FAMILY = {
     "thrust_bar_fail_reversion": "4h/4h",
     "key_reversal_bar": "4h/4h",
     "swing_break_fail_reversion": "4h/4h",
+    "three_push_exhaustion_fail": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -252,6 +253,14 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         or "swing break fail reversion" in blob
     ):
         return "swing_break_fail_reversion"
+    # Must beat consecutive_bar_exhaustion / three_white_soldiers /
+    # three_black_crows / three_bar_play. Family id is
+    # three_push_exhaustion_fail only.
+    if (
+        "three_push_exhaustion_fail" in blob
+        or "three push exhaustion" in blob
+    ):
+        return "three_push_exhaustion_fail"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

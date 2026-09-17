@@ -108,6 +108,15 @@ def test_infer_family_from_title_and_payload() -> None:
     assert infer_family({}, "Code swing break fail reversion 4h") == (
         "swing_break_fail_reversion"
     )
+    assert infer_family({}, "Next: three_push_exhaustion_fail") == (
+        "three_push_exhaustion_fail"
+    )
+    assert infer_family({"family": "three_push_exhaustion_fail"}, "ATR channel breakout") == (
+        "three_push_exhaustion_fail"
+    )
+    assert infer_family({}, "Code three push exhaustion fail 4h") == (
+        "three_push_exhaustion_fail"
+    )
     # Must not collapse onto bollinger via the generic "mean_rev" token.
     assert infer_family({}, "Code hvn mean revert 4h") == "hvn_mean_revert"
     assert infer_family({"name": "ema_adx_trend"}, "") == "ema_adx_trend"
@@ -456,6 +465,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "thrust_bar_fail_reversion" in coded
     assert "key_reversal_bar" in coded
     assert "swing_break_fail_reversion" in coded
+    assert "three_push_exhaustion_fail" in coded
     assert "hvn_node_fade" not in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
@@ -517,6 +527,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "thrust_bar_fail_reversion" not in novel_ready
     assert "key_reversal_bar" not in novel_ready
     assert "swing_break_fail_reversion" not in novel_ready
+    assert "three_push_exhaustion_fail" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -1001,6 +1012,7 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "thrust_bar_fail_reversion" not in families
     assert "key_reversal_bar" not in families
     assert "swing_break_fail_reversion" not in families
+    assert "three_push_exhaustion_fail" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

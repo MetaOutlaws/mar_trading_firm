@@ -1373,6 +1373,21 @@ def _novel_kit(name: str, side: SignalSide):
             # min_mother_atr (no invented interior).
             {"swing_lookback": [3, 5], "min_break_atr": [0.2, 0.5]},
         ),
+        "three_push_exhaustion_fail": (
+            "core.strategy.three_push_exhaustion_fail",
+            "ThreePushExhaustionFailParams",
+            "ThreePushExhaustionFailStrategy",
+            # atr_n locked at 20. n_pushes locked at 3
+            # (bars t-3, t-2, t-1). Two successive advances
+            # among those three extremes sized `>=`
+            # min_push_atr·ATR. Fail on bar t is no 4th
+            # extreme AND strong reverse close vs open and
+            # vs prior close (Garwe SUPERSEDES looser Munha
+            # fail-to-extend OR). Search min_push_atr only.
+            # Endpoints [0.15, 0.35] — do NOT use [0.3, 0.6].
+            # BOTH with SHORT priority. Fill t+1.
+            {"min_push_atr": [0.15, 0.35]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

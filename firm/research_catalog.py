@@ -1613,6 +1613,55 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "three_push_exhaustion_fail@4h/4h",
+        "family": "three_push_exhaustion_fail",
+        "name": "three_push_exhaustion_fail 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 52,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "CEO YES / Garwe + Marcus FINAL AUTHORITATIVE stamp "
+            "for coding only (Job ~154). Garwe geometry "
+            "SUPERSEDES looser Munha fail-to-extend OR. Fade a "
+            "4h three-push exhaustion that fails a 4th extreme "
+            "and prints a strong reverse close. Quant-locked: "
+            "exactly 3 prior pushes on t-3..t-1, ATR period=20 "
+            "known before the signal bar (atr.shift(1)), size "
+            "gate >=, fill t+1 open, no volume/session/VP gate. "
+            "SHORT=high[t-3] < high[t-2] < high[t-1] AND both "
+            "advances >= min_push_atr*ATR AND high[t] <= "
+            "high[t-1] AND close[t] < open[t] AND close[t] < "
+            "close[t-1] / LONG=inverse (three falling lows then "
+            "fail new low + strong close). BOTH sides honest, "
+            "SHORT priority on two-sided bars. Free search "
+            "(1 only): min_push_atr [0.15, 0.35] (endpoints "
+            "only — do NOT use [0.3, 0.6]). Walk-forward is not "
+            "started from this coding PR — register for Desk "
+            "ONE walk after merge (Mukanya starts walks). Live "
+            "stays off. Not consecutive_bar_exhaustion, not "
+            "failed_higher_high, not "
+            "swing_break_fail_reversion (family I / Job 153), "
+            "not swing_failure_reversal, not key_reversal_bar "
+            "(family H / Job 152 — bar t breaks t-1), not "
+            "thrust_bar_fail_reversion (family G / Job 151), "
+            "not inside_bar_break_fail (family F), not "
+            "outside_bar_reversal / outside_bar_fail_reversion, "
+            "not three_white_soldiers / three_black_crows / "
+            "three_bar_play, not expansion_fail_fade / "
+            "candle_reject_reversal, not dead VP (prior_poc / "
+            "hvn / lvn / rolling VA), not Job 133 "
+            "bullish_rectangle_fail_reclaim (DEAD 0/12), not "
+            "keltner_channel_fade (Job 144 0/12), not "
+            "utc_open_fail_reversion (0/12). Hold H&S / asia / "
+            "wyckoff alone."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
