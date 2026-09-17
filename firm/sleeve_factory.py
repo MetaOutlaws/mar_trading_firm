@@ -2936,10 +2936,16 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "wyckoff_spring_reclaim (127). Not "
             "equal_high_low_restest_fade. Not "
             "williams_fractal_break. Not inside_bar_break_fail "
-            "(family F). Not thrust_bar_fail_reversion (family G). "
-            "Not key_reversal_bar (family H). Do not recode spent "
-            "families 118–152. Do not revive Job 133 rectangle. "
-            "Do not modify sibling geometry."
+            "(family F). Not thrust_bar_fail_reversion (family G / "
+            "Job 151). Not key_reversal_bar (family H / Job 152). "
+            "Not outside_bar_reversal / outside_bar_fail_reversion. "
+            "Not dead VP (prior_poc / hvn / lvn / rolling VA). Not "
+            "Job 133 bullish_rectangle_fail_reclaim (DEAD 0/12). Not "
+            "keltner_channel_fade (Job 144 0/12). Not "
+            "utc_open_fail_reversion (0/12). Not measured_move_break "
+            "(job 86 0/12). Hold H&S / asia / wyckoff alone. Do not "
+            "recode spent families 118–152. Do not revive Job 133 "
+            "rectangle. Do not modify sibling geometry."
         ),
         summary=(
             "Fade a 4h sized break of the prior lookback swing "
@@ -2952,8 +2958,10 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "that closes back through the broken level, with "
             "searched swing_lookback + min_break_atr only, is not "
             "a confirmed-pivot wick fail, not a 16/20 Donchian "
-            "later-bar fail, not a t-1 thrust/key-reversal, and "
-            "not an inside-bar mother wick-fail."
+            "later-bar fail, not a t-1 thrust/key-reversal, not an "
+            "inside-bar mother wick-fail, not an outside-bar "
+            "containment clone, not a dead VP cluster, and not "
+            "Job 133 rectangle / other finished 0/12 clones."
         ),
     ),
 ]

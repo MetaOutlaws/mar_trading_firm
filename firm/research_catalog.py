@@ -1597,9 +1597,14 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
             "wyckoff_spring_reclaim (127), not "
             "equal_high_low_restest_fade, not "
             "williams_fractal_break, not inside_bar_break_fail "
-            "(family F), not thrust_bar_fail_reversion (family G), "
-            "not key_reversal_bar (family H). Do not revive Job "
-            "133 rectangle."
+            "(family F), not thrust_bar_fail_reversion (family G / "
+            "Job 151), not key_reversal_bar (family H / Job 152), "
+            "not outside_bar_reversal / outside_bar_fail_reversion, "
+            "not dead VP (prior_poc / hvn / lvn / rolling VA), not "
+            "Job 133 bullish_rectangle_fail_reclaim (DEAD 0/12), not "
+            "keltner_channel_fade (Job 144 0/12), not "
+            "utc_open_fail_reversion (0/12), not measured_move_break "
+            "(job 86 0/12). Hold H&S / asia / wyckoff alone."
         ),
         "param_change": {"clock": "4h/4h"},
         "needs_feed": False,

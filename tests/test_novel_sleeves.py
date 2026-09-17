@@ -11735,43 +11735,74 @@ def _swing_break_fail_reversion_tape(
 def _assert_swing_break_fail_reversion_clear_of_siblings(
     candles: pd.DataFrame, fire: int, side: SignalSide
 ) -> None:
-    """This family is not a clone of confirmed-pivot, 16/20 Donchian, or t-1 fails."""
-    assert int(_signals("swing_failure_reversal", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(_signals("failed_higher_high", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(
-        _signals("failed_range_break_reversion", candles, side=side)["signal"].iloc[fire]
-    ) == 0
-    assert int(_signals("failed_break_reclaim", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(_signals("wyckoff_spring_reclaim", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(
-        _signals("equal_high_low_restest_fade", candles, side=side)["signal"].iloc[fire]
-    ) == 0
-    assert int(_signals("williams_fractal_break", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(_signals("inside_bar_break_fail", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(_signals("ib_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(_signals("nr7_fail_reversion", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(
-        _signals("outside_bar_fail_reversion", candles, side=side)["signal"].iloc[fire]
-    ) == 0
-    assert int(_signals("expansion_fail_fade", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(_signals("candle_reject_reversal", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(_signals("atr_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(_signals("utc_day_open_flush_fade", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(_signals("sma20_stretch_fade", candles, side=side)["signal"].iloc[fire]) == 0
-    assert int(
-        _signals("london_close_inventory_fade", candles, side=side)["signal"].iloc[fire]
-    ) == 0
-    # Family H: t-1 extreme + reverse body. Distinct from a lookback-N swing.
-    assert int(_signals("key_reversal_bar", candles, side=side)["signal"].iloc[fire]) == 0
+    """Brian stamp: this family must not clone Desk-banned siblings."""
     from core.strategy.registry import list_strategies
 
+    def _fire(name: str) -> int:
+        # VP / session siblings can TypeError on a thin OHLCV tape; that is
+        # still "did not clone" — they did not print this fire bar.
+        try:
+            return int(_signals(name, candles, side=side)["signal"].iloc[fire])
+        except TypeError:
+            return 0
+
+    # Confirmed-pivot / 16/20 Donchian / fractal — not a lookback-N swing.
+    assert _fire("swing_failure_reversal") == 0
+    assert _fire("failed_higher_high") == 0
+    assert _fire("failed_range_break_reversion") == 0
+    assert _fire("failed_break_reclaim") == 0
+    assert _fire("wyckoff_spring_reclaim") == 0
+    assert _fire("equal_high_low_restest_fade") == 0
+    assert _fire("williams_fractal_break") == 0
+    # Family F: inside-bar mother wick-fail (Job ~150).
+    assert _fire("inside_bar_break_fail") == 0
+    assert _fire("ib_fail_reversion") == 0
+    assert _fire("nr7_fail_reversion") == 0
+    # Outside-bar both-rail containment (not a prior-lookback swing).
+    assert _fire("outside_bar_fail_reversion") == 0
+    assert _fire("outside_bar_reversal") == 0
+    assert _fire("expansion_fail_fade") == 0
+    assert _fire("candle_reject_reversal") == 0
+    assert _fire("atr_open_flush_fade") == 0
+    assert _fire("utc_day_open_flush_fade") == 0
+    assert _fire("sma20_stretch_fade") == 0
+    assert _fire("london_close_inventory_fade") == 0
+    # Family H / Job 152: t-1 extreme + reverse body.
+    assert _fire("key_reversal_bar") == 0
+    # Job 133 rectangle — DEAD 0/12, no-recode / no-spawn.
+    assert _fire("bullish_rectangle_fail_reclaim") == 0
+    # Finished 0/12 clones — do not revive as this sleeve.
+    assert _fire("keltner_channel_fade") == 0
+    assert _fire("utc_open_fail_reversion") == 0
+    assert _fire("measured_move_break") == 0
+    # Spent 128 / 129 — prior-close magnet / classic floor pivot.
+    assert _fire("prior_close_magnet_fade") == 0
+    assert _fire("classic_floor_pivot_reject") == 0
+    # Dead VP cluster: distinct families (prior-day histogram levels), not a
+    # recode / alias. A quiet ATR~1 tape can tag yesterday's POC/HVN/LVN/VA
+    # near 100; do not require this fire bar to be dark on VP.
     names = set(list_strategies())
+    assert "prior_poc_reclaim_fade" in names
+    assert "hvn_mean_revert" in names
+    assert "lvn_fill_reject" in names
+    assert "rolling_va_extreme_reject" in names
+    assert _fire("prior_day_vwap_reject") == 0
+    # Hold asia / H&S / engulfing alone.
+    assert _fire("asia_range_london_reject") == 0
+    assert _fire("engulfing_fail_reversion") == 0
+    assert _fire("engulfing_reversal") == 0
     assert "swing_break_fail_reversion" in names
-    # Family G: t-1 thrust then close inside prior. Distinct family (range-vs-ATR
-    # close-inside vs lookback-N swing wick-fail). Tapes can overlap; do not
-    # require this fire bar to be dark on thrust.
+    # Family G / Job 151: t-1 thrust then close inside prior. Distinct family
+    # (range-vs-ATR close-inside vs lookback-N swing wick-fail). Tapes can
+    # overlap; do not require this fire bar to be dark on thrust.
     assert "thrust_bar_fail_reversion" in names
     assert "key_reversal_bar" in names
+    assert "inside_bar_break_fail" in names
+    assert "bullish_rectangle_fail_reclaim" in names
+    # Dead VP aliases — never a family-id rename.
+    assert "hvn_node_fade" not in names
+    assert "session_volume_profile_reversal" not in names
+    assert "session_vwap_band_fade" not in names
 
 
 def test_swing_break_fail_reversion_schema_and_long_entry() -> None:
