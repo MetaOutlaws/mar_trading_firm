@@ -1373,6 +1373,22 @@ def _novel_kit(name: str, side: SignalSide):
             # min_mother_atr (no invented interior).
             {"swing_lookback": [3, 5], "min_break_atr": [0.2, 0.5]},
         ),
+        "three_push_exhaustion_fail": (
+            "core.strategy.three_push_exhaustion_fail",
+            "ThreePushExhaustionFailParams",
+            "ThreePushExhaustionFailStrategy",
+            # atr_n locked at 20. n_pushes locked at 3.
+            # Three successive sized bar-extreme pushes on
+            # t-3..t-1 (HH SHORT / LL LONG, strict `>` of
+            # min_push_atr·ATR), then bar t fails to extend
+            # (no 4th HH / LL). Exact 3: t-4 was not a sized
+            # push. Search min_push_atr only. Brian stamp
+            # Job ~154 — endpoints [0.15, 0.35], same sibling
+            # float-grid convention as min_outside_atr /
+            # min_mother_atr / min_break_atr (no invented
+            # interior). BOTH with SHORT priority. Fill t+1.
+            {"min_push_atr": [0.15, 0.35]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

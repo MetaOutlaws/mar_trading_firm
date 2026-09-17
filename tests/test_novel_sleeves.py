@@ -147,6 +147,7 @@ APPROVED = [
     "thrust_bar_fail_reversion",
     "key_reversal_bar",
     "swing_break_fail_reversion",
+    "three_push_exhaustion_fail",
 ]
 
 
@@ -12074,6 +12075,445 @@ def test_swing_break_fail_reversion_no_lookahead() -> None:
     assert fat_sig["swing_high"].iloc[fire] == pytest.approx(signals["swing_high"].iloc[fire])
 
 
+def _three_push_exhaustion_fail_tape(
+    *,
+    long_side: bool,
+    extend: bool = False,
+    tiny_push: bool = False,
+    two_sided: bool = False,
+    n_pushes: int = 3,
+) -> tuple[pd.DataFrame, int]:
+    """Quiet ATR~1 tape, then exactly three sized bar-extreme pushes and a fail.
+
+    Quiet bars sit at 100.5/99.5 so ATR20 stays near 1.0. Each push steps the
+    extreme by 0.25 (between min_push_atr 0.15 and 0.35). Push-bar true range
+    stays ~1.0 so expansion_fail_fade (1.5×ATR) stays dark. Fail bar sits
+    inside the 3rd-push range and does not print a 4th extreme. Fire hour is
+    18:00 UTC so London-close / IB mothers stay dark.
+    """
+    n = 50
+    fire = 42
+    early_i = 25
+    step = 0.10 if tiny_push else 0.25
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    # Early unique extreme so confirmed two-swing siblings lock elsewhere.
+    if long_side:
+        high[early_i] = 97.30
+        low[early_i] = 97.00
+        close[early_i] = 97.15
+        open_[early_i] = 97.20
+    else:
+        high[early_i] = 103.00
+        low[early_i] = 102.70
+        close[early_i] = 102.85
+        open_[early_i] = 102.80
+
+    def _stamp(i: int, hi: float, lo: float) -> None:
+        high[i] = hi
+        low[i] = lo
+        close[i] = (hi + lo) / 2.0
+        open_[i] = close[i] - 0.04
+        high[i] = max(high[i], open_[i], close[i])
+        low[i] = min(low[i], open_[i], close[i])
+
+    if two_sided:
+        start_h, start_l = 100.5, 99.5
+        for k in range(1, 4):
+            _stamp(fire - 4 + k, start_h + k * step, start_l - k * step)
+        # Fail both rails: no 4th HH and no 4th LL.
+        _stamp(fire, start_h + 3 * step - 0.10, start_l - 3 * step + 0.10)
+    elif long_side:
+        # THREE lower lows: drop both rails so TR stays ~1.0.
+        start_l = 99.5
+        n_here = int(n_pushes)
+        first = fire - n_here
+        for k in range(1, n_here + 1):
+            lo = start_l - k * step
+            _stamp(first - 1 + k, lo + 1.0, lo)
+        third_i = fire - 1
+        if extend:
+            lo = low[third_i] - step
+            _stamp(fire, lo + 1.0, lo)
+        else:
+            # Fail to extend: low[t] >= low[t-1], inside prior range.
+            _stamp(fire, high[third_i] - 0.05, low[third_i] + 0.10)
+    else:
+        start_h = 100.5
+        n_here = int(n_pushes)
+        first = fire - n_here
+        for k in range(1, n_here + 1):
+            hi = start_h + k * step
+            _stamp(first - 1 + k, hi, hi - 1.0)
+        third_i = fire - 1
+        if extend:
+            hi = high[third_i] + step
+            _stamp(fire, hi, hi - 1.0)
+        else:
+            _stamp(fire, high[third_i] - 0.10, low[third_i] + 0.05)
+    index = _hourly(n)
+    assert int(index[fire].hour) == 18
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles.iloc[0, candles.columns.get_loc("high")] = 96.1
+    candles.iloc[0, candles.columns.get_loc("low")] = 95.9
+    candles.iloc[0, candles.columns.get_loc("close")] = 96.0
+    candles.iloc[0, candles.columns.get_loc("open")] = 96.0
+    candles.iloc[0, candles.columns.get_loc("volume")] = 1.0
+    candles["turnover"] = candles["volume"] * candles["close"]
+    return candles, fire
+
+
+def _assert_three_push_exhaustion_fail_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """Brian stamp: this family must not clone Desk-banned siblings."""
+    from core.strategy.registry import list_strategies
+
+    def _fire(name: str) -> int:
+        try:
+            return int(_signals(name, candles, side=side)["signal"].iloc[fire])
+        except TypeError:
+            return 0
+
+    # Consecutive closes / confirmed two-swing / lookback-N swing wick-fail.
+    assert _fire("consecutive_bar_exhaustion") == 0
+    assert _fire("failed_higher_high") == 0
+    assert _fire("swing_failure_reversal") == 0
+    assert _fire("swing_break_fail_reversion") == 0
+    assert _fire("failed_range_break_reversion") == 0
+    assert _fire("failed_break_reclaim") == 0
+    assert _fire("wyckoff_spring_reclaim") == 0
+    assert _fire("equal_high_low_restest_fade") == 0
+    assert _fire("williams_fractal_break") == 0
+    # Family F / G / H — IB mother, t-1 thrust, t-1 key reversal.
+    assert _fire("inside_bar_break_fail") == 0
+    assert _fire("ib_fail_reversion") == 0
+    assert _fire("nr7_fail_reversion") == 0
+    assert _fire("thrust_bar_fail_reversion") == 0
+    assert _fire("key_reversal_bar") == 0
+    # Outside-bar both-rail containment / expansion / hammer.
+    assert _fire("outside_bar_fail_reversion") == 0
+    assert _fire("outside_bar_reversal") == 0
+    assert _fire("expansion_fail_fade") == 0
+    assert _fire("candle_reject_reversal") == 0
+    assert _fire("atr_open_flush_fade") == 0
+    assert _fire("utc_day_open_flush_fade") == 0
+    assert _fire("sma20_stretch_fade") == 0
+    assert _fire("london_close_inventory_fade") == 0
+    # Three-bar leftovers — soldiers / crows / play.
+    assert _fire("three_white_soldiers") == 0
+    assert _fire("three_black_crows") == 0
+    assert _fire("three_bar_play") == 0
+    # Job 133 rectangle — DEAD 0/12, no-recode / no-spawn.
+    assert _fire("bullish_rectangle_fail_reclaim") == 0
+    assert _fire("keltner_channel_fade") == 0
+    assert _fire("utc_open_fail_reversion") == 0
+    assert _fire("measured_move_break") == 0
+    assert _fire("prior_close_magnet_fade") == 0
+    assert _fire("classic_floor_pivot_reject") == 0
+    names = set(list_strategies())
+    assert "prior_poc_reclaim_fade" in names
+    assert "hvn_mean_revert" in names
+    assert "lvn_fill_reject" in names
+    assert "rolling_va_extreme_reject" in names
+    assert _fire("prior_day_vwap_reject") == 0
+    assert _fire("asia_range_london_reject") == 0
+    assert _fire("engulfing_fail_reversion") == 0
+    assert _fire("engulfing_reversal") == 0
+    assert "three_push_exhaustion_fail" in names
+    assert "swing_break_fail_reversion" in names
+    assert "thrust_bar_fail_reversion" in names
+    assert "key_reversal_bar" in names
+    assert "inside_bar_break_fail" in names
+    assert "bullish_rectangle_fail_reclaim" in names
+    assert "hvn_node_fade" not in names
+    assert "session_volume_profile_reversal" not in names
+    assert "session_vwap_band_fade" not in names
+
+
+def test_three_push_exhaustion_fail_schema_and_long_entry() -> None:
+    from dataclasses import replace
+
+    from core.strategy.three_push_exhaustion_fail import (
+        ATR_N_LOCKED,
+        MIN_PUSH_ATR_GRID,
+        N_PUSHES_LOCKED,
+        ThreePushExhaustionFailParams,
+    )
+    from research.validate import strategy_kit
+
+    # SHORT priority is the dataclass default; kit still honours an explicit LONG.
+    assert ThreePushExhaustionFailParams().side is SignalSide.SHORT
+    assert ThreePushExhaustionFailParams().n_pushes == N_PUSHES_LOCKED
+    factory, base, space = strategy_kit("three_push_exhaustion_fail", SignalSide.LONG)
+    assert base.side is SignalSide.LONG
+    assert base.min_push_atr == pytest.approx(0.15)
+    assert base.atr_n == ATR_N_LOCKED
+    assert base.n_pushes == N_PUSHES_LOCKED
+    assert space["min_push_atr"] == MIN_PUSH_ATR_GRID
+    assert space["min_push_atr"] == [0.15, 0.35]
+    assert space["min_push_atr"][0] == pytest.approx(0.15)
+    assert space["min_push_atr"][-1] == pytest.approx(0.35)
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "n_pushes" not in space
+    assert "run_length" not in space
+    assert "pivot_left" not in space
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_push_atr"}
+
+    candles, fire = _three_push_exhaustion_fail_tape(long_side=True)
+    signals = _signals("three_push_exhaustion_fail", candles, side=SignalSide.LONG)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "atr",
+        "atr_known",
+        "n_pushes",
+        "prior_high",
+        "prior_low",
+        "push1_dn_atr",
+        "push2_dn_atr",
+        "push3_dn_atr",
+        "sized_ll1",
+        "sized_ll2",
+        "sized_ll3",
+        "exact_three_down",
+        "fail_extend_down",
+    ):
+        assert column in signals.columns
+    assert "pivot_left" not in signals.columns
+    assert "range_high" not in signals.columns
+    assert "mother_high" not in signals.columns
+    assert "fractal_high" not in signals.columns
+    assert "swing_lookback" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert bool(signals["exact_three_down"].iloc[fire])
+    assert bool(signals["fail_extend_down"].iloc[fire])
+    assert not bool(signals["exact_three_up"].iloc[fire])
+    assert int(signals["n_pushes"].iloc[fire]) == N_PUSHES_LOCKED
+    prior_low = float(signals["prior_low"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    assert float(candles["low"].iloc[fire]) >= prior_low
+    assert prior_low == pytest.approx(float(candles["low"].iloc[fire - 1]))
+    # Three successive lower lows on t-3..t-1.
+    lows = [float(candles["low"].iloc[fire - 4 + k]) for k in range(4)]
+    for left, right in zip(lows, lows[1:]):
+        step_atr = (left - right) / atr_known
+        assert step_atr > 0.15
+        assert step_atr < 0.35
+    # min_push_atr=0.35 needs a deeper push — search grid matters.
+    tight = factory(replace(base, min_push_atr=0.35)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    # Exact n_pushes=3: two pushes do not fire; four do not fire.
+    two, two_fire = _three_push_exhaustion_fail_tape(long_side=True, n_pushes=2)
+    assert int(
+        _signals("three_push_exhaustion_fail", two, side=SignalSide.LONG)["signal"].iloc[
+            two_fire
+        ]
+    ) == 0
+    four, four_fire = _three_push_exhaustion_fail_tape(long_side=True, n_pushes=4)
+    four_sig = _signals("three_push_exhaustion_fail", four, side=SignalSide.LONG)
+    assert int(four_sig["signal"].iloc[four_fire]) == 0
+    assert not bool(four_sig["exact_three_down"].iloc[four_fire])
+    # A 4th lower low is an extension, not a fail.
+    held, held_fire = _three_push_exhaustion_fail_tape(long_side=True, extend=True)
+    held_sig = _signals("three_push_exhaustion_fail", held, side=SignalSide.LONG)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert not bool(held_sig["fail_extend_down"].iloc[held_fire])
+    tiny, tiny_fire = _three_push_exhaustion_fail_tape(long_side=True, tiny_push=True)
+    assert int(
+        _signals("three_push_exhaustion_fail", tiny, side=SignalSide.LONG)["signal"].iloc[
+            tiny_fire
+        ]
+    ) == 0
+    # Munha + Marcus lock: exact min_push_atr·ATR step is NOT a push (`>`).
+    exact = candles.copy()
+    # Shrink push 3 (t-1 vs t-2) to exactly 0.15·ATR.
+    t2_low = float(exact["low"].iloc[fire - 2])
+    exact_low = t2_low - 0.15 * atr_known
+    exact.iloc[fire - 1, exact.columns.get_loc("low")] = exact_low
+    exact.iloc[fire - 1, exact.columns.get_loc("high")] = exact_low + 1.0
+    exact_sig = factory(base).generate_signals(exact)
+    assert int(exact_sig["signal"].iloc[fire]) == 0
+    assert not bool(exact_sig["sized_ll3"].iloc[fire])
+    over = exact.copy()
+    over.iloc[fire - 1, over.columns.get_loc("low")] = exact_low - 1e-9
+    over.iloc[fire - 1, over.columns.get_loc("high")] = (exact_low - 1e-9) + 1.0
+    over_sig = factory(base).generate_signals(over)
+    assert int(over_sig["signal"].iloc[fire]) == 1
+    both, both_fire = _three_push_exhaustion_fail_tape(long_side=True, two_sided=True)
+    # SHORT priority: two-sided fail is SHORT, not LONG.
+    assert int(
+        _signals("three_push_exhaustion_fail", both, side=SignalSide.LONG)["signal"].iloc[
+            both_fire
+        ]
+    ) == 0
+    assert int(
+        _signals("three_push_exhaustion_fail", both, side=SignalSide.SHORT)["signal"].iloc[
+            both_fire
+        ]
+    ) == -1
+    # Caller cannot unlock ATR20 or n_pushes — locks stay locked.
+    unlocked = factory(replace(base, atr_n=5, n_pushes=2)).generate_signals(candles)
+    assert int(unlocked["signal"].iloc[fire]) == 1
+    assert unlocked["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert unlocked["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert int(unlocked["n_pushes"].iloc[fire]) == N_PUSHES_LOCKED
+    _assert_three_push_exhaustion_fail_clear_of_siblings(candles, fire, SignalSide.LONG)
+    short_on_down = _signals("three_push_exhaustion_fail", candles, side=SignalSide.SHORT)
+    assert int(short_on_down["signal"].iloc[fire]) == 0
+    assert int((short_on_down["signal"] == -1).sum()) == 0
+
+
+def test_three_push_exhaustion_fail_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("three_push_exhaustion_fail", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_push_atr"}
+    assert space["min_push_atr"] == [0.15, 0.35]
+    assert base.side is SignalSide.SHORT
+
+    candles, fire = _three_push_exhaustion_fail_tape(long_side=False)
+    signals = _signals("three_push_exhaustion_fail", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert bool(signals["exact_three_up"].iloc[fire])
+    assert bool(signals["fail_extend_up"].iloc[fire])
+    assert not bool(signals["exact_three_down"].iloc[fire])
+    prior_high = float(signals["prior_high"].iloc[fire])
+    atr_known = float(signals["atr_known"].iloc[fire])
+    assert float(candles["high"].iloc[fire]) <= prior_high
+    assert prior_high == pytest.approx(float(candles["high"].iloc[fire - 1]))
+    highs = [float(candles["high"].iloc[fire - 4 + k]) for k in range(4)]
+    for left, right in zip(highs, highs[1:]):
+        step_atr = (right - left) / atr_known
+        assert step_atr > 0.15
+        assert step_atr < 0.35
+    tight = factory(replace(base, min_push_atr=0.35)).generate_signals(candles)
+    assert int(tight["signal"].iloc[fire]) == 0
+    two, two_fire = _three_push_exhaustion_fail_tape(long_side=False, n_pushes=2)
+    assert int(
+        _signals("three_push_exhaustion_fail", two, side=SignalSide.SHORT)["signal"].iloc[
+            two_fire
+        ]
+    ) == 0
+    four, four_fire = _three_push_exhaustion_fail_tape(long_side=False, n_pushes=4)
+    four_sig = _signals("three_push_exhaustion_fail", four, side=SignalSide.SHORT)
+    assert int(four_sig["signal"].iloc[four_fire]) == 0
+    held, held_fire = _three_push_exhaustion_fail_tape(long_side=False, extend=True)
+    held_sig = _signals("three_push_exhaustion_fail", held, side=SignalSide.SHORT)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert not bool(held_sig["fail_extend_up"].iloc[held_fire])
+    # Munha + Marcus lock: exact min_push_atr·ATR step is NOT a push (`>`).
+    exact = candles.copy()
+    t2_high = float(exact["high"].iloc[fire - 2])
+    exact_high = t2_high + 0.15 * atr_known
+    exact.iloc[fire - 1, exact.columns.get_loc("high")] = exact_high
+    exact.iloc[fire - 1, exact.columns.get_loc("low")] = exact_high - 1.0
+    exact_sig = factory(base).generate_signals(exact)
+    assert int(exact_sig["signal"].iloc[fire]) == 0
+    assert not bool(exact_sig["sized_hh3"].iloc[fire])
+    over = exact.copy()
+    over.iloc[fire - 1, over.columns.get_loc("high")] = exact_high + 1e-9
+    over.iloc[fire - 1, over.columns.get_loc("low")] = (exact_high + 1e-9) - 1.0
+    over_sig = factory(base).generate_signals(over)
+    assert int(over_sig["signal"].iloc[fire]) == -1
+    _assert_three_push_exhaustion_fail_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_up = _signals("three_push_exhaustion_fail", candles, side=SignalSide.LONG)
+    assert int(long_on_up["signal"].iloc[fire]) == 0
+
+
+def test_three_push_exhaustion_fail_kit_locks() -> None:
+    from research.validate import strategy_kit
+    from core.strategy.three_push_exhaustion_fail import (
+        N_PUSHES_LOCKED,
+        ThreePushExhaustionFailParams,
+    )
+
+    factory, base, space = strategy_kit("three_push_exhaustion_fail", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_push_atr"}
+    assert space["min_push_atr"] == [0.15, 0.35]
+    assert "atr_n" not in space
+    assert "n_pushes" not in space
+    assert "run_length" not in space
+    assert "pivot_left" not in space
+    assert "volume" not in space
+    assert "vol_lookback" not in space
+    assert "end_hour" not in space
+    assert "session" not in " ".join(space)
+    from firm.sleeve_factory import spec_for_family
+
+    spec = spec_for_family("three_push_exhaustion_fail")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "three_push_exhaustion_fail"
+    assert base.side is SignalSide.SHORT
+    assert ThreePushExhaustionFailParams().side is SignalSide.SHORT
+    assert ThreePushExhaustionFailParams().n_pushes == N_PUSHES_LOCKED
+
+
+def test_three_push_exhaustion_fail_no_lookahead() -> None:
+    candles, fire = _three_push_exhaustion_fail_tape(long_side=True)
+    signals = _signals("three_push_exhaustion_fail", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "three_push_exhaustion_fail", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["prior_low"].iloc[:cut],
+        truncated["prior_low"],
+        check_names=False,
+    )
+    # Later bars must not rewrite prior extremes, prior-bar ATR, or the fire.
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 140.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 70.0
+    shocked.iloc[later, shocked.columns.get_loc("open")] = 140.0
+    after = _signals("three_push_exhaustion_fail", shocked, side=SignalSide.LONG)
+    assert after["prior_high"].iloc[fire] == pytest.approx(signals["prior_high"].iloc[fire])
+    assert after["prior_low"].iloc[fire] == pytest.approx(signals["prior_low"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert after["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+    # Fire-bar range cannot lift ATR (known-before) or the 3rd-push extreme
+    # (pushes live on t-3..t-1; bar t is the fail, not a push).
+    fat = candles.copy()
+    fat.iloc[fire, fat.columns.get_loc("low")] = 70.0
+    fat_sig = _signals("three_push_exhaustion_fail", fat, side=SignalSide.LONG)
+    assert fat_sig["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert fat_sig["prior_low"].iloc[fire] == pytest.approx(signals["prior_low"].iloc[fire])
+    assert fat_sig["prior_high"].iloc[fire] == pytest.approx(signals["prior_high"].iloc[fire])
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -12123,6 +12563,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("thrust_bar_fail_reversion", {"min_thrust_atr"}),
         ("key_reversal_bar", {"min_break_atr"}),
         ("swing_break_fail_reversion", {"swing_lookback", "min_break_atr"}),
+        ("three_push_exhaustion_fail", {"min_push_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -12168,6 +12609,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("thrust_bar_fail_reversion", {"min_thrust_atr"}),
         ("key_reversal_bar", {"min_break_atr"}),
         ("swing_break_fail_reversion", {"swing_lookback", "min_break_atr"}),
+        ("three_push_exhaustion_fail", {"min_push_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

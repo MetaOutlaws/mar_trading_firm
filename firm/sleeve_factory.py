@@ -2966,6 +2966,62 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "Job 133 rectangle / other finished 0/12 clones."
         ),
     ),
+    SleeveSpec(
+        name="three_push_exhaustion_fail",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Three-push exhaustion fail as one 4h BOTH family "
+            "(SHORT priority). Pushes live on t-3, t-2, t-1. "
+            "Each push is a successive bar higher-high (SHORT) "
+            "or lower-low (LONG) sized vs ATR20 by min_push_atr "
+            "(strict >). Fail-to-extend is bar t: high[t] <= "
+            "high[t-1] SHORT / low[t] >= low[t-1] LONG. Exact "
+            "n_pushes=3 (t-4 was not also a sized push). "
+            "Two-sided fail prints SHORT, not LONG. ATR period "
+            "locked 20, known before the signal bar "
+            "(atr.shift(1)). Fill t+1 open. No volume/session "
+            "gate. Free search (1 only): min_push_atr "
+            "[0.15, 0.35] (endpoints only). Not "
+            "consecutive_bar_exhaustion (N directional closes). "
+            "Not failed_higher_high. Not "
+            "swing_break_fail_reversion (family I / Job 153). "
+            "Not swing_failure_reversal. Not key_reversal_bar "
+            "(family H / Job 152). Not thrust_bar_fail_reversion "
+            "(family G / Job 151). Not inside_bar_break_fail "
+            "(family F). Not outside_bar_reversal / "
+            "outside_bar_fail_reversion. Not three_white_soldiers "
+            "/ three_black_crows / three_bar_play. Not "
+            "expansion_fail_fade / candle_reject_reversal. Not "
+            "dead VP (prior_poc / hvn / lvn / rolling VA). Not "
+            "Job 133 bullish_rectangle_fail_reclaim (DEAD 0/12). "
+            "Not keltner_channel_fade (Job 144 0/12). Not "
+            "utc_open_fail_reversion (0/12). Hold H&S / asia / "
+            "wyckoff alone. Do not recode spent families 118–153. "
+            "Do not revive Job 133 rectangle. Do not modify "
+            "sibling geometry."
+        ),
+        summary=(
+            "Fade a 4h three-push exhaustion that fails to "
+            "extend (SHORT = 3 sized higher highs then no 4th "
+            "HH; LONG = 3 sized lower lows then no 4th LL) as "
+            "one 4h BOTH family with SHORT priority."
+        ),
+        justification=(
+            "A locked ATR20 exact-three successive bar-extreme "
+            "push (n_pushes=3) sized by min_push_atr then a "
+            "fail-to-extend print, with searched min_push_atr "
+            "only, is not a consecutive-close fade, not a "
+            "confirmed-pivot failed HH, not a lookback-N swing "
+            "wick-fail, not a t-1 thrust/key-reversal, not an "
+            "inside-bar mother wick-fail, not an outside-bar "
+            "containment clone, not a three-soldier/crow "
+            "leftover, not a dead VP cluster, and not Job 133 "
+            "rectangle / other finished 0/12 clones."
+        ),
+    ),
 ]
 
 
