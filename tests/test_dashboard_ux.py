@@ -57,3 +57,28 @@ def test_sentiment_tab_l1_clarity_contract():
     assert "inf-note" in html
     assert "L1 display only" in html
     assert "Market narrative" in html
+
+
+def test_floor_tab_is_process_view_not_job_list():
+    """Floor shows the firm workflow. Validator job cards stay on Research."""
+    html = _html()
+    assert "function floorWorkflowCard(" in html
+    start = html.index("function renderFloor()")
+    end = html.index("function floorWorkflowCard()")
+    floor_body = html[start:end]
+    assert "floorWorkflowCard()" in floor_body
+    assert "pipelineCard()" not in floor_body
+    assert "job-list" not in floor_body
+    assert "Hypothesis" in html
+    assert "COO ONE" in html
+    assert "CEO YES" in html
+    assert "function renderResearch(" in html
+    research_fn = html[html.index("function renderResearch()"):html.index("function sentimentDesk()")]
+    assert "pipelineCard()" in research_fn
+    assert "Walk-forward jobs" in html
+    assert "jobs live on research" in html.lower()
+    assert "Live ${esc(book.live" in html or "Live ${esc(book.live ||" in html
+    assert "who_waits" in html
+    assert "buffer-card" in html
+    assert "now-job" in html
+    assert "PIPELINE_AUTO_ADVANCE" not in html
