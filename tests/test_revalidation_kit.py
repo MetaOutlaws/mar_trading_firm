@@ -1,7 +1,8 @@
 """Revalidation kit: certified survivors only, no approval stamps.
 
 Guards the CEO LOCK kit (docs/REVALIDATION_KIT.md):
-- inventory requires the three frozen keys with params and stored oos_*
+- inventory requires the two frozen keys with params and stored oos_*
+- ATR BTC SHORT 4h is dropped (CEO: kit_green=false, PF 1.082 failed gates)
 - approved=true is not required; extra approved sleeves are allowed (path B)
 - F01/F02/F03 pytest files are the wired regressions
 - deltas vs stored oos_* do not call write_approvals
@@ -79,10 +80,10 @@ def test_live_book_certified_rows_have_params_and_oos() -> None:
     """
     payload = load_approval_book()
     assert CERTIFIED_SURVIVOR_KEYS == (
-        "atr_channel_breakout:BTCUSDT:SHORT:4h",
         "atr_channel_breakout:ETHUSDT:SHORT:4h",
         "doji_star_reversal:SOLUSDT:SHORT:1h",
     )
+    assert "atr_channel_breakout:BTCUSDT:SHORT:4h" not in CERTIFIED_SURVIVOR_KEYS
     for key in CERTIFIED_SURVIVOR_KEYS:
         record = payload[key]
         assert isinstance(record.get("params"), dict) and record["params"]
@@ -132,18 +133,17 @@ def test_revalidation_module_does_not_import_write_approvals() -> None:
 
 
 def _protect_book_shape(payload: dict) -> dict:
-    """ATR approved=false, doji stays approved, plus other approved sleeves.
+    """ETH ATR approved=false, doji stays approved, plus other approved sleeves.
 
-    Mirrors the protect 12+56 failure mode: the two ATR rows exist with
-    params and oos_* but are not approved, and the rest of the research
-    set is extra approved=true. Inventory must still pass.
+    Mirrors the protect 12+56 book after the CEO drop of ATR BTC SHORT 4h.
+    The remaining ATR certified row exists with params and oos_* but is not
+    approved, doji stays approved, and extra approved=true research sleeves
+    (including a leftover BTC row) are allowed. Inventory must still pass.
     """
-    for key in (
-        "atr_channel_breakout:BTCUSDT:SHORT:4h",
-        "atr_channel_breakout:ETHUSDT:SHORT:4h",
-    ):
-        payload[key]["approved"] = False
+    payload["atr_channel_breakout:ETHUSDT:SHORT:4h"]["approved"] = False
     payload["doji_star_reversal:SOLUSDT:SHORT:1h"]["approved"] = True
+    # Dropped BTC sleeve may remain on the book as an extra approved row.
+    payload["atr_channel_breakout:BTCUSDT:SHORT:4h"]["approved"] = True
     for index in range(11):
         payload[f"research_sleeve_{index}:BTCUSDT:LONG:4h"] = {
             "approved": True,
@@ -160,12 +160,14 @@ def _protect_book_shape(payload: dict) -> dict:
 
 
 def test_assert_certified_inventory_allows_protect_book_shape() -> None:
-    """Path B: unapproved ATR + extra approved sleeves are not an error."""
+    """Path B: unapproved ETH ATR + extra approved sleeves are not an error."""
     payload = _protect_book_shape(json.loads(json.dumps(load_approval_book())))
     approved = set(certified_records(payload))
-    assert "atr_channel_breakout:BTCUSDT:SHORT:4h" not in approved
     assert "atr_channel_breakout:ETHUSDT:SHORT:4h" not in approved
     assert "doji_star_reversal:SOLUSDT:SHORT:1h" in approved
+    # Dropped BTC SHORT 4h may stay approved=true; it is not a certified key.
+    assert "atr_channel_breakout:BTCUSDT:SHORT:4h" in approved
+    assert "atr_channel_breakout:BTCUSDT:SHORT:4h" not in CERTIFIED_SURVIVOR_KEYS
     assert len(approved - set(CERTIFIED_SURVIVOR_KEYS)) >= 11
     assert assert_certified_inventory(payload) == list(CERTIFIED_SURVIVOR_KEYS)
     assert set(exploratory_records(payload)).isdisjoint(CERTIFIED_SURVIVOR_KEYS)
@@ -190,14 +192,14 @@ def test_assert_certified_inventory_rejects_missing_params() -> None:
         assert_certified_inventory(payload)
 
     payload = json.loads(json.dumps(load_approval_book()))
-    payload[CERTIFIED_SURVIVOR_KEYS[2]]["params"] = ["not", "a", "dict"]
+    payload[CERTIFIED_SURVIVOR_KEYS[0]]["params"] = ["not", "a", "dict"]
     with pytest.raises(CertifiedInventoryError, match="params"):
         assert_certified_inventory(payload)
 
 
 def test_assert_certified_inventory_rejects_missing_oos() -> None:
     payload = json.loads(json.dumps(load_approval_book()))
-    del payload[CERTIFIED_SURVIVOR_KEYS[2]]["oos_profit_factor"]
+    del payload[CERTIFIED_SURVIVOR_KEYS[1]]["oos_profit_factor"]
     with pytest.raises(CertifiedInventoryError, match="oos_profit_factor"):
         assert_certified_inventory(payload)
 
@@ -208,7 +210,7 @@ def test_assert_certified_inventory_rejects_missing_oos() -> None:
 
 
 def test_revalidate_refuses_exploratory_keys() -> None:
-    candles = _downtrend_hourly(400)
+    candles = _downtrend_hourly(40)
     with pytest.raises(CertifiedInventoryError, match="not a certified survivor"):
         revalidate_survivor(
             "mama_fama_cross:BTCUSDT:SHORT:4h",
@@ -217,15 +219,31 @@ def test_revalidate_refuses_exploratory_keys() -> None:
         )
 
 
+def test_revalidate_refuses_dropped_btc_short() -> None:
+    """CEO drop: ATR BTC SHORT 4h is no longer a certified survivor.
+
+    The book row can still exist with params and oos_*. The kit refuses to
+    re-measure it and does not walk-forward that key.
+    """
+    candles = _downtrend_hourly(40)
+    book = load_approval_book()
+    with pytest.raises(CertifiedInventoryError, match="not a certified survivor"):
+        revalidate_survivor(
+            "atr_channel_breakout:BTCUSDT:SHORT:4h",
+            book["atr_channel_breakout:BTCUSDT:SHORT:4h"],
+            candles,
+        )
+
+
 def test_pin_certified_params_uses_book_not_family_defaults() -> None:
     book = load_approval_book()
-    btc = book["atr_channel_breakout:BTCUSDT:SHORT:4h"]
-    params = pin_certified_params("atr_channel_breakout", SignalSide.SHORT, btc)
+    eth = book["atr_channel_breakout:ETHUSDT:SHORT:4h"]
+    params = pin_certified_params("atr_channel_breakout", SignalSide.SHORT, eth)
     assert isinstance(params, AtrChannelParams)
     assert params.side is SignalSide.SHORT
-    assert params.atr_k == 2.0
+    assert params.atr_k == 2.5
     assert params.take_profit_pct == 0.05
-    assert params.stop_loss_pct == 0.03
+    assert params.stop_loss_pct == 0.02
     sol = book["doji_star_reversal:SOLUSDT:SHORT:1h"]
     doji = pin_certified_params("doji_star_reversal", SignalSide.SHORT, sol)
     assert isinstance(doji, DojiStarParams)
@@ -270,11 +288,11 @@ def test_approval_book_lock_fails_closed_on_mutation(tmp_path) -> None:
 
 
 def test_survivor_rerun_writes_deltas_without_stamping(monkeypatch) -> None:
-    """Synthetic ATR BTC SHORT path: report in, book bytes out unchanged."""
+    """Synthetic ATR ETH SHORT path: report in, book bytes out unchanged."""
     book_bytes = BOOK.read_bytes()
     digest = hashlib.sha256(book_bytes).hexdigest()
     payload = json.loads(book_bytes)
-    record = payload["atr_channel_breakout:BTCUSDT:SHORT:4h"]
+    record = payload["atr_channel_breakout:ETHUSDT:SHORT:4h"]
     candles = _downtrend_hourly(40 * 24)
 
     def _boom(*_args, **_kwargs):
@@ -283,7 +301,7 @@ def test_survivor_rerun_writes_deltas_without_stamping(monkeypatch) -> None:
     monkeypatch.setattr("research.validate.write_approvals", _boom)
 
     row = revalidate_survivor(
-        "atr_channel_breakout:BTCUSDT:SHORT:4h",
+        "atr_channel_breakout:ETHUSDT:SHORT:4h",
         record,
         candles,
         config=_frictionless(),
@@ -296,8 +314,8 @@ def test_survivor_rerun_writes_deltas_without_stamping(monkeypatch) -> None:
     assert row["promotion"] is False
     assert row["search_space"] == {}
     assert row["research_version"] == "wf-f01-oos-window-v1"
-    assert row["prior"]["oos_profit_factor"] == 1.447
-    assert row["prior"]["oos_trades"] == 284
+    assert row["prior"]["oos_profit_factor"] == 1.5
+    assert row["prior"]["oos_trades"] == 333
     assert "oos_profit_factor" in row["deltas"]
     assert "oos_trades" in row["deltas"]
     current = row["current"]
@@ -364,7 +382,8 @@ def test_finalise_report_and_markdown_explain_freeze_lift() -> None:
     markdown = render_markdown(report)
     assert "How CEO / Board uses this" in markdown
     assert "never writes `approved=true`" in markdown
-    assert "atr_channel_breakout:BTCUSDT:SHORT:4h" in markdown
+    assert "atr_channel_breakout:ETHUSDT:SHORT:4h" in markdown
+    assert "doji_star_reversal:SOLUSDT:SHORT:1h" in markdown
 
     report["survivors"][0]["current"]["still_clears_gates"] = False
     finalise_report(report)
@@ -471,16 +490,17 @@ def test_offline_survivors_cli_reports_without_stamping(tmp_path) -> None:
     payload = json.loads((tmp_path / "revalidation_kit_latest.json").read_text(encoding="utf-8"))
     assert payload["would_write_approved"] is False
     assert payload["kit_green"] is False
-    assert len(payload["survivors"]) == 3
+    assert len(payload["survivors"]) == 2
+    assert [row["key"] for row in payload["survivors"]] == list(CERTIFIED_SURVIVOR_KEYS)
     assert all(row.get("would_write_approved") is False for row in payload["survivors"])
     assert all(row.get("error") for row in payload["survivors"])
-    btc = next(
+    eth = next(
         row for row in payload["survivors"]
-        if row["key"] == "atr_channel_breakout:BTCUSDT:SHORT:4h"
+        if row["key"] == "atr_channel_breakout:ETHUSDT:SHORT:4h"
     )
-    assert btc["prior"]["oos_profit_factor"] == 1.447
-    assert btc["prior"]["oos_trades"] == 284
-    assert btc["would_write_approved"] is False
+    assert eth["prior"]["oos_profit_factor"] == 1.5
+    assert eth["prior"]["oos_trades"] == 333
+    assert eth["would_write_approved"] is False
 
 
 def test_blocked_survivor_row_keeps_prior_oos() -> None:

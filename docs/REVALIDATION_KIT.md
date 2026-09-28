@@ -3,13 +3,17 @@
 CEO LOCK Option B / 1-week DONE. Keyed to
 `RESEARCH_VERSION = wf-f01-oos-window-v1` (F01 OOS window repair, #60).
 
-This kit **re-measures** the three certified survivors and writes a Board
+This kit **re-measures** the two clear certified survivors and writes a Board
 deltas report. It does **not** promote, does **not** write `approved=true`,
 and does **not** touch `config/approved_strategies.json`.
 
+CEO drop: `atr_channel_breakout:BTCUSDT:SHORT:4h` left the certified set
+after `kit_green=false` (PF 1.082 failed the hard gates). The row may stay
+on the protect book. This kit does not re-run it and does not stamp it.
+
 CEO path B / protect book (12 `approved=true` + 56 `paper_override`): inventory
-does **not** require the live `approved=true` set to equal the three keys.
-ATR BTC/ETH SHORT 4h may be `approved=false` and other research sleeves may
+does **not** require the live `approved=true` set to equal the two keys.
+ATR ETH SHORT 4h may be `approved=false` and other research sleeves may
 be `approved=true`. Each certified key must still exist with `params` and
 stored `oos_*`, or the kit fails closed and skips survivor re-runs.
 
@@ -19,12 +23,11 @@ Live stays off. Auto-advance stays off. Eng never self-unfreezes.
 
 | Class | What it is | This kit |
 |---|---|---|
-| **Certified survivor** | One of the three frozen keys below. The row must exist with stored `params` and `oos_*`. `approved: true` is not required (protect book: ATR may be `approved: false`; doji may stay `approved: true`). Candidates pending revalidation, not proof. | Re-run only these, with **pinned certified params** (empty search grid — not a new promotion). |
+| **Certified survivor** | One of the two frozen keys below. The row must exist with stored `params` and `oos_*`. `approved: true` is not required (protect book: ATR ETH may be `approved: false`; doji may stay `approved: true`). Candidates pending revalidation, not proof. | Re-run only these, with **pinned certified params** (empty search grid — not a new promotion). |
 | **Exploratory** | The rest of the protect book: other `approved: true` research sleeves, `paper_override: true` rows, rejected rows, coding-only sleeves, new families, Job 133. | Listed and **skipped**. Extra approvals are not an inventory error. Do not pool them into the validated scorecard. |
 
-Frozen certified keys (each must be present with `params` and stored `oos_*`, or the kit fails closed). Extra `approved: true` keys are allowed. Do not rewrite the book to force these flags:
+Frozen certified keys (each must be present with `params` and stored `oos_*`, or the kit fails closed). Extra `approved: true` keys are allowed, including a leftover `atr_channel_breakout:BTCUSDT:SHORT:4h` row. Do not rewrite the book to force these flags:
 
-- `atr_channel_breakout:BTCUSDT:SHORT:4h`
 - `atr_channel_breakout:ETHUSDT:SHORT:4h`
 - `doji_star_reversal:SOLUSDT:SHORT:1h`
 
@@ -73,7 +76,7 @@ Survivor walk-forward needs Bybit public klines (or a populated
 that keeps stored `oos_*`, sets `kit_green=false`, and does **not** stamp the
 book. Run `--survivors-only` on the paper box that already has candle cache.
 
-The pytest suite re-runs ATR BTC SHORT on a synthetic downtrend to prove the
+The pytest suite re-runs ATR ETH SHORT on a synthetic downtrend to prove the
 deltas path without writing the book. That smoke path is **not** Board evidence.
 
 ## What the survivor re-run measures
@@ -100,15 +103,15 @@ It does **not** merge the verdict into the approval book.
 3. Read each survivor’s deltas vs stored `oos_*`. A collapse in PF, a CI that
    now includes zero, or a beats-random fail is evidence the stored approval
    does not survive corrected windowing/costs.
-4. `kit_green` is true only when the three certified rows are present with
-   params and `oos_*`, the book is unchanged, regressions passed, all three
-   survivors ran, **and** all three still clear the hard gates. Extra
+4. `kit_green` is true only when the two certified rows are present with
+   params and `oos_*`, the book is unchanged, regressions passed, both
+   survivors ran, **and** both still clear the hard gates. Extra
    `approved=true` sleeves do not fail inventory.
 5. **If `kit_green` is true, the Board may lift the freeze.** That decision is
    the Board’s. This kit never writes `approved=true`. Eng never self-unfreezes.
-6. **If `kit_green` is false, the freeze stays.** No new promotions. Existing
-   three rows remain candidates. Exploratory walks elsewhere are still allowed;
-   they are not this kit.
+6. **If `kit_green` is false, the freeze stays.** No new promotions. The two
+   remaining rows stay candidates. Exploratory walks elsewhere are still
+   allowed; they are not this kit.
 
 Not a go-live recommendation. `TRADING_MODE=paper`. `PIPELINE_AUTO_ADVANCE`
 fail-closed. Job 133 stays dead. F04 golden-tape, F05 exit-supervision, and

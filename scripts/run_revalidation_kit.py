@@ -1,11 +1,14 @@
 """
 Runnable CEO LOCK revalidation kit.
 
-Keyed to RESEARCH_VERSION ``wf-f01-oos-window-v1``. Re-measures the three
-certified survivors (ATR BTC/ETH 4h SHORT, doji SOL 1h SHORT), runs the
+Keyed to RESEARCH_VERSION ``wf-f01-oos-window-v1``. Re-measures the two
+clear certified survivors (ATR ETH 4h SHORT, doji SOL 1h SHORT), runs the
 F01–F03 regressions this kit depends on, and writes a Board deltas report.
 
-CEO path B: those three keys are eligible when the book row has stored
+CEO drop: ATR BTC SHORT 4h left the certified set after ``kit_green=false``
+(PF 1.082 failed gates). The kit does not re-run that key.
+
+CEO path B: the two remaining keys are eligible when the book row has stored
 ``params`` and ``oos_*``. ``approved=true`` is not required, and extra
 approved sleeves on the protect 12+56 book are not an inventory error.
 
