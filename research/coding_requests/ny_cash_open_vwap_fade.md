@@ -16,7 +16,7 @@ US cash open (13:00 UTC) starts a new institutional fair-value clock. Price that
 - Fill t+1 open
 - One entry per UTC day per side
 - Free: `k [1.0, 1.5]` only (ATR20 multiples). Not 1.25. Not ATR14. Not a stretch percent.
-- Exits: shared walk-forward TP/SL kit plus fees. TP is not frozen at 0.05. `stop_loss_pct` is not a family free axis.
+- Exits: desk percent TP plus fees. TP is searched `[0.03, 0.05]` (not frozen at 0.05). `stop_loss_pct` is not gridded — the walk uses the class default `0.02`. Do not grid `{0.02, 0.03}`.
 - Locked: ATR20 known before the signal bar; NY cash-open anchor only (not UTC 00:00, not swing pivot, not prior-day freeze); reclaim toward VWAP; fill t+1
 - Pairs: BTC/ETH/BNB/XRP/SOL/AVAX (desk research majors)
 

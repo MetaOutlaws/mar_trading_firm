@@ -13002,10 +13002,12 @@ def test_ny_cash_open_vwap_fade_kit_locks() -> None:
     assert "sigma" not in space
     assert "band_k" not in space
     assert "vwap_mult" not in space
-    # Shared desk kit. Not a family stop grid, and TP is not frozen at 0.05.
+    # TP stays the desk pair. SL is not a search axis (stamp: do not
+    # grid {0.02, 0.03}). Walk uses the class default 0.02 plus fees.
     assert space["take_profit_pct"] == [0.03, 0.05]
     assert space["take_profit_pct"] != [0.05]
-    assert space["stop_loss_pct"] == [0.02, 0.03]
+    assert "stop_loss_pct" not in space
+    assert base.stop_loss_pct == 0.02
     assert base.take_profit_pct != 0.05
     assert NyCashOpenVwapFadeParams().side is SignalSide.SHORT
     assert NyCashOpenVwapFadeParams().atr_n == 20

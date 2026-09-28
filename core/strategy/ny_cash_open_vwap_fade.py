@@ -32,9 +32,10 @@ Quant-locked (not searched):
     - Fill at t+1 open (engine convention)
     - Desk research pairs are the standard six majors
       (BTC/ETH/BNB/XRP/SOL/AVAX); this module does not narrow them
-    - Exits are the shared walk-forward TP/SL kit plus fees.
-      ``k`` is the only family free param. TP is not frozen at 0.05
-      and ``stop_loss_pct`` is not a family search axis.
+    - Exits are the desk percent TP plus fees. ``k`` is the only
+      family free param. TP is searched ``[0.03, 0.05]`` (not frozen
+      at 0.05). ``stop_loss_pct`` is not searched: the walk uses the
+      class default 0.02. Do not grid ``{0.02, 0.03}``.
 
 Free search (1 only):
 
@@ -88,9 +89,9 @@ class NyCashOpenVwapFadeParams(StrategyParams):
     # Stretch distance in ATR(20) units from the NY cash-open VWAP.
     # Quant grid: [1.0, 1.5]. Not 1.25. Not a percent stretch.
     k: float = K_MIN
-    # Shared desk defaults. The walk searches the standard kit
-    # [0.03, 0.05] × [0.02, 0.03]. Neither value is frozen, and
-    # stop_loss_pct is not a family free axis.
+    # Desk percent exits plus fees. TP is searched [0.03, 0.05]
+    # (not frozen at 0.05). SL is the class default only — the
+    # walk does not grid {0.02, 0.03}.
     take_profit_pct: float = 0.04
     stop_loss_pct: float = 0.02
 
