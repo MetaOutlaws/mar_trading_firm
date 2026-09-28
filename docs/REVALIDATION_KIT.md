@@ -3,9 +3,15 @@
 CEO LOCK Option B / 1-week DONE. Keyed to
 `RESEARCH_VERSION = wf-f01-oos-window-v1` (F01 OOS window repair, #60).
 
-This kit **re-measures** the three research-approved book survivors and writes
-a Board deltas report. It does **not** promote, does **not** write
-`approved=true`, and does **not** touch `config/approved_strategies.json`.
+This kit **re-measures** the three certified survivors and writes a Board
+deltas report. It does **not** promote, does **not** write `approved=true`,
+and does **not** touch `config/approved_strategies.json`.
+
+CEO path B / protect book (12 `approved=true` + 56 `paper_override`): inventory
+does **not** require the live `approved=true` set to equal the three keys.
+ATR BTC/ETH SHORT 4h may be `approved=false` and other research sleeves may
+be `approved=true`. Each certified key must still exist with `params` and
+stored `oos_*`, or the kit fails closed and skips survivor re-runs.
 
 Live stays off. Auto-advance stays off. Eng never self-unfreezes.
 
@@ -13,10 +19,10 @@ Live stays off. Auto-advance stays off. Eng never self-unfreezes.
 
 | Class | What it is | This kit |
 |---|---|---|
-| **Certified survivor** | A row in `config/approved_strategies.json` with `approved: true`. On HEAD that is exactly three keys (all SHORT). The 12 Sep review and 17 Sep Board calendar treat these as **candidates pending revalidation**, not proof. | Re-run only these, with **pinned certified params** (empty search grid — not a new promotion). |
-| **Exploratory** | `paper_override: true` rows, every `approved: false` row, coding-only sleeves, new families, Job 133. | Listed and **skipped**. Do not pool them into the validated scorecard. |
+| **Certified survivor** | One of the three frozen keys below. The row must exist with stored `params` and `oos_*`. `approved: true` is not required (protect book: ATR may be `approved: false`; doji may stay `approved: true`). Candidates pending revalidation, not proof. | Re-run only these, with **pinned certified params** (empty search grid — not a new promotion). |
+| **Exploratory** | The rest of the protect book: other `approved: true` research sleeves, `paper_override: true` rows, rejected rows, coding-only sleeves, new families, Job 133. | Listed and **skipped**. Extra approvals are not an inventory error. Do not pool them into the validated scorecard. |
 
-Frozen certified keys (must match the live book exactly or the kit fails closed):
+Frozen certified keys (each must be present with `params` and stored `oos_*`, or the kit fails closed). Extra `approved: true` keys are allowed. Do not rewrite the book to force these flags:
 
 - `atr_channel_breakout:BTCUSDT:SHORT:4h`
 - `atr_channel_breakout:ETHUSDT:SHORT:4h`
@@ -87,16 +93,17 @@ It does **not** merge the verdict into the approval book.
 
 ## How CEO / Board uses the report to decide freeze lift
 
-1. Confirm `approval_book_unchanged` is true. The book (including the existing
-   three `approved=true` rows) must be byte-identical. Eng does not stash,
-   reset, or rewrite it to manufacture a green kit.
+1. Confirm `approval_book_unchanged` is true. The protect book (12 approved +
+   56 paper_override, or whatever bytes are on disk) must stay byte-identical.
+   Eng does not stash, reset, or rewrite it to manufacture a green kit.
 2. Confirm F01 / F02 / F03 regressions are green (`regressions.ok`).
 3. Read each survivor’s deltas vs stored `oos_*`. A collapse in PF, a CI that
    now includes zero, or a beats-random fail is evidence the stored approval
    does not survive corrected windowing/costs.
-4. `kit_green` is true only when inventory matches, the book is unchanged,
-   regressions passed, all three survivors ran, **and** all three still clear
-   the hard gates.
+4. `kit_green` is true only when the three certified rows are present with
+   params and `oos_*`, the book is unchanged, regressions passed, all three
+   survivors ran, **and** all three still clear the hard gates. Extra
+   `approved=true` sleeves do not fail inventory.
 5. **If `kit_green` is true, the Board may lift the freeze.** That decision is
    the Board’s. This kit never writes `approved=true`. Eng never self-unfreezes.
 6. **If `kit_green` is false, the freeze stays.** No new promotions. Existing

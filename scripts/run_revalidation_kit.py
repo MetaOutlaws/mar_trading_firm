@@ -2,8 +2,12 @@
 Runnable CEO LOCK revalidation kit.
 
 Keyed to RESEARCH_VERSION ``wf-f01-oos-window-v1``. Re-measures the three
-certified book survivors (ATR BTC/ETH 4h SHORT, doji SOL 1h SHORT), runs the
+certified survivors (ATR BTC/ETH 4h SHORT, doji SOL 1h SHORT), runs the
 F01–F03 regressions this kit depends on, and writes a Board deltas report.
+
+CEO path B: those three keys are eligible when the book row has stored
+``params`` and ``oos_*``. ``approved=true`` is not required, and extra
+approved sleeves on the protect 12+56 book are not an inventory error.
 
 This script **never** writes ``config/approved_strategies.json``. There is no
 ``--write`` / ``--stamp`` flag. Exploratory sleeves are listed and skipped.

@@ -2,16 +2,23 @@
 
 This module is the measurement path for the 1-week Board lock
 (``docs/BOARD_REMEDIATION_CALENDAR_2026-09-17.md``). It re-runs the three
-``approved=true`` book rows under ``RESEARCH_VERSION`` and writes a deltas
-report. It never calls ``write_approvals`` and never opens the approval book
-for write.
+frozen certified keys under ``RESEARCH_VERSION`` and writes a deltas report.
+It never calls ``write_approvals`` and never opens the approval book for write.
 
-Certified vs exploratory is a book fact, not an operator flag:
+CEO path B / protect 12+56: re-run eligibility is the frozen key plus stored
+``params`` and ``oos_*``. ``approved=true`` is not required (ATR BTC/ETH 4h
+SHORT may be ``approved=false`` on the protect book; doji SOL 1h SHORT may
+stay ``approved=true``). Extra ``approved=true`` research sleeves are allowed
+and are not an inventory error. This kit still does not stamp the book.
 
-* **Certified survivors** — the three ``approved=true`` keys below. Candidates
-  pending revalidation, not proof. This kit re-measures them.
-* **Exploratory** — ``paper_override`` rows, rejected rows, coding-only
-  sleeves, and any new family. Out of scope. Do not promote from this kit.
+Certified vs exploratory is the frozen key list, not the live approved set:
+
+* **Certified survivors** — the three keys below. Candidates pending
+  revalidation, not proof. This kit re-measures them when the row has params
+  and stored ``oos_*``.
+* **Exploratory** — other ``approved=true`` sleeves, ``paper_override`` rows,
+  rejected rows, coding-only sleeves, and any new family. Out of scope.
+  Do not promote from this kit.
 """
 
 from __future__ import annotations
@@ -40,9 +47,10 @@ logger = logging.getLogger(__name__)
 #: Walk-forward window/fill identity this kit is keyed to (F01).
 KIT_RESEARCH_VERSION = RESEARCH_VERSION
 
-#: The only sleeves this kit may re-run. Taken from the live approval book
-#: (``approved: true``), matching the Board calendar candidates:
+#: The only sleeves this kit may re-run. Frozen Board-calendar candidates:
 #: ATR channel SHORT 4h on BTC and ETH, doji_star_reversal SOLUSDT SHORT 1h.
+#: Eligibility is the row (params + stored oos_*), not ``approved: true``.
+#: Extra approved sleeves on the protect-12 book are not re-run.
 #: Do not invent families. Do not add paper_override rows.
 CERTIFIED_SURVIVOR_KEYS: tuple[str, ...] = (
     "atr_channel_breakout:BTCUSDT:SHORT:4h",
@@ -78,7 +86,7 @@ class ApprovalBookGuardError(RuntimeError):
 
 
 class CertifiedInventoryError(RuntimeError):
-    """The live book no longer matches the frozen certified survivor set."""
+    """A certified survivor is missing, or lacks params / stored oos_*."""
 
 
 def approvals_path() -> Path:
@@ -113,7 +121,11 @@ def iter_strategy_records(payload: dict[str, Any]) -> Iterable[tuple[str, dict[s
 
 
 def certified_records(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """``approved is True`` rows. These are the only certified survivors."""
+    """Rows with ``approved is True``.
+
+    On the protect book this is the wider research set (12 sleeves), not
+    ``CERTIFIED_SURVIVOR_KEYS``. Approval is not re-run eligibility.
+    """
     out: dict[str, dict[str, Any]] = {}
     for key, record in iter_strategy_records(payload):
         if record.get("approved") is True:
@@ -122,15 +134,16 @@ def certified_records(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def exploratory_records(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Paper-override (not approved) and every other non-certified row.
+    """Non-certified rows: other approvals are not listed here.
 
-    Overrides are isolated experiments. They are listed for the Board and
-    never re-run by this kit.
+    Paper-override and rejected rows are isolated experiments. Frozen
+    certified keys are never exploratory, even when ``approved`` is false.
+    Extra ``approved=true`` sleeves are not re-run and are not paper vetoes.
     """
-    certified = set(certified_records(payload))
+    frozen = set(CERTIFIED_SURVIVOR_KEYS)
     out: dict[str, dict[str, Any]] = {}
     for key, record in iter_strategy_records(payload):
-        if key in certified:
+        if key in frozen:
             continue
         if record.get("paper_override") is True or record.get("approved") is not True:
             out[key] = record
@@ -138,30 +151,64 @@ def exploratory_records(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def paper_override_keys(payload: dict[str, Any]) -> list[str]:
-    """Operator paper vetoes — exploratory, not certified."""
+    """Operator paper vetoes — exploratory, not certified survivors."""
+    frozen = set(CERTIFIED_SURVIVOR_KEYS)
     keys = [
         key
         for key, record in iter_strategy_records(payload)
-        if record.get("paper_override") is True and record.get("approved") is not True
+        if key not in frozen
+        and record.get("paper_override") is True
+        and record.get("approved") is not True
     ]
     return sorted(keys)
 
 
-def assert_certified_inventory(payload: dict[str, Any]) -> list[str]:
-    """Require the live book to contain exactly the frozen certified set.
+def _certified_row_gaps(record: dict[str, Any]) -> list[str]:
+    """Why a certified row cannot be re-measured. Empty means eligible.
 
-    Extra ``approved=true`` keys would be a new promotion. Missing keys would
-    mean the book was rewritten. Either way the kit fails closed.
+    ``approved`` is intentionally ignored. A stored param dict and every
+    headline ``oos_*`` field (not null) are required so the deltas report
+    has a prior to compare against.
     """
-    found = set(certified_records(payload))
-    expected = set(CERTIFIED_SURVIVOR_KEYS)
-    extra = sorted(found - expected)
-    missing = sorted(expected - found)
-    if extra or missing:
+    gaps: list[str] = []
+    params = record.get("params")
+    if not isinstance(params, dict) or not params:
+        gaps.append("missing params")
+    for field in PRIOR_OOS_FIELDS:
+        if record.get(field) is None:
+            gaps.append(f"missing {field}")
+    return gaps
+
+
+def assert_certified_inventory(payload: dict[str, Any]) -> list[str]:
+    """Require each frozen certified key to be re-runnable. Do not stamp.
+
+    CEO path B: the protect book (12 approved + 56 paper_override) keeps
+    ATR BTC/ETH SHORT 4h at ``approved=false`` while other research sleeves
+    stay ``approved=true``. That shape is inventory-ok when each certified
+    key exists with ``params`` and stored ``oos_*``.
+
+    Fail closed only when a certified key is absent, is not a record, lacks
+    params, or lacks a stored ``oos_*`` field. Extra ``approved=true`` keys
+    are allowed. This function never writes ``approved_strategies.json``.
+    """
+    missing: list[str] = []
+    lacking: list[str] = []
+    for key in CERTIFIED_SURVIVOR_KEYS:
+        record = payload.get(key)
+        if not isinstance(record, dict):
+            missing.append(key)
+            continue
+        gaps = _certified_row_gaps(record)
+        if gaps:
+            lacking.append(f"{key} ({', '.join(gaps)})")
+    if missing or lacking:
         raise CertifiedInventoryError(
-            "Certified inventory mismatch "
-            f"(extra={extra or 'none'}, missing={missing or 'none'}). "
-            "Kit refuses to re-run or stamp. Protect the approval book."
+            "Certified inventory incomplete "
+            f"(missing={missing or 'none'}, lacking={lacking or 'none'}). "
+            "Each certified survivor must exist with params and stored oos_* "
+            "fields. approved=true is not required; extra approved sleeves "
+            "are allowed. Kit refuses to re-run or stamp. Protect the approval book."
         )
     return list(CERTIFIED_SURVIVOR_KEYS)
 

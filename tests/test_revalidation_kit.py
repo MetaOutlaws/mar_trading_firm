@@ -1,7 +1,8 @@
 """Revalidation kit: certified survivors only, no approval stamps.
 
 Guards the CEO LOCK kit (docs/REVALIDATION_KIT.md):
-- inventory is the three approved=true book keys, not overrides
+- inventory requires the three frozen keys with params and stored oos_*
+- approved=true is not required; extra approved sleeves are allowed (path B)
 - F01/F02/F03 pytest files are the wired regressions
 - deltas vs stored oos_* do not call write_approvals
 - the approval book fingerprint is unchanged
@@ -25,6 +26,7 @@ from research.engine import BacktestConfig
 from research.revalidation import (
     CERTIFIED_SURVIVOR_KEYS,
     KIT_RESEARCH_VERSION,
+    PRIOR_OOS_FIELDS,
     REGRESSION_TARGETS,
     ApprovalBookGuardError,
     ApprovalBookLock,
@@ -34,6 +36,7 @@ from research.revalidation import (
     certified_records,
     compute_metric_deltas,
     empty_report_shell,
+    exploratory_records,
     finalise_report,
     fingerprint_approval_book,
     load_approval_book,
@@ -67,21 +70,28 @@ def test_kit_is_keyed_to_f01_research_version() -> None:
     assert KIT_RESEARCH_VERSION == RESEARCH_VERSION
 
 
-def test_live_book_certified_set_matches_frozen_keys() -> None:
-    """Do not invent families. The book is the source; the freeze list must match."""
+def test_live_book_certified_rows_have_params_and_oos() -> None:
+    """Frozen keys must be re-runnable. Approval flags are not the gate.
+
+    The committed book and the protect 12+56 book both qualify when each
+    certified row has params and stored oos_*. Extra approved sleeves and
+    paper overrides must not be pulled into the certified set.
+    """
     payload = load_approval_book()
-    found = set(certified_records(payload))
-    assert found == set(CERTIFIED_SURVIVOR_KEYS)
     assert CERTIFIED_SURVIVOR_KEYS == (
         "atr_channel_breakout:BTCUSDT:SHORT:4h",
         "atr_channel_breakout:ETHUSDT:SHORT:4h",
         "doji_star_reversal:SOLUSDT:SHORT:1h",
     )
-    assert_certified_inventory(payload)
-    # Exploratory paper overrides exist and must not be in the certified set.
+    for key in CERTIFIED_SURVIVOR_KEYS:
+        record = payload[key]
+        assert isinstance(record.get("params"), dict) and record["params"]
+        for field in PRIOR_OOS_FIELDS:
+            assert record.get(field) is not None, field
+    assert assert_certified_inventory(payload) == list(CERTIFIED_SURVIVOR_KEYS)
     overrides = paper_override_keys(payload)
-    assert len(overrides) == 4
     assert set(overrides).isdisjoint(CERTIFIED_SURVIVOR_KEYS)
+    assert set(exploratory_records(payload)).isdisjoint(CERTIFIED_SURVIVOR_KEYS)
 
 
 def test_regression_targets_reuse_f01_f02_f03_and_hard_gates() -> None:
@@ -121,21 +131,79 @@ def test_revalidation_module_does_not_import_write_approvals() -> None:
     assert callable(write_approvals)
 
 
-def test_assert_certified_inventory_rejects_extra_approved() -> None:
+def _protect_book_shape(payload: dict) -> dict:
+    """ATR approved=false, doji stays approved, plus other approved sleeves.
+
+    Mirrors the protect 12+56 failure mode: the two ATR rows exist with
+    params and oos_* but are not approved, and the rest of the research
+    set is extra approved=true. Inventory must still pass.
+    """
+    for key in (
+        "atr_channel_breakout:BTCUSDT:SHORT:4h",
+        "atr_channel_breakout:ETHUSDT:SHORT:4h",
+    ):
+        payload[key]["approved"] = False
+    payload["doji_star_reversal:SOLUSDT:SHORT:1h"]["approved"] = True
+    for index in range(11):
+        payload[f"research_sleeve_{index}:BTCUSDT:LONG:4h"] = {
+            "approved": True,
+            "strategy": f"research_sleeve_{index}",
+            "timeframe": "4h",
+            "params": {"take_profit_pct": 0.05},
+            "oos_trades": 10,
+            "oos_win_rate": 50.0,
+            "oos_profit_factor": 1.2,
+            "oos_expectancy_pct": 0.1,
+            "oos_max_drawdown_pct": 1.0,
+        }
+    return payload
+
+
+def test_assert_certified_inventory_allows_protect_book_shape() -> None:
+    """Path B: unapproved ATR + extra approved sleeves are not an error."""
+    payload = _protect_book_shape(json.loads(json.dumps(load_approval_book())))
+    approved = set(certified_records(payload))
+    assert "atr_channel_breakout:BTCUSDT:SHORT:4h" not in approved
+    assert "atr_channel_breakout:ETHUSDT:SHORT:4h" not in approved
+    assert "doji_star_reversal:SOLUSDT:SHORT:1h" in approved
+    assert len(approved - set(CERTIFIED_SURVIVOR_KEYS)) >= 11
+    assert assert_certified_inventory(payload) == list(CERTIFIED_SURVIVOR_KEYS)
+    assert set(exploratory_records(payload)).isdisjoint(CERTIFIED_SURVIVOR_KEYS)
+
+
+def test_assert_certified_inventory_rejects_missing_key() -> None:
     payload = json.loads(json.dumps(load_approval_book()))
-    payload["new_family:BTCUSDT:LONG:4h"] = {
-        "approved": True,
-        "strategy": "new_family",
-        "timeframe": "4h",
-    }
-    with pytest.raises(CertifiedInventoryError, match="extra"):
+    del payload[CERTIFIED_SURVIVOR_KEYS[0]]
+    with pytest.raises(CertifiedInventoryError, match="missing"):
         assert_certified_inventory(payload)
 
 
-def test_assert_certified_inventory_rejects_missing_approved() -> None:
+def test_assert_certified_inventory_rejects_missing_params() -> None:
     payload = json.loads(json.dumps(load_approval_book()))
-    payload[CERTIFIED_SURVIVOR_KEYS[0]]["approved"] = False
-    with pytest.raises(CertifiedInventoryError, match="missing"):
+    del payload[CERTIFIED_SURVIVOR_KEYS[0]]["params"]
+    with pytest.raises(CertifiedInventoryError, match="params"):
+        assert_certified_inventory(payload)
+
+    payload = json.loads(json.dumps(load_approval_book()))
+    payload[CERTIFIED_SURVIVOR_KEYS[1]]["params"] = {}
+    with pytest.raises(CertifiedInventoryError, match="params"):
+        assert_certified_inventory(payload)
+
+    payload = json.loads(json.dumps(load_approval_book()))
+    payload[CERTIFIED_SURVIVOR_KEYS[2]]["params"] = ["not", "a", "dict"]
+    with pytest.raises(CertifiedInventoryError, match="params"):
+        assert_certified_inventory(payload)
+
+
+def test_assert_certified_inventory_rejects_missing_oos() -> None:
+    payload = json.loads(json.dumps(load_approval_book()))
+    del payload[CERTIFIED_SURVIVOR_KEYS[2]]["oos_profit_factor"]
+    with pytest.raises(CertifiedInventoryError, match="oos_profit_factor"):
+        assert_certified_inventory(payload)
+
+    payload = json.loads(json.dumps(load_approval_book()))
+    payload[CERTIFIED_SURVIVOR_KEYS[0]]["oos_trades"] = None
+    with pytest.raises(CertifiedInventoryError, match="oos_trades"):
         assert_certified_inventory(payload)
 
 
