@@ -263,6 +263,76 @@ def test_paper_build_plan_honors_activation_filter(monkeypatch) -> None:
     assert any(e.strategy.name == "mama_fama_cross" for e in allowed.entries)
 
 
+def test_paper_build_plan_file_cannot_reopen_hook_sitout(monkeypatch, tmp_path) -> None:
+    """A local soko_trend_v1 file must not reopen a sleeve the live hook sat out.
+
+    Desktop runs with data/last_soko_trend.json present. pairs[].trend=bear
+    and sleeves[].activation=ON used to override soko_trend=bull / missing / chop.
+    """
+    dest = tmp_path / "last_soko_trend.json"
+    dest.write_text(
+        json.dumps(
+            {
+                "schema": "soko_trend_v1",
+                "trend": "chop",
+                "pairs": [{"symbol": "BTCUSDT", "trend": "bear"}],
+                "sleeves": [
+                    {
+                        "key": "atr_channel_breakout:BTCUSDT:SHORT:4h",
+                        "activation": "ON",
+                    },
+                    {
+                        "key": "mama_fama_cross:BTCUSDT:SHORT:4h",
+                        "activation": "ON",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("core.data.soko_trend.LAST_SOKO_TREND_PATH", dest)
+
+    universe = _gated_universe()
+    monkeypatch.setattr("core.execution.engine.get_universe", lambda: universe)
+    monkeypatch.setattr("firm.research_jobs.paper_scan_family", lambda: "bb_squeeze_breakout")
+    monkeypatch.setattr("firm.research_jobs._active_job_for", lambda family: None)
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda path=None: "bull")
+
+    bull = build_plan(require_approval=False, candidates=["BTCUSDT"])
+    bull_names = {e.strategy.name for e in bull.entries}
+    assert "atr_channel_breakout" not in bull_names
+    assert "week_open_reclaim" in bull_names
+    assert bull.soko_trend == "bull"
+    assert any(row["strategy"] == "atr_channel_breakout" for row in bull.regime_sitouts)
+
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda path=None: None)
+    missing = build_plan(require_approval=False, candidates=["BTCUSDT"])
+    missing_names = {e.strategy.name for e in missing.entries}
+    assert "atr_channel_breakout" not in missing_names
+    assert any("fail-closed" in row["reason"] for row in missing.regime_sitouts)
+
+    mama = Universe(
+        long_params={},
+        short_params={"BTCUSDT": ShortParams(symbol="BTCUSDT", timeframe="4h")},
+        approvals={
+            "mama_fama_cross:BTCUSDT:SHORT:4h": {
+                "approved": True,
+                "timeframe": "4h",
+                "strategy": "mama_fama_cross",
+                "params": {"fastlimit": 0.5, "slowlimit": 0.05},
+                "activation_mode": "regime_gated",
+                "regime_activation_filter": ["bear"],
+            }
+        },
+    )
+    monkeypatch.setattr("core.execution.engine.get_universe", lambda: mama)
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda path=None: "chop")
+    chop = build_plan(require_approval=False, candidates=["BTCUSDT"])
+    assert chop.entries == []
+    assert chop.regime_sitouts
+    assert "not in regime_activation_filter" in chop.regime_sitouts[0]["reason"]
+
+
 def test_paper_sits_out_in_blocked_regime() -> None:
     strategy = MagicMock()
     strategy.name = "atr_channel_breakout"
@@ -373,6 +443,21 @@ def test_record_helpers_and_sitout_reason() -> None:
     assert paper_record_sitout_reason(gated, None, strategy_name="atr") is not None
     assert paper_record_sitout_reason(gated, "bull", strategy_name="atr") is not None
     assert paper_record_sitout_reason(gated, "bear", strategy_name="atr") is None
+    # activation=ON must not clear a blocked regime or a missing feed.
+    on_bull = paper_record_sitout_reason(
+        gated, "bull", strategy_name="atr", sleeve_activation="ON"
+    )
+    assert on_bull is not None and "bull" in on_bull
+    on_missing = paper_record_sitout_reason(
+        gated, None, strategy_name="atr", sleeve_activation="ON"
+    )
+    assert on_missing is not None and "fail-closed" in on_missing
+    assert (
+        paper_record_sitout_reason(
+            gated, "bear", strategy_name="atr", sleeve_activation="ON"
+        )
+        is None
+    )
 
 
 def test_read_live_soko_trend_from_file(tmp_path, monkeypatch) -> None:
