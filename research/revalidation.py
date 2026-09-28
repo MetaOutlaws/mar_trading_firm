@@ -1,19 +1,23 @@
 """CEO LOCK revalidation kit — certified survivors only, no approval stamps.
 
 This module is the measurement path for the 1-week Board lock
-(``docs/BOARD_REMEDIATION_CALENDAR_2026-09-17.md``). It re-runs the three
+(``docs/BOARD_REMEDIATION_CALENDAR_2026-09-17.md``). It re-runs the two
 frozen certified keys under ``RESEARCH_VERSION`` and writes a deltas report.
 It never calls ``write_approvals`` and never opens the approval book for write.
 
 CEO path B / protect 12+56: re-run eligibility is the frozen key plus stored
-``params`` and ``oos_*``. ``approved=true`` is not required (ATR BTC/ETH 4h
+``params`` and ``oos_*``. ``approved=true`` is not required (ATR ETH 4h
 SHORT may be ``approved=false`` on the protect book; doji SOL 1h SHORT may
 stay ``approved=true``). Extra ``approved=true`` research sleeves are allowed
 and are not an inventory error. This kit still does not stamp the book.
 
+CEO drop: ``atr_channel_breakout:BTCUSDT:SHORT:4h`` left the certified set
+after ``kit_green=false`` (PF 1.082 failed the hard gates). The row may stay
+on the protect book. This kit does not re-run it and does not stamp it.
+
 Certified vs exploratory is the frozen key list, not the live approved set:
 
-* **Certified survivors** — the three keys below. Candidates pending
+* **Certified survivors** — the two keys below. Candidates pending
   revalidation, not proof. This kit re-measures them when the row has params
   and stored ``oos_*``.
 * **Exploratory** — other ``approved=true`` sleeves, ``paper_override`` rows,
@@ -47,13 +51,13 @@ logger = logging.getLogger(__name__)
 #: Walk-forward window/fill identity this kit is keyed to (F01).
 KIT_RESEARCH_VERSION = RESEARCH_VERSION
 
-#: The only sleeves this kit may re-run. Frozen Board-calendar candidates:
-#: ATR channel SHORT 4h on BTC and ETH, doji_star_reversal SOLUSDT SHORT 1h.
+#: The only sleeves this kit may re-run. Clear survivors after the CEO drop
+#: of ATR BTC SHORT 4h (kit_green=false, PF 1.082 failed gates):
+#: ATR channel SHORT 4h on ETH, doji_star_reversal SOLUSDT SHORT 1h.
 #: Eligibility is the row (params + stored oos_*), not ``approved: true``.
 #: Extra approved sleeves on the protect-12 book are not re-run.
 #: Do not invent families. Do not add paper_override rows.
 CERTIFIED_SURVIVOR_KEYS: tuple[str, ...] = (
-    "atr_channel_breakout:BTCUSDT:SHORT:4h",
     "atr_channel_breakout:ETHUSDT:SHORT:4h",
     "doji_star_reversal:SOLUSDT:SHORT:1h",
 )
@@ -183,10 +187,12 @@ def _certified_row_gaps(record: dict[str, Any]) -> list[str]:
 def assert_certified_inventory(payload: dict[str, Any]) -> list[str]:
     """Require each frozen certified key to be re-runnable. Do not stamp.
 
-    CEO path B: the protect book (12 approved + 56 paper_override) keeps
-    ATR BTC/ETH SHORT 4h at ``approved=false`` while other research sleeves
-    stay ``approved=true``. That shape is inventory-ok when each certified
-    key exists with ``params`` and stored ``oos_*``.
+    CEO path B: the protect book (12 approved + 56 paper_override) may keep
+    ATR ETH SHORT 4h at ``approved=false`` while other research sleeves
+    stay ``approved=true``. ATR BTC SHORT 4h is outside this set (CEO drop
+    after PF 1.082 failed gates) and may remain as an extra book row.
+    That shape is inventory-ok when each certified key exists with
+    ``params`` and stored ``oos_*``.
 
     Fail closed only when a certified key is absent, is not a record, lacks
     params, or lacks a stored ``oos_*`` field. Extra ``approved=true`` keys
