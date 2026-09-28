@@ -1,0 +1,14 @@
+{
+  "family": "ny_cash_open_vwap_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "novel_reason": "NY cash-open VWAP fade as one 4h BOTH family (SHORT priority). Garwe stamp. Anchor is the first bar of the UTC day with hour_utc in [13, 16] (on 4h, the 16:00 bar). Running HLC3×volume VWAP from that bar through the rest of the day. SHORT: (high-VWAP) >= k*ATR20 AND close < VWAP + 0.5*k*ATR20. LONG is the mirror. Two-sided fade prints SHORT, not LONG. One entry per UTC day per side. ATR period locked 20, known before the signal bar. Fill t+1 open. Free search (1 only): k [1.0, 1.5] (not 1.25, not ATR14, not a stretch percent). Exits stay the shared TP/SL kit plus fees. Not ny_cash_open_drive. Not utc_session_vwap_reversion. Not prior_day_vwap_reject. Not a wick-fail template.",
+  "summary": "Fade a 4h stretch away from the NY cash-open VWAP that reclaims halfway back toward it as one 4h BOTH family with SHORT priority.",
+  "justification": "A locked ATR20 cash-open VWAP plus a halfway reclaim, with searched k [1.0, 1.5] only, is not a cash-open drive, not a UTC-midnight VWAP fade, not a frozen prior-day VWAP, and not a close-beyond stretch. Option B SCORE/RETIRE only. No approved=true. Live stays off.",
+  "written_at": "2026-09-28T00:00:00+00:00",
+  "owner": "sleeve_engineer",
+  "instruction": "Write core/strategy/ny_cash_open_vwap_fade.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add a lookahead test. Register via class name. Do not start walk-forward. Do not call mark_done. Do not edit approved_strategies.json. Do not set approved=true."
+}

@@ -1388,6 +1388,23 @@ def _novel_kit(name: str, side: SignalSide):
             # BOTH with SHORT priority. Fill t+1.
             {"min_push_atr": [0.15, 0.35]},
         ),
+        "ny_cash_open_vwap_fade": (
+            "core.strategy.ny_cash_open_vwap_fade",
+            "NyCashOpenVwapFadeParams",
+            "NyCashOpenVwapFadeStrategy",
+            # atr_n locked at 20 (not 14). NY cash-open VWAP
+            # anchored on the first bar with hour_utc in
+            # [13, 16], running HLC3×vol, reset each UTC day.
+            # ATR known before the signal bar. Halfway reclaim
+            # locked (not a close-beyond stretch). One entry
+            # per UTC day per side. Search k only — endpoints
+            # [1.0, 1.5], no 1.25, no stretch percent.
+            # stop_loss_pct is NOT a family free axis; the
+            # shared kit below still supplies the standard
+            # TP/SL grid. Do not freeze take_profit at 0.05.
+            # BOTH with SHORT priority. Fill t+1.
+            {"k": [1.0, 1.5]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

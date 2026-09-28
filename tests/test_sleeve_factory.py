@@ -81,6 +81,7 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "key_reversal_bar" not in names
     assert "swing_break_fail_reversion" not in names
     assert "three_push_exhaustion_fail" not in names
+    assert "ny_cash_open_vwap_fade" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

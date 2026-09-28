@@ -707,6 +707,7 @@ def test_promote_remaining_into_top5_after_postmortem(tmp_path, monkeypatch) -> 
                     "key_reversal_bar@4h/4h": 16,
                     "swing_break_fail_reversion@4h/4h": 16,
                     "three_push_exhaustion_fail@4h/4h": 16,
+                    "ny_cash_open_vwap_fade@4h/4h": 16,
                     "session_boundary_volume_fade@4h/4h": 16,
                     "vwap_spread_exhaustion@4h/4h": 16,
                     "vwap_volatility_band_fade@1h/1h": 16,
