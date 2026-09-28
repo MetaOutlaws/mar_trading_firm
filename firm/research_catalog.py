@@ -1662,6 +1662,47 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "ny_cash_open_vwap_fade@4h/4h",
+        "family": "ny_cash_open_vwap_fade",
+        "name": "ny_cash_open_vwap_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 53,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Garwe stamp for coding only. Option B exploratory: "
+            "SCORE/RETIRE. Do not set approved=true. Live stays "
+            "off. Walk-forward is not started from this coding "
+            "PR. Fade a 4h stretch from the NY cash-open VWAP "
+            "that reclaims halfway back toward it. Quant-locked: "
+            "anchor = first bar of the UTC day with hour_utc in "
+            "[13, 16] (4h → 16:00), running HLC3×volume from that "
+            "bar through the rest of the day, ATR period=20 known "
+            "before the signal bar (atr.shift(1)), reclaim frac "
+            "0.5, one entry per UTC day per side, fill t+1 open. "
+            "SHORT=(high-VWAP) >= k*ATR20 AND close < VWAP + "
+            "0.5*k*ATR20 / LONG=mirror. BOTH sides honest, SHORT "
+            "priority on two-sided bars. Research pairs are the "
+            "desk majors BTC/ETH/BNB/XRP/SOL/AVAX. Free search "
+            "(1 only): k [1.0, 1.5] (endpoints only — not 1.25, "
+            "not ATR14, not a stretch percent). Exits: TP searched "
+            "[0.03, 0.05] (not frozen at 0.05) plus fees; "
+            "stop_loss_pct is not gridded (class default 0.02). Not "
+            "ny_cash_open_drive, not utc_session_vwap_reversion, "
+            "not prior_day_vwap_reject, not "
+            "swing_anchored_vwap_pullback (Job 94), not "
+            "up_down_turnover_imbalance (92), not "
+            "signed_range_turnover_trend (93), not "
+            "bar_vwap_inflow_surge, not a wick-fail template, not "
+            "Job 133 rectangle, not dead VP. Hold H&S / asia / "
+            "wyckoff alone."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

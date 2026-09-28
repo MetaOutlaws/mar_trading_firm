@@ -148,6 +148,7 @@ APPROVED = [
     "key_reversal_bar",
     "swing_break_fail_reversion",
     "three_push_exhaustion_fail",
+    "ny_cash_open_vwap_fade",
 ]
 
 
@@ -12529,6 +12530,538 @@ def test_three_push_exhaustion_fail_no_lookahead() -> None:
     assert fat_sig["prior_high"].iloc[fire] == pytest.approx(signals["prior_high"].iloc[fire])
 
 
+def _ny_vwap_calm_4h(n_days: int = 8) -> tuple[pd.DatetimeIndex, dict[str, np.ndarray]]:
+    """Flat 4h tape. HLC3 is 100 so a heavy 16:00 bar pins the cash-open VWAP."""
+    index = _4h(n_days * 6, start="2024-01-02")
+    n = len(index)
+    return index, {
+        "open": np.full(n, 100.0),
+        "high": np.full(n, 100.5),
+        "low": np.full(n, 99.5),
+        "close": np.full(n, 100.0),
+        "volume": np.full(n, 1_000.0),
+    }
+
+
+def _ny_cash_open_vwap_fade_tape(
+    *,
+    long_side: bool,
+    reclaim: bool = True,
+    close_beyond: bool = False,
+    miss_stretch: bool = False,
+    stretch_mult: float = 1.20,
+) -> tuple[pd.DataFrame, int]:
+    """4h tape whose 20:00 bar stretches off a 16:00 cash-open VWAP near 100.
+
+    Yesterday's volume sits on a 98 node so prior-day VWAP is not this
+    session's VWAP. The fire bar's volume is 1, so it does not drag the
+    anchor. Stretch defaults to 1.2 known-before ATR: k=1.0 fires and
+    k=1.5 does not. The reclaim close stays inside half a k·ATR and
+    inside 0.5% of VWAP so a midnight close-beyond fade stays dark.
+    """
+    from core.strategy import indicators as ind
+
+    index, cols = _ny_vwap_calm_4h()
+    fire = int(index.get_loc(pd.Timestamp("2024-01-08 20:00", tz="UTC")))
+    anchor = int(index.get_loc(pd.Timestamp("2024-01-08 16:00", tz="UTC")))
+    # Yesterday: equal turnover on a down print and the recovery, so prior-day
+    # VWAP sits near 98 while up/down turnover imbalance stays near zero.
+    # Highs stay at the calm 100.5 cap so the swing high is that cap, not a spike.
+    down_i = int(index.get_loc(pd.Timestamp("2024-01-07 08:00", tz="UTC")))
+    up_i = int(index.get_loc(pd.Timestamp("2024-01-07 12:00", tz="UTC")))
+    jan7 = index.normalize() == pd.Timestamp("2024-01-07", tz="UTC")
+    cols["volume"][jan7] = 1.0
+    cols["open"][down_i] = 96.2
+    cols["high"][down_i] = 96.4
+    cols["low"][down_i] = 95.6
+    cols["close"][down_i] = 96.0
+    cols["volume"][down_i] = 500_000.0
+    cols["open"][up_i] = 99.8
+    cols["high"][up_i] = 100.5
+    cols["low"][up_i] = 99.5
+    cols["close"][up_i] = 100.0
+    cols["volume"][up_i] = 500_000.0
+    # Pin today's cash-open VWAP on the 16:00 bar. The 12:00 bar is not the anchor.
+    cols["volume"][anchor] = 5_000_000.0
+
+    calm = _ohlcv(
+        index, cols["close"], high=cols["high"], low=cols["low"], open_=cols["open"]
+    )
+    calm["volume"] = cols["volume"]
+    calm["turnover"] = calm["volume"] * calm["close"]
+    atr_known = float(ind.atr(calm["high"], calm["low"], calm["close"], 20).iloc[fire - 1])
+    # Half a k=1 band must clear the 0.5 calm-bar cap so the reclaim close can
+    # sit on that cap (outside the prior bar) and still be inside the band.
+    assert atr_known > 1.05
+    vwap = 100.0
+    band = atr_known
+    if long_side:
+        if miss_stretch:
+            cols["low"][fire] = vwap - 0.40 * band
+            cols["close"][fire] = vwap - 0.10 * band
+            cols["high"][fire] = vwap + 0.20
+            cols["open"][fire] = vwap
+        elif close_beyond:
+            # Past k·ATR on the close. A close-beyond rule would fade this.
+            # Reclaim requires the close back inside the halfway line, so we must not.
+            cols["low"][fire] = vwap - 1.30 * band
+            cols["close"][fire] = vwap - 1.15 * band
+            cols["high"][fire] = vwap + 0.10
+            cols["open"][fire] = cols["close"][fire]
+        elif not reclaim:
+            cols["low"][fire] = vwap - stretch_mult * band
+            cols["close"][fire] = vwap - 0.80 * band
+            cols["high"][fire] = vwap + 0.20
+            cols["open"][fire] = vwap - 0.20 * band
+        else:
+            # Close sits on the calm swing/prior low. That is still above the
+            # halfway line when ATR>1, and it is not back inside the prior bar.
+            cols["low"][fire] = vwap - stretch_mult * band
+            cols["close"][fire] = 99.5
+            cols["high"][fire] = vwap + 0.20
+            cols["open"][fire] = 99.65
+    else:
+        if miss_stretch:
+            cols["high"][fire] = vwap + 0.40 * band
+            cols["close"][fire] = vwap + 0.10 * band
+            cols["low"][fire] = vwap - 0.20
+            cols["open"][fire] = vwap
+        elif close_beyond:
+            cols["high"][fire] = vwap + 1.30 * band
+            cols["close"][fire] = vwap + 1.15 * band
+            cols["low"][fire] = vwap - 0.10
+            cols["open"][fire] = cols["close"][fire]
+        elif not reclaim:
+            cols["high"][fire] = vwap + stretch_mult * band
+            cols["close"][fire] = vwap + 0.80 * band
+            cols["low"][fire] = vwap - 0.20
+            cols["open"][fire] = vwap + 0.20 * band
+        else:
+            # Close sits on the calm swing/prior high. Still under the halfway
+            # line when ATR>1, and not a close back inside the prior bar.
+            cols["high"][fire] = vwap + stretch_mult * band
+            cols["close"][fire] = 100.5
+            cols["low"][fire] = vwap - 0.20
+            cols["open"][fire] = 100.35
+    cols["volume"][fire] = 1.0
+    candles = _ohlcv(
+        index, cols["close"], high=cols["high"], low=cols["low"], open_=cols["open"]
+    )
+    candles["volume"] = cols["volume"]
+    candles["turnover"] = candles["volume"] * candles["close"]
+    return candles, fire
+
+
+def _assert_ny_cash_open_vwap_fade_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """Garwe: do not reimplement dead VWAP families or the wick-fail cluster."""
+
+    def _fire(name: str) -> int:
+        try:
+            return int(_signals(name, candles, side=side)["signal"].iloc[fire])
+        except (TypeError, ValueError, KeyError):
+            return 0
+
+    assert _fire("ny_cash_open_drive") == 0
+    assert _fire("utc_session_vwap_reversion") == 0
+    assert _fire("prior_day_vwap_reject") == 0
+    assert _fire("swing_anchored_vwap_pullback") == 0
+    assert _fire("up_down_turnover_imbalance") == 0
+    assert _fire("signed_range_turnover_trend") == 0
+    assert _fire("bar_vwap_inflow_surge") == 0
+    assert _fire("inside_bar_break_fail") == 0
+    assert _fire("thrust_bar_fail_reversion") == 0
+    assert _fire("key_reversal_bar") == 0
+    assert _fire("swing_break_fail_reversion") == 0
+    assert _fire("three_push_exhaustion_fail") == 0
+    assert _fire("bullish_rectangle_fail_reclaim") == 0
+    assert _fire("keltner_channel_fade") == 0
+    assert _fire("utc_open_fail_reversion") == 0
+    names = set(list_strategies())
+    assert "ny_cash_open_vwap_fade" in names
+    assert "ny_cash_open_drive" in names
+    assert names  # registry still loads the drive family under its own name
+
+
+def test_ny_cash_open_vwap_fade_name_is_not_drive() -> None:
+    import inspect
+
+    from core.strategy import indicators as ind
+    from core.strategy.ny_cash_open_drive import NyCashOpenDriveStrategy
+    from core.strategy.ny_cash_open_vwap_fade import NyCashOpenVwapFadeStrategy
+
+    assert NyCashOpenVwapFadeStrategy.name == "ny_cash_open_vwap_fade"
+    assert NyCashOpenVwapFadeStrategy.name != NyCashOpenDriveStrategy.name
+    assert NyCashOpenVwapFadeStrategy is not NyCashOpenDriveStrategy
+    # co_names is the real call set. Docstrings may name the siblings they are not.
+    body_names = NyCashOpenVwapFadeStrategy.generate_signals.__code__.co_names
+    helper_names = ind.ny_cash_open_vwap.__code__.co_names
+    assert "ny_cash_open_vwap" in body_names
+    assert "utc_session_vwap" not in body_names
+    assert "ny_cash_open_drive" not in body_names
+    assert "utc_session_vwap" not in helper_names
+    assert "ny_cash_open_drive" not in helper_names
+    assert inspect.isfunction(ind.ny_cash_open_vwap)
+
+
+def test_ny_cash_open_vwap_resets_daily_at_1300_not_midnight() -> None:
+    """VWAP starts at the cash-open anchor and does not carry across 13:00."""
+    from core.strategy import indicators as ind
+
+    index = _4h(12, start="2024-01-02")
+    n = len(index)
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    volume = np.full(n, 10.0)
+
+    def _at(ts: str) -> int:
+        return int(index.get_loc(pd.Timestamp(ts, tz="UTC")))
+
+    # 12:00 is hour 12, outside [13, 16]. A heavy print here must not anchor.
+    noon = _at("2024-01-02 12:00")
+    open_[noon] = high[noon] = low[noon] = close[noon] = 70.0
+    high[noon] = 70.5
+    low[noon] = 69.5
+    volume[noon] = 9_000_000.0
+    anchor = _at("2024-01-02 16:00")
+    open_[anchor] = close[anchor] = 100.0
+    high[anchor] = 100.5
+    low[anchor] = 99.5
+    volume[anchor] = 5_000_000.0
+    # Next morning is a different price. It belongs to neither session.
+    for ts in ("2024-01-03 00:00", "2024-01-03 04:00", "2024-01-03 08:00", "2024-01-03 12:00"):
+        i = _at(ts)
+        open_[i] = close[i] = 40.0
+        high[i] = 40.5
+        low[i] = 39.5
+        volume[i] = 8_000_000.0
+    nxt = _at("2024-01-03 16:00")
+    open_[nxt] = close[nxt] = 130.0
+    high[nxt] = 130.5
+    low[nxt] = 129.5
+    volume[nxt] = 5_000_000.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    vwap = ind.ny_cash_open_vwap(
+        candles["high"], candles["low"], candles["close"], candles["volume"]
+    )
+    is_anchor, in_session, hour = ind.ny_cash_open_session(candles.index)
+    assert float(hour.iloc[noon]) == 12.0
+    assert bool(is_anchor.iloc[noon]) is False
+    assert bool(in_session.iloc[noon]) is False
+    assert pd.isna(vwap.iloc[noon])
+    assert float(hour.iloc[anchor]) == 16.0
+    assert bool(is_anchor.iloc[anchor]) is True
+    assert vwap.iloc[anchor] == pytest.approx(100.0)
+    # 20:00 stays on today's anchor. It is not a new anchor and not midnight.
+    late = _at("2024-01-02 20:00")
+    assert bool(is_anchor.iloc[late]) is False
+    assert bool(in_session.iloc[late]) is True
+    assert vwap.iloc[late] == pytest.approx(100.0, abs=1e-3)
+    for ts in ("2024-01-03 00:00", "2024-01-03 04:00", "2024-01-03 08:00", "2024-01-03 12:00"):
+        i = _at(ts)
+        assert float(hour.iloc[i]) < 13.0
+        assert pd.isna(vwap.iloc[i])
+        assert bool(in_session.iloc[i]) is False
+    # Fresh session at the next cash-open bar. Not a blend of 100, 40, or 70.
+    assert bool(is_anchor.iloc[nxt]) is True
+    assert vwap.iloc[nxt] == pytest.approx(130.0)
+    assert abs(float(vwap.iloc[nxt]) - 100.0) > 10
+    assert abs(float(vwap.iloc[nxt]) - 40.0) > 10
+
+
+def test_ny_cash_open_vwap_fade_short_reclaim_not_close_beyond() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, _space = strategy_kit("ny_cash_open_vwap_fade", SignalSide.SHORT)
+    candles, fire = _ny_cash_open_vwap_fade_tape(long_side=False)
+    signals = factory(base).generate_signals(candles)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert bool(signals["stretched_above"].iloc[fire])
+    assert bool(signals["reclaimed_toward_vwap_short"].iloc[fire])
+    vwap = float(signals["vwap"].iloc[fire])
+    atr = float(signals["atr_known"].iloc[fire])
+    close = float(candles["close"].iloc[fire])
+    high = float(candles["high"].iloc[fire])
+    k = float(base.k)
+    assert k == 1.0
+    assert high - vwap >= k * atr
+    assert close < vwap + 0.5 * k * atr
+    # The firing close is still inside k·ATR. A close-beyond rule would not
+    # be the thing that fired.
+    assert close < vwap + k * atr
+    pre_open = signals["hour_utc"] < 13
+    assert int(signals.loc[pre_open, "signal"].abs().sum()) == 0
+    noon = int(candles.index.get_loc(pd.Timestamp("2024-01-08 12:00", tz="UTC")))
+    assert float(signals["hour_utc"].iloc[noon]) == 12.0
+    assert pd.isna(signals["vwap"].iloc[noon])
+    assert int(signals["signal"].iloc[noon]) == 0
+
+    held, held_fire = _ny_cash_open_vwap_fade_tape(long_side=False, reclaim=False)
+    held_sig = factory(base).generate_signals(held)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["stretched_above"].iloc[held_fire])
+    assert bool(held_sig["reclaimed_toward_vwap_short"].iloc[held_fire]) is False
+
+    beyond, beyond_fire = _ny_cash_open_vwap_fade_tape(long_side=False, close_beyond=True)
+    beyond_sig = factory(base).generate_signals(beyond)
+    assert int(beyond_sig["signal"].iloc[beyond_fire]) == 0
+    b_vwap = float(beyond_sig["vwap"].iloc[beyond_fire])
+    b_atr = float(beyond_sig["atr_known"].iloc[beyond_fire])
+    b_close = float(beyond["close"].iloc[beyond_fire])
+    assert b_close > b_vwap + k * b_atr
+    assert bool(beyond_sig["reclaimed_toward_vwap_short"].iloc[beyond_fire]) is False
+
+    miss, miss_fire = _ny_cash_open_vwap_fade_tape(long_side=False, miss_stretch=True)
+    assert int(factory(base).generate_signals(miss)["signal"].iloc[miss_fire]) == 0
+
+    wide = factory(replace(base, k=1.5)).generate_signals(candles)
+    assert int(wide["signal"].iloc[fire]) == 0
+    # >= : an exact k·ATR wick reclaims. A hair under it does not.
+    exact = candles.copy()
+    known = float(signals["atr_known"].iloc[fire])
+    pinned = float(signals["vwap"].iloc[fire])
+    # Fire volume is 1 against a multi-million anchor, so rewriting the high
+    # does not move VWAP off the pin.
+    exact.iloc[fire, exact.columns.get_loc("high")] = pinned + k * known
+    exact.iloc[fire, exact.columns.get_loc("close")] = pinned + 0.25 * known
+    exact_sig = factory(base).generate_signals(exact)
+    assert int(exact_sig["signal"].iloc[fire]) == -1
+    under = exact.copy()
+    under.iloc[fire, under.columns.get_loc("high")] = pinned + 0.99 * k * known
+    assert int(factory(base).generate_signals(under)["signal"].iloc[fire]) == 0
+
+    _assert_ny_cash_open_vwap_fade_clear_of_siblings(candles, fire, SignalSide.SHORT)
+    long_on_short = _signals("ny_cash_open_vwap_fade", candles, side=SignalSide.LONG)
+    assert int(long_on_short["signal"].iloc[fire]) == 0
+
+
+def test_ny_cash_open_vwap_fade_long_reclaim() -> None:
+    from research.validate import strategy_kit
+
+    factory, base, _space = strategy_kit("ny_cash_open_vwap_fade", SignalSide.LONG)
+    candles, fire = _ny_cash_open_vwap_fade_tape(long_side=True)
+    signals = factory(base).generate_signals(candles)
+    assert int(signals["signal"].iloc[fire]) == 1
+    vwap = float(signals["vwap"].iloc[fire])
+    atr = float(signals["atr_known"].iloc[fire])
+    close = float(candles["close"].iloc[fire])
+    low = float(candles["low"].iloc[fire])
+    k = float(base.k)
+    assert vwap - low >= k * atr
+    assert close > vwap - 0.5 * k * atr
+    assert close > vwap - k * atr
+    assert int(signals.loc[signals["hour_utc"] < 13, "signal"].abs().sum()) == 0
+
+    held, held_fire = _ny_cash_open_vwap_fade_tape(long_side=True, reclaim=False)
+    held_sig = factory(base).generate_signals(held)
+    assert int(held_sig["signal"].iloc[held_fire]) == 0
+    assert bool(held_sig["stretched_below"].iloc[held_fire])
+    assert bool(held_sig["reclaimed_toward_vwap_long"].iloc[held_fire]) is False
+
+    beyond, beyond_fire = _ny_cash_open_vwap_fade_tape(long_side=True, close_beyond=True)
+    beyond_sig = factory(base).generate_signals(beyond)
+    assert int(beyond_sig["signal"].iloc[beyond_fire]) == 0
+    beyond_vwap = float(beyond_sig["vwap"].iloc[beyond_fire])
+    beyond_atr = float(beyond_sig["atr_known"].iloc[beyond_fire])
+    beyond_close = float(beyond["close"].iloc[beyond_fire])
+    assert beyond_close < beyond_vwap - k * beyond_atr
+
+    _assert_ny_cash_open_vwap_fade_clear_of_siblings(candles, fire, SignalSide.LONG)
+    short_on_long = _signals("ny_cash_open_vwap_fade", candles, side=SignalSide.SHORT)
+    assert int(short_on_long["signal"].iloc[fire]) == 0
+
+
+def test_ny_cash_open_vwap_fade_no_signal_before_1300() -> None:
+    """A pre-13:00 wick that would otherwise qualify must stay flat."""
+    from research.validate import strategy_kit
+
+    factory, base, _space = strategy_kit("ny_cash_open_vwap_fade", SignalSide.SHORT)
+    candles, fire = _ny_cash_open_vwap_fade_tape(long_side=False)
+    noon = int(candles.index.get_loc(pd.Timestamp("2024-01-08 12:00", tz="UTC")))
+    morning = int(candles.index.get_loc(pd.Timestamp("2024-01-08 08:00", tz="UTC")))
+    stabbed = candles.copy()
+    for i in (noon, morning):
+        stabbed.iloc[i, stabbed.columns.get_loc("high")] = 130.0
+        stabbed.iloc[i, stabbed.columns.get_loc("close")] = 100.2
+        stabbed.iloc[i, stabbed.columns.get_loc("open")] = 100.0
+        stabbed.iloc[i, stabbed.columns.get_loc("volume")] = 50_000.0
+    # The pre-open wick widens ATR. Rebuild the cash-open stretch against that
+    # known-before ATR so the 20:00 bar still qualifies and the morning does not.
+    from core.strategy import indicators as ind
+
+    atr_known = float(ind.atr(stabbed["high"], stabbed["low"], stabbed["close"], 20).iloc[fire - 1])
+    # 16:00 anchor is the bar before the 20:00 fire. Morning stabs are pre-session.
+    vwap = float(ind.ny_cash_open_vwap(
+        stabbed["high"], stabbed["low"], stabbed["close"], stabbed["volume"]
+    ).iloc[fire - 1])
+    stabbed.iloc[fire, stabbed.columns.get_loc("high")] = vwap + 1.20 * atr_known
+    stabbed.iloc[fire, stabbed.columns.get_loc("close")] = min(100.5, vwap + 0.25 * atr_known)
+    stabbed.iloc[fire, stabbed.columns.get_loc("open")] = float(stabbed["close"].iloc[fire]) - 0.05
+    stabbed.iloc[fire, stabbed.columns.get_loc("low")] = vwap - 0.20
+    stabbed.iloc[fire, stabbed.columns.get_loc("volume")] = 1.0
+    signals = factory(base).generate_signals(stabbed)
+    assert int(signals["signal"].iloc[noon]) == 0
+    assert int(signals["signal"].iloc[morning]) == 0
+    assert float(signals["hour_utc"].iloc[noon]) < 13.0
+    assert pd.isna(signals["vwap"].iloc[noon])
+    assert pd.isna(signals["vwap"].iloc[morning])
+    # The real cash-open stretch on the same tape still fades.
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert float(signals["hour_utc"].iloc[fire]) >= 13.0
+
+
+def test_ny_cash_open_vwap_fade_one_entry_per_day_short_priority() -> None:
+    """First qualifying bar of the UTC day wins. A two-sided bar is SHORT."""
+    from core.strategy import indicators as ind
+    from research.validate import strategy_kit
+
+    index = pd.date_range("2024-01-02", periods=24 * 5, freq="h", tz="UTC")
+    n = len(index)
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_ = np.full(n, 100.0)
+    volume = np.full(n, 1_000.0)
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    candles["volume"] = volume
+    # Heavy 13:00 anchors so later wicks do not drag the session VWAP.
+    for day in range(5):
+        i = day * 24 + 13
+        candles.iloc[i, candles.columns.get_loc("volume")] = 5_000_000.0
+    def _stretch_short(i: int) -> None:
+        # Size off ATR known before this bar, after earlier wicks are already in the tape.
+        atr = float(ind.atr(candles["high"], candles["low"], candles["close"], 20).iloc[i - 1])
+        candles.iloc[i, candles.columns.get_loc("high")] = 100.0 + 1.20 * atr
+        candles.iloc[i, candles.columns.get_loc("low")] = 99.8
+        candles.iloc[i, candles.columns.get_loc("close")] = 100.0 + 0.20 * atr
+        candles.iloc[i, candles.columns.get_loc("open")] = 100.0
+        candles.iloc[i, candles.columns.get_loc("volume")] = 1.0
+
+    first = 3 * 24 + 14
+    second = 3 * 24 + 18
+    next_day = 4 * 24 + 14
+    _stretch_short(first)
+    _stretch_short(second)
+    _stretch_short(next_day)
+    calm_atr = ind.atr(candles["high"], candles["low"], candles["close"], 20)
+    short_factory, short_base, _space = strategy_kit("ny_cash_open_vwap_fade", SignalSide.SHORT)
+    signals = short_factory(short_base).generate_signals(candles)
+    assert int(signals["signal"].iloc[first]) == -1
+    assert int(signals["signal"].iloc[second]) == 0
+    assert bool(signals["stretched_above"].iloc[second])
+    assert int(signals["signal"].iloc[next_day]) == -1
+    pre = 3 * 24 + 12
+    assert float(signals["hour_utc"].iloc[pre]) == 12.0
+    assert int(signals["signal"].iloc[pre]) == 0
+    assert pd.isna(signals["vwap"].iloc[pre])
+
+    # Same bar, both wings, close on the VWAP: SHORT takes it, LONG does not.
+    both = candles.copy()
+    atr = float(calm_atr.iloc[first - 1])
+    both.iloc[first, both.columns.get_loc("high")] = 100.0 + 1.20 * atr
+    both.iloc[first, both.columns.get_loc("low")] = 100.0 - 1.20 * atr
+    both.iloc[first, both.columns.get_loc("close")] = 100.0
+    both.iloc[first, both.columns.get_loc("open")] = 100.0
+    long_factory, long_base, _space = strategy_kit("ny_cash_open_vwap_fade", SignalSide.LONG)
+    assert int(short_factory(short_base).generate_signals(both)["signal"].iloc[first]) == -1
+    assert int(long_factory(long_base).generate_signals(both)["signal"].iloc[first]) == 0
+
+
+def test_ny_cash_open_vwap_fade_kit_locks() -> None:
+    from dataclasses import replace
+
+    from core.strategy import indicators as ind
+    from core.strategy.ny_cash_open_vwap_fade import (
+        ATR_N_LOCKED,
+        K_GRID,
+        RECLAIM_FRAC_LOCKED,
+        NyCashOpenVwapFadeParams,
+    )
+    from firm.sleeve_factory import spec_for_family
+    from research.validate import strategy_kit
+
+    assert ATR_N_LOCKED == 20
+    assert K_GRID == [1.0, 1.5]
+    assert 1.25 not in K_GRID
+    assert RECLAIM_FRAC_LOCKED == 0.5
+    factory, base, space = strategy_kit("ny_cash_open_vwap_fade", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"k"}
+    assert space["k"] == [1.0, 1.5]
+    assert 1.25 not in space["k"]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "stretch_pct" not in space
+    # k is ATR20 distance from VWAP. Not σ and not a multiple of VWAP.
+    assert "sigma" not in space
+    assert "band_k" not in space
+    assert "vwap_mult" not in space
+    # TP stays the desk pair. SL is not a search axis (stamp: do not
+    # grid {0.02, 0.03}). Walk uses the class default 0.02 plus fees.
+    assert space["take_profit_pct"] == [0.03, 0.05]
+    assert space["take_profit_pct"] != [0.05]
+    assert "stop_loss_pct" not in space
+    assert base.stop_loss_pct == 0.02
+    assert base.take_profit_pct != 0.05
+    assert NyCashOpenVwapFadeParams().side is SignalSide.SHORT
+    assert NyCashOpenVwapFadeParams().atr_n == 20
+    spec = spec_for_family("ny_cash_open_vwap_fade")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "ny_cash_open_vwap_fade"
+    assert sleeve.name != "ny_cash_open_drive"
+
+    candles, fire = _ny_cash_open_vwap_fade_tape(long_side=False)
+    forced = factory(replace(base, atr_n=14)).generate_signals(candles)
+    atr20 = ind.atr(candles["high"], candles["low"], candles["close"], 20)
+    atr14 = ind.atr(candles["high"], candles["low"], candles["close"], 14)
+    assert forced["atr"].iloc[fire] == pytest.approx(float(atr20.iloc[fire]))
+    assert float(atr20.iloc[fire]) != pytest.approx(float(atr14.iloc[fire]))
+    assert int(forced["signal"].iloc[fire]) == -1
+
+
+def test_ny_cash_open_vwap_fade_no_lookahead() -> None:
+    candles, fire = _ny_cash_open_vwap_fade_tape(long_side=False)
+    signals = _signals("ny_cash_open_vwap_fade", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    cut = fire + 1
+    truncated = _signals("ny_cash_open_vwap_fade", candles.iloc[:cut], side=SignalSide.SHORT)
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["vwap"].iloc[:cut],
+        truncated["vwap"],
+        check_names=False,
+    )
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 180.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 40.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 40.0
+    shocked.iloc[later, shocked.columns.get_loc("volume")] = 9_000_000.0
+    after = _signals("ny_cash_open_vwap_fade", shocked, side=SignalSide.SHORT)
+    assert after["vwap"].iloc[fire] == pytest.approx(signals["vwap"].iloc[fire])
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == -1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -12579,6 +13112,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("key_reversal_bar", {"min_break_atr"}),
         ("swing_break_fail_reversion", {"swing_lookback", "min_break_atr"}),
         ("three_push_exhaustion_fail", {"min_push_atr"}),
+        ("ny_cash_open_vwap_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -12625,6 +13159,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("key_reversal_bar", {"min_break_atr"}),
         ("swing_break_fail_reversion", {"swing_lookback", "min_break_atr"}),
         ("three_push_exhaustion_fail", {"min_push_atr"}),
+        ("ny_cash_open_vwap_fade", {"k"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

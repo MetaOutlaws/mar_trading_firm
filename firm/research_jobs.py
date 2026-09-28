@@ -194,6 +194,7 @@ CLOCK_BY_FAMILY = {
     "key_reversal_bar": "4h/4h",
     "swing_break_fail_reversion": "4h/4h",
     "three_push_exhaustion_fail": "4h/4h",
+    "ny_cash_open_vwap_fade": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -261,6 +262,13 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         or "three push exhaustion" in blob
     ):
         return "three_push_exhaustion_fail"
+    # Must beat prior_day_vwap_reject / utc_session_vwap_reversion /
+    # ny_cash_open_drive. Family id is ny_cash_open_vwap_fade only.
+    if (
+        "ny_cash_open_vwap_fade" in blob
+        or "ny cash open vwap" in blob
+    ):
+        return "ny_cash_open_vwap_fade"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

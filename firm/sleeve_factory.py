@@ -3026,6 +3026,58 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "fail-to-extend-OR."
         ),
     ),
+    SleeveSpec(
+        name="ny_cash_open_vwap_fade",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "NY cash-open VWAP fade as one 4h BOTH family "
+            "(SHORT priority). Garwe stamp. Anchor is the first "
+            "bar of the UTC day with hour_utc in [13, 16] "
+            "(on 4h, the 16:00 bar). Running HLC3×volume VWAP "
+            "from that bar through the rest of the day. SHORT: "
+            "(high-VWAP) >= k*ATR20 AND close < VWAP + "
+            "0.5*k*ATR20. LONG is the mirror (low stretch and "
+            "close back above the halfway line). Two-sided fade "
+            "prints SHORT, not LONG. One entry per UTC day per "
+            "side. ATR period locked 20, known before the signal "
+            "bar (atr.shift(1)). Fill t+1 open. Free search "
+            "(1 only): k [1.0, 1.5] (endpoints only; do NOT "
+            "insert 1.25; unit is ATR20, not ATR14, not a "
+            "stretch percent). Exits: TP searched [0.03, 0.05] "
+            "(not frozen at 0.05) plus fees. stop_loss_pct is "
+            "not gridded — walk uses the class default 0.02. Not "
+            "ny_cash_open_drive. Not utc_session_vwap_reversion "
+            "(midnight VWAP). Not prior_day_vwap_reject. Not "
+            "swing_anchored_vwap_pullback (Job 94 0/12). Not "
+            "up_down_turnover_imbalance (92) / "
+            "signed_range_turnover_trend (93). Not "
+            "bar_vwap_inflow_surge. Not a wick-fail template "
+            "(inside-bar / thrust / key-reversal / swing-break "
+            "/ three-push). Not Job 133 rectangle. Not dead VP. "
+            "Hold H&S / asia / wyckoff alone. Do not modify "
+            "sibling geometry."
+        ),
+        summary=(
+            "Fade a 4h stretch away from the NY cash-open VWAP "
+            "that reclaims halfway back toward it "
+            "(SHORT = upside wick + close back under the halfway "
+            "line; LONG = downside wick + close back over it) "
+            "as one 4h BOTH family with SHORT priority."
+        ),
+        justification=(
+            "A locked ATR20 cash-open VWAP (first bar with "
+            "hour_utc in [13, 16], running HLC3×vol, reset each "
+            "day at that anchor) plus a halfway reclaim, with "
+            "searched k [1.0, 1.5] only, is not a cash-open "
+            "drive, not a UTC-midnight VWAP fade, not a frozen "
+            "prior-day VWAP, not a swing AVWAP, and not a "
+            "close-beyond stretch. Option B SCORE/RETIRE only. "
+            "No approved=true. Live stays off."
+        ),
+    ),
 ]
 
 

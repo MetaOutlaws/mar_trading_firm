@@ -1634,6 +1634,77 @@ def three_bar_play_setup(
     return rest_high, rest_low, direction
 
 
+# NY cash-open session on the bar's own timestamp. Inclusive on both ends:
+# the first 4h bar whose hour_utc sits in [13, 16] is 16:00 (the 12:00 bar's
+# hour is 12, so it is not the anchor). This is not a UTC-midnight reset.
+NY_CASH_OPEN_HOUR = 13.0
+NY_CASH_ANCHOR_HOUR_MAX = 16.0
+
+
+def ny_cash_open_session(
+    index: pd.Index,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """NY cash-open anchor mask, in-session mask, and hour_utc.
+
+    Anchor = first bar of each UTC calendar day whose hour_utc
+    (open hour + minute/60) lies in ``[13, 16]`` inclusive. ``in_session``
+    is true from that bar through the rest of the *same* UTC day only.
+    Bars before the anchor — every bar with hour_utc < 13, including the
+    4h 12:00 bar — are outside the session. The next day does not inherit
+    the mask: the session resets at the next cash-open anchor.
+
+    Not ``ny_cash_open_drive`` (continuation of the 13:00–14:00 body) and
+    not a UTC-midnight session.
+    """
+    utc_index = _as_utc_index(index)
+    hour = pd.Series(utc_index.hour + utc_index.minute / 60.0, index=index)
+    day = utc_day_key(index)
+    in_window = hour.ge(NY_CASH_OPEN_HOUR) & hour.le(NY_CASH_ANCHOR_HOUR_MAX)
+    # Later 14:00/15:00/16:00 bars must not start a second anchor that day.
+    is_anchor = in_window & in_window.groupby(day).cumsum().eq(1)
+    in_session = is_anchor.groupby(day).cummax()
+    return is_anchor.astype(bool), in_session.astype(bool), hour
+
+
+def ny_cash_open_vwap(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    volume: pd.Series,
+) -> pd.Series:
+    """Running HLC3×volume VWAP from the NY cash-open anchor.
+
+    Typical price is ``(H+L+C)/3``. The cumulative starts on the anchor
+    from ``ny_cash_open_session`` and runs forward through that UTC day
+    only. Pre-anchor bars are NaN, so a 00:00 bar cannot seed the VWAP
+    and yesterday's cumulative cannot leak past the next cash open.
+
+    Bar ``t`` uses bars ``<= t`` only. This function does not call
+    ``utc_session_vwap`` and does not call ``ny_cash_open_drive``.
+    """
+    if not high.index.equals(low.index) or not high.index.equals(close.index):
+        raise ValueError("high, low, close must share an index")
+    if not high.index.equals(volume.index):
+        raise ValueError("volume must share the candle index")
+    _is_anchor, in_session, _hour = ny_cash_open_session(close.index)
+    day = utc_day_key(close.index)
+    typical = (
+        high.astype("float64") + low.astype("float64") + close.astype("float64")
+    ) / 3.0
+    vol = volume.astype("float64")
+    # Non-finite prints contribute nothing. They must not poison the cumsum.
+    typical = typical.where(np.isfinite(typical), 0.0)
+    vol = vol.where(np.isfinite(vol) & vol.gt(0), 0.0)
+    pv = typical * vol
+    # Zero weight before the anchor keeps the reset causal inside the day.
+    pv_in = pv.where(in_session, 0.0)
+    vol_in = vol.where(in_session, 0.0)
+    cum_pv = pv_in.groupby(day).cumsum()
+    cum_vol = vol_in.groupby(day).cumsum()
+    vwap = cum_pv / cum_vol.replace(0.0, np.nan)
+    return vwap.where(in_session)
+
+
 def ny_cash_open_drive(
     open_: pd.Series,
     close: pd.Series,

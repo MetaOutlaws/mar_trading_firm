@@ -1388,6 +1388,24 @@ def _novel_kit(name: str, side: SignalSide):
             # BOTH with SHORT priority. Fill t+1.
             {"min_push_atr": [0.15, 0.35]},
         ),
+        "ny_cash_open_vwap_fade": (
+            "core.strategy.ny_cash_open_vwap_fade",
+            "NyCashOpenVwapFadeParams",
+            "NyCashOpenVwapFadeStrategy",
+            # atr_n locked at 20 (not 14). NY cash-open VWAP
+            # anchored on the first bar with hour_utc in
+            # [13, 16], running HLC3×vol, reset each UTC day.
+            # ATR known before the signal bar. Halfway reclaim
+            # locked (not a close-beyond stretch). One entry
+            # per UTC day per side. Search k only — endpoints
+            # [1.0, 1.5], no 1.25, no stretch percent.
+            # SL is not free: do not grid stop_loss_pct
+            # {0.02, 0.03}. The pop below leaves the class
+            # default (0.02) plus fees. TP stays [0.03, 0.05]
+            # — not a 0.05 singleton lock. ATR14 discarded.
+            # BOTH with SHORT priority. Fill t+1.
+            {"k": [1.0, 1.5]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
@@ -1429,6 +1447,12 @@ def _novel_kit(name: str, side: SignalSide):
         "take_profit_pct": [0.03, 0.05],
         "stop_loss_pct": [0.02, 0.03],
     }
+    # Garwe stamp: ny_cash_open_vwap_fade does not search SL.
+    # grid_search only overrides keys present here, so the walk
+    # keeps NyCashOpenVwapFadeParams.stop_loss_pct (0.02).
+    # Other families keep the shared {0.02, 0.03} grid.
+    if name == "ny_cash_open_vwap_fade":
+        space.pop("stop_loss_pct", None)
     return factory, params_cls(side=side), space
 
 

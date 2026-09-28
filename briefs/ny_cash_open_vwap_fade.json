@@ -1,0 +1,67 @@
+{
+  "family": "ny_cash_open_vwap_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "status": "stamp_locked_brian_yes_coding",
+  "stamp_locked": true,
+  "option_b": true,
+  "written_at": "2026-09-18T03:17:22.623448+00:00",
+  "owner": "Garwe",
+  "summary": "Fade stretch from VWAP anchored at US cash open (13:00 UTC) toward the developing cash VWAP.",
+  "free": {
+    "k": [
+      1.0,
+      1.5
+    ],
+    "k_unit": "ATR20",
+    "note": "k multiplies ATR20 \u2014 NOT ATR14, NOT stretch_pct, NOT sigma. SL not free on this stamp."
+  },
+  "locked": [
+    "ATR20",
+    "k_unit_ATR20",
+    "ny_cash_open_anchor_13utc",
+    "reclaim_toward_vwap",
+    "fill_t+1",
+    "SHORT_priority",
+    "no_wick_fail",
+    "not_ny_cash_open_drive",
+    "one_entry_per_utc_day_per_side",
+    "pairs_6_majors"
+  ],
+  "geometry": {
+    "anchor": "first 4h bar with hour_utc in [13,16] that day; running VWAP from that bar forward (HLC3*vol)",
+    "SHORT": "(high - VWAP) >= k*ATR20 AND close < VWAP + 0.5*k*ATR20",
+    "LONG": "inverse",
+    "fill": "t+1 open"
+  },
+  "clear_of": "swing_anchored_vwap 94, up_down_turnover 92, signed_range_turnover 93, utc_session_vwap skip, prior_day_vwap 147, bar_vwap_inflow, wick-fail 150-153, three_push 154, VP, H&S/asia/wyckoff, 133",
+  "instruction": "Brian YES coding. Family ny_cash_open_vwap_fade NOT ny_cash_open_drive. 4h/4h BOTH SHORT-priority. Free k\u2208{1.0,1.5} ATR20 multiples only (NOT ATR14, NOT stretch_pct). Pairs: BTC/ETH/BNB/XRP/SOL/AVAX. Locked: NY cash-open VWAP 13UTC; fill t+1; one entry per UTC day per side; SL not free. Option B SCORE/RETIRE. No approved=true. Protect 12+56. Live off.",
+  "protect": "12+56",
+  "brian_yes": true,
+  "coding_in_flight": true,
+  "updated_at": "2026-09-28T12:16:48.992835+00:00",
+  "k_unit": "ATR20",
+  "do_not_substitute": "ny_cash_open_drive",
+  "queue": "post_kit_elevate_only",
+  "live": "off",
+  "pairs": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "SOLUSDT",
+    "AVAXUSDT"
+  ],
+  "not_free": {
+    "SL": "not free \u2014 use family standard ATR TP/SL + fees (do not grid SL\u2208{2%,3%} unless Brian overrides stamp)",
+    "stretch_pct": "rejected",
+    "ATR14": "rejected \u2014 ATR20 locked"
+  },
+  "independence": {
+    "ny_cash_open_drive": "different \u2014 fade reclaim toward VWAP, not drive continuation",
+    "utc_session_vwap_reversion": "different \u2014 cash-open 13UTC anchor, not UTC00 session VWAP",
+    "vwap_volatility_band_fade": "different \u2014 ATR stretch from cash-open VWAP + reclaim filter, not vol-band fade"
+  },
+  "brian_correction_2026_09_28": "CORRECT Munha ATR14/stretch_pct/SL-free/k+1.25 \u2192 keep ATR20 k{1.0,1.5}; YES pairs6 + one_entry_per_utc_day_per_side"
+}
