@@ -12,10 +12,12 @@ Supports:
 * ``soko_trend_v1`` with ``pairs[].trend`` per symbol and optional
   ``sleeves[].activation`` (``ON`` | ``SIT_OUT``)
 
-``read_live_soko_trend()`` still returns one lowercased label (or None) for
-callers/tests that expect a global string. Paper ``build_plan`` should prefer
-``read_soko_trend_for_symbol`` / ``read_soko_sleeve_activation`` so sit-outs
-follow the Asia tape per pair rather than a single global trend.
+``read_live_soko_trend()`` returns one lowercased label (or None). Paper
+``build_plan`` sits out on that same value (``TradingPlan.soko_trend``).
+A ``pairs[].trend`` or ``sleeves[].activation=ON`` must not reopen a
+regime-gated sleeve the hook says is blocked, filter-excluded, or unseen
+because the feed is missing. ``read_soko_trend_for_symbol`` remains for
+callers that want the per-pair label; it is not the paper sit-out authority.
 """
 
 from __future__ import annotations
@@ -146,8 +148,8 @@ def read_live_soko_trend(path: Path | None = None) -> str | None:
     """Lowercased live Soko/desk trend, or None when the feed is missing.
 
     For ``soko_trend_v1`` without a top-level trend, falls back to BTC's
-    ``pairs[].trend`` when present. Prefer ``read_soko_trend_for_symbol`` for
-    paper sit-out decisions.
+    ``pairs[].trend`` when present. Paper sit-out uses this return value,
+    not a second read of ``pairs[]`` or ``sleeves[].activation``.
     """
     dest = path or LAST_SOKO_TREND_PATH
     label = _read_soko_file(dest)

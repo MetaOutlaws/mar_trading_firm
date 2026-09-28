@@ -218,6 +218,10 @@ def paper_record_sitout_reason(
     Fail-closed for regime-gated rows when the Soko/desk trend feed is dark:
     we do not open new paper entries blind. Unrestricted sleeves (no filter,
     no blocked list, not ``regime_gated``) are never sat out here.
+
+    ``sleeves[].activation=ON`` is not an override. It must not clear
+    ``blocked_regimes``, ``regime_activation_filter``, or a missing feed.
+    ``SIT_OUT`` remains a hard veto for regime-gated sleeves.
     """
     from research.validate import (
         activation_filter_from_record,
@@ -233,8 +237,9 @@ def paper_record_sitout_reason(
     act = str(sleeve_activation or "").strip().upper()
     if act == "SIT_OUT":
         return f"regime sit-out: Soko sleeves[].activation=SIT_OUT for {name}"
-    if act == "ON":
-        return None
+    # ``ON`` falls through. A desk ON flag used to return here and reopen
+    # bull-blocked / filter-gated sleeves, including when the trend feed
+    # itself was missing.
     if live_trend is None:
         return (
             f"regime sit-out: Soko trend feed missing (fail-closed) for {name}"
@@ -272,20 +277,20 @@ def paper_regime_sitout_reason(
         "strategy": entry.strategy.name,
     }
     trend = current_regime
-    sleeve_act = None
     if lookup_regime and trend is None:
-        from core.data.soko_trend import (
-            read_soko_sleeve_activation,
-            read_soko_trend_for_symbol,
-        )
+        # Same hook ``build_plan`` records on ``TradingPlan.soko_trend``.
+        # Do not read pairs[].trend / sleeves[].activation beside it: that
+        # file can say bear or ON while the hook is bull, missing, or chop,
+        # and the sleeve would trade against the trend the plan logged.
+        # ``entry.key`` is symbol:side, not the approval key, so it also
+        # cannot select one family's sleeves[].activation.
+        from core.data.soko_trend import read_live_soko_trend
 
-        sleeve_act = read_soko_sleeve_activation(entry.key)
-        trend = read_soko_trend_for_symbol(entry.symbol)
+        trend = read_live_soko_trend()
     return paper_record_sitout_reason(
         record,
         None if trend is None else str(trend),
         strategy_name=entry.strategy.name,
-        sleeve_activation=sleeve_act,
     )
 
 
@@ -418,20 +423,12 @@ def _append_approved_sleeves(
         name, symbol, side_value = parsed
         rec_name = str(record.get("strategy") or name).strip() or name
         if sit_out:
-            from core.data.soko_trend import (
-                read_soko_sleeve_activation,
-                read_soko_trend_for_symbol,
-            )
-
-            sym_trend = read_soko_trend_for_symbol(symbol)
-            if sym_trend is None:
-                sym_trend = live_trend
-            sleeve_act = read_soko_sleeve_activation(key)
+            # Sit out on the same trend stored as plan.soko_trend. A local
+            # pairs[].trend or activation=ON must not put the sleeve back.
             reason = paper_record_sitout_reason(
                 record,
-                sym_trend,
+                live_trend,
                 strategy_name=rec_name,
-                sleeve_activation=sleeve_act,
             )
             if reason:
                 rec_tf = str(record.get("timeframe") or "")
@@ -687,20 +684,10 @@ def build_plan(require_approval: bool = True, candidates: list[str] | None = Non
         if parsed is None:
             continue
         name, symbol, side_value = parsed
-        from core.data.soko_trend import (
-            read_soko_sleeve_activation,
-            read_soko_trend_for_symbol,
-        )
-
-        sym_trend = read_soko_trend_for_symbol(symbol)
-        if sym_trend is None:
-            sym_trend = live_trend
-        sleeve_act = read_soko_sleeve_activation(key)
         reason = paper_record_sitout_reason(
             record,
-            sym_trend,
+            live_trend,
             strategy_name=name,
-            sleeve_activation=sleeve_act,
         )
         if reason:
             rec_tf = str(record.get("timeframe") or "")
