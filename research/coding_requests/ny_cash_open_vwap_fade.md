@@ -24,4 +24,6 @@ US cash open (13:00 UTC) starts a new institutional fair-value clock. Price that
 `swing_anchored_vwap_pullback`, `up_down_turnover_imbalance`, `signed_range_turnover_trend`, `utc_session_vwap_reversion`, `prior_day_vwap_reject`, `bar_vwap_inflow_surge`, wick-fail cluster, `ny_cash_open_drive`.
 
 ## Option B
-SCORE/RETIRE only. No `approved=true`. Live stays off. Do not call `mark_done`. Do not start walk-forward from this coding PR.
+SCORE/RETIRE only. No `approved=true`. Live stays off. Do not call `mark_done`. Do not start walk-forward from this coding PR. Do not edit `config/approved_strategies.json`. Protect Research 12 + Overrides 56.
+
+Job 154 `three_push_exhaustion_fail` is RETIRE 0/12. Do not revive it. This family is not that sleeve and not `ny_cash_open_drive`. `k` is an ATR20 multiple only (not σ, not a fraction of VWAP).

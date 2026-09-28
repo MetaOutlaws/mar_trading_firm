@@ -12998,6 +12998,10 @@ def test_ny_cash_open_vwap_fade_kit_locks() -> None:
     assert "atr_n" not in space
     assert "atr_period" not in space
     assert "stretch_pct" not in space
+    # k is ATR20 distance from VWAP. Not σ and not a multiple of VWAP.
+    assert "sigma" not in space
+    assert "band_k" not in space
+    assert "vwap_mult" not in space
     # Shared desk kit. Not a family stop grid, and TP is not frozen at 0.05.
     assert space["take_profit_pct"] == [0.03, 0.05]
     assert space["take_profit_pct"] != [0.05]

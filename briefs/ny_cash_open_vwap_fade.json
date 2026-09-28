@@ -1,0 +1,35 @@
+{
+  "family": "ny_cash_open_vwap_fade",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "status": "stamp_locked_buffer_post_154",
+  "stamp_locked": true,
+  "option_b": true,
+  "written_at": "2026-09-18T03:17:22.623448+00:00",
+  "owner": "Garwe",
+  "summary": "Fade stretch from VWAP anchored at US cash open (13:00 UTC) toward the developing cash VWAP.",
+  "free": {
+    "k": [
+      1.0,
+      1.5
+    ]
+  },
+  "locked": [
+    "ATR20",
+    "ny_cash_open_anchor_13utc",
+    "reclaim_toward_vwap",
+    "fill_t+1",
+    "SHORT_priority",
+    "no_wick_fail"
+  ],
+  "geometry": {
+    "anchor": "first 4h bar with hour_utc in [13,16] that day; running VWAP from that bar forward (HLC3*vol)",
+    "SHORT": "(high - VWAP) >= k*ATR20 AND close < VWAP + 0.5*k*ATR20",
+    "LONG": "inverse",
+    "fill": "t+1 open"
+  },
+  "clear_of": "swing_anchored_vwap 94, up_down_turnover 92, signed_range_turnover 93, utc_session_vwap skip, prior_day_vwap 147, bar_vwap_inflow, wick-fail 150-153, three_push 154, VP, H&S/asia/wyckoff, 133",
+  "instruction": "BUFFER only \u2014 elevate after Job ~154 harvest + Munha chair + Brian YES. Option B SCORE/RETIRE. No code now. No approved=true. Board kit deadline 2026-09-24.",
+  "protect": "12+56"
+}

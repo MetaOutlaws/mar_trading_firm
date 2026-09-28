@@ -38,8 +38,9 @@ Quant-locked (not searched):
 
 Free search (1 only):
 
-    - ``k`` grid ``[1.0, 1.5]`` (endpoints only — do not insert 1.25,
-      do not search a stretch percent)
+    - ``k`` grid ``[1.0, 1.5]`` (endpoints only — do not insert 1.25).
+      Unit is ATR(20) distance from the cash-open VWAP. Not a
+      standard-deviation band and not a fraction of the VWAP.
 
 Not ``ny_cash_open_drive`` (trade the cash-open hour's direction).
 Not ``utc_session_vwap_reversion`` (VWAP from UTC midnight).
@@ -49,8 +50,11 @@ Not ``up_down_turnover_imbalance`` / ``signed_range_turnover_trend``
 (Jobs 92–93, dead).
 Not ``bar_vwap_inflow_surge`` (per-bar VWAP pulse, dead).
 Not a wick-fail template (inside-bar / thrust / key-reversal /
-swing-break / three-push).
+swing-break).
+Job 154 ``three_push_exhaustion_fail`` is RETIRE 0/12. Do not revive it.
 Not Job 133 ``bullish_rectangle_fail_reclaim``.
+Protect book stays Research 12 + Overrides 56. This module does not
+write approvals.
 Do not modify sibling geometry. Do not set ``approved=true``.
 """
 
