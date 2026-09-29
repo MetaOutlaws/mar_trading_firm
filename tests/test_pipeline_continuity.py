@@ -711,6 +711,7 @@ def test_promote_remaining_into_top5_after_postmortem(tmp_path, monkeypatch) -> 
                     "head_and_shoulders_neckline_break@4h/4h": 16,
                     "prior_week_extreme_reject@4h/4h": 16,
                     "morning_evening_star_reversal@4h/4h": 16,
+                    "broadening_formation_break@4h/4h": 16,
                     "session_boundary_volume_fade@4h/4h": 16,
                     "vwap_spread_exhaustion@4h/4h": 16,
                     "vwap_volatility_band_fade@1h/1h": 16,

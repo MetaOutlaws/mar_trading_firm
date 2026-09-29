@@ -152,6 +152,7 @@ APPROVED = [
     "head_and_shoulders_neckline_break",
     "prior_week_extreme_reject",
     "morning_evening_star_reversal",
+    "broadening_formation_break",
 ]
 
 
@@ -13716,6 +13717,251 @@ def test_morning_evening_star_no_lookahead() -> None:
     )
 
 
+def _broadening_formation_tape(
+    *,
+    long_side: bool,
+    held_break: bool = False,
+    wick_only: bool = False,
+    off_rail: bool = False,
+    n: int = 120,
+) -> tuple[pd.DataFrame, int]:
+    """Expanding megaphone: three rising highs and three falling lows.
+
+    Pivots are 6 bars apart on a drifting background so flat 101/99 bars
+    are not themselves swings. Lookback 48 sees all six; lookback 32 does
+    not. ``off_rail`` kinks the middle high so it is still a higher high
+    but sits more than ATR(20) off the upper line. ``wick_only`` pokes
+    the high through the rail and leaves the close inside.
+    """
+    close, high, low, open_ = _planted_swings_background(n)
+    fire = 98
+    highs = [(66, 108.0), (78, 116.0), (90, 124.0)]
+    lows = [(60, 92.0), (72, 84.0), (84, 76.0)]
+    if off_rail:
+        # Still strictly higher highs. The middle print is not on the line.
+        highs = [(66, 108.0), (78, 180.0), (90, 190.0)]
+    for i, px in highs:
+        high[i] = px
+        low[i] = min(low[i], px - 2.0)
+        close[i] = px - 1.0
+        open_[i] = px - 1.5
+    for i, px in lows:
+        low[i] = px
+        high[i] = max(high[i], px + 2.0)
+        close[i] = px + 1.0
+        open_[i] = px + 1.5
+    if wick_only:
+        high[fire] = 180.0
+    elif long_side:
+        if held_break:
+            close[fire - 1] = 150.0
+            high[fire - 1] = 151.0
+            low[fire - 1] = 148.0
+            open_[fire - 1] = 149.0
+        close[fire] = 160.0
+        high[fire] = 161.0
+        low[fire] = 155.0
+        open_[fire] = 156.0
+    else:
+        if held_break:
+            close[fire - 1] = 50.0
+            high[fire - 1] = 52.0
+            low[fire - 1] = 49.0
+            open_[fire - 1] = 51.0
+        close[fire] = 40.0
+        high[fire] = 42.0
+        low[fire] = 39.0
+        open_[fire] = 41.0
+    candles = _ohlcv(_hourly(n, start="2024-01-03"), close, high=high, low=low, open_=open_)
+    return candles, fire
+
+
+def test_broadening_formation_break_schema_and_long_entry() -> None:
+    from research.validate import strategy_kit
+
+    from core.strategy.broadening_formation_break import (
+        ATR_PERIOD,
+        LOOKBACK_GRID,
+        MIN_TOUCHES_GRID,
+        PIVOT_LEFT,
+        TOUCH_TOL_ATR,
+    )
+
+    _factory, base, space = strategy_kit("broadening_formation_break", SignalSide.LONG)
+    assert base.lookback == 48
+    assert base.min_touches == 3
+    assert ATR_PERIOD == 20
+    assert TOUCH_TOL_ATR == 1.0
+    assert PIVOT_LEFT == 3
+    assert space["lookback"] == LOOKBACK_GRID == [32, 48]
+    assert space["min_touches"] == MIN_TOUCHES_GRID == [3, 4]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "min_touches"}
+    assert "atr_n" not in extra
+    assert "atr_tol" not in extra
+    assert "touch_tol_atr" not in extra
+    assert "vol_lookback" not in extra
+    candles, fire = _broadening_formation_tape(long_side=True)
+    signals = _signals("broadening_formation_break", candles)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "upper_rail",
+        "lower_rail",
+        "upper_slope",
+        "lower_slope",
+        "n_highs",
+        "n_lows",
+        "n_high_touches",
+        "n_low_touches",
+        "atr_touch_tol",
+    ):
+        assert column in signals.columns
+    assert "cap" not in signals.columns
+    assert "vol_mean" not in signals.columns
+    assert "neckline" not in signals.columns
+    assert "vwap" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["side"].iloc[fire] == SignalSide.LONG.value
+    # Expanding rails: higher-high slope up, lower-low slope down, still open.
+    assert float(signals["upper_slope"].iloc[fire]) > 0.0
+    assert float(signals["lower_slope"].iloc[fire]) < 0.0
+    assert float(signals["upper_rail"].iloc[fire]) > float(signals["lower_rail"].iloc[fire])
+    assert float(candles["close"].iloc[fire]) > float(signals["upper_rail"].iloc[fire])
+    assert int(signals["n_highs"].iloc[fire]) >= 3
+    assert int(signals["n_lows"].iloc[fire]) >= 3
+    assert int(signals["n_high_touches"].iloc[fire]) >= 3
+    assert int(signals["n_low_touches"].iloc[fire]) >= 3
+    assert 0.0 < float(signals["score"].iloc[fire]) <= 1.0
+    # ATR(20) is the touch band only, known before this bar.
+    import core.strategy.indicators as ind
+
+    atr_known = ind.atr(candles["high"], candles["low"], candles["close"], 20).shift(1)
+    assert signals["atr_touch_tol"].iloc[fire] == pytest.approx(float(atr_known.iloc[fire]))
+    # Held breakout (prior close already through this rail) does not fire again.
+    held, held_fire = _broadening_formation_tape(long_side=True, held_break=True)
+    held_signals = _signals("broadening_formation_break", held)
+    assert int(held_signals["signal"].iloc[held_fire - 1]) == 1
+    assert int(held_signals["signal"].iloc[held_fire]) == 0
+    # Wick through the rail without a closing break does not fire.
+    wick, wick_fire = _broadening_formation_tape(long_side=True, wick_only=True)
+    assert float(wick["high"].iloc[wick_fire]) > float(
+        _signals("broadening_formation_break", wick)["upper_rail"].iloc[wick_fire]
+    )
+    assert int(_signals("broadening_formation_break", wick)["signal"].iloc[wick_fire]) == 0
+    # No volume gate and no session gate: quiet or heavy volume still fires.
+    quiet = candles.copy()
+    quiet.loc[quiet.index[fire], "volume"] = 50.0
+    quiet.loc[quiet.index[fire], "turnover"] = 50.0 * float(quiet["close"].iloc[fire])
+    assert int(_signals("broadening_formation_break", quiet)["signal"].iloc[fire]) == 1
+    heavy = candles.copy()
+    heavy.loc[heavy.index[fire], "volume"] = 50_000.0
+    heavy.loc[heavy.index[fire], "turnover"] = 50_000.0 * float(heavy["close"].iloc[fire])
+    assert int(_signals("broadening_formation_break", heavy)["signal"].iloc[fire]) == 1
+    # Fourth touch is not on this tape. A shorter window drops a rail below 3.
+    from dataclasses import replace
+
+    factory, base, _space = strategy_kit("broadening_formation_break", SignalSide.LONG)
+    four = factory(replace(base, min_touches=4)).generate_signals(candles)
+    assert int(four["signal"].iloc[fire]) == 0
+    short_window = factory(replace(base, lookback=32)).generate_signals(candles)
+    assert int(short_window["signal"].iloc[fire]) == 0
+    # Middle high off the rail by more than ATR(20) is not a touch.
+    kink, kink_fire = _broadening_formation_tape(long_side=True, off_rail=True)
+    kink_signals = _signals("broadening_formation_break", kink)
+    assert int(kink_signals["signal"].iloc[kink_fire]) == 0
+    assert float(kink_signals["upper_slope"].iloc[kink_fire]) > 0.0
+    assert float(kink_signals["high_residual"].iloc[kink_fire]) > float(
+        kink_signals["atr_touch_tol"].iloc[kink_fire]
+    )
+    # Independence: not the converging wedge, not a flat-cap triangle,
+    # not a failed range, not a double top. Do not treat those tapes as this.
+    assert int(_signals("converging_wedge_break", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("ascending_triangle_break", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("failed_range_break_reversion", candles)["signal"].iloc[fire]) == 0
+    assert int(_signals("double_top_neckline_break", candles)["signal"].iloc[fire]) == 0
+    wedge_candles, wedge_fire = _converging_wedge_tape(long_side=True)
+    wedge_here = _signals("broadening_formation_break", wedge_candles)
+    assert int(wedge_here["signal"].iloc[wedge_fire]) == 0
+    tri_candles, tri_fire = _ascending_triangle_tape(long_side=True)
+    assert int(_signals("broadening_formation_break", tri_candles)["signal"].iloc[tri_fire]) == 0
+
+
+def test_broadening_formation_break_short_entry() -> None:
+    candles, fire = _broadening_formation_tape(long_side=False)
+    signals = _signals("broadening_formation_break", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["side"].iloc[fire] == SignalSide.SHORT.value
+    assert float(signals["upper_slope"].iloc[fire]) > 0.0
+    assert float(signals["lower_slope"].iloc[fire]) < 0.0
+    assert float(candles["close"].iloc[fire]) < float(signals["lower_rail"].iloc[fire])
+    assert 0.0 < float(signals["score"].iloc[fire]) <= 1.0
+    held, held_fire = _broadening_formation_tape(long_side=False, held_break=True)
+    held_signals = _signals("broadening_formation_break", held, side=SignalSide.SHORT)
+    assert int(held_signals["signal"].iloc[held_fire - 1]) == -1
+    assert int(held_signals["signal"].iloc[held_fire]) == 0
+    long_on_short = _signals("broadening_formation_break", candles, side=SignalSide.LONG)
+    assert int(long_on_short["signal"].iloc[fire]) == 0
+    wedge = _signals("converging_wedge_break", candles, side=SignalSide.SHORT)
+    triangle = _signals("ascending_triangle_break", candles, side=SignalSide.SHORT)
+    failed = _signals("failed_range_break_reversion", candles, side=SignalSide.SHORT)
+    double_top = _signals("double_top_neckline_break", candles, side=SignalSide.SHORT)
+    assert int(wedge["signal"].iloc[fire]) == 0
+    assert int(triangle["signal"].iloc[fire]) == 0
+    assert int(failed["signal"].iloc[fire]) == 0
+    assert int(double_top["signal"].iloc[fire]) == 0
+    assert "cap" not in signals.columns
+    assert "neckline" not in signals.columns
+    assert "vol_mean" not in signals.columns
+
+
+def test_broadening_formation_break_no_lookahead() -> None:
+    candles, fire = _broadening_formation_tape(long_side=True)
+    signals = _signals("broadening_formation_break", candles)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals("broadening_formation_break", candles.iloc[:cut])
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["upper_rail"].iloc[:cut],
+        truncated["upper_rail"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["lower_rail"].iloc[:cut],
+        truncated["lower_rail"],
+        check_names=False,
+    )
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 400.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 10.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 20.0
+    shocked.iloc[later, shocked.columns.get_loc("volume")] = 9_000_000.0
+    after = _signals("broadening_formation_break", shocked)
+    assert after["upper_rail"].iloc[fire] == pytest.approx(signals["upper_rail"].iloc[fire])
+    assert after["lower_rail"].iloc[fire] == pytest.approx(signals["lower_rail"].iloc[fire])
+    assert after["atr_touch_tol"].iloc[fire] == pytest.approx(signals["atr_touch_tol"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == 1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -13770,6 +14016,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("head_and_shoulders_neckline_break", {"lookback", "atr_tol"}),
         ("prior_week_extreme_reject", {"touch_tol_atr"}),
         ("morning_evening_star_reversal", {"min_body_atr", "max_star_body_frac"}),
+        ("broadening_formation_break", {"lookback", "min_touches"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -13820,6 +14067,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("head_and_shoulders_neckline_break", {"lookback", "atr_tol"}),
         ("prior_week_extreme_reject", {"touch_tol_atr"}),
         ("morning_evening_star_reversal", {"min_body_atr", "max_star_body_frac"}),
+        ("broadening_formation_break", {"lookback", "min_touches"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

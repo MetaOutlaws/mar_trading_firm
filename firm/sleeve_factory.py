@@ -3208,7 +3208,51 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "only. No approved=true. Live stays off."
         ),
     ),
+    SleeveSpec(
+        name="broadening_formation_break",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        needs_new_indicator=True,
+        novel_reason=(
+            "Expanding megaphone (broadening formation) as one 4h "
+            "BOTH family. Higher highs on a rising upper rail and "
+            "lower lows on a falling lower rail. LONG: close_t > "
+            "upper_rail_t. SHORT: close_t < lower_rail_t. Rails are "
+            "OLS through the last min_touches published swings in "
+            "lookback. Each fitted swing must sit within 1.0*ATR20 "
+            "of its rail. ATR period locked 20, known before the "
+            "signal bar, used only as that touch tolerance — not "
+            "as a break-size filter. Fill t+1 open. No volume "
+            "gate, no session gate, no volume profile. Free search "
+            "(2 only): lookback [32, 48], min_touches [3, 4] "
+            "(endpoints only). Not converging_wedge_break (Job 125 "
+            "— both rails converge; do not recode). Not "
+            "ascending_triangle_break (flat cap). Not "
+            "failed_range_break_reversion. Not "
+            "double_top_neckline_break / double_bottom. Not "
+            "round_number_fade / consecutive_bar_exhaustion / "
+            "mass_index_reversal. Head-and-shoulders is a separate "
+            "sleeve. Option B SCORE/RETIRE only. No approved=true. "
+            "Live stays off. Do not start walk-forward."
+        ),
+        summary=(
+            "Break a 4h expanding megaphone: LONG on a close above "
+            "the rising upper rail, SHORT on a close below the "
+            "falling lower rail, as one 4h BOTH family."
+        ),
+        justification=(
+            "A close through an OLS rail of a higher-high / "
+            "lower-low expanding formation, with ATR20 used only "
+            "as locked touch slack, is not a converging wedge, not "
+            "a flat-cap triangle, not a failed-range fade, and not "
+            "a double-top neckline. Option B SCORE/RETIRE only. "
+            "No approved=true. Live stays off."
+        ),
+    ),
 ]
+
 
 
 def novel_specs() -> list[SleeveSpec]:
