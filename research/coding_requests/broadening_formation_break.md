@@ -16,6 +16,8 @@ Garwe stamp: free `lookback` {32, 48} and `min_touches` {3, 4}; expanding rails 
 - Free: `lookback` in `{32, 48}`, `min_touches` in `{3, 4}` (endpoints only)
 - Locked: expanding rails; break on the close; pivot 3/3 (three bars left and three bars right; a 2/2 fractal is not a swing); no volume gate; no session gate; no volume profile
 
+The expanding-rail fit is local to `core/strategy/broadening_formation_break.py`. It does not call or wrap `converging_wedge_rails` or the ascending-triangle swing structure.
+
 ## Do-not-recode
 `converging_wedge_break` (Job 125 — rails converge). `ascending_triangle_break` (flat cap). `failed_range_break_reversion`. `double_top_neckline_break`. `round_number_fade` / `consecutive_bar_exhaustion` / `mass_index_reversal`. Do not code head-and-shoulders in this change.
 
