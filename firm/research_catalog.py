@@ -1800,7 +1800,10 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
             "max_star_body_frac [0.30, 0.40] (endpoints only). Not "
             "doji_star_reversal, not three_black_crows, not "
             "three_white_soldiers, not engulfing_fail_reversion, "
-            "not candle_reject_reversal. Do not recode those siblings."
+            "not candle_reject_reversal. Hard constraint: full "
+            "3-candle star only — do not collapse to doji-only "
+            "(Job 158 doji_star_reversal is separate) or to a "
+            "2-bar engulf. Do not recode those siblings."
         ),
         "param_change": {"clock": "4h/4h"},
         "needs_feed": False,

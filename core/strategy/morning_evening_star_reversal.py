@@ -45,8 +45,17 @@ Free search (2 only):
     - ``max_star_body_frac`` grid ``[0.30, 0.40]``
       (endpoints only — do not invent interiors)
 
-Not ``doji_star_reversal`` (single-bar doji after a close run, then
-a confirm beyond the doji extreme). Not ``three_black_crows`` /
+Hard constraint: the signal is the full three-candle star and nothing
+less. It does not collapse to a doji-only confirm (Job 158
+``doji_star_reversal`` is a separate family) and it does not collapse
+to a two-bar body engulf (``engulfing_reversal`` /
+``engulfing_fail_reversion``). Dropping the sized ``t-2`` body, the
+small outside star, or the sized ``t`` close-through-midpoint leaves
+the bar flat.
+
+Not ``doji_star_reversal`` (Job 158 — doji after a close run, then a
+confirm beyond the doji extreme; no ATR-sized first body and no
+midpoint reclaim). Not ``three_black_crows`` /
 ``three_white_soldiers`` (three same-color soldiers). Not
 ``engulfing_fail_reversion`` (body engulf, then a later close back
 through the engulf open). Not ``candle_reject_reversal`` (hammer /
@@ -70,6 +79,9 @@ N_BARS_LOCKED = 3
 # Equality is not "mostly". Not a free search param.
 MOSTLY_OUTSIDE_FRAC_LOCKED = 0.5
 # A doji is allowed but not required. There is no 0.10 body cap.
+# Job 158 doji_star_reversal owns doji-only. This flag must stay False;
+# generate_signals fail-closes if it is flipped, rather than dropping
+# the other two candles.
 DOJI_ONLY_REQUIRED = False
 # Free-grid endpoints. Do not insert interiors.
 MIN_BODY_ATR_GRID = [0.6, 1.0]
@@ -171,13 +183,27 @@ class MorningEveningStarReversalStrategy(Strategy):
         close_ge_mid = mid_t2.notna() & close.ge(mid_t2)
         close_le_mid = mid_t2.notna() & close.le(mid_t2)
 
-        # DOJI_ONLY_REQUIRED is False: small_star is the only star-body
-        # test. A body fraction of 0.25 is a star when the ceiling allows
-        # it. The branch below stays dark so a doji cap cannot sneak in.
-        if DOJI_ONLY_REQUIRED:
-            small_star = small_star & star_body_frac.le(0.10)
-        morning = bearish_t2 & small_star & mostly_below & bullish_t & close_ge_mid
-        evening = bullish_t2 & small_star & mostly_above & bearish_t & close_le_mid
+        # Full three-candle star only. A doji cap or a 2-bar window
+        # fail-closes instead of replacing this geometry. small_star is
+        # a ceiling (max_star_body_frac), not a doji requirement, so a
+        # spinning top with body frac 0.25 still qualifies.
+        three_candle = (N_BARS_LOCKED == 3) and (not DOJI_ONLY_REQUIRED)
+        morning = (
+            three_candle
+            & bearish_t2
+            & small_star
+            & mostly_below
+            & bullish_t
+            & close_ge_mid
+        )
+        evening = (
+            three_candle
+            & bullish_t2
+            & small_star
+            & mostly_above
+            & bearish_t
+            & close_le_mid
+        )
 
         atr_safe = atr_known.replace(0, pd.NA)
         signals["atr"] = atr20

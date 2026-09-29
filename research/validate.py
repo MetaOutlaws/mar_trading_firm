@@ -1431,8 +1431,9 @@ def _novel_kit(name: str, side: SignalSide):
             "core.strategy.morning_evening_star_reversal",
             "MorningEveningStarReversalParams",
             "MorningEveningStarReversalStrategy",
-            # atr_n locked at 20. Three-bar star structure locked.
-            # No doji-only cap. Mostly-outside fraction locked at
+            # atr_n locked at 20. Full three-bar star only — not
+            # Job 158 doji-only and not a 2-bar engulf. No doji
+            # cap. Mostly-outside fraction locked at
             # > 0.5 of the star range on the gap side of the t-2
             # body. ATR known before the bar it sizes. No VP, no
             # session gate. Fill t+1. Search body floor + star

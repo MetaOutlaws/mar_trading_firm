@@ -13554,6 +13554,135 @@ def test_morning_evening_star_schema_long_and_short() -> None:
     # LONG instance does not take the evening star.
     assert int(long_factory(long_base).generate_signals(evening)["signal"].iloc[eve_fire]) == 0
     _assert_star_clear_of_siblings(evening, eve_fire)
+    # Search stays the two endpoints. No doji knob and no engulf window.
+    assert "max_body_frac" not in space
+    assert "max_bars_since_engulf" not in space
+    assert "n_bars" not in space
+    assert space["min_body_atr"] == [0.6, 1.0]
+    assert space["max_star_body_frac"] == [0.30, 0.40]
+
+
+def _doji_only_star_tape(*, short: bool = False) -> tuple[pd.DataFrame, int]:
+    """Job 158 doji star: a close run, a doji, then a close past the doji.
+
+    The first body is too small to be an ATR-sized morning/evening candle,
+    and the confirm body is too small to reclaim a midpoint. doji_star
+    should fire. This sleeve must not.
+    """
+    n = 48
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    fire = 40
+    # close[t-5] > close[t-4] > close[t-3] > close[t-2] for the LONG run.
+    # SHORT is the rising mirror.
+    ladder = (103.0, 102.0, 101.0, 100.4)
+    for offset, px in zip((5, 4, 3, 2), ladder, strict=True):
+        level = (200.0 - px) if short else px
+        i = fire - offset
+        open_[i] = level - 0.15 if short else level + 0.15
+        close[i] = level
+        high[i] = max(open_[i], close[i]) + 0.10
+        low[i] = min(open_[i], close[i]) - 0.10
+    star = fire - 1
+    # Body 0.05 on a range of 1.0 → doji (frac 0.05), not an outside star
+    # under a sized t-2 body.
+    open_[star] = 100.15
+    close[star] = 100.20
+    high[star] = 100.70
+    low[star] = 99.70
+    if short:
+        open_[fire] = 100.10
+        close[fire] = 99.50  # under the doji low, small body
+    else:
+        open_[fire] = 100.30
+        close[fire] = 100.85  # over the doji high, small body
+    high[fire] = max(open_[fire], close[fire]) + 0.05
+    low[fire] = min(open_[fire], close[fire]) - 0.05
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_), fire
+
+
+def _two_bar_engulf_tape(*, short: bool = False) -> tuple[pd.DataFrame, int]:
+    """Bullish (or bearish) body engulf of the prior bar. No middle star."""
+    n = 48
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    fire = 40
+    prev = fire - 1
+    if short:
+        # Prior bullish body, current bearish body covers it.
+        open_[prev] = 99.4
+        close[prev] = 101.0
+        open_[fire] = 101.3
+        close[fire] = 99.1
+    else:
+        open_[prev] = 101.0
+        close[prev] = 99.4
+        open_[fire] = 99.1
+        close[fire] = 101.3
+    high[prev] = max(open_[prev], close[prev]) + 0.05
+    low[prev] = min(open_[prev], close[prev]) - 0.05
+    high[fire] = max(open_[fire], close[fire]) + 0.05
+    low[fire] = min(open_[fire], close[fire]) - 0.05
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_), fire
+
+
+def test_morning_evening_star_stays_three_candle() -> None:
+    """Full morning/evening star only. Not Job 158 doji-only, not a 2-bar engulf."""
+    from research.validate import strategy_kit
+
+    long_factory, long_base, space = strategy_kit(
+        "morning_evening_star_reversal", SignalSide.LONG
+    )
+    short_factory, short_base, _short_space = strategy_kit(
+        "morning_evening_star_reversal", SignalSide.SHORT
+    )
+    assert space["min_body_atr"] == [0.6, 1.0]
+    assert space["max_star_body_frac"] == [0.30, 0.40]
+    assert "doji" not in "".join(space)
+    assert "engulf" not in "".join(space)
+
+    # Non-doji spinning top (frac 0.25) is a real star. Doji-only would miss it.
+    morning, fire = _morning_evening_star_tape()
+    long_sig = long_factory(long_base).generate_signals(morning)
+    assert float(long_sig["star_body_frac"].iloc[fire]) == pytest.approx(0.25)
+    assert float(long_sig["star_body_frac"].iloc[fire]) > 0.10
+    assert int(long_sig["signal"].iloc[fire]) == 1
+    assert bool(long_sig["morning_star"].iloc[fire])
+    # All three candles are present: sized t-2, small outside star, sized t.
+    assert float(long_sig["body_t2_atr"].iloc[fire]) >= 0.6
+    assert bool(long_sig["small_star"].iloc[fire])
+    assert bool(long_sig["mostly_below"].iloc[fire])
+    assert float(long_sig["body_atr"].iloc[fire]) >= 0.6
+
+    doji, doji_fire = _doji_only_star_tape()
+    doji_star = _signals("doji_star_reversal", doji, side=SignalSide.LONG)
+    assert int(doji_star["signal"].iloc[doji_fire]) == 1
+    ours = long_factory(long_base).generate_signals(doji)
+    assert int(ours["signal"].iloc[doji_fire]) == 0
+    assert int((ours["signal"] != 0).sum()) == 0
+    doji_short, doji_short_fire = _doji_only_star_tape(short=True)
+    doji_star_short = _signals("doji_star_reversal", doji_short, side=SignalSide.SHORT)
+    assert int(doji_star_short["signal"].iloc[doji_short_fire]) == -1
+    ours_short = short_factory(short_base).generate_signals(doji_short)
+    assert int(ours_short["signal"].iloc[doji_short_fire]) == 0
+    assert int((ours_short["signal"] != 0).sum()) == 0
+
+    engulf, engulf_fire = _two_bar_engulf_tape()
+    engulf_sig = _signals("engulfing_reversal", engulf, side=SignalSide.LONG)
+    assert int(engulf_sig["signal"].iloc[engulf_fire]) == 1
+    not_engulf = long_factory(long_base).generate_signals(engulf)
+    assert int(not_engulf["signal"].iloc[engulf_fire]) == 0
+    assert int((not_engulf["signal"] != 0).sum()) == 0
+    engulf_short, engulf_short_fire = _two_bar_engulf_tape(short=True)
+    engulf_short_sig = _signals("engulfing_reversal", engulf_short, side=SignalSide.SHORT)
+    assert int(engulf_short_sig["signal"].iloc[engulf_short_fire]) == -1
+    not_engulf_short = short_factory(short_base).generate_signals(engulf_short)
+    assert int(not_engulf_short["signal"].iloc[engulf_short_fire]) == 0
+    assert int((not_engulf_short["signal"] != 0).sum()) == 0
 
 
 def test_morning_evening_star_no_lookahead() -> None:
