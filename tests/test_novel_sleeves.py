@@ -150,6 +150,7 @@ APPROVED = [
     "three_push_exhaustion_fail",
     "ny_cash_open_vwap_fade",
     "head_and_shoulders_neckline_break",
+    "prior_week_extreme_reject",
 ]
 
 
@@ -13342,6 +13343,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("three_push_exhaustion_fail", {"min_push_atr"}),
         ("ny_cash_open_vwap_fade", {"k"}),
         ("head_and_shoulders_neckline_break", {"lookback", "atr_tol"}),
+        ("prior_week_extreme_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -13390,6 +13392,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("three_push_exhaustion_fail", {"min_push_atr"}),
         ("ny_cash_open_vwap_fade", {"k"}),
         ("head_and_shoulders_neckline_break", {"lookback", "atr_tol"}),
+        ("prior_week_extreme_reject", {"touch_tol_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -13446,3 +13449,373 @@ def test_novel_future_shock_does_not_change_past(name: str) -> None:
     original = _signals(name, candles)["signal"].iloc[:-1]
     after = _signals(name, shocked)["signal"].iloc[:-1]
     pd.testing.assert_series_equal(original, after)
+
+
+def _prior_week_extreme_tape(
+    *,
+    long_side: bool,
+    held_break: bool = False,
+    close_outside: bool = False,
+    both_sides: bool = False,
+    second_tag: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Prior ISO week H=110 / L=90, weekend tightened, Monday 00:00 reject.
+
+    Week extremes sit on Monday–Friday. Saturday and Sunday stay near 100
+    so the prior UTC day and the Sat–Sun box are not the week high/low.
+    The signal bar is Monday 00:00 UTC of the next ISO week.
+    """
+    n = 50
+    index = pd.date_range("2024-01-01", periods=n, freq="4h", tz="UTC")
+    close = np.full(n, 100.0)
+    high = np.full(n, 110.0)
+    low = np.full(n, 90.0)
+    open_ = np.full(n, 100.0)
+    # Saturday 00:00 is bar 30; Sunday is 36–41. Keep the weekend tight.
+    high[30:42] = 101.0
+    low[30:42] = 99.0
+    close[30:42] = 100.0
+    open_[30:42] = 100.0
+    fire = 42
+    if both_sides:
+        high[fire] = 115.0
+        low[fire] = 85.0
+        close[fire] = 100.0
+        open_[fire] = 100.0
+    elif long_side:
+        low[fire] = 85.0
+        close[fire] = 95.0
+        open_[fire] = 96.0
+        high[fire] = 100.0
+        if held_break:
+            close[fire] = 84.0
+            high[fire] = 88.0
+            low[fire] = 82.0
+            open_[fire] = 88.0
+        elif close_outside:
+            close[fire] = 112.0
+            high[fire] = 114.0
+            low[fire] = 84.0
+            open_[fire] = 90.0
+    else:
+        high[fire] = 115.0
+        close[fire] = 105.0
+        open_[fire] = 104.0
+        low[fire] = 103.0
+        if held_break:
+            close[fire] = 116.0
+            high[fire] = 118.0
+            low[fire] = 112.0
+            open_[fire] = 112.0
+        elif close_outside:
+            close[fire] = 85.0
+            high[fire] = 116.0
+            low[fire] = 80.0
+            open_[fire] = 110.0
+    if second_tag:
+        j = fire + 1
+        if long_side and not both_sides:
+            low[j] = 85.0
+            close[j] = 95.0
+            open_[j] = 96.0
+            high[j] = 100.0
+        else:
+            high[j] = 115.0
+            close[j] = 105.0
+            open_[j] = 104.0
+            low[j] = 103.0
+    candles = _ohlcv(index, close, high=high, low=low, open_=open_)
+    return candles, fire
+
+
+def _assert_prior_week_clear_of_siblings(
+    candles: pd.DataFrame, fire: int, side: SignalSide
+) -> None:
+    """The reject tape must not be a day fade, a Monday open, or a floor pivot."""
+    for name in (
+        "prior_day_extreme_reject",
+        "week_open_reclaim",
+        "classic_floor_pivot_reject",
+        "prior_week_high_break",
+        "monday_range_sweep_reversal",
+    ):
+        sibling = _signals(name, candles, side=side)
+        assert int(sibling["signal"].iloc[fire]) == 0, name
+
+
+def test_prior_week_extreme_reject_schema_and_long_entry() -> None:
+    from research.validate import strategy_kit
+
+    _factory, base, space = strategy_kit("prior_week_extreme_reject", SignalSide.LONG)
+    assert base.require_close_inside is True
+    assert base.side is SignalSide.LONG
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
+    candles, fire = _prior_week_extreme_tape(long_side=True)
+    signals = _signals("prior_week_extreme_reject", candles)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "prior_week_high",
+        "prior_week_low",
+        "touch",
+        "atr",
+    ):
+        assert column in signals.columns
+    assert "pivot" not in signals.columns
+    assert "r1" not in signals.columns
+    assert "s1" not in signals.columns
+    assert "week_open" not in signals.columns
+    assert "prior_high" not in signals.columns
+    # Forming week has no prior ISO week yet.
+    assert pd.isna(signals["prior_week_high"].iloc[41])
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[:fire].sum()) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int((signals["signal"] == 1).sum()) >= 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["prior_week_high"].iloc[fire] == pytest.approx(110.0)
+    assert signals["prior_week_low"].iloc[fire] == pytest.approx(90.0)
+    assert signals["side"].iloc[fire] == "LONG"
+    # Held breakdown and a close outside the week box are not rejects.
+    held, held_fire = _prior_week_extreme_tape(long_side=True, held_break=True)
+    assert int(_signals("prior_week_extreme_reject", held)["signal"].iloc[held_fire]) == 0
+    outside, outside_fire = _prior_week_extreme_tape(long_side=True, close_outside=True)
+    assert int(_signals("prior_week_extreme_reject", outside)["signal"].iloc[outside_fire]) == 0
+    _assert_prior_week_clear_of_siblings(candles, fire, SignalSide.LONG)
+
+
+def test_prior_week_extreme_reject_short_entry() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, _space = strategy_kit("prior_week_extreme_reject", SignalSide.SHORT)
+    candles, fire = _prior_week_extreme_tape(long_side=False)
+    signals = factory(base).generate_signals(candles)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["prior_week_high"].iloc[fire] == pytest.approx(110.0)
+    assert signals["prior_week_low"].iloc[fire] == pytest.approx(90.0)
+    assert signals["side"].iloc[fire] == "SHORT"
+    held, held_fire = _prior_week_extreme_tape(long_side=False, held_break=True)
+    assert int(factory(base).generate_signals(held)["signal"].iloc[held_fire]) == 0
+    # Close below the prior week low is not "inside" even if the high tagged.
+    outside, outside_fire = _prior_week_extreme_tape(long_side=False, close_outside=True)
+    assert int(factory(base).generate_signals(outside)["signal"].iloc[outside_fire]) == 0
+    # The close-inside lock ignores a False override.
+    forced = factory(replace(base, require_close_inside=False)).generate_signals(outside)
+    assert int(forced["signal"].iloc[outside_fire]) == 0
+    # One fade per ISO week. A second tag later in the week does not re-enter.
+    again, again_fire = _prior_week_extreme_tape(long_side=False, second_tag=True)
+    again_signals = factory(base).generate_signals(again)
+    assert int(again_signals["signal"].iloc[again_fire]) == -1
+    assert int(again_signals["signal"].iloc[again_fire + 1]) == 0
+    assert int((again_signals["signal"] == -1).sum()) == 1
+    _assert_prior_week_clear_of_siblings(candles, fire, SignalSide.SHORT)
+
+
+def test_prior_week_extreme_reject_short_priority_and_touch_tol() -> None:
+    from dataclasses import replace
+
+    from core.strategy import indicators as ind
+    from research.validate import strategy_kit
+
+    short_factory, short_base, _space = strategy_kit(
+        "prior_week_extreme_reject", SignalSide.SHORT
+    )
+    long_factory, long_base, _space = strategy_kit(
+        "prior_week_extreme_reject", SignalSide.LONG
+    )
+    both, fire = _prior_week_extreme_tape(long_side=False, both_sides=True)
+    assert int(short_factory(short_base).generate_signals(both)["signal"].iloc[fire]) == -1
+    assert int(long_factory(long_base).generate_signals(both)["signal"].iloc[fire]) == 0
+
+    # Exact tag is the 0.0 endpoint. A high just inside the 0.10 ATR band
+    # misses 0.0 and hits 0.10. The signal bar's own range does not size it.
+    candles, fire = _prior_week_extreme_tape(long_side=False)
+    atr_known = ind.atr(candles["high"], candles["low"], candles["close"], 20).shift(1)
+    band = 0.10 * float(atr_known.iloc[fire])
+    assert band > 0.0
+    near = candles.copy()
+    near.iloc[fire, near.columns.get_loc("high")] = 110.0 - 0.5 * band
+    assert int(short_factory(short_base).generate_signals(near)["signal"].iloc[fire]) == 0
+    tol = short_factory(replace(short_base, touch_tol_atr=0.10)).generate_signals(near)
+    assert int(tol["signal"].iloc[fire]) == -1
+    assert tol["atr"].iloc[fire] == pytest.approx(float(atr_known.iloc[fire]))
+    # Wider than the free grid. 0.10 still misses.
+    far = candles.copy()
+    far.iloc[fire, far.columns.get_loc("high")] = 110.0 - 0.20 * float(atr_known.iloc[fire])
+    missed = short_factory(replace(short_base, touch_tol_atr=0.10)).generate_signals(far)
+    assert int(missed["signal"].iloc[fire]) == 0
+
+
+def test_prior_week_extreme_reject_kit_locks() -> None:
+    from core.strategy import indicators as ind
+    from core.strategy.prior_week_extreme_reject import (
+        ATR_PERIOD,
+        TOUCH_TOL_GRID,
+        PriorWeekExtremeRejectParams,
+    )
+    from firm.sleeve_factory import spec_for_family
+    from research.validate import strategy_kit
+
+    assert ATR_PERIOD == 20
+    assert TOUCH_TOL_GRID == [0.0, 0.10]
+    factory, base, space = strategy_kit("prior_week_extreme_reject", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"touch_tol_atr"}
+    assert space["touch_tol_atr"] == [0.0, 0.10]
+    assert "atr_n" not in space
+    assert "atr_period" not in space
+    assert "require_close_inside" not in space
+    assert base.require_close_inside is True
+    assert base.touch_tol_atr == 0.0
+    assert PriorWeekExtremeRejectParams().side is SignalSide.SHORT
+    spec = spec_for_family("prior_week_extreme_reject")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    sleeve = factory(base)
+    assert sleeve.name == "prior_week_extreme_reject"
+    candles, fire = _prior_week_extreme_tape(long_side=False)
+    signals = sleeve.generate_signals(candles)
+    atr20 = ind.atr(candles["high"], candles["low"], candles["close"], 20).shift(1)
+    atr14 = ind.atr(candles["high"], candles["low"], candles["close"], 14).shift(1)
+    assert signals["atr"].iloc[fire] == pytest.approx(float(atr20.iloc[fire]))
+    assert float(atr20.iloc[fire]) != pytest.approx(float(atr14.iloc[fire]))
+    # Later bars of this week must not rewrite the published prior-week high.
+    shocked = candles.copy()
+    shocked.iloc[fire + 2, shocked.columns.get_loc("high")] = 250.0
+    after = sleeve.generate_signals(shocked)
+    assert after["prior_week_high"].iloc[fire] == pytest.approx(110.0)
+    assert after["prior_week_high"].iloc[fire + 2] == pytest.approx(110.0)
+
+
+def test_prior_week_extreme_reject_no_lookahead() -> None:
+    candles, fire = _prior_week_extreme_tape(long_side=False)
+    signals = _signals("prior_week_extreme_reject", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) >= 1
+    long_tape, long_fire = _prior_week_extreme_tape(long_side=True)
+    long_signals = _signals("prior_week_extreme_reject", long_tape, side=SignalSide.LONG)
+    assert int(long_signals["signal"].iloc[long_fire]) == 1
+    assert int((long_signals["signal"] == 1).sum()) >= 1
+    cut = fire + 1
+    truncated = _signals(
+        "prior_week_extreme_reject", candles.iloc[:cut], side=SignalSide.SHORT
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["prior_week_high"].iloc[:cut],
+        truncated["prior_week_high"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["atr"].iloc[:cut],
+        truncated["atr"],
+        check_names=False,
+    )
+    shocked = candles.copy()
+    later = fire + 3
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 400.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 10.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 12.0
+    after = _signals("prior_week_extreme_reject", shocked, side=SignalSide.SHORT)
+    assert after["prior_week_high"].iloc[fire] == pytest.approx(
+        signals["prior_week_high"].iloc[fire]
+    )
+    assert after["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    assert int(after["signal"].iloc[fire]) == -1
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
+def test_prior_week_extreme_reject_is_not_prior_week_high_break() -> None:
+    """Close-through belongs to prior_week_high_break. This sleeve fades back inside."""
+    from core.strategy.prior_week_extreme_reject import (
+        ATR_PERIOD,
+        TOUCH_TOL_GRID,
+        PriorWeekExtremeRejectStrategy,
+    )
+    from core.strategy.prior_week_high_break import PriorWeekHighBreakStrategy
+    from core.strategy.registry import get_strategy
+
+    reject_cls = get_strategy("prior_week_extreme_reject")
+    break_cls = get_strategy("prior_week_high_break")
+    assert reject_cls is PriorWeekExtremeRejectStrategy
+    assert break_cls is PriorWeekHighBreakStrategy
+    assert reject_cls is not break_cls
+    assert reject_cls.name == "prior_week_extreme_reject"
+    assert break_cls.name == "prior_week_high_break"
+    assert not issubclass(reject_cls, break_cls)
+    assert ATR_PERIOD == 20
+    assert TOUCH_TOL_GRID == [0.0, 0.10]
+
+    # Close back inside the prior ISO week: reject fires, break stays flat.
+    fade, fire = _prior_week_extreme_tape(long_side=False)
+    reject_short = _signals("prior_week_extreme_reject", fade, side=SignalSide.SHORT)
+    reject_long = _signals("prior_week_extreme_reject", fade, side=SignalSide.LONG)
+    assert int(reject_short["signal"].iloc[fire]) == -1
+    assert int(reject_long["signal"].iloc[fire]) == 0
+    assert reject_short["prior_week_high"].iloc[fire] == pytest.approx(110.0)
+    assert reject_short["prior_week_low"].iloc[fire] == pytest.approx(90.0)
+    assert float(fade["close"].iloc[fire]) < float(reject_short["prior_week_high"].iloc[fire])
+    assert float(fade["close"].iloc[fire]) >= float(reject_short["prior_week_low"].iloc[fire])
+    break_long = _signals("prior_week_high_break", fade, side=SignalSide.LONG)
+    break_short = _signals("prior_week_high_break", fade, side=SignalSide.SHORT)
+    assert int(break_long["signal"].iloc[fire]) == 0
+    assert int(break_short["signal"].iloc[fire]) == 0
+    # Decision is bar t. The engine fills t+1; this module does not shift the signal.
+    assert int(reject_short["signal"].iloc[fire + 1]) == 0
+
+    # Close through the prior week high: break LONG, reject flat on both sides.
+    through_high, through_fire = _prior_week_extreme_tape(long_side=False, held_break=True)
+    assert float(through_high["close"].iloc[through_fire]) > 110.0
+    assert int(
+        _signals("prior_week_high_break", through_high, side=SignalSide.LONG)["signal"].iloc[
+            through_fire
+        ]
+    ) == 1
+    assert int(
+        _signals("prior_week_extreme_reject", through_high, side=SignalSide.SHORT)["signal"].iloc[
+            through_fire
+        ]
+    ) == 0
+    assert int(
+        _signals("prior_week_extreme_reject", through_high, side=SignalSide.LONG)["signal"].iloc[
+            through_fire
+        ]
+    ) == 0
+
+    # Close through the prior week low: break SHORT, reject flat on both sides.
+    through_low, low_fire = _prior_week_extreme_tape(long_side=True, held_break=True)
+    assert float(through_low["close"].iloc[low_fire]) < 90.0
+    assert int(
+        _signals("prior_week_high_break", through_low, side=SignalSide.SHORT)["signal"].iloc[
+            low_fire
+        ]
+    ) == -1
+    assert int(
+        _signals("prior_week_extreme_reject", through_low, side=SignalSide.LONG)["signal"].iloc[
+            low_fire
+        ]
+    ) == 0
+    assert int(
+        _signals("prior_week_extreme_reject", through_low, side=SignalSide.SHORT)["signal"].iloc[
+            low_fire
+        ]
+    ) == 0

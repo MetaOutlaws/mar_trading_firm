@@ -1,0 +1,19 @@
+{
+  "family": "prior_week_extreme_reject",
+  "template": "novel",
+  "clock": "4h/4h",
+  "side": "BOTH",
+  "needs_feed": false,
+  "needs_new_indicator": false,
+  "status": "option_b_code_only",
+  "option_b": true,
+  "summary": "Fade a 4h tag of the prior ISO week's high or low that closes back inside that week's range.",
+  "instruction": "Write core/strategy/prior_week_extreme_reject.py implementing Strategy. Use only bars <= t. Fill at t+1 open. Add schema, no-lookahead, and at least one LONG and one SHORT test. Register via class name. Do not start walk-forward. Do not call mark_done. Do not edit approved_strategies.json. Do not set approved=true. Live stays off.",
+  "free": {"touch_tol_atr": [0.0, 0.1]},
+  "locked": {
+    "ATR_N": 20,
+    "require_close_inside": true,
+    "level": "raw prior ISO-week H/L (UTC weeks)",
+    "fill": "t+1"
+  }
+}

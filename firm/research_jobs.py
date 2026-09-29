@@ -196,6 +196,7 @@ CLOCK_BY_FAMILY = {
     "three_push_exhaustion_fail": "4h/4h",
     "ny_cash_open_vwap_fade": "4h/4h",
     "head_and_shoulders_neckline_break": "4h/4h",
+    "prior_week_extreme_reject": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -278,6 +279,14 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         or "head & shoulders" in blob
     ):
         return "head_and_shoulders_neckline_break"
+    # Must beat prior_week_high_break / prior_day_extreme_reject /
+    # week_open_reclaim. Family id is prior_week_extreme_reject only.
+    # Not an alias of head_and_shoulders_neckline_break.
+    if (
+        "prior_week_extreme_reject" in blob
+        or "prior week extreme" in blob
+    ):
+        return "prior_week_extreme_reject"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:
