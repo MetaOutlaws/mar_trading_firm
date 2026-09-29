@@ -3254,6 +3254,59 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "No approved=true. Live stays off."
         ),
     ),
+    SleeveSpec(
+        name="impulse_midpoint_fail_fade",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        needs_new_indicator=False,
+        novel_reason=(
+            "Impulse midpoint fail fade as one 4h BOTH family "
+            "(SHORT priority). Garwe STAMP LOCK. Impulse is bar "
+            "t-1: high-low range >= min_range_atr*ATR(20) and the "
+            "close sits in the directional extreme_frac of that "
+            "bar (bullish = top fraction, bearish = bottom "
+            "fraction). The NEXT bar closes strictly through the "
+            "impulse midpoint. Fade the impulse: SHORT after a "
+            "bullish impulse, LONG after a bearish impulse. ATR "
+            "period locked 20, known before the impulse bar "
+            "(atr.shift(2) at the signal bar) so the impulse "
+            "cannot lift its own gate. Range is high-low, not "
+            "true range. Fill t+1 open. "
+            "require_next_close_through_mid locked True. No "
+            "volume gate, no session clock. Free search (2 only): "
+            "min_range_atr [1.5, 2.0], extreme_frac [0.25, 0.35] "
+            "(endpoints only). Not thrust_bar_fail_reversion "
+            "(Job 151 — same-bar close back inside the prior "
+            "high-low). Not expansion_fail_fade (true range, "
+            "weak volume, next close inside the expansion). Not "
+            "candle_reject_reversal. Not key_reversal_bar. Not "
+            "outside_bar_fail_reversion. Not "
+            "three_push_exhaustion_fail. Not the killed YES pack, "
+            "ORB, or Wyckoff. Option B SCORE/RETIRE only. No "
+            "approved=true. Live stays off. Do not start "
+            "walk-forward. 0 book cells."
+        ),
+        summary=(
+            "Fade a 4h impulse whose range is at least k×ATR(20) "
+            "and whose close sits in the directional extreme, "
+            "once the next bar closes through the impulse "
+            "midpoint (SHORT after a bullish impulse, LONG after "
+            "a bearish one) as one 4h BOTH family with SHORT "
+            "priority."
+        ),
+        justification=(
+            "A two-bar ATR20 impulse (high-low range plus close "
+            "in the extreme fraction) that fails when the next "
+            "close goes through the impulse midpoint is not a "
+            "same-bar thrust back inside the prior high-low, not "
+            "a true-range expansion that must close back inside, "
+            "not a hammer reject, not a key-reversal break, and "
+            "not an outside-bar containment fade. Option B "
+            "SCORE/RETIRE only. No approved=true. Live stays off."
+        ),
+    ),
 ]
 
 

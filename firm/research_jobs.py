@@ -199,6 +199,7 @@ CLOCK_BY_FAMILY = {
     "prior_week_extreme_reject": "4h/4h",
     "morning_evening_star_reversal": "4h/4h",
     "broadening_formation_break": "4h/4h",
+    "impulse_midpoint_fail_fade": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -304,6 +305,15 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         or "broadening formation" in blob
     ):
         return "broadening_formation_break"
+    # Must beat thrust_bar_fail_reversion / expansion_fail_fade /
+    # elder_impulse_trend. Family id is impulse_midpoint_fail_fade
+    # only — two-bar impulse then next close through the midpoint.
+    # Not a same-bar thrust back inside the prior high-low.
+    if (
+        "impulse_midpoint_fail_fade" in blob
+        or "impulse midpoint" in blob
+    ):
+        return "impulse_midpoint_fail_fade"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:
