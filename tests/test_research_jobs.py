@@ -122,6 +122,15 @@ def test_infer_family_from_title_and_payload() -> None:
         "ny_cash_open_vwap_fade"
     )
     assert infer_family({}, "Code ny cash open vwap fade 4h") == "ny_cash_open_vwap_fade"
+    assert infer_family({}, "Next: head_and_shoulders_neckline_break") == (
+        "head_and_shoulders_neckline_break"
+    )
+    assert infer_family(
+        {"family": "head_and_shoulders_neckline_break"}, "ATR channel breakout"
+    ) == "head_and_shoulders_neckline_break"
+    assert infer_family({}, "Code head and shoulders neckline break 4h") == (
+        "head_and_shoulders_neckline_break"
+    )
     # Must not collapse onto bollinger via the generic "mean_rev" token.
     assert infer_family({}, "Code hvn mean revert 4h") == "hvn_mean_revert"
     assert infer_family({"name": "ema_adx_trend"}, "") == "ema_adx_trend"
@@ -472,6 +481,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "swing_break_fail_reversion" in coded
     assert "three_push_exhaustion_fail" in coded
     assert "ny_cash_open_vwap_fade" in coded
+    assert "head_and_shoulders_neckline_break" in coded
     assert "hvn_node_fade" not in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
@@ -535,6 +545,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "swing_break_fail_reversion" not in novel_ready
     assert "three_push_exhaustion_fail" not in novel_ready
     assert "ny_cash_open_vwap_fade" not in novel_ready
+    assert "head_and_shoulders_neckline_break" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -1021,6 +1032,7 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "swing_break_fail_reversion" not in families
     assert "three_push_exhaustion_fail" not in families
     assert "ny_cash_open_vwap_fade" not in families
+    assert "head_and_shoulders_neckline_break" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

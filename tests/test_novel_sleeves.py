@@ -149,6 +149,7 @@ APPROVED = [
     "swing_break_fail_reversion",
     "three_push_exhaustion_fail",
     "ny_cash_open_vwap_fade",
+    "head_and_shoulders_neckline_break",
 ]
 
 
@@ -3306,6 +3307,233 @@ def test_double_top_neckline_break_long_invalidation() -> None:
     # Invalidation is not a double-bottom neckline break of two lows.
     bottom = _signals("double_bottom_neckline_break", candles)
     assert int(bottom["signal"].iloc[fire]) == 0
+
+
+def _head_and_shoulders_tape(
+    *,
+    long_side: bool,
+    n: int = 110,
+    break_neckline: bool = True,
+    wide_shoulders: bool = False,
+) -> tuple[pd.DataFrame, int]:
+    """Three pivots, 7 bars apart, so each confirms inside a 3/3 window.
+
+    Right shoulder publishes at index 72 (pivot 68 + left 3 + 1). Lookback 40
+    still contains the left shoulder's publication bar. The neckline is the
+    line through the two reaction pivots, not the horizontal min/max.
+    """
+    close, high, low, open_ = _planted_swings_background(n)
+    fire = 72
+    if long_side:
+        # Inverse: three troughs, head below both shoulders, peaks between them.
+        low[40] = 90.0
+        close[40] = 92.0
+        high[47] = 110.0
+        close[47] = 108.0
+        low[54] = 80.0
+        close[54] = 82.0
+        high[61] = 108.0
+        close[61] = 106.0
+        low[68] = 90.0
+        close[68] = 92.0
+        if break_neckline:
+            close[fire] = 112.0
+            high[fire] = 113.0
+            low[fire] = 106.0
+            open_[fire] = 106.0
+    else:
+        high[40] = 120.0 if wide_shoulders else 110.0
+        close[40] = 118.0 if wide_shoulders else 108.0
+        low[47] = 90.0
+        close[47] = 92.0
+        high[54] = 150.0 if wide_shoulders else 130.0
+        close[54] = 148.0 if wide_shoulders else 128.0
+        low[61] = 92.0
+        close[61] = 94.0
+        high[68] = 105.0 if wide_shoulders else 110.0
+        close[68] = 103.0 if wide_shoulders else 108.0
+        if break_neckline:
+            close[fire] = 88.0
+            low[fire] = 87.0
+            high[fire] = 94.0
+            open_[fire] = 94.0
+    candles = _ohlcv(_hourly(n, start="2024-01-03"), close, high=high, low=low, open_=open_)
+    return candles, fire
+
+
+def test_head_and_shoulders_neckline_break_short_entry() -> None:
+    candles, fire = _head_and_shoulders_tape(long_side=False)
+    signals = _signals("head_and_shoulders_neckline_break", candles, side=SignalSide.SHORT)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "left_shoulder",
+        "head",
+        "right_shoulder",
+        "neckline",
+    ):
+        assert column in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    # Right shoulder is not published yet, so the neckline is unknown.
+    assert int(signals["signal"].iloc[fire - 1]) == 0
+    assert pd.isna(signals["neckline"].iloc[fire - 1])
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert signals["side"].iloc[fire] == "SHORT"
+    assert int((signals["signal"] == -1).sum()) == 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["left_shoulder"].iloc[fire] == pytest.approx(110.0)
+    assert signals["head"].iloc[fire] == pytest.approx(130.0)
+    assert signals["right_shoulder"].iloc[fire] == pytest.approx(110.0)
+    # Line through troughs 90 at bar 47 and 92 at bar 61, evaluated at 72.
+    assert signals["neckline"].iloc[fire] == pytest.approx(90.0 + (2.0 / 14.0) * 25.0)
+    assert float(candles["close"].iloc[fire]) < float(signals["neckline"].iloc[fire])
+    # Not a two-touch neckline, a failed restest, or a triangle break.
+    for name in (
+        "double_top_neckline_break",
+        "double_bottom_neckline_break",
+        "equal_high_low_restest_fade",
+        "ascending_triangle_break",
+    ):
+        sibling = _signals(name, candles, side=SignalSide.SHORT)
+        assert int(sibling["signal"].iloc[fire]) == 0
+    long_on_short = _signals("head_and_shoulders_neckline_break", candles, side=SignalSide.LONG)
+    assert int(long_on_short["signal"].iloc[fire]) == 0
+    # Close still above the sloped neckline is not a break.
+    held, held_fire = _head_and_shoulders_tape(long_side=False, break_neckline=False)
+    held_signals = _signals("head_and_shoulders_neckline_break", held, side=SignalSide.SHORT)
+    assert int(held_signals["signal"].iloc[held_fire]) == 0
+    assert float(held["close"].iloc[held_fire]) > float(held_signals["neckline"].iloc[held_fire])
+    # Shoulders outside atr_tol·ATR20 do not enter, even though the head is highest.
+    wide, wide_fire = _head_and_shoulders_tape(long_side=False, wide_shoulders=True)
+    wide_signals = _signals("head_and_shoulders_neckline_break", wide, side=SignalSide.SHORT)
+    assert int(wide_signals["signal"].iloc[wide_fire]) == 0
+    shoulder_gap = abs(
+        float(wide_signals["left_shoulder"].iloc[wide_fire])
+        - float(wide_signals["right_shoulder"].iloc[wide_fire])
+    )
+    assert shoulder_gap > float(wide_signals["atr_tol_band"].iloc[wide_fire])
+
+
+def test_head_and_shoulders_neckline_break_long_entry() -> None:
+    candles, fire = _head_and_shoulders_tape(long_side=True)
+    signals = _signals("head_and_shoulders_neckline_break", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[fire - 1]) == 0
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert signals["side"].iloc[fire] == "LONG"
+    assert int((signals["signal"] == 1).sum()) == 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["left_shoulder"].iloc[fire] == pytest.approx(90.0)
+    assert signals["head"].iloc[fire] == pytest.approx(80.0)
+    assert signals["right_shoulder"].iloc[fire] == pytest.approx(90.0)
+    # Line through peaks 110 at bar 47 and 108 at bar 61, evaluated at 72.
+    assert signals["neckline"].iloc[fire] == pytest.approx(110.0 + (-2.0 / 14.0) * 25.0)
+    assert float(candles["close"].iloc[fire]) > float(signals["neckline"].iloc[fire])
+    for name in (
+        "double_top_neckline_break",
+        "double_bottom_neckline_break",
+        "equal_high_low_restest_fade",
+        "ascending_triangle_break",
+    ):
+        sibling = _signals(name, candles, side=SignalSide.LONG)
+        assert int(sibling["signal"].iloc[fire]) == 0
+    short_on_long = _signals("head_and_shoulders_neckline_break", candles, side=SignalSide.SHORT)
+    assert int(short_on_long["signal"].iloc[fire]) == 0
+
+
+def test_head_and_shoulders_neckline_break_no_lookahead() -> None:
+    candles, fire = _head_and_shoulders_tape(long_side=False)
+    # Hold the close under the neckline. One pivot set still fires once.
+    for offset in range(1, 12):
+        idx = fire + offset
+        candles.iloc[idx, candles.columns.get_loc("close")] = 80.0
+        candles.iloc[idx, candles.columns.get_loc("low")] = 79.0
+        candles.iloc[idx, candles.columns.get_loc("high")] = 85.0
+        candles.iloc[idx, candles.columns.get_loc("open")] = 85.0
+    signals = _signals("head_and_shoulders_neckline_break", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int((signals["signal"] == -1).sum()) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "head_and_shoulders_neckline_break", candles.iloc[:cut], side=SignalSide.SHORT
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["neckline"].iloc[:cut],
+        truncated["neckline"],
+        check_names=False,
+    )
+    shocked = candles.copy()
+    later = fire + 8
+    shocked.iloc[later, shocked.columns.get_loc("high")] = 400.0
+    shocked.iloc[later, shocked.columns.get_loc("low")] = 40.0
+    shocked.iloc[later, shocked.columns.get_loc("close")] = 400.0
+    after = _signals("head_and_shoulders_neckline_break", shocked, side=SignalSide.SHORT)
+    assert int(after["signal"].iloc[fire]) == -1
+    assert after["neckline"].iloc[fire] == pytest.approx(signals["neckline"].iloc[fire])
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:later],
+        after["signal"].iloc[:later],
+        check_names=False,
+    )
+
+
+def test_head_and_shoulders_neckline_break_kit_locks() -> None:
+    from core.strategy.head_and_shoulders_neckline_break import (
+        ATR_PERIOD,
+        ATR_TOL_GRID,
+        LOOKBACK_GRID,
+        PIVOT_LEFT,
+        PIVOT_RIGHT,
+        HeadAndShouldersNecklineBreakParams,
+    )
+    from firm.research_jobs import CLOCK_BY_FAMILY
+    from firm.sleeve_factory import spec_for_family
+    from research.validate import strategy_kit
+
+    assert ATR_PERIOD == 20
+    assert PIVOT_LEFT == 3
+    assert PIVOT_RIGHT == 3
+    assert LOOKBACK_GRID == [40, 60]
+    assert 24 not in LOOKBACK_GRID
+    assert 30 not in LOOKBACK_GRID
+    assert ATR_TOL_GRID == [0.10, 0.15]
+    assert CLOCK_BY_FAMILY["head_and_shoulders_neckline_break"] == "4h/4h"
+    factory, base, space = strategy_kit("head_and_shoulders_neckline_break", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "atr_tol"}
+    assert space["lookback"] == [40, 60]
+    assert 24 not in space["lookback"]
+    assert space["atr_tol"] == [0.10, 0.15]
+    assert "atr_period" not in space
+    assert "atr_n" not in space
+    assert "pivot_left" not in space
+    assert HeadAndShouldersNecklineBreakParams().side is SignalSide.SHORT
+    assert HeadAndShouldersNecklineBreakParams().lookback == 40
+    assert base.atr_tol == 0.15
+    spec = spec_for_family("head_and_shoulders_neckline_break")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    assert spec.needs_new_indicator is True
+    sleeve = factory(base)
+    assert sleeve.name == "head_and_shoulders_neckline_break"
+    assert sleeve.name != "double_top_neckline_break"
+    assert sleeve.name != "double_bottom_neckline_break"
+    # Both stamped lookback endpoints see the same three-pivot break.
+    from dataclasses import replace
+
+    candles, fire = _head_and_shoulders_tape(long_side=False)
+    for lookback, atr_tol in ((40, 0.10), (40, 0.15), (60, 0.10), (60, 0.15)):
+        fired = factory(replace(base, lookback=lookback, atr_tol=atr_tol)).generate_signals(candles)
+        assert int(fired["signal"].iloc[fire]) == -1
 
 
 def _ascending_triangle_tape(*, long_side: bool, n: int = 90) -> tuple[pd.DataFrame, int]:
@@ -13113,6 +13341,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("swing_break_fail_reversion", {"swing_lookback", "min_break_atr"}),
         ("three_push_exhaustion_fail", {"min_push_atr"}),
         ("ny_cash_open_vwap_fade", {"k"}),
+        ("head_and_shoulders_neckline_break", {"lookback", "atr_tol"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -13160,6 +13389,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("swing_break_fail_reversion", {"swing_lookback", "min_break_atr"}),
         ("three_push_exhaustion_fail", {"min_push_atr"}),
         ("ny_cash_open_vwap_fade", {"k"}),
+        ("head_and_shoulders_neckline_break", {"lookback", "atr_tol"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

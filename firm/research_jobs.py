@@ -195,6 +195,7 @@ CLOCK_BY_FAMILY = {
     "swing_break_fail_reversion": "4h/4h",
     "three_push_exhaustion_fail": "4h/4h",
     "ny_cash_open_vwap_fade": "4h/4h",
+    "head_and_shoulders_neckline_break": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -269,6 +270,14 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         or "ny cash open vwap" in blob
     ):
         return "ny_cash_open_vwap_fade"
+    # Must beat a generic neckline / double-top map. Family id is
+    # head_and_shoulders_neckline_break only — three pivots, not two.
+    if (
+        "head_and_shoulders_neckline_break" in blob
+        or "head and shoulders" in blob
+        or "head & shoulders" in blob
+    ):
+        return "head_and_shoulders_neckline_break"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:
