@@ -1415,6 +1415,18 @@ def _novel_kit(name: str, side: SignalSide):
             # {40, 60} only — not 24 — and atr_tol {0.10, 0.15}.
             {"lookback": [40, 60], "atr_tol": [0.10, 0.15]},
         ),
+        "prior_week_extreme_reject": (
+            "core.strategy.prior_week_extreme_reject",
+            "PriorWeekExtremeRejectParams",
+            "PriorWeekExtremeRejectStrategy",
+            # require_close_inside locked True. ATR period locked
+            # at 20, known before the signal bar (atr.shift(1)).
+            # Raw prior ISO-week H/L (UTC Mon–Sun) only. Search
+            # touch slack only — endpoints [0.0, 0.10]. BOTH
+            # with SHORT priority. Fill t+1. Option B: do not
+            # start the walk from the coding PR.
+            {"touch_tol_atr": [0.0, 0.10]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

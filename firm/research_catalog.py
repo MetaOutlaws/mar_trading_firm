@@ -1737,6 +1737,42 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "prior_week_extreme_reject@4h/4h",
+        "family": "prior_week_extreme_reject",
+        "name": "prior_week_extreme_reject 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 55,
+        "coded": True,
+        "free_params": 1,
+        "disposition": "new_family",
+        "justification": (
+            "Garwe stamp for coding only. Option B exploratory: "
+            "SCORE/RETIRE. Do not set approved=true. Live stays "
+            "off. Walk-forward is not started from this coding "
+            "PR. Fade a 4h tag of the prior ISO week's high or "
+            "low (UTC Mon–Sun) that closes back inside that "
+            "week's range. Quant-locked: require_close_inside="
+            "True, ATR period=20 known before the signal bar "
+            "(atr.shift(1)), raw prior ISO-week H/L only, one "
+            "entry per ISO week per side, fill t+1 open. "
+            "SHORT=high tags prior_week_high within "
+            "touch_tol*ATR20 AND close < prior_week_high AND "
+            "close inside [prior_week_low, prior_week_high]. "
+            "LONG=inverse on prior_week_low. BOTH sides honest, "
+            "SHORT priority on two-sided bars. Free search "
+            "(1 only): touch_tol_atr [0.0, 0.10]. Not "
+            "prior_day_extreme_reject (118 — prior UTC day "
+            "H/L). Not week_open_reclaim (106 — Monday 00:00 "
+            "open). Not classic_floor_pivot_reject (129 — "
+            "P/R1/S1). Not prior_week_high_break. Not "
+            "head_and_shoulders_neckline_break. Not "
+            "monday_range_sweep_reversal."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

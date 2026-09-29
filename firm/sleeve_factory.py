@@ -3118,6 +3118,50 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "SCORE/RETIRE only. No approved=true. Live stays off."
         ),
     ),
+    SleeveSpec(
+        name="prior_week_extreme_reject",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Prior ISO-week extreme reject as one 4h BOTH family "
+            "(SHORT priority). Garwe stamp. Level is the raw high "
+            "and low of the last completed ISO week (Monday 00:00 "
+            "through Sunday, UTC), published after Sunday closes. "
+            "SHORT: high tags prior_week_high within "
+            "touch_tol_atr*ATR20 AND close < prior_week_high AND "
+            "close inside [prior_week_low, prior_week_high]. LONG "
+            "is the inverse on prior_week_low. Two-sided tag "
+            "prints SHORT, not LONG. One entry per ISO week per "
+            "side. ATR period locked 20, known before the signal "
+            "bar (atr.shift(1)). require_close_inside locked True. "
+            "Fill t+1 open. Free search (1 only): touch_tol_atr "
+            "[0.0, 0.10]. Not prior_day_extreme_reject (118 — "
+            "prior UTC day H/L). Not week_open_reclaim (106 — "
+            "Monday 00:00 open). Not classic_floor_pivot_reject "
+            "(129 — P/R1/S1). Not prior_week_high_break "
+            "(close-through). Not head_and_shoulders_neckline_break. "
+            "Not monday_range_sweep_reversal (Sat–Sun box). Do "
+            "not recode 118/106/129 or H&S. Do not modify sibling geometry."
+        ),
+        summary=(
+            "Fade a 4h tag of the prior ISO week's high or low "
+            "that closes back inside that week's range "
+            "(SHORT = tag the high and close back below it; "
+            "LONG = tag the low and close back above it) "
+            "as one 4h BOTH family with SHORT priority."
+        ),
+        justification=(
+            "A locked ATR20 tag of the raw prior ISO-week high or "
+            "low that closes back inside that week, with searched "
+            "touch_tol_atr [0.0, 0.10] only, is not a prior UTC "
+            "day H/L fade, not a Monday-open reclaim, not a "
+            "floor-pivot R1/S1 reject, and not a head-and-shoulders "
+            "neckline break. Option B SCORE/RETIRE only. "
+            "No approved=true. Live stays off."
+        ),
+    ),
 ]
 
 
