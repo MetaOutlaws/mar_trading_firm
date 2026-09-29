@@ -1333,6 +1333,196 @@ def lookback_swing_structure(
     return frame
 
 
+def head_and_shoulders_structure(
+    high: pd.Series,
+    low: pd.Series,
+    *,
+    lookback: int,
+    left: int = 3,
+) -> pd.DataFrame:
+    """Causal head-and-shoulders and inverse head-and-shoulders geometry.
+
+    Three-touch structure. This is not the two-swing neckline in
+    ``lookback_swing_structure`` (one intervening extreme, horizontal
+    min/max). At bar ``t`` only pivots published in ``[t-lookback+1, t]``
+    are visible. Publication uses the same symmetric window as
+    ``published_swing_pivots`` (``left`` bars on each side, so
+    ``PIVOT_RIGHT == left``). The pivot bar is
+    ``publication_index - left - 1``.
+
+    SHORT geometry (top): the last three published swing highs in the
+    window, ordered left shoulder → head → right shoulder. The head
+    price is strictly above both shoulders. The neckline is the line
+    through the reaction lows: the lowest swing low strictly between
+    the left shoulder and the head, and the lowest swing low strictly
+    between the head and the right shoulder. Ties take the later pivot.
+    ``short_neckline`` is that line evaluated at bar ``t``.
+
+    LONG geometry is the inverse on the last three swing lows, with the
+    neckline through the highest intervening swing highs.
+
+    Shoulder-width versus ATR is not applied here. The strategy owns
+    that tolerance so it stays a free parameter.
+    """
+    if lookback < 3:
+        raise ValueError(f"lookback must be >= 3, got {lookback}")
+    if left <= 0:
+        raise ValueError(f"left must be positive, got {left}")
+    pub_high, pub_low = published_swing_pivots(high, low, left=left)
+    n = len(high)
+    # (publication_index, pivot_index, price). Publication order is pivot order.
+    high_events: list[tuple[int, int, float]] = []
+    low_events: list[tuple[int, int, float]] = []
+    hi_start = 0
+    lo_start = 0
+    pub_h = pub_high.to_numpy(dtype="float64", copy=False)
+    pub_l = pub_low.to_numpy(dtype="float64", copy=False)
+    pivot_lag = int(left) + 1
+
+    short_ls = np.full(n, np.nan)
+    short_head = np.full(n, np.nan)
+    short_rs = np.full(n, np.nan)
+    short_ls_bar = np.full(n, np.nan)
+    short_head_bar = np.full(n, np.nan)
+    short_rs_bar = np.full(n, np.nan)
+    short_trough_left = np.full(n, np.nan)
+    short_trough_right = np.full(n, np.nan)
+    short_trough_left_bar = np.full(n, np.nan)
+    short_trough_right_bar = np.full(n, np.nan)
+    short_neck = np.full(n, np.nan)
+    long_ls = np.full(n, np.nan)
+    long_head = np.full(n, np.nan)
+    long_rs = np.full(n, np.nan)
+    long_ls_bar = np.full(n, np.nan)
+    long_head_bar = np.full(n, np.nan)
+    long_rs_bar = np.full(n, np.nan)
+    long_peak_left = np.full(n, np.nan)
+    long_peak_right = np.full(n, np.nan)
+    long_peak_left_bar = np.full(n, np.nan)
+    long_peak_right_bar = np.full(n, np.nan)
+    long_neck = np.full(n, np.nan)
+
+    def _reaction(
+        cands: list[tuple[int, int, float]],
+        *,
+        take_min: bool,
+    ) -> tuple[int, int, float]:
+        """Deepest reaction pivot. Equal prices keep the later bar."""
+        best = cands[0]
+        for cand in cands[1:]:
+            better = cand[2] < best[2] if take_min else cand[2] > best[2]
+            if better or (cand[2] == best[2] and cand[1] > best[1]):
+                best = cand
+        return best
+
+    def _line_at(
+        t: int,
+        left_pt: tuple[int, int, float],
+        right_pt: tuple[int, int, float],
+    ) -> float:
+        span = right_pt[1] - left_pt[1]
+        if span == 0:
+            return np.nan
+        return left_pt[2] + (right_pt[2] - left_pt[2]) * ((t - left_pt[1]) / span)
+
+    for t in range(n):
+        if not np.isnan(pub_h[t]):
+            pivot_idx = t - pivot_lag
+            if pivot_idx >= 0:
+                high_events.append((t, pivot_idx, float(pub_h[t])))
+        if not np.isnan(pub_l[t]):
+            pivot_idx = t - pivot_lag
+            if pivot_idx >= 0:
+                low_events.append((t, pivot_idx, float(pub_l[t])))
+        window_start = t - lookback + 1
+        while hi_start < len(high_events) and high_events[hi_start][0] < window_start:
+            hi_start += 1
+        while lo_start < len(low_events) and low_events[lo_start][0] < window_start:
+            lo_start += 1
+        hs = high_events[hi_start:]
+        ls = low_events[lo_start:]
+        if len(hs) >= 3:
+            left_s, head, right_s = hs[-3], hs[-2], hs[-1]
+            # Chronological shoulders around a higher head. Last three highs
+            # only — an older triple is not the active structure.
+            if (
+                left_s[1] < head[1] < right_s[1]
+                and head[2] > left_s[2]
+                and head[2] > right_s[2]
+            ):
+                left_troughs = [lv for lv in ls if left_s[1] < lv[1] < head[1]]
+                right_troughs = [lv for lv in ls if head[1] < lv[1] < right_s[1]]
+                if left_troughs and right_troughs:
+                    t1 = _reaction(left_troughs, take_min=True)
+                    t2 = _reaction(right_troughs, take_min=True)
+                    neck = _line_at(t, t1, t2)
+                    if not np.isnan(neck):
+                        short_ls[t] = left_s[2]
+                        short_head[t] = head[2]
+                        short_rs[t] = right_s[2]
+                        short_ls_bar[t] = left_s[1]
+                        short_head_bar[t] = head[1]
+                        short_rs_bar[t] = right_s[1]
+                        short_trough_left[t] = t1[2]
+                        short_trough_right[t] = t2[2]
+                        short_trough_left_bar[t] = t1[1]
+                        short_trough_right_bar[t] = t2[1]
+                        short_neck[t] = neck
+        if len(ls) >= 3:
+            left_s, head, right_s = ls[-3], ls[-2], ls[-1]
+            if (
+                left_s[1] < head[1] < right_s[1]
+                and head[2] < left_s[2]
+                and head[2] < right_s[2]
+            ):
+                left_peaks = [hv for hv in hs if left_s[1] < hv[1] < head[1]]
+                right_peaks = [hv for hv in hs if head[1] < hv[1] < right_s[1]]
+                if left_peaks and right_peaks:
+                    p1 = _reaction(left_peaks, take_min=False)
+                    p2 = _reaction(right_peaks, take_min=False)
+                    neck = _line_at(t, p1, p2)
+                    if not np.isnan(neck):
+                        long_ls[t] = left_s[2]
+                        long_head[t] = head[2]
+                        long_rs[t] = right_s[2]
+                        long_ls_bar[t] = left_s[1]
+                        long_head_bar[t] = head[1]
+                        long_rs_bar[t] = right_s[1]
+                        long_peak_left[t] = p1[2]
+                        long_peak_right[t] = p2[2]
+                        long_peak_left_bar[t] = p1[1]
+                        long_peak_right_bar[t] = p2[1]
+                        long_neck[t] = neck
+
+    return pd.DataFrame(
+        {
+            "short_ls": short_ls,
+            "short_head": short_head,
+            "short_rs": short_rs,
+            "short_ls_bar": short_ls_bar,
+            "short_head_bar": short_head_bar,
+            "short_rs_bar": short_rs_bar,
+            "short_trough_left": short_trough_left,
+            "short_trough_right": short_trough_right,
+            "short_trough_left_bar": short_trough_left_bar,
+            "short_trough_right_bar": short_trough_right_bar,
+            "short_neckline": short_neck,
+            "long_ls": long_ls,
+            "long_head": long_head,
+            "long_rs": long_rs,
+            "long_ls_bar": long_ls_bar,
+            "long_head_bar": long_head_bar,
+            "long_rs_bar": long_rs_bar,
+            "long_peak_left": long_peak_left,
+            "long_peak_right": long_peak_right,
+            "long_peak_left_bar": long_peak_left_bar,
+            "long_peak_right_bar": long_peak_right_bar,
+            "long_neckline": long_neck,
+        },
+        index=high.index,
+    )
+
+
 def converging_wedge_rails(
     high: pd.Series,
     low: pd.Series,

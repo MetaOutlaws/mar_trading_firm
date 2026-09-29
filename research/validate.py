@@ -1406,6 +1406,15 @@ def _novel_kit(name: str, side: SignalSide):
             # BOTH with SHORT priority. Fill t+1.
             {"k": [1.0, 1.5]},
         ),
+        "head_and_shoulders_neckline_break": (
+            "core.strategy.head_and_shoulders_neckline_break",
+            "HeadAndShouldersNecklineBreakParams",
+            "HeadAndShouldersNecklineBreakStrategy",
+            # Garwe stamp. ATR(20) and symmetric pivot 3/3 locked.
+            # Close-through neckline. Fill t+1. Search lookback
+            # {40, 60} only — not 24 — and atr_tol {0.10, 0.15}.
+            {"lookback": [40, 60], "atr_tol": [0.10, 0.15]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

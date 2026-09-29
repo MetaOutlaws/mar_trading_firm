@@ -3078,6 +3078,46 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "No approved=true. Live stays off."
         ),
     ),
+    SleeveSpec(
+        name="head_and_shoulders_neckline_break",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        needs_new_indicator=True,
+        novel_reason=(
+            "Head-and-shoulders neckline break as one 4h BOTH "
+            "family (SHORT priority). Garwe stamp. SHORT: three "
+            "swing highs LS→Head→RS, head strictly above both "
+            "shoulders, |LS-RS| <= atr_tol*ATR(20), neckline is "
+            "the line through the two intervening swing lows, "
+            "entry when close_t < neckline_t. LONG is the inverse "
+            "(three swing lows, neckline through the intervening "
+            "highs, close_t > neckline_t). Two-sided break prints "
+            "SHORT, not LONG. ATR period locked 20. Pivot "
+            "confirmation locked symmetric PIVOT_LEFT=PIVOT_RIGHT=3. "
+            "Close-through is strict. One entry per pivot set. "
+            "Fill t+1 open. Free search (2 only): lookback "
+            "[40, 60] (NOT 24) and atr_tol [0.10, 0.15]. Not "
+            "double_top_neckline_break (two highs, one trough). "
+            "Not double_bottom_neckline_break. Not "
+            "equal_high_low_restest_fade. Not "
+            "ascending_triangle_break. Not measured_move_break."
+        ),
+        summary=(
+            "Break the neckline of a 4h head-and-shoulders "
+            "(three peaks, head above both shoulders) or the "
+            "inverse on the long side, as one 4h BOTH family "
+            "with SHORT priority."
+        ),
+        justification=(
+            "A three-pivot head with a sloped neckline through "
+            "the two reaction extremes is not a two-touch double "
+            "top or double bottom, not an equal-high restest "
+            "fade, and not an ascending-triangle cap. Option B "
+            "SCORE/RETIRE only. No approved=true. Live stays off."
+        ),
+    ),
 ]
 
 

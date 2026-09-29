@@ -1703,6 +1703,40 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "head_and_shoulders_neckline_break@4h/4h",
+        "family": "head_and_shoulders_neckline_break",
+        "name": "head_and_shoulders_neckline_break 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 54,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Garwe stamp for coding only. Option B exploratory: "
+            "SCORE/RETIRE. Do not set approved=true. Live stays "
+            "off. Walk-forward is not started from this coding "
+            "PR. Break the neckline of a 4h head-and-shoulders. "
+            "SHORT: three swing highs LS→Head→RS, head strictly "
+            "above both shoulders, |LS−RS| <= atr_tol*ATR20, "
+            "neckline is the line through the two intervening "
+            "swing lows, entry close_t < neckline_t. LONG is the "
+            "inverse (three swing lows, neckline through the "
+            "intervening highs, close_t > neckline_t). BOTH sides "
+            "honest, SHORT priority on two-sided bars. Quant-locked: "
+            "ATR period=20, PIVOT_LEFT=PIVOT_RIGHT=3, close-through "
+            "is strict, one entry per pivot set, fill t+1 open. "
+            "Free search (2 only): lookback [40, 60] (not 24) and "
+            "atr_tol [0.10, 0.15]. Not double_top_neckline_break "
+            "(two highs). Not double_bottom_neckline_break (two "
+            "lows). Not equal_high_low_restest_fade. Not "
+            "ascending_triangle_break. Not measured_move_break "
+            "(0/12). Not range_compression_volume_thrust."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
