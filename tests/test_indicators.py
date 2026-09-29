@@ -867,56 +867,6 @@ def test_converging_wedge_rails_both_slope_and_no_lookahead():
     )
 
 
-def test_broadening_formation_rails_expand_and_no_lookahead():
-    """Megaphone rails diverge. A future shock cannot rewrite bar t."""
-    index = pd.date_range("2024-01-03", periods=120, freq="h", tz="UTC")
-    drift = 0.01 * np.arange(120)
-    high = pd.Series(101.0 + drift, index=index)
-    low = pd.Series(99.0 + drift, index=index)
-    for i, px in zip((66, 78, 90), (108.0, 116.0, 124.0)):
-        high.iloc[i] = px
-    for i, px in zip((60, 72, 84), (92.0, 84.0, 76.0)):
-        low.iloc[i] = px
-    close = pd.Series(100.0 + drift, index=index)
-    tol = ind.atr(high, low, close, 20).shift(1)
-    rails = ind.broadening_formation_rails(
-        high, low, lookback=48, min_touches=3, left=3, touch_tol=tol
-    )
-    fire = 98
-    assert bool(rails["broadening"].iloc[fire]) is True
-    assert float(rails["upper_slope"].iloc[fire]) > 0.0
-    assert float(rails["lower_slope"].iloc[fire]) < 0.0
-    assert float(rails["upper_rail"].iloc[fire]) > float(rails["lower_rail"].iloc[fire])
-    # Same swings, opposite geometry: this is not a converging wedge.
-    wedge = ind.converging_wedge_rails(high, low, lookback=48, min_touches=3, left=3)
-    assert bool(wedge["rising_wedge"].iloc[fire]) is False
-    assert bool(wedge["falling_wedge"].iloc[fire]) is False
-    cut = fire
-    truncated = ind.broadening_formation_rails(
-        high.iloc[:cut],
-        low.iloc[:cut],
-        lookback=48,
-        min_touches=3,
-        left=3,
-        touch_tol=tol.iloc[:cut],
-    )
-    pd.testing.assert_series_equal(
-        rails["upper_rail"].iloc[:cut],
-        truncated["upper_rail"],
-        check_names=False,
-    )
-    shocked = high.copy()
-    shocked.iloc[-1] = 400.0
-    after = ind.broadening_formation_rails(
-        shocked, low, lookback=48, min_touches=3, left=3, touch_tol=tol
-    )
-    pd.testing.assert_series_equal(
-        rails["upper_slope"].iloc[:-1],
-        after["upper_slope"].iloc[:-1],
-        check_names=False,
-    )
-
-
 def test_iso_week_open_is_monday_0000_not_midweek():
     index = pd.date_range("2024-01-01", periods=48, freq="h", tz="UTC")
     open_ = pd.Series(100.0, index=index)

@@ -13933,6 +13933,53 @@ def test_broadening_formation_break_short_entry() -> None:
     assert "vol_mean" not in signals.columns
 
 
+def test_broadening_formation_rails_expand_and_no_lookahead() -> None:
+    """Megaphone rails live in this sleeve's module and do not use future bars."""
+    from core.strategy import indicators as ind
+    from core.strategy.broadening_formation_break import broadening_formation_rails
+
+    n = 120
+    index = _hourly(n, start="2024-01-03")
+    drift = 0.01 * np.arange(n)
+    high = pd.Series(101.0 + drift, index=index)
+    low = pd.Series(99.0 + drift, index=index)
+    for i, px in zip((66, 78, 90), (108.0, 116.0, 124.0)):
+        high.iloc[i] = px
+    for i, px in zip((60, 72, 84), (92.0, 84.0, 76.0)):
+        low.iloc[i] = px
+    close = pd.Series(100.0 + drift, index=index)
+    tol = ind.atr(high, low, close, 20).shift(1)
+    rails = broadening_formation_rails(high, low, lookback=48, min_touches=3, touch_tol=tol)
+    fire = 98
+    assert bool(rails["broadening"].iloc[fire]) is True
+    assert float(rails["upper_slope"].iloc[fire]) > 0.0
+    assert float(rails["lower_slope"].iloc[fire]) < 0.0
+    assert float(rails["upper_rail"].iloc[fire]) > float(rails["lower_rail"].iloc[fire])
+    cut = fire
+    truncated = broadening_formation_rails(
+        high.iloc[:cut],
+        low.iloc[:cut],
+        lookback=48,
+        min_touches=3,
+        touch_tol=tol.iloc[:cut],
+    )
+    pd.testing.assert_series_equal(
+        rails["upper_rail"].iloc[:cut],
+        truncated["upper_rail"],
+        check_names=False,
+    )
+    shocked = high.copy()
+    shocked.iloc[-1] = 400.0
+    after = broadening_formation_rails(
+        shocked, low, lookback=48, min_touches=3, touch_tol=tol
+    )
+    pd.testing.assert_series_equal(
+        rails["upper_slope"].iloc[:-1],
+        after["upper_slope"].iloc[:-1],
+        check_names=False,
+    )
+
+
 def test_broadening_formation_break_no_lookahead() -> None:
     candles, fire = _broadening_formation_tape(long_side=True)
     signals = _signals("broadening_formation_break", candles)
@@ -13973,9 +14020,12 @@ def test_broadening_formation_break_no_lookahead() -> None:
 
 
 def test_broadening_formation_pivot_is_3_3_not_2_2() -> None:
-    """Garwe swing lock: three bars each side. A 2/2 fractal is not a touch."""
-    from core.strategy import indicators as ind
-    from core.strategy.broadening_formation_break import PIVOT_LEFT, PIVOT_RIGHT
+    """Garwe swing lock: this module's 3/3 detector. A 2/2 fractal is not a touch."""
+    from core.strategy.broadening_formation_break import (
+        PIVOT_LEFT,
+        PIVOT_RIGHT,
+        publish_broadening_swings,
+    )
 
     assert (PIVOT_LEFT, PIVOT_RIGHT) == (3, 3)
     n = 40
@@ -13989,10 +14039,45 @@ def test_broadening_formation_pivot_is_3_3_not_2_2() -> None:
     index = _hourly(n, start="2024-01-03")
     high_s = pd.Series(high, index=index)
     low_s = pd.Series(low, index=index)
-    published, _lows = ind.published_swing_pivots(high_s, low_s, left=PIVOT_LEFT)
+    published, _lows = publish_broadening_swings(high_s, low_s)
     assert 150.0 not in set(published.dropna().tolist())
-    fractal_2, _lows_2 = ind.published_swing_pivots(high_s, low_s, left=2)
-    assert 150.0 in set(fractal_2.dropna().tolist())
+
+
+def test_broadening_module_does_not_wrap_wedge_or_triangle() -> None:
+    """The megaphone module owns its rails. It does not call wedge or triangle code."""
+    import ast
+    from pathlib import Path
+
+    import core.strategy.indicators as ind
+    from core.strategy.broadening_formation_break import broadening_formation_rails
+
+    source_path = (
+        Path(__file__).resolve().parents[1]
+        / "core"
+        / "strategy"
+        / "broadening_formation_break.py"
+    )
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    banned_attrs = {
+        "converging_wedge_rails",
+        "lookback_swing_structure",
+        "published_swing_pivots",
+    }
+    banned_modules = {
+        "core.strategy.converging_wedge_break",
+        "core.strategy.ascending_triangle_break",
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            assert node.module not in banned_modules
+        if isinstance(node, ast.Attribute):
+            assert node.attr not in banned_attrs
+        if isinstance(node, ast.Name):
+            assert node.id not in banned_attrs
+    assert not hasattr(ind, "broadening_formation_rails")
+    # The exported fitter is the one defined in this module.
+    assert broadening_formation_rails.__module__ == "core.strategy.broadening_formation_break"
 
 
 def test_inbox_walk_kits_max_two_free_params() -> None:

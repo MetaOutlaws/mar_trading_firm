@@ -4,7 +4,7 @@
   "clock": "4h/4h",
   "side": "BOTH",
   "needs_feed": false,
-  "needs_new_indicator": true,
+  "needs_new_indicator": false,
   "novel_reason": "Garwe stamp. Expanding megaphone break (higher highs + lower lows). Upper slope > 0 and lower slope < 0. LONG on close_t above the upper rail; SHORT on close_t below the lower rail. ATR(20) is the touch tolerance only (locked, not searched). Swing detection is pivot 3/3 (three bars each side), not a 2/2 fractal. Free: lookback {32, 48}, min_touches {3, 4}. Fill t+1. No volume gate, no session gate, no volume profile. Not converging_wedge_break (Job 125 — converging). Not ascending_triangle_break. Not failed_range_break_reversion. Not double_top_neckline_break. Not round_number_fade / consecutive_bar_exhaustion / mass_index_reversal. Not head-and-shoulders. Option B SCORE/RETIRE only. No approved=true. Live stays off.",
   "summary": "Break a 4h expanding megaphone: LONG above the rising upper rail, SHORT below the falling lower rail.",
   "justification": "A close through an OLS rail of a higher-high / lower-low expanding formation, with ATR20 used only as locked touch slack, is not a converging wedge, not a flat-cap triangle, not a failed-range fade, and not a double-top neckline. Option B SCORE/RETIRE only. No approved=true. Live stays off.",

@@ -3214,7 +3214,7 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
         clock="4h/4h",
         side="BOTH",
         needs_feed=False,
-        needs_new_indicator=True,
+        needs_new_indicator=False,
         novel_reason=(
             "Expanding megaphone (broadening formation) as one 4h "
             "BOTH family. Higher highs on a rising upper rail and "
