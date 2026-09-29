@@ -142,6 +142,15 @@ def test_infer_family_from_title_and_payload() -> None:
     assert infer_family({"family": "prior_week_high_break"}, "prior week extreme") == (
         "prior_week_high_break"
     )
+    assert infer_family({}, "Next: morning_evening_star_reversal") == (
+        "morning_evening_star_reversal"
+    )
+    assert infer_family(
+        {"family": "morning_evening_star_reversal"}, "ATR channel breakout"
+    ) == "morning_evening_star_reversal"
+    assert infer_family({}, "Code morning evening star 4h") == (
+        "morning_evening_star_reversal"
+    )
     # Must not collapse onto bollinger via the generic "mean_rev" token.
     assert infer_family({}, "Code hvn mean revert 4h") == "hvn_mean_revert"
     assert infer_family({"name": "ema_adx_trend"}, "") == "ema_adx_trend"
@@ -494,6 +503,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "ny_cash_open_vwap_fade" in coded
     assert "head_and_shoulders_neckline_break" in coded
     assert "prior_week_extreme_reject" in coded
+    assert "morning_evening_star_reversal" in coded
     assert "hvn_node_fade" not in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
@@ -559,6 +569,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "ny_cash_open_vwap_fade" not in novel_ready
     assert "head_and_shoulders_neckline_break" not in novel_ready
     assert "prior_week_extreme_reject" not in novel_ready
+    assert "morning_evening_star_reversal" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -1046,6 +1057,8 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "three_push_exhaustion_fail" not in families
     assert "ny_cash_open_vwap_fade" not in families
     assert "head_and_shoulders_neckline_break" not in families
+    assert "prior_week_extreme_reject" not in families
+    assert "morning_evening_star_reversal" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

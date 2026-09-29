@@ -197,6 +197,7 @@ CLOCK_BY_FAMILY = {
     "ny_cash_open_vwap_fade": "4h/4h",
     "head_and_shoulders_neckline_break": "4h/4h",
     "prior_week_extreme_reject": "4h/4h",
+    "morning_evening_star_reversal": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -287,6 +288,14 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         or "prior week extreme" in blob
     ):
         return "prior_week_extreme_reject"
+    # Must beat doji_star_reversal / three_black_crows /
+    # three_white_soldiers. Family id is
+    # morning_evening_star_reversal only.
+    if (
+        "morning_evening_star_reversal" in blob
+        or "morning evening star" in blob
+    ):
+        return "morning_evening_star_reversal"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

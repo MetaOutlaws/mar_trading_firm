@@ -151,6 +151,7 @@ APPROVED = [
     "ny_cash_open_vwap_fade",
     "head_and_shoulders_neckline_break",
     "prior_week_extreme_reject",
+    "morning_evening_star_reversal",
 ]
 
 
@@ -13291,6 +13292,301 @@ def test_ny_cash_open_vwap_fade_no_lookahead() -> None:
     )
 
 
+def _morning_evening_star_tape(
+    *,
+    evening: bool = False,
+    body: float = 1.6,
+    star_body: float = 0.45,
+    star_range: float = 1.8,
+    outside: str = "mostly",
+    confirm: bool = True,
+    third_reversal: bool = True,
+    first_trend: bool = True,
+) -> tuple[pd.DataFrame, int]:
+    """Calm ATR~2 tape with one three-bar star ending at ``fire``.
+
+    ``outside`` is how much of the star range sits on the gap side of
+    the t-2 real body: ``mostly`` (the whole range), ``half`` (exactly
+    half — not enough), or ``partial`` (40%). ``first_trend`` False
+    flips the t-2 color so the star is not a morning/evening setup.
+    ``third_reversal`` False paints bar t the same color as t-2.
+    """
+    n = 48
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 101.0)
+    low = np.full(n, 99.0)
+    fire = 40
+    t2 = fire - 2
+    star = fire - 1
+    mid = 100.0
+    # Bearish t-2 for a morning star; bullish t-2 for an evening star.
+    trend_down = not evening
+    if not first_trend:
+        trend_down = not trend_down
+    if trend_down:
+        open_[t2] = mid + body / 2.0
+        close[t2] = mid - body / 2.0
+    else:
+        open_[t2] = mid - body / 2.0
+        close[t2] = mid + body / 2.0
+    high[t2] = max(open_[t2], close[t2]) + 0.05
+    low[t2] = min(open_[t2], close[t2]) - 0.05
+    body_low = min(open_[t2], close[t2])
+    body_high = max(open_[t2], close[t2])
+
+    # Exactly half uses a 2.0 range so 1.0 > 0.5*2.0 stays false in
+    # float. 0.9/1.8 can print as 0.500000000000004 and look like "mostly".
+    gap_range = 2.0 if outside == "half" else star_range
+    if evening:
+        if outside == "mostly":
+            star_low = body_high + 0.05
+            star_high = star_low + gap_range
+        elif outside == "half":
+            star_high = body_high + 0.5 * gap_range
+            star_low = star_high - gap_range
+        else:
+            star_high = body_high + 0.40 * gap_range
+            star_low = star_high - gap_range
+    else:
+        if outside == "mostly":
+            star_high = body_low - 0.05
+            star_low = star_high - gap_range
+        elif outside == "half":
+            star_low = body_low - 0.5 * gap_range
+            star_high = star_low + gap_range
+        else:
+            star_low = body_low - 0.40 * gap_range
+            star_high = star_low + gap_range
+    star_mid = (star_high + star_low) / 2.0
+    open_[star] = star_mid + star_body / 2.0
+    close[star] = star_mid - star_body / 2.0
+    high[star] = star_high
+    low[star] = star_low
+
+    # Confirm close through the t-2 midpoint, or stop short of it.
+    if confirm:
+        close_t = mid - 0.05 if evening else mid + 0.05
+    else:
+        close_t = mid + 0.40 if evening else mid - 0.40
+    reversal_down = evening
+    if not third_reversal:
+        reversal_down = not reversal_down
+    if reversal_down:
+        open_[fire] = close_t + body
+    else:
+        open_[fire] = close_t - body
+    close[fire] = close_t
+    high[fire] = max(open_[fire], close[fire]) + 0.05
+    low[fire] = min(open_[fire], close[fire]) - 0.05
+    return _ohlcv(_hourly(n), close, high=high, low=low, open_=open_), fire
+
+
+def _assert_star_clear_of_siblings(candles: pd.DataFrame, fire: int) -> None:
+    """The star tape is not a doji, soldiers, engulf fail, or wick pin."""
+    for name, side in (
+        ("doji_star_reversal", SignalSide.LONG),
+        ("doji_star_reversal", SignalSide.SHORT),
+        ("three_black_crows", SignalSide.SHORT),
+        ("three_white_soldiers", SignalSide.LONG),
+        ("engulfing_fail_reversion", SignalSide.LONG),
+        ("engulfing_fail_reversion", SignalSide.SHORT),
+        ("candle_reject_reversal", SignalSide.LONG),
+        ("candle_reject_reversal", SignalSide.SHORT),
+    ):
+        signals = _signals(name, candles, side=side)
+        assert int(signals["signal"].iloc[fire]) == 0, name
+
+
+def test_morning_evening_star_schema_long_and_short() -> None:
+    from dataclasses import replace
+
+    from core.strategy.morning_evening_star_reversal import (
+        ATR_N_LOCKED,
+        DOJI_ONLY_REQUIRED,
+        MAX_STAR_BODY_FRAC_GRID,
+        MIN_BODY_ATR_GRID,
+        MOSTLY_OUTSIDE_FRAC_LOCKED,
+        N_BARS_LOCKED,
+        MorningEveningStarReversalParams,
+    )
+    from firm.sleeve_factory import spec_for_family
+    from research.validate import strategy_kit
+
+    assert ATR_N_LOCKED == 20
+    assert N_BARS_LOCKED == 3
+    assert MOSTLY_OUTSIDE_FRAC_LOCKED == 0.5
+    assert DOJI_ONLY_REQUIRED is False
+    assert MIN_BODY_ATR_GRID == [0.6, 1.0]
+    assert MAX_STAR_BODY_FRAC_GRID == [0.30, 0.40]
+    assert MorningEveningStarReversalParams().atr_n == 20
+    assert MorningEveningStarReversalParams().min_body_atr == pytest.approx(0.6)
+    assert MorningEveningStarReversalParams().max_star_body_frac == pytest.approx(0.40)
+
+    long_factory, long_base, space = strategy_kit(
+        "morning_evening_star_reversal", SignalSide.LONG
+    )
+    short_factory, short_base, short_space = strategy_kit(
+        "morning_evening_star_reversal", SignalSide.SHORT
+    )
+    assert long_base.side is SignalSide.LONG
+    assert short_base.side is SignalSide.SHORT
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"min_body_atr", "max_star_body_frac"}
+    assert space["min_body_atr"] == [0.6, 1.0]
+    assert space["max_star_body_frac"] == [0.30, 0.40]
+    assert short_space["min_body_atr"] == [0.6, 1.0]
+    assert "atr_n" not in space
+    assert "doji" not in space
+    assert "max_body_frac" not in space
+    assert "session" not in space
+    spec = spec_for_family("morning_evening_star_reversal")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    assert long_factory(long_base).name == "morning_evening_star_reversal"
+
+    morning, fire = _morning_evening_star_tape()
+    long_sig = long_factory(long_base).generate_signals(morning)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "atr",
+        "atr_known",
+        "body",
+        "body_atr",
+        "body_t2",
+        "body_t2_atr",
+        "star_body_frac",
+        "star_below_frac",
+        "star_above_frac",
+        "prior_body_mid",
+        "small_star",
+        "mostly_below",
+        "mostly_above",
+        "morning_star",
+        "evening_star",
+    ):
+        assert column in long_sig.columns
+    assert int(long_sig["signal"].iloc[0]) == 0
+    assert int(long_sig["signal"].iloc[fire]) == 1
+    assert int((long_sig["signal"] == 1).sum()) >= 1
+    assert int((long_sig["signal"] == -1).sum()) == 0
+    assert long_sig["side"].iloc[fire] == SignalSide.LONG.value
+    assert bool(long_sig["morning_star"].iloc[fire])
+    assert bool(long_sig["mostly_below"].iloc[fire])
+    assert float(long_sig["star_body_frac"].iloc[fire]) == pytest.approx(0.25)
+    assert float(long_sig["star_below_frac"].iloc[fire]) > 0.5
+    assert float(long_sig["prior_body_mid"].iloc[fire]) == pytest.approx(100.0)
+    assert float(long_sig["body"].iloc[fire]) == pytest.approx(1.6)
+    # 0.25 is a spinning top, not a doji. The sleeve still takes it.
+    assert float(long_sig["star_body_frac"].iloc[fire]) > 0.10
+    # Body clears 0.6×ATR and misses 1.0×ATR on this tape.
+    assert float(long_sig["body_atr"].iloc[fire]) >= 0.6
+    assert float(long_sig["body_atr"].iloc[fire]) < 1.0
+    assert float(long_sig["body_t2_atr"].iloc[fire]) >= 0.6
+    tight_body = long_factory(replace(long_base, min_body_atr=1.0)).generate_signals(morning)
+    assert int(tight_body["signal"].iloc[fire]) == 0
+    # A caller cannot switch the sleeve to ATR(14); the column stays ATR(20).
+    from core.strategy import indicators as ind
+
+    atr20 = ind.atr(morning["high"], morning["low"], morning["close"], 20)
+    assert long_sig["atr"].iloc[fire] == pytest.approx(float(atr20.iloc[fire]))
+    ignored = long_factory(replace(long_base, atr_n=14)).generate_signals(morning)
+    assert int(ignored["signal"].iloc[fire]) == 1
+    assert ignored["atr"].iloc[fire] == pytest.approx(float(atr20.iloc[fire]))
+
+    # Star body 0.35 clears 0.40 and fails 0.30. Still not a doji.
+    wide, wide_fire = _morning_evening_star_tape(star_body=0.63, star_range=1.8)
+    wide_sig = long_factory(long_base).generate_signals(wide)
+    assert float(wide_sig["star_body_frac"].iloc[wide_fire]) == pytest.approx(0.35)
+    assert int(wide_sig["signal"].iloc[wide_fire]) == 1
+    tight_star = long_factory(replace(long_base, max_star_body_frac=0.30)).generate_signals(wide)
+    assert int(tight_star["signal"].iloc[wide_fire]) == 0
+
+    half, half_fire = _morning_evening_star_tape(outside="half")
+    assert int(long_factory(long_base).generate_signals(half)["signal"].iloc[half_fire]) == 0
+    partial, partial_fire = _morning_evening_star_tape(outside="partial")
+    assert int(
+        long_factory(long_base).generate_signals(partial)["signal"].iloc[partial_fire]
+    ) == 0
+    shy, shy_fire = _morning_evening_star_tape(confirm=False)
+    assert int(long_factory(long_base).generate_signals(shy)["signal"].iloc[shy_fire]) == 0
+    same, same_fire = _morning_evening_star_tape(third_reversal=False)
+    assert int(long_factory(long_base).generate_signals(same)["signal"].iloc[same_fire]) == 0
+    flipped, flipped_fire = _morning_evening_star_tape(first_trend=False)
+    assert int(
+        long_factory(long_base).generate_signals(flipped)["signal"].iloc[flipped_fire]
+    ) == 0
+    thin, thin_fire = _morning_evening_star_tape(body=0.8)
+    assert int(long_factory(long_base).generate_signals(thin)["signal"].iloc[thin_fire]) == 0
+
+    # SHORT instance does not take the morning star.
+    assert int(short_factory(short_base).generate_signals(morning)["signal"].iloc[fire]) == 0
+    _assert_star_clear_of_siblings(morning, fire)
+
+    evening, eve_fire = _morning_evening_star_tape(evening=True)
+    short_sig = short_factory(short_base).generate_signals(evening)
+    assert int(short_sig["signal"].iloc[eve_fire]) == -1
+    assert int((short_sig["signal"] == -1).sum()) >= 1
+    assert int((short_sig["signal"] == 1).sum()) == 0
+    assert short_sig["side"].iloc[eve_fire] == SignalSide.SHORT.value
+    assert bool(short_sig["evening_star"].iloc[eve_fire])
+    assert bool(short_sig["mostly_above"].iloc[eve_fire])
+    assert float(short_sig["star_above_frac"].iloc[eve_fire]) > 0.5
+    assert float(short_sig["body"].iloc[eve_fire]) == pytest.approx(1.6)
+    assert float(evening["close"].iloc[eve_fire]) <= float(
+        short_sig["prior_body_mid"].iloc[eve_fire]
+    )
+    tight_short = short_factory(replace(short_base, min_body_atr=1.0)).generate_signals(evening)
+    assert int(tight_short["signal"].iloc[eve_fire]) == 0
+    eve_half, eve_half_fire = _morning_evening_star_tape(evening=True, outside="half")
+    assert int(
+        short_factory(short_base).generate_signals(eve_half)["signal"].iloc[eve_half_fire]
+    ) == 0
+    eve_shy, eve_shy_fire = _morning_evening_star_tape(evening=True, confirm=False)
+    assert int(
+        short_factory(short_base).generate_signals(eve_shy)["signal"].iloc[eve_shy_fire]
+    ) == 0
+    # LONG instance does not take the evening star.
+    assert int(long_factory(long_base).generate_signals(evening)["signal"].iloc[eve_fire]) == 0
+    _assert_star_clear_of_siblings(evening, eve_fire)
+
+
+def test_morning_evening_star_no_lookahead() -> None:
+    candles, fire = _morning_evening_star_tape()
+    signals = _signals("morning_evening_star_reversal", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    cut = fire + 1
+    truncated = _signals(
+        "morning_evening_star_reversal", candles.iloc[:cut], side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    assert int(truncated["signal"].iloc[fire]) == 1
+    shocked = candles.copy()
+    shocked.iloc[-1, shocked.columns.get_loc("close")] *= 1.5
+    shocked.iloc[-1, shocked.columns.get_loc("high")] *= 1.6
+    shocked.iloc[-1, shocked.columns.get_loc("low")] *= 0.5
+    after = _signals("morning_evening_star_reversal", shocked, side=SignalSide.LONG)
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:fire],
+        after["signal"].iloc[:fire],
+        check_names=False,
+    )
+    assert int(after["signal"].iloc[fire]) == 1
+    assert after["atr_known"].iloc[fire] == pytest.approx(signals["atr_known"].iloc[fire])
+    assert after["star_body_frac"].iloc[fire] == pytest.approx(
+        signals["star_body_frac"].iloc[fire]
+    )
+
+
 def test_inbox_walk_kits_max_two_free_params() -> None:
     from research.validate import strategy_kit
 
@@ -13344,6 +13640,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("ny_cash_open_vwap_fade", {"k"}),
         ("head_and_shoulders_neckline_break", {"lookback", "atr_tol"}),
         ("prior_week_extreme_reject", {"touch_tol_atr"}),
+        ("morning_evening_star_reversal", {"min_body_atr", "max_star_body_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -13393,6 +13690,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("ny_cash_open_vwap_fade", {"k"}),
         ("head_and_shoulders_neckline_break", {"lookback", "atr_tol"}),
         ("prior_week_extreme_reject", {"touch_tol_atr"}),
+        ("morning_evening_star_reversal", {"min_body_atr", "max_star_body_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
