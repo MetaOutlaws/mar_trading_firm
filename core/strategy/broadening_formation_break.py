@@ -11,12 +11,13 @@ and swing lows in ``lookback``. Each of those swings must sit within one
 ATR(20) of its rail. That ATR is the touch tolerance only: it is not a
 break-size filter, not a free parameter, and not a volume-profile input.
 
-Free params (walk grid, not started from this coding change):
+Garwe stamp. Free params (walk grid, not started from this coding change):
 ``lookback`` in ``{32, 48}``, ``min_touches`` in ``{3, 4}``.
 
-Locked: expanding rails, break on the close, ATR period 20, touch multiple
-1.0, pivot confirmation, fill at ``t+1`` open (engine, not this file), no
-volume gate, no session gate, no volume profile.
+Locked: expanding rails (upper slope > 0, lower slope < 0), break on the
+close, ATR(20) for touch tolerance only, swing pivots 3/3 (three bars each
+side), fill at ``t+1`` open (the engine fills the next bar; this file emits
+the signal on bar ``t``), no volume gate, no session gate, no volume profile.
 
 Not ``converging_wedge_break`` (Job 125 — both rails slope the same way and
 converge; do not recode it). Not ``ascending_triangle_break`` (flat cap).
@@ -34,8 +35,11 @@ import pandas as pd
 from core.strategy import indicators as ind
 from core.strategy.base import SignalSide, Strategy, StrategyParams
 
-# Pivot confirmation matches the other chart-pattern sleeves. Not searched.
+# Garwe stamp: swing detection is a 3/3 pivot (three bars left, three bars
+# right). Not searched. ``published_swing_pivots`` takes one width because
+# the confirmation window is symmetric (``2 * left + 1``).
 PIVOT_LEFT = 3
+PIVOT_RIGHT = 3
 # Locked ATR window. Used only as the distance a swing may sit off its rail.
 ATR_PERIOD = 20
 # One ATR(20). Not searched — the break itself is a raw close through the rail.
@@ -63,6 +67,9 @@ class BroadeningFormationBreakStrategy(Strategy):
         super().__init__(params or BroadeningFormationBreakParams())
         self.params: BroadeningFormationBreakParams = self.params
         lookback = int(self.params.lookback)
+        # 3/3 is one symmetric window. A 2/2 fractal is not a touch.
+        if PIVOT_LEFT != 3 or PIVOT_RIGHT != 3 or PIVOT_LEFT != PIVOT_RIGHT:
+            raise ValueError("Garwe lock: broadening swings are pivot 3/3")
         # Lookback, pivot confirmation on both sides, and the ATR(20) seed.
         self.min_bars = lookback + 2 * PIVOT_LEFT + ATR_PERIOD + 3
 
@@ -88,7 +95,7 @@ class BroadeningFormationBreakStrategy(Strategy):
             low,
             lookback=lookback,
             min_touches=min_touches,
-            left=PIVOT_LEFT,
+            left=PIVOT_LEFT,  # Garwe 3/3; PIVOT_RIGHT is the same width
             touch_tol=touch_tol,
         )
         prev_close = close.shift(1)
@@ -171,6 +178,7 @@ __all__ = [
     "LOOKBACK_GRID",
     "MIN_TOUCHES_GRID",
     "PIVOT_LEFT",
+    "PIVOT_RIGHT",
     "TOUCH_TOL_ATR",
     "BroadeningFormationBreakParams",
     "BroadeningFormationBreakStrategy",

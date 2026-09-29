@@ -13784,6 +13784,7 @@ def test_broadening_formation_break_schema_and_long_entry() -> None:
         LOOKBACK_GRID,
         MIN_TOUCHES_GRID,
         PIVOT_LEFT,
+        PIVOT_RIGHT,
         TOUCH_TOL_ATR,
     )
 
@@ -13792,14 +13793,19 @@ def test_broadening_formation_break_schema_and_long_entry() -> None:
     assert base.min_touches == 3
     assert ATR_PERIOD == 20
     assert TOUCH_TOL_ATR == 1.0
+    # Garwe: 3 bars left and 3 bars right. Not a searched fractal width.
     assert PIVOT_LEFT == 3
+    assert PIVOT_RIGHT == 3
     assert space["lookback"] == LOOKBACK_GRID == [32, 48]
     assert space["min_touches"] == MIN_TOUCHES_GRID == [3, 4]
     extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
     assert extra == {"lookback", "min_touches"}
     assert "atr_n" not in extra
+    assert "atr_period" not in extra
     assert "atr_tol" not in extra
     assert "touch_tol_atr" not in extra
+    assert "pivot_left" not in extra
+    assert "pivot_right" not in extra
     assert "vol_lookback" not in extra
     candles, fire = _broadening_formation_tape(long_side=True)
     signals = _signals("broadening_formation_break", candles)
@@ -13825,7 +13831,9 @@ def test_broadening_formation_break_schema_and_long_entry() -> None:
     assert "vwap" not in signals.columns
     assert int(signals["signal"].iloc[0]) == 0
     assert int(signals["signal"].iloc[fire]) == 1
-    assert int((signals["signal"] == 1).sum()) >= 1
+    # Signal is the close of bar t. The next bar is the t+1 fill, not another entry.
+    assert int(signals["signal"].iloc[fire + 1]) == 0
+    assert int((signals["signal"] == 1).sum()) == 1
     assert int((signals["signal"] == -1).sum()) == 0
     assert signals["side"].iloc[fire] == SignalSide.LONG.value
     # Expanding rails: higher-high slope up, lower-low slope down, still open.
@@ -13897,7 +13905,9 @@ def test_broadening_formation_break_short_entry() -> None:
     signals = _signals("broadening_formation_break", candles, side=SignalSide.SHORT)
     assert int(signals["signal"].iloc[0]) == 0
     assert int(signals["signal"].iloc[fire]) == -1
-    assert int((signals["signal"] == -1).sum()) >= 1
+    # Signal is the close of bar t. The next bar is the t+1 fill, not another entry.
+    assert int(signals["signal"].iloc[fire + 1]) == 0
+    assert int((signals["signal"] == -1).sum()) == 1
     assert int((signals["signal"] == 1).sum()) == 0
     assert signals["side"].iloc[fire] == SignalSide.SHORT.value
     assert float(signals["upper_slope"].iloc[fire]) > 0.0
@@ -13960,6 +13970,29 @@ def test_broadening_formation_break_no_lookahead() -> None:
         after["signal"].iloc[:later],
         check_names=False,
     )
+
+
+def test_broadening_formation_pivot_is_3_3_not_2_2() -> None:
+    """Garwe swing lock: three bars each side. A 2/2 fractal is not a touch."""
+    from core.strategy import indicators as ind
+    from core.strategy.broadening_formation_break import PIVOT_LEFT, PIVOT_RIGHT
+
+    assert (PIVOT_LEFT, PIVOT_RIGHT) == (3, 3)
+    n = 40
+    drift = 0.01 * np.arange(n)
+    high = 101.0 + drift
+    low = 99.0 + drift
+    # Bar 20 is the max of a 2/2 window (bars 18-22) but bar 23, inside the
+    # 3-bar right side, is higher, so a 3/3 pivot must reject it.
+    high[20] = 150.0
+    high[23] = 160.0
+    index = _hourly(n, start="2024-01-03")
+    high_s = pd.Series(high, index=index)
+    low_s = pd.Series(low, index=index)
+    published, _lows = ind.published_swing_pivots(high_s, low_s, left=PIVOT_LEFT)
+    assert 150.0 not in set(published.dropna().tolist())
+    fractal_2, _lows_2 = ind.published_swing_pivots(high_s, low_s, left=2)
+    assert 150.0 in set(fractal_2.dropna().tolist())
 
 
 def test_inbox_walk_kits_max_two_free_params() -> None:

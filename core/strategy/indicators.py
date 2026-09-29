@@ -1670,6 +1670,9 @@ def broadening_formation_rails(
     tolerance rejects the bar. Pass ``None`` only for an exact-line check
     (residual ~ 0); the broadening sleeve always passes ATR(20).
 
+    ``left`` is the Garwe 3/3 swing window when the sleeve calls this: three
+    bars on each side (``2 * left + 1``). A 2/2 fractal is not a touch.
+
     Causal: only pivots published on bars ``<= t``. Not a converging wedge
     (both rails same sign, width shrinking), not a flat-cap triangle, and
     not a neckline.
