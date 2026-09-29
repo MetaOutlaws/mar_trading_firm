@@ -198,6 +198,7 @@ CLOCK_BY_FAMILY = {
     "head_and_shoulders_neckline_break": "4h/4h",
     "prior_week_extreme_reject": "4h/4h",
     "morning_evening_star_reversal": "4h/4h",
+    "broadening_formation_break": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -296,6 +297,13 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         or "morning evening star" in blob
     ):
         return "morning_evening_star_reversal"
+    # Must beat a generic break / wedge map. Family id is
+    # broadening_formation_break only — not converging_wedge_break.
+    if (
+        "broadening_formation_break" in blob
+        or "broadening formation" in blob
+    ):
+        return "broadening_formation_break"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

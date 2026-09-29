@@ -1809,6 +1809,42 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "broadening_formation_break@4h/4h",
+        "family": "broadening_formation_break",
+        "name": "broadening_formation_break 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 57,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Brian CODE NOW. Garwe stamp reinforce. Option B "
+            "exploratory: SCORE/RETIRE. Do not set approved=true. "
+            "Live stays off. Walk-forward is not started from this "
+            "coding PR. Break a 4h expanding megaphone (higher highs "
+            "and lower lows). Garwe-locked: upper slope > 0, lower "
+            "slope < 0, close through the rail (not a wick), ATR "
+            "period=20 known before the signal bar used only as "
+            "touch tolerance (1.0 * ATR, not searched), swing "
+            "pivots 3/3 (three bars each side, not a 2/2 fractal), "
+            "fill t+1 open, no volume gate, no session gate, no "
+            "volume profile. LONG=close_t > upper_rail_t / "
+            "SHORT=close_t < lower_rail_t on the same formation. "
+            "BOTH sides honest. Free search (2 only): lookback "
+            "[32, 48], min_touches [3, 4] (endpoints only). Not "
+            "converging_wedge_break (Job 125 — rails converge; do "
+            "not recode). Not ascending_triangle_break (flat cap). "
+            "Not failed_range_break_reversion. Not "
+            "double_top_neckline_break. Not round_number_fade / "
+            "consecutive_bar_exhaustion / mass_index_reversal. "
+            "Head-and-shoulders is a separate sleeve; this PR does "
+            "not code it."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

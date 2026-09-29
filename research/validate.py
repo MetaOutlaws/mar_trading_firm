@@ -1444,6 +1444,20 @@ def _novel_kit(name: str, side: SignalSide):
                 "max_star_body_frac": [0.30, 0.40],
             },
         ),
+        "broadening_formation_break": (
+            "core.strategy.broadening_formation_break",
+            "BroadeningFormationBreakParams",
+            "BroadeningFormationBreakStrategy",
+            # Garwe stamp. Expanding rails (upper slope > 0, lower
+            # slope < 0), break-on-close, ATR(20) touch tolerance,
+            # and pivot 3/3 are locked. Not converging_wedge_break.
+            # No volume, no session gate, no volume profile. Search
+            # lookback and min_touches only. Endpoints {32, 48} and
+            # {3, 4} — no invented interiors. Fill t+1. Option B:
+            # kit is registered so a later desk walk can run. This
+            # coding change does not start that walk.
+            {"lookback": [32, 48], "min_touches": [3, 4]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
