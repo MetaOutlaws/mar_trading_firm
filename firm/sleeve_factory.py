@@ -3162,6 +3162,52 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "No approved=true. Live stays off."
         ),
     ),
+    SleeveSpec(
+        name="morning_evening_star_reversal",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        novel_reason=(
+            "Classic morning-star LONG / evening-star SHORT as one "
+            "4h BOTH family. Option B exploratory: SCORE/RETIRE. "
+            "Do not set approved=true. Live stays off. "
+            "Walk-forward is not started from the coding change. "
+            "Morning LONG: t-2 bearish body >= min_body_atr*ATR20; "
+            "t-1 small body (frac <= max_star_body_frac) with more "
+            "than half its range strictly below the t-2 real body; "
+            "t bullish body >= min_body_atr*ATR20 closing >= the "
+            "midpoint of the t-2 body. Evening SHORT is the mirror. "
+            "Quant-locked: three-bar star, ATR period 20 known "
+            "before the bar it sizes (atr.shift(1)), no doji-only "
+            "requirement, mostly-outside is a strict majority, "
+            "fill t+1 open, no volume profile, no session gate. "
+            "Free search (2 only): min_body_atr [0.6, 1.0], "
+            "max_star_body_frac [0.30, 0.40] (endpoints only). "
+            "Hard constraint: full 3-candle morning/evening star "
+            "only. Do not collapse to doji-only (Job 158 "
+            "doji_star_reversal is separate) or to a 2-bar "
+            "engulf. Not doji_star_reversal. Not "
+            "three_black_crows / three_white_soldiers. Not "
+            "engulfing_fail_reversion. Not candle_reject_reversal "
+            "(wick pin). Do not recode those siblings. Do not "
+            "modify sibling geometry."
+        ),
+        summary=(
+            "LONG a 4h morning star and SHORT a 4h evening star "
+            "(small middle bar mostly outside the prior real body, "
+            "confirm close through that body's midpoint) as one "
+            "4h BOTH family."
+        ),
+        justification=(
+            "A locked three-bar ATR20 morning/evening star with "
+            "searched body floor and star-body ceiling, and no "
+            "doji-only requirement, is not a single-bar doji "
+            "star, not three soldiers, not an engulfing fail, "
+            "and not a hammer wick reject. Option B SCORE/RETIRE "
+            "only. No approved=true. Live stays off."
+        ),
+    ),
 ]
 
 

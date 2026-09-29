@@ -1427,6 +1427,23 @@ def _novel_kit(name: str, side: SignalSide):
             # start the walk from the coding PR.
             {"touch_tol_atr": [0.0, 0.10]},
         ),
+        "morning_evening_star_reversal": (
+            "core.strategy.morning_evening_star_reversal",
+            "MorningEveningStarReversalParams",
+            "MorningEveningStarReversalStrategy",
+            # atr_n locked at 20. Full three-bar star only — not
+            # Job 158 doji-only and not a 2-bar engulf. No doji
+            # cap. Mostly-outside fraction locked at
+            # > 0.5 of the star range on the gap side of the t-2
+            # body. ATR known before the bar it sizes. No VP, no
+            # session gate. Fill t+1. Search body floor + star
+            # body ceiling only — endpoints, no interiors.
+            # BOTH sides honest. Option B: do not approve, no walk.
+            {
+                "min_body_atr": [0.6, 1.0],
+                "max_star_body_frac": [0.30, 0.40],
+            },
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

@@ -84,6 +84,7 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "ny_cash_open_vwap_fade" not in names
     assert "head_and_shoulders_neckline_break" not in names
     assert "prior_week_extreme_reject" not in names
+    assert "morning_evening_star_reversal" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names

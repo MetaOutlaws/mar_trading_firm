@@ -1773,6 +1773,42 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "morning_evening_star_reversal@4h/4h",
+        "family": "morning_evening_star_reversal",
+        "name": "morning_evening_star_reversal 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 56,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Brian CODE NOW, parallel with H&S. Option B "
+            "exploratory: SCORE/RETIRE. Do not set approved=true. "
+            "Live stays off. Walk-forward is not started from this "
+            "coding PR. Classic 4h morning-star LONG / evening-star "
+            "SHORT. Quant-locked: three-bar structure, ATR period=20 "
+            "known before the bar it sizes (atr.shift(1)), no "
+            "doji-only requirement, star range mostly (strictly more "
+            "than half) outside the t-2 real body on the gap side, "
+            "fill t+1 open, no volume profile, no session gate. "
+            "Morning LONG: t-2 bearish body >= min_body_atr*ATR20; "
+            "t-1 body frac <= max_star_body_frac and range mostly "
+            "below the t-2 body; t bullish body >= min_body_atr*ATR20 "
+            "and close >= t-2 body midpoint. Evening SHORT is the "
+            "inverse. Free search (2 only): min_body_atr [0.6, 1.0], "
+            "max_star_body_frac [0.30, 0.40] (endpoints only). Not "
+            "doji_star_reversal, not three_black_crows, not "
+            "three_white_soldiers, not engulfing_fail_reversion, "
+            "not candle_reject_reversal. Hard constraint: full "
+            "3-candle star only — do not collapse to doji-only "
+            "(Job 158 doji_star_reversal is separate) or to a "
+            "2-bar engulf. Do not recode those siblings."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",
