@@ -136,6 +136,12 @@ def test_infer_family_from_title_and_payload() -> None:
         "prior_week_extreme_reject"
     )
     assert infer_family({}, "Code prior week extreme reject 4h") == "prior_week_extreme_reject"
+    # Do not alias the close-through family onto this reject.
+    assert infer_family({}, "Next: prior_week_high_break") != "prior_week_extreme_reject"
+    assert infer_family({}, "Code prior week high break") != "prior_week_extreme_reject"
+    assert infer_family({"family": "prior_week_high_break"}, "prior week extreme") == (
+        "prior_week_high_break"
+    )
     # Must not collapse onto bollinger via the generic "mean_rev" token.
     assert infer_family({}, "Code hvn mean revert 4h") == "hvn_mean_revert"
     assert infer_family({"name": "ema_adx_trend"}, "") == "ema_adx_trend"

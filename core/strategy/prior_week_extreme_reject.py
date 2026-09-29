@@ -25,7 +25,9 @@ approvals and does not start a walk-forward. Live stays off.
 Not ``prior_day_extreme_reject`` (118 — prior UTC day H/L).
 Not ``week_open_reclaim`` (106 — Monday 00:00 open reclaim).
 Not ``classic_floor_pivot_reject`` (129 — P/R1/S1).
-Not ``prior_week_high_break`` (close-through the prior week extreme).
+Not ``prior_week_high_break``. That family enters when close is through
+the prior week extreme. This family enters only when close comes back
+inside it. Do not alias that module, its class, or its name.
 Not ``monday_range_sweep_reversal`` (Sat–Sun box).
 Do not recode those siblings. Hold H&S alone.
 """
@@ -91,13 +93,15 @@ class PriorWeekExtremeRejectStrategy(Strategy):
         # NaN ATR cannot size the band, so those bars do not tag.
         tagged_high = prior_high.notna() & atr.notna() & (high >= prior_high - touch)
         tagged_low = prior_low.notna() & atr.notna() & (low <= prior_low + touch)
-        # Inclusive week box. The reject itself is a strict close back through
-        # the tagged extreme, so a close that sits on the extreme is not a fade.
-        # require_close_inside is locked True: this gate always runs, including
-        # when a caller passes False on the params object.
+        # Inclusive week box. require_close_inside is locked True, including
+        # when a caller passes False. A close through the extreme is
+        # prior_week_high_break (close > high, or close < low). That print
+        # is not a reject and must stay flat here.
         inside = (close >= prior_low) & (close <= prior_high)
-        short_raw = tagged_high & (close < prior_high) & inside
-        long_raw = tagged_low & (close > prior_low) & inside
+        close_back_below_high = close < prior_high
+        close_back_above_low = close > prior_low
+        short_raw = tagged_high & close_back_below_high & inside
+        long_raw = tagged_low & close_back_above_low & inside
         # SHORT priority: a bar that tags both extremes is a short, not a long.
         long_raw = long_raw & ~short_raw.fillna(False)
 

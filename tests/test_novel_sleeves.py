@@ -13742,3 +13742,80 @@ def test_prior_week_extreme_reject_no_lookahead() -> None:
         after["signal"].iloc[:later],
         check_names=False,
     )
+
+
+def test_prior_week_extreme_reject_is_not_prior_week_high_break() -> None:
+    """Close-through belongs to prior_week_high_break. This sleeve fades back inside."""
+    from core.strategy.prior_week_extreme_reject import (
+        ATR_PERIOD,
+        TOUCH_TOL_GRID,
+        PriorWeekExtremeRejectStrategy,
+    )
+    from core.strategy.prior_week_high_break import PriorWeekHighBreakStrategy
+    from core.strategy.registry import get_strategy
+
+    reject_cls = get_strategy("prior_week_extreme_reject")
+    break_cls = get_strategy("prior_week_high_break")
+    assert reject_cls is PriorWeekExtremeRejectStrategy
+    assert break_cls is PriorWeekHighBreakStrategy
+    assert reject_cls is not break_cls
+    assert reject_cls.name == "prior_week_extreme_reject"
+    assert break_cls.name == "prior_week_high_break"
+    assert not issubclass(reject_cls, break_cls)
+    assert ATR_PERIOD == 20
+    assert TOUCH_TOL_GRID == [0.0, 0.10]
+
+    # Close back inside the prior ISO week: reject fires, break stays flat.
+    fade, fire = _prior_week_extreme_tape(long_side=False)
+    reject_short = _signals("prior_week_extreme_reject", fade, side=SignalSide.SHORT)
+    reject_long = _signals("prior_week_extreme_reject", fade, side=SignalSide.LONG)
+    assert int(reject_short["signal"].iloc[fire]) == -1
+    assert int(reject_long["signal"].iloc[fire]) == 0
+    assert reject_short["prior_week_high"].iloc[fire] == pytest.approx(110.0)
+    assert reject_short["prior_week_low"].iloc[fire] == pytest.approx(90.0)
+    assert float(fade["close"].iloc[fire]) < float(reject_short["prior_week_high"].iloc[fire])
+    assert float(fade["close"].iloc[fire]) >= float(reject_short["prior_week_low"].iloc[fire])
+    break_long = _signals("prior_week_high_break", fade, side=SignalSide.LONG)
+    break_short = _signals("prior_week_high_break", fade, side=SignalSide.SHORT)
+    assert int(break_long["signal"].iloc[fire]) == 0
+    assert int(break_short["signal"].iloc[fire]) == 0
+    # Decision is bar t. The engine fills t+1; this module does not shift the signal.
+    assert int(reject_short["signal"].iloc[fire + 1]) == 0
+
+    # Close through the prior week high: break LONG, reject flat on both sides.
+    through_high, through_fire = _prior_week_extreme_tape(long_side=False, held_break=True)
+    assert float(through_high["close"].iloc[through_fire]) > 110.0
+    assert int(
+        _signals("prior_week_high_break", through_high, side=SignalSide.LONG)["signal"].iloc[
+            through_fire
+        ]
+    ) == 1
+    assert int(
+        _signals("prior_week_extreme_reject", through_high, side=SignalSide.SHORT)["signal"].iloc[
+            through_fire
+        ]
+    ) == 0
+    assert int(
+        _signals("prior_week_extreme_reject", through_high, side=SignalSide.LONG)["signal"].iloc[
+            through_fire
+        ]
+    ) == 0
+
+    # Close through the prior week low: break SHORT, reject flat on both sides.
+    through_low, low_fire = _prior_week_extreme_tape(long_side=True, held_break=True)
+    assert float(through_low["close"].iloc[low_fire]) < 90.0
+    assert int(
+        _signals("prior_week_high_break", through_low, side=SignalSide.SHORT)["signal"].iloc[
+            low_fire
+        ]
+    ) == -1
+    assert int(
+        _signals("prior_week_extreme_reject", through_low, side=SignalSide.LONG)["signal"].iloc[
+            low_fire
+        ]
+    ) == 0
+    assert int(
+        _signals("prior_week_extreme_reject", through_low, side=SignalSide.SHORT)["signal"].iloc[
+            low_fire
+        ]
+    ) == 0
