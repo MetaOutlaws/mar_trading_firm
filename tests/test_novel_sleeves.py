@@ -155,6 +155,7 @@ APPROVED = [
     "broadening_formation_break",
     "impulse_midpoint_fail_fade",
     "alt_btc_residual_stretch_fade",
+    "horizontal_liquidity_reject",
 ]
 
 
@@ -14139,6 +14140,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("broadening_formation_break", {"lookback", "min_touches"}),
         ("impulse_midpoint_fail_fade", {"min_range_atr", "extreme_frac"}),
         ("alt_btc_residual_stretch_fade", {"lookback", "k_atr"}),
+        ("horizontal_liquidity_reject", {"lookback", "min_touches"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -14192,6 +14194,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("broadening_formation_break", {"lookback", "min_touches"}),
         ("impulse_midpoint_fail_fade", {"min_range_atr", "extreme_frac"}),
         ("alt_btc_residual_stretch_fade", {"lookback", "k_atr"}),
+        ("horizontal_liquidity_reject", {"lookback", "min_touches"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -15107,3 +15110,439 @@ def test_alt_btc_residual_no_lookahead() -> None:
         check_names=False,
     )
     assert int(full["signal"].iloc[t]) == -1
+
+
+def _horizontal_liquidity_tape(
+    *,
+    long_side: bool,
+    n: int = 100,
+    fire: int = 90,
+    touches: tuple[int, ...] = (80, 81, 82),
+    descend_from: int = 83,
+    pierce: bool = True,
+    close_inside: bool = True,
+) -> tuple[pd.DataFrame, int, float]:
+    """Quiet drift plus a flat cluster, then one pierce bar.
+
+    Background steps are wider than 0.2 * ATR, so only the planted cluster
+    can satisfy the touch count. Bars after the cluster step away from it
+    so they are not extra touches. The signal bar is not part of the band.
+    """
+    if long_side:
+        low = 100.0 - 0.03 * np.arange(n, dtype="float64")
+        high = low + 0.05
+        close = low + 0.02
+    else:
+        high = 100.0 + 0.03 * np.arange(n, dtype="float64")
+        low = high - 0.05
+        close = high - 0.02
+    open_ = close.copy()
+    anchor = float(low[touches[-1]] if long_side else high[touches[-1]])
+    cluster = anchor - 0.30 if long_side else anchor + 0.30
+    for bar in touches:
+        if long_side:
+            low[bar] = cluster
+            close[bar] = cluster + 0.02
+            high[bar] = cluster + 0.05
+        else:
+            high[bar] = cluster
+            close[bar] = cluster - 0.02
+            low[bar] = cluster - 0.05
+        open_[bar] = close[bar]
+    for bar in range(descend_from, fire):
+        step = 0.20 * (bar - (descend_from - 1))
+        if long_side:
+            low[bar] = cluster + step
+            close[bar] = low[bar] + 0.02
+            high[bar] = low[bar] + 0.05
+        else:
+            high[bar] = cluster - step
+            close[bar] = high[bar] - 0.02
+            low[bar] = high[bar] - 0.05
+        open_[bar] = close[bar]
+    if long_side:
+        low[fire] = cluster - (0.25 if pierce else 0.0)
+        close[fire] = cluster + 0.005 if close_inside else cluster + 1.0
+        high[fire] = close[fire] + 0.05
+    else:
+        high[fire] = cluster + (0.25 if pierce else 0.0)
+        close[fire] = cluster - 0.005 if close_inside else cluster - 1.0
+        low[fire] = close[fire] - 0.05
+    open_[fire] = close[fire]
+    # Later bars sit off the strip so only the pierce bar can fire.
+    for bar in range(fire + 1, n):
+        if long_side:
+            low[bar] = cluster + 0.50
+            close[bar] = low[bar] + 0.02
+            high[bar] = low[bar] + 0.05
+        else:
+            high[bar] = cluster - 0.50
+            close[bar] = high[bar] - 0.02
+            low[bar] = high[bar] - 0.05
+        open_[bar] = close[bar]
+    index = pd.date_range("2024-01-08", periods=n, freq="h", tz="UTC")
+    return _ohlcv(index, close, high=high, low=low, open_=open_), fire, cluster
+
+
+def test_horizontal_liquidity_reject_schema_and_short_entry() -> None:
+    from research.validate import strategy_kit
+
+    _factory, base, space = strategy_kit("horizontal_liquidity_reject", SignalSide.SHORT)
+    assert base.side is SignalSide.SHORT
+    assert base.lookback == 24
+    assert base.min_touches == 3
+    assert base.touch_tol_atr == pytest.approx(0.2)
+    assert base.require_wick_pierce is True
+    assert base.require_close_inside_band is True
+    assert base.no_session_clock is True
+    assert space["lookback"] == [24, 48]
+    assert space["min_touches"] == [3, 4]
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "min_touches"}
+    candles, fire, cluster = _horizontal_liquidity_tape(long_side=False)
+    signals = _signals("horizontal_liquidity_reject", candles, side=SignalSide.SHORT)
+    for column in (
+        "signal",
+        "side",
+        "score",
+        "reason",
+        "res_high",
+        "res_low",
+        "sup_low",
+        "sup_high",
+        "n_high_touches",
+        "n_low_touches",
+        "atr",
+        "touch_tol",
+    ):
+        assert column in signals.columns
+    assert "equal_high" not in signals.columns
+    assert "range_high" not in signals.columns
+    assert "prior_week_high" not in signals.columns
+    assert int(signals["signal"].iloc[0]) == 0
+    assert int(signals["signal"].iloc[:fire].sum()) == 0
+    assert int(signals["signal"].iloc[fire]) == -1
+    assert int(signals["signal"].iloc[fire + 1]) == 0
+    assert int((signals["signal"] == -1).sum()) == 1
+    assert int((signals["signal"] == 1).sum()) == 0
+    assert signals["side"].iloc[fire] == "SHORT"
+    assert signals["n_high_touches"].iloc[fire] == pytest.approx(3.0)
+    assert signals["res_high"].iloc[fire] == pytest.approx(cluster)
+    assert float(candles["high"].iloc[fire]) > float(signals["res_high"].iloc[fire])
+    assert float(signals["res_low"].iloc[fire]) <= float(candles["close"].iloc[fire])
+    assert float(candles["close"].iloc[fire]) <= float(signals["res_high"].iloc[fire])
+    # Thursday 18:00 UTC. No session clock is required for the fade.
+    assert candles.index[fire] == pd.Timestamp("2024-01-11 18:00", tz="UTC")
+    siblings = (
+        "session_liquidity_sweep",
+        "prior_day_extreme_reject",
+        "prior_week_extreme_reject",
+        "bullish_rectangle_fail_reclaim",
+        "head_and_shoulders_neckline_break",
+    )
+    for sibling in siblings:
+        sibling_signal = _signals(sibling, candles, side=SignalSide.SHORT)
+        assert int(sibling_signal["signal"].iloc[fire]) == 0
+
+
+def test_horizontal_liquidity_reject_long_entry() -> None:
+    candles, fire, cluster = _horizontal_liquidity_tape(long_side=True)
+    signals = _signals("horizontal_liquidity_reject", candles, side=SignalSide.LONG)
+    assert int(signals["signal"].iloc[fire]) == 1
+    assert int(signals["signal"].iloc[fire + 1]) == 0
+    assert int((signals["signal"] == 1).sum()) == 1
+    assert int((signals["signal"] == -1).sum()) == 0
+    assert signals["side"].iloc[fire] == "LONG"
+    assert signals["n_low_touches"].iloc[fire] == pytest.approx(3.0)
+    assert signals["sup_low"].iloc[fire] == pytest.approx(cluster)
+    assert float(candles["low"].iloc[fire]) < float(signals["sup_low"].iloc[fire])
+    assert float(signals["sup_low"].iloc[fire]) <= float(candles["close"].iloc[fire])
+    assert float(candles["close"].iloc[fire]) <= float(signals["sup_high"].iloc[fire])
+    short_on_long = _signals("horizontal_liquidity_reject", candles, side=SignalSide.SHORT)
+    assert int(short_on_long["signal"].iloc[fire]) == 0
+
+
+def test_horizontal_liquidity_reject_short_priority_and_locks() -> None:
+    """Both-sided pierce is SHORT. Locked gates ignore False and a wide tol."""
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    short_factory, short_base, _space = strategy_kit(
+        "horizontal_liquidity_reject", SignalSide.SHORT
+    )
+    long_factory, long_base, _space = strategy_kit(
+        "horizontal_liquidity_reject", SignalSide.LONG
+    )
+    n = 80
+    fire = 60
+    close = np.full(n, 100.0)
+    high = np.full(n, 100.0)
+    low = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high[fire] = 101.0
+    low[fire] = 99.0
+    index = pd.date_range("2024-01-08", periods=n, freq="h", tz="UTC")
+    both = _ohlcv(index, close, high=high, low=low, open_=open_)
+    short_signals = short_factory(short_base).generate_signals(both)
+    long_signals = long_factory(long_base).generate_signals(both)
+    assert int(short_signals["signal"].iloc[fire]) == -1
+    assert int(long_signals["signal"].iloc[fire]) == 0
+    assert short_signals["n_high_touches"].iloc[fire] >= 3
+    assert short_signals["n_low_touches"].iloc[fire] >= 3
+    assert float(short_signals["atr"].iloc[fire]) == pytest.approx(0.0)
+
+    candles, fire, cluster = _horizontal_liquidity_tape(long_side=False, pierce=False)
+    flat = short_factory(short_base).generate_signals(candles)
+    forced = short_factory(replace(short_base, require_wick_pierce=False)).generate_signals(candles)
+    assert float(candles["high"].iloc[fire]) == pytest.approx(cluster)
+    assert int(flat["signal"].iloc[fire]) == 0
+    assert int(forced["signal"].iloc[fire]) == 0
+
+    outside, outside_fire, outside_cluster = _horizontal_liquidity_tape(
+        long_side=False, close_inside=False
+    )
+    held = short_factory(short_base).generate_signals(outside)
+    held_forced = short_factory(
+        replace(short_base, require_close_inside_band=False)
+    ).generate_signals(outside)
+    assert float(outside["close"].iloc[outside_fire]) < outside_cluster - 0.2
+    assert int(held["signal"].iloc[outside_fire]) == 0
+    assert int(held_forced["signal"].iloc[outside_fire]) == 0
+    # Fail-to-close-through below the anchor is the equal-high fade, not this one.
+    equal = _signals("equal_high_low_restest_fade", outside, side=SignalSide.SHORT)
+    assert int(equal["signal"].iloc[outside_fire]) == -1
+
+    # A high 0.50 under the cluster is not a third touch at the locked 0.2 ATR strip.
+    near, near_fire, near_cluster = _horizontal_liquidity_tape(
+        long_side=False, touches=(81, 82), descend_from=83
+    )
+    near.iloc[80, near.columns.get_loc("high")] = near_cluster - 0.50
+    near.iloc[80, near.columns.get_loc("close")] = near_cluster - 0.52
+    near.iloc[80, near.columns.get_loc("low")] = near_cluster - 0.55
+    locked = short_factory(short_base).generate_signals(near)
+    widened = short_factory(replace(short_base, touch_tol_atr=5.0)).generate_signals(near)
+    assert locked["n_high_touches"].iloc[near_fire] == pytest.approx(2.0)
+    assert widened["n_high_touches"].iloc[near_fire] == pytest.approx(2.0)
+    assert widened["touch_tol"].iloc[near_fire] == pytest.approx(
+        locked["touch_tol"].iloc[near_fire]
+    )
+    assert int(locked["signal"].iloc[near_fire]) == 0
+    assert int(widened["signal"].iloc[near_fire]) == 0
+
+
+def test_horizontal_liquidity_reject_dual_equal_does_not_fire() -> None:
+    """Exactly two matching highs are Job 110. They must not fire this family."""
+    from dataclasses import replace
+
+    from core.strategy.equal_high_low_restest_fade import EqualHighLowRestestFadeStrategy
+    from core.strategy.horizontal_liquidity_reject import (
+        MIN_TOUCHES_HARD_MIN,
+        HorizontalLiquidityRejectStrategy,
+        effective_min_touches,
+    )
+    from core.strategy.registry import get_strategy
+    from research.validate import strategy_kit
+
+    assert effective_min_touches(2) == 3
+    assert effective_min_touches(4) == 4
+    assert MIN_TOUCHES_HARD_MIN == 3
+    reject_cls = get_strategy("horizontal_liquidity_reject")
+    equal_cls = get_strategy("equal_high_low_restest_fade")
+    assert reject_cls is HorizontalLiquidityRejectStrategy
+    assert equal_cls is EqualHighLowRestestFadeStrategy
+    assert reject_cls is not equal_cls
+    assert not issubclass(reject_cls, equal_cls)
+
+    two, fire, _cluster = _horizontal_liquidity_tape(
+        long_side=False, touches=(81, 82), descend_from=83
+    )
+    factory, base, _space = strategy_kit("horizontal_liquidity_reject", SignalSide.SHORT)
+    signals = factory(base).generate_signals(two)
+    assert signals["n_high_touches"].iloc[fire] == pytest.approx(2.0)
+    assert int(signals["signal"].iloc[fire]) == 0
+    # Requesting two touches still uses the hard floor of three.
+    lowered = factory(replace(base, min_touches=2)).generate_signals(two)
+    assert int(lowered["signal"].iloc[fire]) == 0
+    equal = _signals("equal_high_low_restest_fade", two, side=SignalSide.SHORT)
+    assert int(equal["signal"].iloc[fire]) == -1
+    # The same two-touch restest from the Job 110 fixture stays flat here.
+    classic, poke = _equal_restest_tape(long_side=False)
+    classic_signals = factory(base).generate_signals(classic)
+    assert int(classic_signals["signal"].iloc[poke]) == 0
+    assert classic_signals["n_high_touches"].iloc[poke] < 3
+    classic_equal = _signals("equal_high_low_restest_fade", classic, side=SignalSide.SHORT)
+    assert int(classic_equal["signal"].iloc[poke]) == -1
+
+    three, three_fire, _level = _horizontal_liquidity_tape(long_side=False)
+    promoted = factory(replace(base, min_touches=2)).generate_signals(three)
+    assert int(promoted["signal"].iloc[three_fire]) == -1
+
+
+def test_horizontal_liquidity_reject_lookback_and_min_touches() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    factory, base, space = strategy_kit("horizontal_liquidity_reject", SignalSide.SHORT)
+    assert space["lookback"] == [24, 48]
+    assert space["min_touches"] == [3, 4]
+    # Cluster sits inside 48 bars and outside 24. Only the longer window fades.
+    early, fire, cluster = _horizontal_liquidity_tape(
+        long_side=False, touches=(50, 51, 52), descend_from=53
+    )
+    short_window = factory(base).generate_signals(early)
+    long_window = factory(replace(base, lookback=48)).generate_signals(early)
+    assert int(short_window["signal"].iloc[fire]) == 0
+    assert short_window["n_high_touches"].iloc[fire] < 3
+    assert int(long_window["signal"].iloc[fire]) == -1
+    assert long_window["n_high_touches"].iloc[fire] == pytest.approx(3.0)
+    assert long_window["res_high"].iloc[fire] == pytest.approx(cluster)
+
+    three, three_fire, _level = _horizontal_liquidity_tape(long_side=False)
+    four, four_fire, _four_level = _horizontal_liquidity_tape(
+        long_side=False, touches=(79, 80, 81, 82), descend_from=83
+    )
+    need_four = replace(base, min_touches=4)
+    assert int(factory(need_four).generate_signals(three)["signal"].iloc[three_fire]) == 0
+    four_signals = factory(need_four).generate_signals(four)
+    assert four_signals["n_high_touches"].iloc[four_fire] == pytest.approx(4.0)
+    assert int(four_signals["signal"].iloc[four_fire]) == -1
+
+
+def test_horizontal_liquidity_reject_kit_locks_and_no_book_cell() -> None:
+    import ast
+    from pathlib import Path
+
+    from config.pipeline import PAPER_SCAN_SLEEVES
+    from core.strategy.horizontal_liquidity_reject import (
+        ATR_PERIOD,
+        LOOKBACK_GRID,
+        MIN_TOUCHES_GRID,
+        MIN_TOUCHES_HARD_MIN,
+        NO_SESSION_CLOCK,
+        OPTION_B,
+        REQUIRE_CLOSE_INSIDE_BAND,
+        REQUIRE_WICK_PIERCE,
+        TOUCH_TOL_ATR,
+        HorizontalLiquidityRejectParams,
+        HorizontalLiquidityRejectStrategy,
+    )
+    from firm.research_catalog import RESEARCH_HYPOTHESES
+    from firm.research_jobs import CLOCK_BY_FAMILY
+    from firm.sleeve_factory import spec_for_family
+    from research.validate import strategy_kit
+
+    assert ATR_PERIOD == 20
+    assert TOUCH_TOL_ATR == pytest.approx(0.2)
+    assert LOOKBACK_GRID == [24, 48]
+    assert MIN_TOUCHES_GRID == [3, 4]
+    assert MIN_TOUCHES_HARD_MIN == 3
+    assert REQUIRE_WICK_PIERCE is True
+    assert REQUIRE_CLOSE_INSIDE_BAND is True
+    assert NO_SESSION_CLOCK is True
+    assert OPTION_B is True
+    assert HorizontalLiquidityRejectParams().side is SignalSide.SHORT
+    factory, base, space = strategy_kit("horizontal_liquidity_reject", SignalSide.SHORT)
+    extra = {key for key in space if key not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "min_touches"}
+    assert "touch_tol_atr" not in space
+    assert "atr_n" not in space
+    assert "require_wick_pierce" not in space
+    assert "require_close_inside_band" not in space
+    assert "skip_bull" not in space
+    sleeve = factory(base)
+    assert sleeve.name == "horizontal_liquidity_reject"
+    assert isinstance(sleeve, HorizontalLiquidityRejectStrategy)
+    spec = spec_for_family("horizontal_liquidity_reject")
+    assert spec is not None
+    assert spec.side == "BOTH"
+    assert spec.clock == "4h/4h"
+    assert spec.needs_feed is False
+    assert spec.template == "novel"
+    assert CLOCK_BY_FAMILY["horizontal_liquidity_reject"] == "4h/4h"
+    row = next(
+        item for item in RESEARCH_HYPOTHESES if item["family"] == "horizontal_liquidity_reject"
+    )
+    assert row["id"] == "horizontal_liquidity_reject@4h/4h"
+    assert row["side"] == "BOTH"
+    assert row["clock"] == "4h/4h"
+    assert row["coded"] is True
+    assert row["free_params"] == 2
+    assert row.get("approved") is not True
+    assert all(item[0] != "horizontal_liquidity_reject" for item in PAPER_SCAN_SLEEVES)
+    book = Path(__file__).resolve().parents[1] / "config" / "approved_strategies.json"
+    if book.exists():
+        assert "horizontal_liquidity_reject" not in book.read_text(encoding="utf-8")
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "core"
+        / "strategy"
+        / "horizontal_liquidity_reject.py"
+    ).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    imported: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imported.append(node.module)
+    banned = (
+        "equal_high_low_restest_fade",
+        "bullish_rectangle_fail_reclaim",
+        "session_liquidity_sweep",
+        "prior_day_extreme_reject",
+        "prior_week_extreme_reject",
+        "head_and_shoulders_neckline_break",
+    )
+    assert all(not any(name in module for name in banned) for module in imported)
+    assert "core.strategy.base" in imported
+    # The signal method has no hour gate and no session box.
+    method = ast.get_source_segment(
+        source,
+        next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "HorizontalLiquidityRejectStrategy"
+        ),
+    )
+    assert method is not None
+    assert ".hour" not in method
+    assert "hour_utc" not in method
+    assert "session_liquidity" not in method
+
+
+def test_horizontal_liquidity_reject_no_lookahead() -> None:
+    candles, fire, _cluster = _horizontal_liquidity_tape(long_side=False)
+    signals = _signals("horizontal_liquidity_reject", candles, side=SignalSide.SHORT)
+    assert int(signals["signal"].iloc[fire]) == -1
+    cut = fire + 1
+    truncated = _signals(
+        "horizontal_liquidity_reject", candles.iloc[:cut], side=SignalSide.SHORT
+    )
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["res_high"].iloc[:cut],
+        truncated["res_high"],
+        check_names=False,
+    )
+    pd.testing.assert_series_equal(
+        signals["n_high_touches"].iloc[:cut],
+        truncated["n_high_touches"],
+        check_names=False,
+    )
+    shocked = candles.copy()
+    shocked.iloc[-1, shocked.columns.get_loc("high")] = 500.0
+    shocked.iloc[-1, shocked.columns.get_loc("low")] = 10.0
+    shocked.iloc[-1, shocked.columns.get_loc("close")] = 400.0
+    after = _signals("horizontal_liquidity_reject", shocked, side=SignalSide.SHORT)
+    assert int(after["signal"].iloc[fire]) == -1
+    assert after["res_high"].iloc[fire] == pytest.approx(signals["res_high"].iloc[fire])
+    assert after["atr"].iloc[fire] == pytest.approx(signals["atr"].iloc[fire])
+    pd.testing.assert_series_equal(
+        signals["signal"].iloc[:-1],
+        after["signal"].iloc[:-1],
+        check_names=False,
+    )

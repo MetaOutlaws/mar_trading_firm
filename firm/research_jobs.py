@@ -201,6 +201,7 @@ CLOCK_BY_FAMILY = {
     "broadening_formation_break": "4h/4h",
     "impulse_midpoint_fail_fade": "4h/4h",
     "alt_btc_residual_stretch_fade": "4h/4h",
+    "horizontal_liquidity_reject": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -323,6 +324,15 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         or "alt btc residual" in blob
     ):
         return "alt_btc_residual_stretch_fade"
+    # Must beat equal_high_low_restest_fade / session_liquidity_sweep /
+    # a generic "reject". Family id is horizontal_liquidity_reject only —
+    # a flat band of >=3 touches plus a wick through, not two equal swings
+    # and not a session box.
+    if (
+        "horizontal_liquidity_reject" in blob
+        or "horizontal liquidity" in blob
+    ):
+        return "horizontal_liquidity_reject"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:

@@ -1487,6 +1487,21 @@ def _novel_kit(name: str, side: SignalSide):
             # walk from the coding PR. Do not set approved=true.
             {"lookback": [20, 40], "k_atr": [1.5, 2.0]},
         ),
+        "horizontal_liquidity_reject": (
+            "core.strategy.horizontal_liquidity_reject",
+            "HorizontalLiquidityRejectParams",
+            "HorizontalLiquidityRejectStrategy",
+            # Garwe stamp. touch_tol_atr=0.2 and ATR(20) are locked.
+            # Wick must pierce beyond the flat band and the close must
+            # return inside the strip. min_touches cannot fall below 3,
+            # so a two-swing equal-high restest does not qualify. No
+            # session clock. Search lookback and min_touches only.
+            # Endpoints {24, 48} and {3, 4} — no invented interiors.
+            # Fill t+1. Option B: kit is registered so a later desk
+            # walk can run. This coding change does not start that walk
+            # and does not set approved=true.
+            {"lookback": [24, 48], "min_touches": [3, 4]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",

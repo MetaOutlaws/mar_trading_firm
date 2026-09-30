@@ -3353,6 +3353,57 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "stays off."
         ),
     ),
+    SleeveSpec(
+        name="horizontal_liquidity_reject",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        needs_new_indicator=False,
+        novel_reason=(
+            "Flat horizontal liquidity band as one 4h BOTH family "
+            "(SHORT priority). Garwe stamp. In the prior lookback, "
+            "at least min_touches highs (resistance) or lows "
+            "(support) sit inside a strip touch_tol_atr*ATR20 wide, "
+            "anchored on that window's extreme. SHORT: wick pierces "
+            "strictly above the band and close returns inside the "
+            "strip. LONG is the mirror. Two-sided bar is SHORT. "
+            "Touches are prior bars only; the pierce bar is not a "
+            "touch. ATR period locked 20, known before the signal "
+            "bar (atr.shift(1)). touch_tol_atr locked 0.2. "
+            "require_wick_pierce locked True. "
+            "require_close_inside_band locked True. "
+            "no_session_clock locked True. min_touches hard minimum "
+            "3, so a requested 2 still requires 3. Fill t+1 open. "
+            "Free search (2 only): lookback [24, 48], min_touches "
+            "[3, 4] (endpoints only). Not "
+            "equal_high_low_restest_fade (Job 110 — exactly two "
+            "extremes, fade on a fail-to-close-through; a dual-equal "
+            "restest alone must not fire here). Not "
+            "bullish_rectangle_fail_reclaim (dual swing rails). Not "
+            "head_and_shoulders_neckline_break. Not "
+            "prior_day_extreme_reject / prior_week_extreme_reject. "
+            "Not session_liquidity_sweep (no session-clock box). "
+            "Do not recode those siblings. Option B SCORE/RETIRE "
+            "only. No approved=true. Live stays off. Do not start "
+            "walk-forward. 0 book cells."
+        ),
+        summary=(
+            "Fade a 4h wick that pierces a flat liquidity band of "
+            "at least three touches and closes back inside the band "
+            "(SHORT = pierce the highs; LONG = pierce the lows) "
+            "as one 4h BOTH family with SHORT priority."
+        ),
+        justification=(
+            "A locked 0.2*ATR20 flat band with a hard minimum of "
+            "three touches, a required wick through the band, and "
+            "a required close back inside the strip is not a "
+            "two-swing equal-high restest, not a dual-rail "
+            "rectangle reclaim, not a calendar extreme, and not a "
+            "session-box sweep. Option B SCORE/RETIRE only. "
+            "No approved=true. Live stays off."
+        ),
+    ),
 ]
 
 
