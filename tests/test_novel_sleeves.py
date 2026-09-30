@@ -153,6 +153,7 @@ APPROVED = [
     "prior_week_extreme_reject",
     "morning_evening_star_reversal",
     "broadening_formation_break",
+    "impulse_midpoint_fail_fade",
 ]
 
 
@@ -14135,6 +14136,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("prior_week_extreme_reject", {"touch_tol_atr"}),
         ("morning_evening_star_reversal", {"min_body_atr", "max_star_body_frac"}),
         ("broadening_formation_break", {"lookback", "min_touches"}),
+        ("impulse_midpoint_fail_fade", {"min_range_atr", "extreme_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -14186,6 +14188,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("prior_week_extreme_reject", {"touch_tol_atr"}),
         ("morning_evening_star_reversal", {"min_body_atr", "max_star_body_frac"}),
         ("broadening_formation_break", {"lookback", "min_touches"}),
+        ("impulse_midpoint_fail_fade", {"min_range_atr", "extreme_frac"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}

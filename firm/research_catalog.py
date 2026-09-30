@@ -1845,6 +1845,42 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "impulse_midpoint_fail_fade@4h/4h",
+        "family": "impulse_midpoint_fail_fade",
+        "name": "impulse_midpoint_fail_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 58,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Garwe STAMP LOCK for coding only. Option B "
+            "exploratory: SCORE/RETIRE. Do not set approved=true. "
+            "Live stays off. Walk-forward is not started from this "
+            "coding PR. 0 book cells. Fade a 4h impulse once the "
+            "next bar closes through its midpoint. Quant-locked: "
+            "ATR period=20 known before the impulse bar "
+            "(atr.shift(2)), range is high-low not true range, "
+            "require_next_close_through_mid=True, fill t+1 open, "
+            "no volume gate, no session clock. SHORT=bullish "
+            "impulse (close in the top extreme_frac) then "
+            "close[t] < midpoint. LONG=bearish impulse (close in "
+            "the bottom extreme_frac) then close[t] > midpoint. "
+            "BOTH sides honest, SHORT priority. Free search "
+            "(2 only): min_range_atr [1.5, 2.0], extreme_frac "
+            "[0.25, 0.35] (endpoints only). Not "
+            "thrust_bar_fail_reversion (Job 151 — same-bar close "
+            "back inside the prior high-low). Not "
+            "expansion_fail_fade. Not candle_reject_reversal. Not "
+            "key_reversal_bar. Not outside_bar_fail_reversion. Not "
+            "three_push_exhaustion_fail. Not the killed YES pack, "
+            "ORB, or Wyckoff."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

@@ -1458,6 +1458,20 @@ def _novel_kit(name: str, side: SignalSide):
             # coding change does not start that walk.
             {"lookback": [32, 48], "min_touches": [3, 4]},
         ),
+        "impulse_midpoint_fail_fade": (
+            "core.strategy.impulse_midpoint_fail_fade",
+            "ImpulseMidpointFailFadeParams",
+            "ImpulseMidpointFailFadeStrategy",
+            # Garwe stamp. ATR(20) known before the impulse bar.
+            # Next close must go strictly through the impulse
+            # midpoint. Range is high-low, not true range. Fill
+            # t+1. Search min_range_atr {1.5, 2.0} and
+            # extreme_frac {0.25, 0.35} only — no invented
+            # interiors. Option B: kit is registered so a later
+            # desk walk can run. This coding change does not
+            # start that walk and does not set approved=true.
+            {"min_range_atr": [1.5, 2.0], "extreme_frac": [0.25, 0.35]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
