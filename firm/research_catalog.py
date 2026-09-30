@@ -1881,6 +1881,42 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "alt_btc_residual_stretch_fade@4h/4h",
+        "family": "alt_btc_residual_stretch_fade",
+        "name": "alt_btc_residual_stretch_fade 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 59,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Garwe STAMP LOCK. Option B exploratory: SCORE/RETIRE. "
+            "Do not set approved=true. Live stays off. Walk-forward "
+            "is not started from this coding PR. Book cells stay 0. "
+            "Protect 12+56. On the locked alts, fade a 4h price "
+            "residual versus BTC beta once it stretches at least "
+            "k_atr*ATR(20) and the close fades back inside that "
+            "band (toward zero). Quant-locked: atr_n=20 known "
+            "before the signal bar (atr.shift(1)), fill t+1 open, "
+            "option_b=True, pairs ETH/SOL/BNB/XRP/AVAX, benchmark "
+            "BTCUSDT (not a traded leg). Alpha/beta use the prior "
+            "lookback closes only — bar t is not in the fit. "
+            "SHORT=(high-fair) >= k_atr*ATR AND abs(close-fair) < "
+            "k_atr*ATR. LONG is the cheap-side mirror. BOTH sides "
+            "honest, SHORT priority on two-sided bars. Free search "
+            "(2 only): lookback [20, 40], k_atr [1.5, 2.0] "
+            "(endpoints only — no interiors). Price beta residual "
+            "is not cross_sectional_turnover_lead (volume lead), "
+            "not univariate sma20_stretch_fade, not "
+            "rolling_vwap_stretch_fade, not rsi_fade_chop. Do not "
+            "revive killed YES x5, ORB, wyckoff, "
+            "thrust_bar_fail_reversion, or the reject pack."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

@@ -174,6 +174,20 @@ def test_infer_family_from_title_and_payload() -> None:
     assert infer_family({}, "Code thrust bar fail reversion 4h") != (
         "impulse_midpoint_fail_fade"
     )
+    assert infer_family({}, "Next: alt_btc_residual_stretch_fade") == (
+        "alt_btc_residual_stretch_fade"
+    )
+    assert infer_family(
+        {"family": "alt_btc_residual_stretch_fade"}, "ATR channel breakout"
+    ) == "alt_btc_residual_stretch_fade"
+    assert infer_family({}, "Code alt btc residual stretch fade 4h") == (
+        "alt_btc_residual_stretch_fade"
+    )
+    # A univariate SMA title must not collapse onto the BTC residual.
+    assert infer_family({}, "Next: sma20_stretch_fade") == "sma20_stretch_fade"
+    assert infer_family({}, "Next: sma20_stretch_fade") != (
+        "alt_btc_residual_stretch_fade"
+    )
     # Must not collapse onto bollinger via the generic "mean_rev" token.
     assert infer_family({}, "Code hvn mean revert 4h") == "hvn_mean_revert"
     assert infer_family({"name": "ema_adx_trend"}, "") == "ema_adx_trend"
@@ -529,6 +543,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "morning_evening_star_reversal" in coded
     assert "broadening_formation_break" in coded
     assert "impulse_midpoint_fail_fade" in coded
+    assert "alt_btc_residual_stretch_fade" in coded
     assert "hvn_node_fade" not in coded
     novel_ready = {row["family"] for row in (plan.get("novel_ready") or [])}
     assert "session_liquidity_sweep" not in novel_ready
@@ -597,6 +612,7 @@ def test_research_plan_has_ranked_backlog() -> None:
     assert "morning_evening_star_reversal" not in novel_ready
     assert "broadening_formation_break" not in novel_ready
     assert "impulse_midpoint_fail_fade" not in novel_ready
+    assert "alt_btc_residual_stretch_fade" not in novel_ready
     assert "kama_trend" not in novel_ready
     next_to_code = plan.get("next_to_code")
     if next_to_code is not None:
@@ -1088,6 +1104,7 @@ def test_file_novel_inbox_puts_full_brief_on_each_family(firm_db, tmp_path, monk
     assert "morning_evening_star_reversal" not in families
     assert "broadening_formation_break" not in families
     assert "impulse_midpoint_fail_fade" not in families
+    assert "alt_btc_residual_stretch_fade" not in families
     pending = memory.pending_proposals(limit=40)
     for row in result["filed"]:
         payload = next(

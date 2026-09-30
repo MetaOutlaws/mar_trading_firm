@@ -284,6 +284,19 @@ def _validate_side(
     baselines: dict[str, dict],
 ) -> None:
     """Validate every symbol for one side, appending verdicts in place."""
+    # Residual sleeve needs an aligned BTC close. Other families never
+    # see that column. Loading the benchmark here does not start a walk
+    # by itself and does not write approvals.
+    benchmark = None
+    if args.strategy == "alt_btc_residual_stretch_fade":
+        from core.strategy.alt_btc_residual_stretch_fade import BENCHMARK_LOCKED
+
+        try:
+            benchmark = loader.load(BENCHMARK_LOCKED)
+        except Exception as exc:
+            logger.warning("BTC benchmark load failed: %s", exc)
+            benchmark = None
+
     for symbol in symbols:
         try:
             candles = loader.load(symbol)
@@ -294,6 +307,23 @@ def _validate_side(
         if candles.empty:
             logger.warning("%s: no candles available, skipping.", symbol)
             continue
+
+        if args.strategy == "alt_btc_residual_stretch_fade":
+            from core.strategy.alt_btc_residual_stretch_fade import (
+                maybe_attach_benchmark,
+            )
+
+            prepared = maybe_attach_benchmark(
+                args.strategy, symbol, candles, benchmark
+            )
+            if prepared is None:
+                logger.info(
+                    "%s is not a locked alt pair for %s; skipping.",
+                    symbol,
+                    args.strategy,
+                )
+                continue
+            candles = prepared
 
         # Symbol-specific slippage: majors fill far better than memes.
         symbol_config = BacktestConfig(

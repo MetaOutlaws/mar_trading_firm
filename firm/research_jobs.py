@@ -200,6 +200,7 @@ CLOCK_BY_FAMILY = {
     "morning_evening_star_reversal": "4h/4h",
     "broadening_formation_break": "4h/4h",
     "impulse_midpoint_fail_fade": "4h/4h",
+    "alt_btc_residual_stretch_fade": "4h/4h",
 }
 # Re-exported so callers that imported from this module keep working.
 
@@ -314,6 +315,14 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
         or "impulse midpoint" in blob
     ):
         return "impulse_midpoint_fail_fade"
+    # Must beat sma20_stretch_fade. Family id is the BTC price-beta
+    # residual only — not a univariate SMA / VWAP stretch and not a
+    # volume-lead cross section.
+    if (
+        "alt_btc_residual_stretch_fade" in blob
+        or "alt btc residual" in blob
+    ):
+        return "alt_btc_residual_stretch_fade"
     if "keltner_channel_fade" in blob or "keltner channel fade" in blob:
         return "keltner_channel_fade"
     if "outside_bar_fail" in blob or "outside bar fail" in blob:
@@ -335,6 +344,20 @@ def infer_family(payload: dict[str, Any] | None, title: str = "") -> str:
     if "rsi" in blob or "golden" in blob:
         return "rsi_trend"
     return str((payload or {}).get("name") or "unknown")
+
+
+def symbols_for_family(family: str) -> list[str]:
+    """Symbols a walk would use. The residual sleeve trades alts only.
+
+    BTC is the benchmark, not a traded leg. Other families keep the
+    six desk majors. This does not start a walk and does not write
+    an approval.
+    """
+    if family == "alt_btc_residual_stretch_fade":
+        from core.strategy.alt_btc_residual_stretch_fade import PAIRS_LOCKED
+
+        return list(PAIRS_LOCKED)
+    return list(DEFAULT_MAJORS)
 
 
 def _jobs_lock_path() -> Path:
@@ -748,7 +771,7 @@ def on_strategy_approved(proposal: dict[str, Any]) -> dict[str, Any]:
             ),
         }
 
-    symbols = list(DEFAULT_MAJORS)
+    symbols = symbols_for_family(family)
     side = str(payload.get("side") or "BOTH").upper() or "BOTH"
     timeframe = ""
     clock = requested_clock
