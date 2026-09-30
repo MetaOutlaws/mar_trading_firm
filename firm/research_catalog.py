@@ -1917,6 +1917,45 @@ RESEARCH_HYPOTHESES: list[dict[str, Any]] = [
         "needs_feed": False,
     },
     {
+        "id": "horizontal_liquidity_reject@4h/4h",
+        "family": "horizontal_liquidity_reject",
+        "name": "horizontal_liquidity_reject 4h/4h BOTH",
+        "clock": "4h/4h",
+        "side": "BOTH",
+        "rank": 60,
+        "coded": True,
+        "free_params": 2,
+        "disposition": "new_family",
+        "justification": (
+            "Garwe stamp for coding only. Option B exploratory: "
+            "SCORE/RETIRE. Do not set approved=true. Live stays "
+            "off. Walk-forward is not started from this coding "
+            "PR. 0 book cells. Protect 12+56. Fade a 4h wick that "
+            "pierces a flat liquidity band and closes back inside "
+            "it. Quant-locked: touch_tol_atr=0.2, ATR period=20 "
+            "known before the signal bar (atr.shift(1)), "
+            "require_wick_pierce=True, require_close_inside_band="
+            "True, no_session_clock=True, min_touches hard minimum "
+            "3 (a requested 2 still requires 3), fill t+1 open, "
+            "no session box. SHORT=prior lookback holds >= "
+            "min_touches highs inside [max-tol, max] AND high "
+            "pierces above max AND close is back inside the strip. "
+            "LONG=mirror on lows. BOTH sides honest, SHORT priority "
+            "on two-sided bars. Free search (2 only): lookback "
+            "[24, 48], min_touches [3, 4] (endpoints only). Not "
+            "equal_high_low_restest_fade (Job 110 — exactly two "
+            "swings within atr_tol, fade on a fail-to-close-through "
+            "with no 3-touch flat band; dual-equal restest alone "
+            "must not fire). Not bullish_rectangle_fail_reclaim. "
+            "Not head_and_shoulders_neckline_break. Not "
+            "prior_day_extreme_reject. Not "
+            "prior_week_extreme_reject. Not "
+            "session_liquidity_sweep."
+        ),
+        "param_change": {"clock": "4h/4h"},
+        "needs_feed": False,
+    },
+    {
         "id": "session_boundary_volume_fade@4h/4h",
         "family": "session_boundary_volume_fade",
         "name": "session_boundary_volume_fade 4h/4h BOTH",

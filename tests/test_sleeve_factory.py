@@ -88,6 +88,7 @@ def test_coded_candidate_novels_are_registered_not_ready() -> None:
     assert "broadening_formation_break" not in names
     assert "impulse_midpoint_fail_fade" not in names
     assert "alt_btc_residual_stretch_fade" not in names
+    assert "horizontal_liquidity_reject" not in names
     assert "vidya_trend" not in names
     assert "t3_trend" not in names
     assert "williams_fractal_break" not in names
