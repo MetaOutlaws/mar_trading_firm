@@ -154,6 +154,7 @@ APPROVED = [
     "morning_evening_star_reversal",
     "broadening_formation_break",
     "impulse_midpoint_fail_fade",
+    "alt_btc_residual_stretch_fade",
 ]
 
 
@@ -14137,6 +14138,7 @@ def test_inbox_walk_kits_max_two_free_params() -> None:
         ("morning_evening_star_reversal", {"min_body_atr", "max_star_body_frac"}),
         ("broadening_formation_break", {"lookback", "min_touches"}),
         ("impulse_midpoint_fail_fade", {"min_range_atr", "extreme_frac"}),
+        ("alt_btc_residual_stretch_fade", {"lookback", "k_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -14189,6 +14191,7 @@ def test_session_boundary_and_vwap_band_kits_no_skip_bull() -> None:
         ("morning_evening_star_reversal", {"min_body_atr", "max_star_body_frac"}),
         ("broadening_formation_break", {"lookback", "min_touches"}),
         ("impulse_midpoint_fail_fade", {"min_range_atr", "extreme_frac"}),
+        ("alt_btc_residual_stretch_fade", {"lookback", "k_atr"}),
     ):
         _factory, _base, space = strategy_kit(name, SignalSide.LONG)
         extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
@@ -14615,3 +14618,492 @@ def test_prior_week_extreme_reject_is_not_prior_week_high_break() -> None:
             low_fire
         ]
     ) == 0
+
+
+def _linked_alt_btc_tape(n: int = 80) -> pd.DataFrame:
+    """Alt = 2*BTC - 150, BTC alternating 100/110 so price beta is 2.
+
+    Quiet bars (range 1) keep ATR well below a later residual wick.
+    The benchmark close is a column, not volume and not an SMA.
+    """
+    index = _hourly(n, start="2024-01-01")
+    btc = np.where(np.arange(n) % 2 == 0, 100.0, 110.0)
+    alt = 2.0 * btc - 150.0
+    candles = _ohlcv(index, alt, high=alt + 0.5, low=alt - 0.5)
+    candles["btc_close"] = btc
+    return candles
+
+
+def _paint_residual_bar(
+    candles: pd.DataFrame,
+    *,
+    high: float,
+    low: float,
+    close: float,
+) -> pd.DataFrame:
+    """Overwrite the last bar's alt OHLC. BTC close, and thus fair, stays."""
+    out = candles.copy()
+    t = out.index[-1]
+    out.loc[t, "high"] = high
+    out.loc[t, "low"] = low
+    out.loc[t, "close"] = close
+    return out
+
+
+def test_alt_btc_residual_stretch_fade_schema_and_lock() -> None:
+    """Stamped endpoints only. Option B. No book cell. BTC is not a leg."""
+    from pathlib import Path
+
+    from config.pipeline import PAPER_SCAN_SLEEVES
+    from firm.research_catalog import RESEARCH_HYPOTHESES
+    from firm.research_jobs import symbols_for_family
+    from firm.sleeve_factory import spec_for_family
+    from research.validate import strategy_kit
+    from core.strategy.alt_btc_residual_stretch_fade import (
+        ATR_N_LOCKED,
+        BENCHMARK_LOCKED,
+        FILL_LOCKED,
+        K_ATR_GRID,
+        LOOKBACK_GRID,
+        OPTION_B_LOCKED,
+        PAIRS_LOCKED,
+        coerce_k_atr,
+        coerce_lookback,
+        maybe_attach_benchmark,
+    )
+
+    factory, base, space = strategy_kit(
+        "alt_btc_residual_stretch_fade", SignalSide.SHORT
+    )
+    assert factory(base).name == "alt_btc_residual_stretch_fade"
+    assert space["lookback"] == [20, 40]
+    assert space["k_atr"] == [1.5, 2.0]
+    assert 30 not in space["lookback"]
+    assert 1.75 not in space["k_atr"]
+    assert "atr_n" not in space
+    extra = {k for k in space if k not in {"take_profit_pct", "stop_loss_pct"}}
+    assert extra == {"lookback", "k_atr"}
+    assert base.lookback == 20
+    assert base.k_atr == pytest.approx(1.5)
+    assert ATR_N_LOCKED == 20
+    assert OPTION_B_LOCKED is True
+    assert FILL_LOCKED == "t+1"
+    assert BENCHMARK_LOCKED == "BTCUSDT"
+    assert PAIRS_LOCKED == (
+        "ETHUSDT",
+        "SOLUSDT",
+        "BNBUSDT",
+        "XRPUSDT",
+        "AVAXUSDT",
+    )
+    assert "BTCUSDT" not in PAIRS_LOCKED
+    assert coerce_lookback(30) == 20
+    assert coerce_lookback(40) == 40
+    assert coerce_k_atr(1.75) == pytest.approx(1.5)
+    assert coerce_k_atr(2.0) == pytest.approx(2.0)
+
+    spec = spec_for_family("alt_btc_residual_stretch_fade")
+    assert spec is not None
+    assert spec.clock == "4h/4h"
+    assert spec.side == "BOTH"
+    assert spec.template == "novel"
+    assert spec.auto_code is False
+    assert spec.needs_feed is False
+
+    row = next(
+        r
+        for r in RESEARCH_HYPOTHESES
+        if r["family"] == "alt_btc_residual_stretch_fade"
+    )
+    assert row["id"] == "alt_btc_residual_stretch_fade@4h/4h"
+    assert row["clock"] == "4h/4h"
+    assert row["side"] == "BOTH"
+    assert row["coded"] is True
+    assert row["free_params"] == 2
+    assert row.get("approved") is not True
+    assert row["needs_feed"] is False
+
+    assert symbols_for_family("alt_btc_residual_stretch_fade") == list(PAIRS_LOCKED)
+    assert "BTCUSDT" not in symbols_for_family("alt_btc_residual_stretch_fade")
+    assert "BTCUSDT" in symbols_for_family("sma20_stretch_fade")
+
+    assert all(
+        item[0] != "alt_btc_residual_stretch_fade" for item in PAPER_SCAN_SLEEVES
+    )
+    approvals = Path("config/approved_strategies.json").read_text(encoding="utf-8")
+    assert "alt_btc_residual_stretch_fade" not in approvals
+
+    bare = _ohlcv(_hourly(4), np.array([1.0, 2.0, 3.0, 4.0]))
+    assert maybe_attach_benchmark(
+        "sma20_stretch_fade", "ETHUSDT", bare, None
+    ) is bare
+    assert (
+        maybe_attach_benchmark(
+            "alt_btc_residual_stretch_fade", "BTCUSDT", bare, None
+        )
+        is None
+    )
+
+
+def test_alt_btc_residual_beta_excludes_signal_bar_and_matches_ols() -> None:
+    """Fair value is prior-window price beta, not the signal bar and not SMA."""
+    from core.strategy.alt_btc_residual_stretch_fade import price_beta_fair
+
+    candles = _linked_alt_btc_tape()
+    t = len(candles) - 1
+    lookback = 20
+    alt = candles["close"].to_numpy()
+    btc = candles["btc_close"].to_numpy()
+    window_alt = alt[t - lookback : t]
+    window_btc = btc[t - lookback : t]
+    design = np.column_stack([np.ones(lookback), window_btc])
+    alpha, beta = np.linalg.lstsq(design, window_alt, rcond=None)[0]
+    fair = alpha + beta * btc[t]
+
+    fit = price_beta_fair(candles["close"], candles["btc_close"], lookback)
+    assert fit["beta"].iloc[t] == pytest.approx(beta)
+    assert fit["beta"].iloc[t] == pytest.approx(2.0)
+    assert fit["alpha"].iloc[t] == pytest.approx(alpha)
+    assert fit["fair"].iloc[t] == pytest.approx(fair)
+
+    # Moving the signal-bar alt close must not change the fit.
+    shocked = candles.copy()
+    shocked.iloc[t, shocked.columns.get_loc("close")] = 999.0
+    refit = price_beta_fair(shocked["close"], shocked["btc_close"], lookback)
+    assert refit["beta"].iloc[t] == pytest.approx(beta)
+    assert refit["fair"].iloc[t] == pytest.approx(fair)
+
+
+def test_alt_btc_residual_long_fade_is_not_univariate_sma() -> None:
+    """Cheap residual fade fires. The same bar is not an SMA20 stretch."""
+    candles = _linked_alt_btc_tape()
+    t = len(candles) - 1
+    probe = _signals(
+        "alt_btc_residual_stretch_fade", candles, side=SignalSide.LONG
+    )
+    fair = float(probe["fair"].iloc[t])
+    band = float(probe["band"].iloc[t])
+    assert band > 0
+    cheap = _paint_residual_bar(
+        candles,
+        high=fair + 0.25,
+        low=fair - band - 0.5,
+        close=fair,
+    )
+    long_sig = _signals(
+        "alt_btc_residual_stretch_fade", cheap, side=SignalSide.LONG
+    )
+    short_sig = _signals(
+        "alt_btc_residual_stretch_fade", cheap, side=SignalSide.SHORT
+    )
+    assert int(long_sig["signal"].iloc[t]) == 1
+    assert int(short_sig["signal"].iloc[t]) == 0
+    assert bool(long_sig["faded_inside"].iloc[t])
+    # Univariate SMA stretch does not see the BTC residual.
+    assert int(
+        _signals("sma20_stretch_fade", cheap, side=SignalSide.LONG)["signal"].iloc[t]
+    ) == 0
+    assert int(
+        _signals("sma20_stretch_fade", cheap, side=SignalSide.SHORT)["signal"].iloc[t]
+    ) == 0
+    # Volume is not the edge. A turnover shock cannot create or kill it.
+    loud = cheap.copy()
+    loud["volume"] = loud["volume"] * 80.0
+    loud["turnover"] = loud["volume"] * loud["close"]
+    loud_sig = _signals(
+        "alt_btc_residual_stretch_fade", loud, side=SignalSide.LONG
+    )
+    pd.testing.assert_series_equal(
+        long_sig["signal"], loud_sig["signal"], check_names=False
+    )
+
+
+def test_alt_btc_residual_short_fade_k_grid_and_priority() -> None:
+    """Rich fade is SHORT. k=2.0 can veto k=1.5. Two-sided bars stay SHORT."""
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    candles = _linked_alt_btc_tape()
+    t = len(candles) - 1
+    probe = _signals(
+        "alt_btc_residual_stretch_fade", candles, side=SignalSide.SHORT
+    )
+    fair = float(probe["fair"].iloc[t])
+    atr_known = float(probe["atr_known"].iloc[t])
+    band = 1.5 * atr_known
+    rich = _paint_residual_bar(
+        candles,
+        high=fair + band + 0.5,
+        low=fair - 0.25,
+        close=fair,
+    )
+    short_sig = _signals(
+        "alt_btc_residual_stretch_fade", rich, side=SignalSide.SHORT
+    )
+    long_sig = _signals(
+        "alt_btc_residual_stretch_fade", rich, side=SignalSide.LONG
+    )
+    assert int(short_sig["signal"].iloc[t]) == -1
+    assert int(long_sig["signal"].iloc[t]) == 0
+    # Same wick is inside the k=2 band, so the other endpoint stays flat.
+    factory, base, _space = strategy_kit(
+        "alt_btc_residual_stretch_fade", SignalSide.SHORT
+    )
+    wider = factory(replace(base, k_atr=2.0)).generate_signals(rich)
+    assert float(wider["band"].iloc[t]) == pytest.approx(2.0 * atr_known)
+    assert int(wider["signal"].iloc[t]) == 0
+
+    both = _paint_residual_bar(
+        candles,
+        high=fair + band + 0.5,
+        low=fair - band - 0.5,
+        close=fair,
+    )
+    assert int(
+        _signals(
+            "alt_btc_residual_stretch_fade", both, side=SignalSide.SHORT
+        )["signal"].iloc[t]
+    ) == -1
+    assert int(
+        _signals(
+            "alt_btc_residual_stretch_fade", both, side=SignalSide.LONG
+        )["signal"].iloc[t]
+    ) == 0
+
+
+def test_alt_btc_residual_requires_fade_inside_and_prior_atr() -> None:
+    """A close that stays outside the band is not a fade. ATR is atr.shift(1)."""
+    from core.strategy import indicators as ind
+
+    candles = _linked_alt_btc_tape()
+    t = len(candles) - 1
+    probe = _signals(
+        "alt_btc_residual_stretch_fade", candles, side=SignalSide.SHORT
+    )
+    fair = float(probe["fair"].iloc[t])
+    atr_known = float(probe["atr_known"].iloc[t])
+    band = 1.5 * atr_known
+    expected_atr = ind.atr(candles["high"], candles["low"], candles["close"], 20).shift(1)
+    assert atr_known == pytest.approx(float(expected_atr.iloc[t]))
+
+    still_rich = _paint_residual_bar(
+        candles,
+        high=fair + band + 1.0,
+        low=fair - 0.25,
+        close=fair + band + 0.25,
+    )
+    held = _signals(
+        "alt_btc_residual_stretch_fade", still_rich, side=SignalSide.SHORT
+    )
+    assert int(held["signal"].iloc[t]) == 0
+    assert bool(held["stretched_above"].iloc[t])
+    assert bool(held["faded_inside"].iloc[t]) is False
+
+    shy = _paint_residual_bar(
+        candles,
+        high=fair + band - 0.5,
+        low=fair - 0.25,
+        close=fair,
+    )
+    assert int(
+        _signals(
+            "alt_btc_residual_stretch_fade", shy, side=SignalSide.SHORT
+        )["signal"].iloc[t]
+    ) == 0
+
+    # Huge signal-bar range must not move the band (that ATR is not known yet).
+    wide = _paint_residual_bar(
+        candles,
+        high=fair + band + 0.5,
+        low=fair - 80.0,
+        close=fair,
+    )
+    wide_sig = _signals(
+        "alt_btc_residual_stretch_fade", wide, side=SignalSide.SHORT
+    )
+    assert float(wide_sig["atr_known"].iloc[t]) == pytest.approx(atr_known)
+    assert float(wide_sig["atr"].iloc[t]) > atr_known
+    # SHORT priority: the crash-through low is also a cheap stretch, so
+    # the rich fade still prints and the long side does not.
+    assert int(wide_sig["signal"].iloc[t]) == -1
+    assert int(
+        _signals(
+            "alt_btc_residual_stretch_fade", wide, side=SignalSide.LONG
+        )["signal"].iloc[t]
+    ) == 0
+
+
+def test_alt_btc_residual_ignores_off_grid_and_atr14() -> None:
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    candles = _linked_alt_btc_tape()
+    factory, base, _space = strategy_kit(
+        "alt_btc_residual_stretch_fade", SignalSide.LONG
+    )
+    on_grid = factory(base).generate_signals(candles)
+    interior = factory(replace(base, lookback=30, k_atr=1.75, atr_n=14)).generate_signals(
+        candles
+    )
+    pd.testing.assert_series_equal(
+        on_grid["signal"], interior["signal"], check_names=False
+    )
+    pd.testing.assert_series_equal(
+        on_grid["atr_known"], interior["atr_known"], check_names=False
+    )
+    pd.testing.assert_series_equal(
+        on_grid["beta"], interior["beta"], check_names=False
+    )
+
+
+def test_alt_btc_residual_lookback_40_changes_beta() -> None:
+    """A print inside 40 and outside 20 moves only the longer beta."""
+    from dataclasses import replace
+
+    from research.validate import strategy_kit
+
+    candles = _linked_alt_btc_tape()
+    t = len(candles) - 1
+    # Index t-30 sits in the 40-bar window and outside the 20-bar window.
+    old = t - 30
+    candles.iloc[old, candles.columns.get_loc("close")] = (
+        float(candles["close"].iloc[old]) + 25.0
+    )
+    factory, base, _space = strategy_kit(
+        "alt_btc_residual_stretch_fade", SignalSide.SHORT
+    )
+    beta20 = factory(replace(base, lookback=20)).generate_signals(candles)["beta"].iloc[t]
+    beta40 = factory(replace(base, lookback=40)).generate_signals(candles)["beta"].iloc[t]
+    assert float(beta20) == pytest.approx(2.0)
+    assert float(beta40) != pytest.approx(float(beta20))
+
+
+def test_alt_btc_residual_flat_without_benchmark_or_beta() -> None:
+    candles = _linked_alt_btc_tape()
+    t = len(candles) - 1
+    missing = candles.drop(columns=["btc_close"])
+    flat = _signals(
+        "alt_btc_residual_stretch_fade", missing, side=SignalSide.SHORT
+    )
+    assert int(flat["signal"].sum()) == 0
+    assert "benchmark" in str(flat["reason"].iloc[t])
+
+    same = candles.copy()
+    same["btc_close"] = same["close"]
+    ident = _signals(
+        "alt_btc_residual_stretch_fade", same, side=SignalSide.LONG
+    )
+    assert int(ident["signal"].sum()) == 0
+
+    quiet = candles.copy()
+    quiet["btc_close"] = 100.0
+    no_var = _signals(
+        "alt_btc_residual_stretch_fade", quiet, side=SignalSide.SHORT
+    )
+    assert int(no_var["signal"].sum()) == 0
+
+
+def test_alt_btc_residual_attach_does_not_fill_forward() -> None:
+    from core.strategy.alt_btc_residual_stretch_fade import (
+        attach_btc_close,
+        maybe_attach_benchmark,
+    )
+
+    candles = _linked_alt_btc_tape().drop(columns=["btc_close"])
+    btc = pd.DataFrame(
+        {"close": np.where(np.arange(len(candles)) % 2 == 0, 100.0, 110.0)},
+        index=candles.index,
+    )
+    # A later benchmark print must not leak into the last alt bar.
+    future = btc.copy()
+    future_idx = candles.index[-1] + pd.Timedelta(hours=4)
+    future.loc[future_idx, "close"] = 999.0
+    attached = attach_btc_close(candles, future)
+    assert float(attached["btc_close"].iloc[-1]) == pytest.approx(float(btc["close"].iloc[-1]))
+    assert 999.0 not in set(attached["btc_close"].dropna())
+
+    dropped = btc.iloc[:-1]
+    gapped = maybe_attach_benchmark(
+        "alt_btc_residual_stretch_fade", "ETHUSDT", candles, dropped
+    )
+    assert gapped is not None
+    assert pd.isna(gapped["btc_close"].iloc[-1])
+
+
+def test_alt_btc_residual_sma_stretch_without_residual_stays_flat() -> None:
+    """An SMA-sized rich wick inside the residual band is not this family.
+
+    That is the univariate sma20 stretch, not a BTC price-beta residual.
+    Volume still does not matter.
+    """
+    candles = _linked_alt_btc_tape()
+    t = len(candles) - 1
+    probe = _signals(
+        "alt_btc_residual_stretch_fade", candles, side=SignalSide.SHORT
+    )
+    fair = float(probe["fair"].iloc[t])
+    band = float(probe["band"].iloc[t])
+    # Rich versus the lagging SMA, still inside the BTC-beta band.
+    # 0.85*k_atr*ATR clears SMA20's 1.5*ATR wick and misses this sleeve.
+    mild = _paint_residual_bar(
+        candles,
+        high=fair + 0.85 * band,
+        low=fair - 0.25,
+        close=fair,
+    )
+    assert int(
+        _signals(
+            "alt_btc_residual_stretch_fade", mild, side=SignalSide.SHORT
+        )["signal"].iloc[t]
+    ) == 0
+    assert int(
+        _signals(
+            "alt_btc_residual_stretch_fade", mild, side=SignalSide.LONG
+        )["signal"].iloc[t]
+    ) == 0
+    assert int(
+        _signals("sma20_stretch_fade", mild, side=SignalSide.SHORT)["signal"].iloc[t]
+    ) == -1
+
+
+def test_alt_btc_residual_no_lookahead() -> None:
+    candles = _linked_alt_btc_tape()
+    t = len(candles) - 1
+    probe = _signals(
+        "alt_btc_residual_stretch_fade", candles, side=SignalSide.SHORT
+    )
+    fair = float(probe["fair"].iloc[t])
+    band = float(probe["band"].iloc[t])
+    rich = _paint_residual_bar(
+        candles,
+        high=fair + band + 0.5,
+        low=fair - 0.25,
+        close=fair,
+    )
+    full = _signals(
+        "alt_btc_residual_stretch_fade", rich, side=SignalSide.SHORT
+    )
+    cut = t
+    truncated = _signals(
+        "alt_btc_residual_stretch_fade", rich.iloc[:cut], side=SignalSide.SHORT
+    )
+    pd.testing.assert_series_equal(
+        full["signal"].iloc[:cut],
+        truncated["signal"],
+        check_names=False,
+    )
+    shocked = rich.copy()
+    shocked.iloc[-1, shocked.columns.get_loc("close")] = fair + 50.0
+    shocked.iloc[-1, shocked.columns.get_loc("high")] = fair + 80.0
+    shocked.iloc[-1, shocked.columns.get_loc("btc_close")] = 400.0
+    after = _signals(
+        "alt_btc_residual_stretch_fade", shocked, side=SignalSide.SHORT
+    )
+    pd.testing.assert_series_equal(
+        full["signal"].iloc[:-1],
+        after["signal"].iloc[:-1],
+        check_names=False,
+    )
+    assert int(full["signal"].iloc[t]) == -1

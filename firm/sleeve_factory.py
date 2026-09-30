@@ -3307,6 +3307,52 @@ CANDIDATE_SPECS: list[SleeveSpec] = [
             "SCORE/RETIRE only. No approved=true. Live stays off."
         ),
     ),
+    SleeveSpec(
+        name="alt_btc_residual_stretch_fade",
+        template="novel",
+        clock="4h/4h",
+        side="BOTH",
+        needs_feed=False,
+        needs_new_indicator=False,
+        novel_reason=(
+            "Alt vs BTC price-beta residual stretch fade as one 4h "
+            "BOTH family (SHORT priority). Garwe stamp. On the "
+            "locked alts, OLS fair value is alpha + beta * BTC "
+            "close. Alpha and beta use the prior lookback closes "
+            "only (bar t excluded). SHORT: (high - fair) >= "
+            "k_atr*ATR20 AND abs(close - fair) < k_atr*ATR20. "
+            "LONG is the cheap-side mirror (fair - low). Two-sided "
+            "fade prints SHORT, not LONG. ATR period locked 20, "
+            "known before the signal bar (atr.shift(1)). Fill t+1 "
+            "open. option_b locked True. Pairs locked "
+            "ETH/SOL/BNB/XRP/AVAX. Benchmark locked BTCUSDT and is "
+            "not a traded leg. No volume gate, no session gate. "
+            "Free search (2 only): lookback [20, 40], k_atr "
+            "[1.5, 2.0] (endpoints only). Not "
+            "cross_sectional_turnover_lead (volume lead). Not "
+            "sma20_stretch_fade (univariate SMA). Not "
+            "rolling_vwap_stretch_fade. Not rsi_fade_chop. Do not "
+            "revive killed YES x5, ORB, wyckoff, "
+            "thrust_bar_fail_reversion, or the reject pack. "
+            "Option B SCORE/RETIRE only. No approved=true. Live "
+            "stays off. Book cells stay 0. Protect 12+56. Do not "
+            "start walk-forward."
+        ),
+        summary=(
+            "Fade a 4h alt whose price residual versus BTC beta "
+            "stretches at least k_atr*ATR(20) and whose close fades "
+            "back toward zero, as one 4h BOTH family with SHORT "
+            "priority."
+        ),
+        justification=(
+            "A locked ATR20 price-level residual versus a prior-"
+            "window BTC beta, with searched lookback and k_atr "
+            "only, is not a volume-lead cross section, not an "
+            "SMA20 wick stretch, and not a rolling VWAP stretch. "
+            "Option B SCORE/RETIRE only. No approved=true. Live "
+            "stays off."
+        ),
+    ),
 ]
 
 

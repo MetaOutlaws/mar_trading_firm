@@ -1472,6 +1472,21 @@ def _novel_kit(name: str, side: SignalSide):
             # start that walk and does not set approved=true.
             {"min_range_atr": [1.5, 2.0], "extreme_frac": [0.25, 0.35]},
         ),
+        "alt_btc_residual_stretch_fade": (
+            "core.strategy.alt_btc_residual_stretch_fade",
+            "AltBtcResidualStretchFadeParams",
+            "AltBtcResidualStretchFadeStrategy",
+            # atr_n locked at 20, known before the signal bar
+            # (atr.shift(1)). Price OLS beta uses the prior
+            # lookback closes only (bar t excluded). Fade is a
+            # strict close back inside the k_atr*ATR residual
+            # band. Pairs and BTC benchmark are locked. Search
+            # lookback and k_atr only — endpoints [20, 40] and
+            # [1.5, 2.0], no interiors. BOTH with SHORT
+            # priority. Fill t+1. Option B: do not start the
+            # walk from the coding PR. Do not set approved=true.
+            {"lookback": [20, 40], "k_atr": [1.5, 2.0]},
+        ),
         "outside_bar_reversal": (
             "core.strategy.outside_bar_reversal",
             "OutsideBarParams",
