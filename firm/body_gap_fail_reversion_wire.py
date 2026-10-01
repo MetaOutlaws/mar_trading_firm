@@ -117,11 +117,18 @@ def apply() -> None:
     validate.strategy_kit = strategy_kit  # type: ignore[assignment]
 
     # Option B sibling eager-load (MCP size: avoid rewriting research/validate.py).
-    # validate.py already calls this body_gap apply() on kit path; chain sibling here.
+    # validate.py already calls this body_gap apply() on kit path; chain siblings here.
     try:
         from firm.broken_swing_retest_reject_wire import apply as _apply_broken_swing_retest_reject_wire
 
         _apply_broken_swing_retest_reject_wire()
+    except Exception:
+        pass
+
+    try:
+        from firm.two_bar_run_mid_fail_wire import apply as _apply_two_bar_run_mid_fail_wire
+
+        _apply_two_bar_run_mid_fail_wire()
     except Exception:
         pass
 
