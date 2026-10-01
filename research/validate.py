@@ -1891,3 +1891,13 @@ def operator_paper_approve(
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     logger.info("Operator paper override on %s: %s", applied, reason)
     return applied
+
+# Option B: body_gap_fail_reversion registers via runtime wire (PR #80).
+# Eager-load on kit path so Job 168 validate sees the family without a prior import.
+try:
+    from firm.body_gap_fail_reversion_wire import apply as _apply_body_gap_fail_reversion_wire
+
+    _apply_body_gap_fail_reversion_wire()
+except Exception:
+    # Optional sleeve; missing wire must not break unrelated kit lookups.
+    pass
