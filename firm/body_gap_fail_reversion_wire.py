@@ -146,5 +146,11 @@ def apply() -> None:
     except Exception:
         pass
 
+    try:
+        from firm.garman_klass_vol_spike_fade_wire import apply as _apply_garman_klass_vol_spike_fade_wire
+        _apply_garman_klass_vol_spike_fade_wire()
+    except Exception:
+        pass
+
 
 apply()
