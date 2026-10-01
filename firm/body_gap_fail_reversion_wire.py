@@ -139,5 +139,12 @@ def apply() -> None:
     except Exception:
         pass
 
+    try:
+        from firm.donchian_n_fail_reversion_wire import apply as _apply_donchian_n_fail_reversion_wire
+
+        _apply_donchian_n_fail_reversion_wire()
+    except Exception:
+        pass
+
 
 apply()
