@@ -43,3 +43,15 @@ __all__ = [
     "REQUIRE_CLOSE_RECLAIM_INSIDE_LOCKED",
     "BodyGapFailReversionParams",
 ]
+
+
+def _register_option_b_wire() -> None:
+    try:
+        from firm.body_gap_fail_reversion_wire import apply
+        apply()
+    except Exception:
+        # Registry import can precede firm package init in some harnesses.
+        pass
+
+
+_register_option_b_wire()
