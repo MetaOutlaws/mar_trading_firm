@@ -132,5 +132,12 @@ def apply() -> None:
     except Exception:
         pass
 
+    try:
+        from firm.amihud_illiquidity_spike_fade_wire import apply as _apply_amihud_illiquidity_spike_fade_wire
+
+        _apply_amihud_illiquidity_spike_fade_wire()
+    except Exception:
+        pass
+
 
 apply()
