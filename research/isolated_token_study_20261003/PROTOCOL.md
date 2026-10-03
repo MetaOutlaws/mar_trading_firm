@@ -1,4 +1,52 @@
 # BTC, ETH and SOL: isolated opportunity study
+
+Protocol v2, amended 2026-10-03 before any historical returns were computed.
+
+**Status: DATA BLOCKED.** No historical strategy result, net return, preferred token, or leverage conclusion has been established. Do not run `study.py` for returns while this status stands.
+
+## Frozen v1
+
+Protocol v1 stays frozen. Its text is reproduced byte-for-byte in "Frozen protocol v1 text" below, from the `# BTC, ETH and SOL` heading through the final source URL. SHA256 of that v1 file, taken before this amendment:
+
+`5c5e6b29c27418ffbcfc5b3063dd2d16018c96dbca82530f9799d4983ffcfe66`
+
+v1 was frozen before any candle results were viewed. v2 records the measured cache export and the rule for when a run is allowed. It leaves the v1 question list, chronology, 48-configuration matrix, cost assumptions, and execution rules unchanged.
+
+## v2 delta
+
+v1 already said to amend the protocol before results when coverage is insufficient, and that other cached intervals cannot substitute for 1-minute execution. The desktop export has now been measured. v2 writes that measurement down so the files in hand cannot be scored.
+
+Ops export, desktop cache `C:\Users\PC\mar_trading_firm\data\cache`, window 2022-01-01 00:00:00 UTC through 2026-10-02 23:59:59 UTC inclusive. One-minute timestamps are bar opens. A complete tape is 2,499,840 opens per symbol, last open 2026-10-02 23:59:00 UTC. SGP1 `/data/state/data/cache` was empty. The desktop cache has no `*_1m.parquet` and no `*_5m.parquet` for BTCUSDT, ETHUSDT, or SOLUSDT. Daily parquet files are on the desktop and were not in the export zip. Coarse-file internal gaps were not computed; only first, last, and row counts were.
+
+1-minute OHLCV is 0 rows for BTCUSDT, ETHUSDT, and SOLUSDT. Each symbol is missing the whole window (one hole, 2,499,840 opens). That hole covers discovery (2022-01-01 to 2025-01-01 exclusive), validation (2025-01-01 to 2026-01-01 exclusive), and reserved evaluation (2026-01-01 to 2026-10-03 exclusive).
+
+In-window funding rows: BTCUSDT 5,108, ETHUSDT 5,108, SOLUSDT 5,468. All three start at 2022-01-01 00:00:00 UTC. The last observed stamp for all three is 2026-08-30 08:00:00 UTC. The shared hole is 2026-08-30 16:00:00 UTC through 2026-10-02 16:00:00 UTC, 100 steps of 8 hours, with no later cached funding stamp. BTC and ETH intervals inside the observed span are all 28,800 seconds. SOL includes 480 extra 2-hour prints from 2022-11-10 08:00:00 UTC through 2022-12-20 08:00:00 UTC (hours 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22). The SOL 8-hour grid from 2022-01-01 00:00:00 UTC through the last observed stamp has no missing 8-hour step.
+
+The zip also contains 15-minute, 1-hour, and 4-hour bars. Last in-file timestamps are short of the protocol end: BTC 15-minute 2026-09-03 08:15 UTC, ETH and SOL 15-minute 2026-08-31 11:45 UTC, BTC and ETH 1-hour 2026-09-08 05:00 UTC, SOL 1-hour 2026-09-29 06:00 UTC, and all three 4-hour series 2026-10-02 20:00 UTC. Those files are coverage evidence only.
+
+### Block
+
+The study stays DATA BLOCKED until both conditions below are true.
+
+1. Complete 1-minute OHLCV for BTCUSDT, ETHUSDT, and SOLUSDT covers discovery, validation, and the reserved window: 2,499,840 bar opens each, 2022-01-01 00:00:00 UTC through 2026-10-02 23:59:00 UTC inclusive, and the v1 audit passes (explicit UTC timezone, unique timestamps, finite positive OHLC, no filled gaps, no cross-exchange splice).
+2. Funding for all three symbols is filled through the reserved end, including the 100 missing 8-hour stamps from 2026-08-30 16:00:00 UTC through 2026-10-02 16:00:00 UTC. A later protocol revision may instead gate that hole explicitly, and that revision has to be frozen before any returns are viewed. v2 does not gate the hole.
+
+### Coarse intervals
+
+Scoring returns on 15-minute, 1-hour, or 4-hour bars under this package is forbidden. A study on those intervals needs its own protocol revision, written and frozen before any of its returns are viewed. v2 is not that revision. Five-minute files were not in the desktop cache and are not a substitute either.
+
+### Unblock path
+
+1. Backfill historical Bybit 1-minute OHLCV and funding into the cache for BTCUSDT, ETHUSDT, and SOLUSDT.
+2. Re-export that cache.
+3. Re-audit file hashes and gaps against the block conditions above.
+4. Only after that audit passes, run `python study.py --cache <audited cache> --out <new results directory>`. The results directory must be new. Any later change to rules or windows is a new protocol version. v1 and v2 stay as written.
+
+No candles are invented from the coarse files. No historical returns are computed from this export.
+
+## Frozen protocol v1 text
+
+# BTC, ETH and SOL: isolated opportunity study
 Protocol v1, frozen 2026-10-03 before any candle results were viewed.
 
 Status: DATA BLOCKED. No historical strategy result or winning token has been established.
