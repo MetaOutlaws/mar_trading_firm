@@ -119,6 +119,10 @@ class TradeRecord(Base):
     position_id: Mapped[int | None] = mapped_column(
         ForeignKey("positions.id"), nullable=True, index=True
     )
+    #: Durable id of the paper cash close that produced this row. Null on
+    #: historical trades. A replay of the same close finds this id and does
+    #: not insert a second row. SQLite allows many NULLs under a unique index.
+    cash_event_id: Mapped[str | None] = mapped_column(String(160), nullable=True, unique=True)
 
     symbol: Mapped[str] = mapped_column(String(32), index=True)
     side: Mapped[str] = mapped_column(String(8))
@@ -173,12 +177,37 @@ class EquitySnapshot(Base):
     mode: Mapped[str] = mapped_column(String(16), default=TradingMode.PAPER.value, index=True)
 
     equity: Mapped[float] = mapped_column(Float)
+    #: Closed-trade net for rows written after the labelling fix.
+    #: Older rows stored equity minus starting capital. Those rows are not
+    #: rewritten; the live book read does not treat this column as cash P&L.
     realised_pnl: Mapped[float] = mapped_column(Float, default=0.0)
+    #: Marked open P&L when the writer had prices. Older rows may be 0
+    #: while a position was open. Not rewritten.
     unrealised_pnl: Mapped[float] = mapped_column(Float, default=0.0)
     exposure: Mapped[float] = mapped_column(Float, default=0.0)
     open_positions: Mapped[int] = mapped_column(Integer, default=0)
     peak_equity: Mapped[float] = mapped_column(Float, default=0.0)
     drawdown_pct: Mapped[float] = mapped_column(Float, default=0.0)
+
+
+class PaperCashEvent(Base):
+    """Durable paper cash event committed with its trade row.
+
+    The JSON journal is appended only after this row commits. ``event_id``
+    is the replay key: a second insert of the same close is a no-op.
+    Historical JSON events are not copied here.
+    """
+
+    __tablename__ = "paper_cash_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="close", index=True)
+    mode: Mapped[str] = mapped_column(String(16), default=TradingMode.PAPER.value, index=True)
+    symbol: Mapped[str] = mapped_column(String(32), default="", index=True)
+    position_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    recorded_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utcnow, index=True)
 
 
 class RiskEvent(Base):

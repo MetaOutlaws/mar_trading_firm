@@ -899,12 +899,57 @@ class TradingEngine:
         self._allow_live_exchange_close = allow_live_exchange_close
         return self._manage_open_positions()
 
+    def _marked_unrealised(self, marks: dict[str, float]) -> float:
+        """Open price P&L. Uses a passed mark when one exists, else the broker price.
+
+        Entry price is not treated as a mark. A position with no price adds nothing
+        rather than a fake zero that hides a missing quote.
+        """
+        total = 0.0
+        if isinstance(self.broker, PaperBroker):
+            for position in self.broker._positions.values():
+                mark = marks.get(position.symbol)
+                if mark is None:
+                    mark = self.broker.get_price(position.symbol)
+                if mark is None:
+                    continue
+                total += position.unrealised_pnl(float(mark))
+            return total
+        for snap in self.broker.get_positions():
+            mark = marks.get(snap.symbol)
+            if mark is None:
+                mark = snap.mark_price
+            if mark is None:
+                continue
+            direction = 1.0 if str(snap.side).upper() == "LONG" else -1.0
+            total += (float(mark) - snap.entry_price) * snap.quantity * direction
+        return total
+
+    def _closed_realised_pnl(self) -> float:
+        """Closed-trade net. Never equity minus starting capital."""
+        if isinstance(self.broker, PaperBroker):
+            return float(self.broker.realised_pnl)
+        return float(self.ledger.performance().get("net_pnl") or 0.0)
+
     def _record_cycle_accounting(self, report: CycleReport, equity: float, marks: dict[str, float]) -> None:
-        """Persist equity / risk warnings. Runs under halt and empty plan."""
+        """Persist equity / risk warnings. Runs under halt and empty plan.
+
+        The snapshot is taken after fills. ``realised_pnl`` is closed net.
+        ``unrealised_pnl`` is the open mark. Equity for a paper book is cash
+        plus that mark, not capital plus realised.
+        """
+        unrealised = self._marked_unrealised(marks)
+        if isinstance(self.broker, PaperBroker):
+            equity = float(self.broker.cash) + unrealised
+        else:
+            equity = float(self.broker.get_balance())
+        report.equity = equity
         positions = self.ledger.open_positions()
         exposure = sum(p.quantity * marks.get(p.symbol, p.entry_price) for p in positions)
         self.ledger.record_equity(
             equity=equity,
+            realised_pnl=self._closed_realised_pnl(),
+            unrealised_pnl=unrealised,
             exposure=exposure,
             open_position_count=len(positions),
         )
@@ -1347,22 +1392,15 @@ class TradingEngine:
         closed = 0
 
         if isinstance(self.broker, PaperBroker):
-            for symbol, reason, result in self.broker.check_stops():
-                position = self.ledger.find_open_position(symbol)
-                if position is None:
-                    continue
-                self.ledger.close_position(
-                    position_id=position.id,
-                    exit_price=result.fill_price,
-                    expected_exit_price=position.take_profit_price
-                    if reason == "take_profit"
-                    else position.stop_loss_price,
-                    exit_reason=reason,
-                    entry_fees=float(getattr(position, "entry_fee", 0.0) or 0.0),
-                    exit_fees=result.fee or 0.0,
-                    funding=float(getattr(result, "funding", 0.0) or 0.0),
+            # Peek, then commit the cash event and the trade together.
+            # check_stops() journals cash before the trade row and is not used here.
+            for trigger in self.broker.peek_exit_triggers():
+                closed += self._settle_paper_exit(
+                    trigger.symbol,
+                    trigger.reason,
+                    at_mark=trigger.at_mark,
+                    mark_price=trigger.mark_price,
                 )
-                closed += 1
             closed += self._timeout_paper_positions()
             return closed
 
@@ -1412,20 +1450,123 @@ class TradingEngine:
                 continue
             if now < expiry:
                 continue
-            result = self.broker.close_position(position.symbol)
-            if not result.success:
-                continue
-            self.ledger.close_position(
-                position_id=position.id,
-                exit_price=result.fill_price,
-                expected_exit_price=result.fill_price,
-                exit_reason="timeout",
-                entry_fees=float(getattr(position, "entry_fee", 0.0) or 0.0),
-                exit_fees=result.fee or 0.0,
-                funding=float(getattr(result, "funding", 0.0) or 0.0),
+            closed += self._settle_paper_exit(
+                position.symbol,
+                "timeout",
+                at_mark=False,
+                mark_price=None,
             )
-            closed += 1
         return closed
+
+    def _settle_paper_exit(
+        self,
+        symbol: str,
+        reason: str,
+        *,
+        at_mark: bool,
+        mark_price: float | None,
+    ) -> int:
+        """Commit one paper close. RAM cash moves only after the trade commits.
+
+        Strategy and exit reason come from the open row and this caller.
+        They are not invented for a journal line that lacks them.
+        """
+        from core.execution.paper_settle import (
+            CloseSettlementError,
+            paper_close_event_id,
+            settle_paper_close,
+        )
+
+        broker = self.broker
+        if not isinstance(broker, PaperBroker):
+            return 0
+
+        position = self.ledger.find_open_position(symbol)
+        if position is None:
+            if self._apply_durable_close_to_ram(symbol):
+                return 0
+            logger.error(
+                "Paper exit %s (%s) has no open ledger position; cash journal not written",
+                symbol,
+                reason,
+            )
+            return 0
+
+        broker.accrue_funding()
+        if at_mark:
+            fill = float(mark_price if mark_price is not None else (broker.get_price(symbol) or 0.0))
+            expected = fill
+            ram = broker._positions.get(symbol)
+            if ram is not None and reason == "stop_loss" and ram.stop_loss is not None:
+                expected = float(ram.stop_loss)
+            quoted = broker.quote_mark_close(symbol, fill, expected)
+        else:
+            quoted = broker.quote_market_close(symbol)
+        if quoted is None:
+            return 0
+
+        event_id = paper_close_event_id(
+            position_id=int(position.id),
+            symbol=symbol,
+            reason=reason,
+            quantity=quoted.quantity,
+            fill_price=quoted.fill_price,
+        )
+        payload = broker.build_close_payload(
+            quoted, event_id=event_id, position_id=int(position.id)
+        )
+        if reason == "stop_loss":
+            ledger_expected = float(position.stop_loss_price or quoted.fill_price)
+        elif reason == "take_profit":
+            ledger_expected = float(position.take_profit_price or quoted.fill_price)
+        else:
+            ledger_expected = float(quoted.fill_price)
+
+        try:
+            result = settle_paper_close(
+                ledger=self.ledger,
+                event_id=event_id,
+                payload=payload,
+                position_id=int(position.id),
+                exit_price=float(quoted.fill_price),
+                expected_exit_price=ledger_expected,
+                exit_reason=reason,
+                entry_fees=float(quoted.entry_fee),
+                exit_fees=float(quoted.fee),
+                funding=float(quoted.funding),
+            )
+        except CloseSettlementError:
+            if self._apply_durable_close_to_ram(symbol):
+                return 0
+            logger.exception("Paper close %s refused; cash journal not written", symbol)
+            return 0
+
+        # Replay applies the committed payload, not a freshly quoted price.
+        applied = broker.apply_journal_close(result.payload)
+        if not applied.success and symbol in broker._positions:
+            logger.error("Paper close %s committed but RAM still shows the position", symbol)
+            return 0
+        return 1
+
+    def _apply_durable_close_to_ram(self, symbol: str) -> bool:
+        """If this RAM row was already closed in SQLite, apply that payload once."""
+        from core.execution.paper_settle import find_durable_close_payload
+
+        broker = self.broker
+        if not isinstance(broker, PaperBroker):
+            return False
+        position = broker._positions.get(symbol)
+        if position is None:
+            return False
+        payload = find_durable_close_payload(
+            symbol=symbol,
+            quantity=position.quantity,
+            entry_price=position.entry_price,
+        )
+        if payload is None:
+            return False
+        applied = broker.apply_journal_close(payload)
+        return bool(applied.success)
 
 
 def build_engine(

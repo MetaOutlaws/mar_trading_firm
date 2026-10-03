@@ -552,6 +552,8 @@ def risk() -> dict[str, Any]:
         "performance": ledger.performance(),
         "equity": _latest_equity(settings.trading_mode.value),
         "open_positions": open_positions,
+        # Live six-way book. Not the stored snapshot realised column.
+        "book": _live_book(settings.trading_mode.value, rows, marks),
     }
 
 
@@ -593,6 +595,17 @@ def trades(limit: int = 50) -> list[dict[str, Any]]:
             }
             for t in rows
         ]
+
+
+def _live_book(mode: str, positions: list[Any], marks: dict[str, float | None]) -> dict[str, Any]:
+    """Split capital, cash, closed P&L, open costs, funding, and marks.
+
+    Stored equity snapshots are not an input. Older snapshots may label
+    equity minus capital as realised; this read does not.
+    """
+    from core.ledger.statement import live_book_statement
+
+    return live_book_statement(mode, positions, marks)
 
 
 def _latest_equity(mode: str) -> dict[str, Any] | None:

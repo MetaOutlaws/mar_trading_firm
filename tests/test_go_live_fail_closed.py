@@ -301,8 +301,8 @@ def test_snapshot_drawdown_is_used_when_performance_omits_the_field(
 ) -> None:
     """Fail-closed prefers a real snapshot DD over inventing 0%."""
     paper = Ledger(mode=LEDGER_MODE_PAPER, starting_equity=10_000.0)
-    paper.record_equity(10_000.0)
-    paper.record_equity(8_500.0)  # 15% from peak
+    paper.record_equity(10_000.0, realised_pnl=0.0, unrealised_pnl=0.0)
+    paper.record_equity(8_500.0, realised_pnl=0.0, unrealised_pnl=0.0)  # 15% from peak
     approvals = _book(("atr_channel_breakout:BTCUSDT:SHORT:4h", _approved_row()))
     ks = KillSwitch(tmp_path / "killswitch.json")
     report = evaluate_gates(
