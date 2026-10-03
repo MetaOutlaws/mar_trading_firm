@@ -118,6 +118,7 @@ def apply() -> None:
 
     # Option B sibling eager-load (MCP size: avoid rewriting research/validate.py).
     # validate.py already calls this body_gap apply() on kit path; chain siblings here.
+    # Known tip chain: broken_swing → two_bar → amihud → donchian → garman_klass → IPC.
     try:
         from firm.broken_swing_retest_reject_wire import apply as _apply_broken_swing_retest_reject_wire
 
@@ -148,7 +149,15 @@ def apply() -> None:
 
     try:
         from firm.garman_klass_vol_spike_fade_wire import apply as _apply_garman_klass_vol_spike_fade_wire
+
         _apply_garman_klass_vol_spike_fade_wire()
+    except Exception:
+        pass
+
+    try:
+        from firm.impulse_pullback_continuation_wire import apply as _apply_impulse_pullback_continuation_wire
+
+        _apply_impulse_pullback_continuation_wire()
     except Exception:
         pass
 
