@@ -20,6 +20,9 @@ What is persisted (``data/paper_cash.json``)
                   when those fields are present (F03).
 * Snapshot fields (``contributed_capital``, ``cash``, ``realised_pnl``,
   ``total_fees``, ``total_funding``) are derived from a replay.
+  ``realised_pnl`` is closed round trips only. It is not equity minus
+  capital. ``total_funding`` is funding folded into closes; funding still
+  on open positions stays in ``open_funding``. ``accrued_funding`` is both.
 
 What is *not* persisted here
 ----------------------------
@@ -74,8 +77,12 @@ class PaperCashState:
     realised_pnl: float = 0.0
     total_fees: float = 0.0
     total_funding: float = 0.0
+    #: Every funding event amount, open and closed. Positive means paid.
+    accrued_funding: float = 0.0
     #: Funding already taken from cash for symbols still open.
     open_funding: dict[str, float] = field(default_factory=dict)
+    #: Entry fees on symbols that have not been closed out of the journal.
+    open_entry_fees: dict[str, float] = field(default_factory=dict)
     events: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -84,15 +91,25 @@ def replay_events(events: list[dict[str, Any]]) -> PaperCashState:
 
     ``funding`` events (F03) debit cash during a hold. Close events keep the
     F02 cash formula (``gross - exit fee``) and, when present, fold
-    ``entry_fee`` + ``funding`` into realised P&L so a flat book satisfies
-    cash - contributed == realised_pnl. Unknown kinds are still skipped.
+    ``entry_fee`` + ``funding`` into realised P&L so a *flat* book satisfies
+    cash - contributed == realised_pnl.
+
+    An open book does not. Entry fees and funding still on open positions
+    have already moved cash and are not inside closed realised P&L:
+
+        cash = contributed + closed_realised - open_entry_costs - open_funding
+
+    ``accrued_funding`` sums every funding event (open and closed). Positive
+    means the account paid. Unknown kinds are still skipped.
     """
     contributed = 0.0
     cash = 0.0
     realised = 0.0
     fees = 0.0
     total_funding = 0.0
+    accrued_funding = 0.0
     open_funding: dict[str, float] = {}
+    open_entry_fees: dict[str, float] = {}
 
     for event in events:
         kind = str(event.get("kind") or "")
@@ -105,9 +122,12 @@ def replay_events(events: list[dict[str, Any]]) -> PaperCashState:
             fee = float(event.get("fee") or 0.0)
             cash -= fee
             fees += fee
+            if symbol:
+                open_entry_fees[symbol] = open_entry_fees.get(symbol, 0.0) + fee
         elif kind == KIND_FUNDING:
             amount = float(event.get("amount") or 0.0)
             cash -= amount
+            accrued_funding += amount
             if symbol:
                 open_funding[symbol] = open_funding.get(symbol, 0.0) + amount
         elif kind == KIND_CLOSE:
@@ -125,6 +145,11 @@ def replay_events(events: list[dict[str, Any]]) -> PaperCashState:
                     open_funding.pop(symbol, None)
                 else:
                     open_funding[symbol] = remaining
+                entry_left = open_entry_fees.get(symbol, 0.0) - entry_fee
+                if abs(entry_left) < 1e-12:
+                    open_entry_fees.pop(symbol, None)
+                else:
+                    open_entry_fees[symbol] = entry_left
         else:
             logger.warning("Skipping unknown paper cash event kind %r", kind)
 
@@ -134,9 +159,34 @@ def replay_events(events: list[dict[str, Any]]) -> PaperCashState:
         realised_pnl=realised,
         total_fees=fees,
         total_funding=total_funding,
+        accrued_funding=accrued_funding,
         open_funding=open_funding,
+        open_entry_fees=open_entry_fees,
         events=list(events),
     )
+
+
+def merge_cash_events(
+    primary: list[dict[str, Any]],
+    extra: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Append ``extra`` events whose ``event_id`` is not already present.
+
+    Events with no id (the historical journal) are kept as they are and are
+    not matched by symbol or price. This does not rewrite those rows.
+    """
+    merged = [dict(event) for event in primary]
+    seen = {str(event.get("event_id")) for event in merged if event.get("event_id")}
+    for event in extra:
+        event_id = event.get("event_id")
+        if not event_id:
+            continue
+        key = str(event_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(dict(event))
+    return merged
 
 
 class PaperCashStore:
@@ -158,6 +208,10 @@ class PaperCashStore:
 
     def record(self, event: dict[str, Any]) -> None:
         payload = dict(event)
+        event_id = payload.get("event_id")
+        # Same durable id must not debit twice when a commit is replayed.
+        if event_id and any(existing.get("event_id") == event_id for existing in self._events):
+            return
         payload.setdefault("ts", _utcnow_iso())
         self._events.append(payload)
         self._persist()

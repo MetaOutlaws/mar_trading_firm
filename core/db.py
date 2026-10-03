@@ -172,6 +172,8 @@ def _migrate_sqlite_columns() -> None:
         "trades": {
             "entry_fees": "FLOAT DEFAULT 0.0",
             "exit_fees": "FLOAT DEFAULT 0.0",
+            # Schema only. Does not rewrite net_pnl or backfill closes.
+            "cash_event_id": "VARCHAR(160)",
         },
     }
     inspector = inspect(engine)
@@ -185,6 +187,15 @@ def _migrate_sqlite_columns() -> None:
                 if name not in existing:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
                     logger.info("Migrated %s.%s", table, name)
+        # Unique replay key. Many NULL cash_event_id values stay allowed.
+        # Additive index only — no UPDATE of existing trade rows.
+        if "trades" in tables:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_trades_cash_event_id "
+                    "ON trades(cash_event_id)"
+                )
+            )
         if "escalations" not in tables:
             return
         # Title used to be VARCHAR(200); widen if SQLite stored it that way.

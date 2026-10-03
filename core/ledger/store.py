@@ -121,74 +121,120 @@ class Ledger:
         funding: float = 0.0,
         entry_fees: float | None = None,
         exit_fees: float = 0.0,
+        cash_event_id: str | None = None,
     ) -> TradeRecord | None:
         """Close a position and write the resulting trade record.
 
         ``entry_fees`` defaults to the fee stored on the open row. ``fees`` is
         the round-trip total; when omitted it is entry + exit. Pass both legs
         explicitly so cash can reconcile to ``net_pnl`` (F03).
+
+        ``cash_event_id`` ties the trade to a paper cash close. The paper
+        settler passes it inside the same transaction as the cash event.
         """
         with session_scope() as session:
-            position = session.get(Position, position_id)
-            if position is None:
-                logger.error("Ledger: cannot close unknown position %d", position_id)
-                return None
-            if position.status != PositionStatus.OPEN.value:
-                logger.warning("Ledger: position %d is already %s", position_id, position.status)
-                return None
-
-            stored_entry = float(position.entry_fee or 0.0)
-            if entry_fees is None:
-                entry_fees = stored_entry
-            if fees is None:
-                fees = entry_fees + exit_fees
-
-            direction = 1.0 if position.side == "LONG" else -1.0
-            gross_pnl = (exit_price - position.entry_price) * position.quantity * direction
-            net_pnl = gross_pnl - fees - funding
-
-            exit_slippage_bps = 0.0
-            if expected_exit_price:
-                difference = (exit_price - expected_exit_price) / expected_exit_price
-                # A long exiting below expectation is unfavourable, hence -1.
-                exit_slippage_bps = difference * -direction * 10_000
-
-            trade = TradeRecord(
-                position_id=position.id,
-                symbol=position.symbol,
-                side=position.side,
-                mode=self.mode,
-                strategy=position.strategy,
-                quantity=position.quantity,
-                notional=position.notional,
-                entry_price=position.entry_price,
+            return self._close_in_session(
+                session,
+                position_id=position_id,
                 exit_price=exit_price,
-                entry_time=position.opened_at,
-                exit_time=utcnow(),
-                gross_pnl=gross_pnl,
+                expected_exit_price=expected_exit_price,
+                exit_reason=exit_reason,
                 fees=fees,
+                funding=funding,
                 entry_fees=entry_fees,
                 exit_fees=exit_fees,
-                funding=funding,
-                net_pnl=net_pnl,
-                return_pct=(net_pnl / position.notional * 100.0) if position.notional else 0.0,
-                exit_reason=exit_reason,
-                entry_slippage_bps=position.entry_slippage_bps,
-                exit_slippage_bps=exit_slippage_bps,
-                contributing_agents=list(position.contributing_agents or []),
-                entry_indicators=dict(position.entry_indicators or {}),
+                cash_event_id=cash_event_id,
             )
-            session.add(trade)
 
-            position.status = PositionStatus.CLOSED.value
-            position.closed_at = utcnow()
+    def _close_in_session(
+        self,
+        session: object,
+        position_id: int,
+        exit_price: float,
+        expected_exit_price: float,
+        exit_reason: str,
+        fees: float | None = None,
+        funding: float = 0.0,
+        entry_fees: float | None = None,
+        exit_fees: float = 0.0,
+        cash_event_id: str | None = None,
+    ) -> TradeRecord | None:
+        """Insert the trade using the caller's session. Does not commit.
 
-            session.flush()
-            logger.info(
-                "Ledger: closed position %d - %s net P&L %.4f (%.3f%%), reason=%s",
-                position_id, position.symbol, net_pnl, trade.return_pct, exit_reason,
+        A repeated ``cash_event_id`` returns the existing trade and does not
+        close the position a second time.
+        """
+        from sqlalchemy.orm import Session
+
+        db: Session = session  # type: ignore[assignment]
+        if cash_event_id:
+            existing = db.scalar(
+                select(TradeRecord).where(TradeRecord.cash_event_id == cash_event_id)
             )
-            return trade
+            if existing is not None:
+                return existing
+
+        position = db.get(Position, position_id)
+        if position is None:
+            logger.error("Ledger: cannot close unknown position %d", position_id)
+            return None
+        if position.status != PositionStatus.OPEN.value:
+            logger.warning("Ledger: position %d is already %s", position_id, position.status)
+            return None
+
+        stored_entry = float(position.entry_fee or 0.0)
+        if entry_fees is None:
+            entry_fees = stored_entry
+        if fees is None:
+            fees = entry_fees + exit_fees
+
+        direction = 1.0 if position.side == "LONG" else -1.0
+        gross_pnl = (exit_price - position.entry_price) * position.quantity * direction
+        net_pnl = gross_pnl - fees - funding
+
+        exit_slippage_bps = 0.0
+        if expected_exit_price:
+            difference = (exit_price - expected_exit_price) / expected_exit_price
+            # A long exiting below expectation is unfavourable, hence -1.
+            exit_slippage_bps = difference * -direction * 10_000
+
+        trade = TradeRecord(
+            position_id=position.id,
+            symbol=position.symbol,
+            side=position.side,
+            mode=self.mode,
+            strategy=position.strategy,
+            quantity=position.quantity,
+            notional=position.notional,
+            entry_price=position.entry_price,
+            exit_price=exit_price,
+            entry_time=position.opened_at,
+            exit_time=utcnow(),
+            gross_pnl=gross_pnl,
+            fees=fees,
+            entry_fees=entry_fees,
+            exit_fees=exit_fees,
+            funding=funding,
+            net_pnl=net_pnl,
+            return_pct=(net_pnl / position.notional * 100.0) if position.notional else 0.0,
+            exit_reason=exit_reason,
+            entry_slippage_bps=position.entry_slippage_bps,
+            exit_slippage_bps=exit_slippage_bps,
+            contributing_agents=list(position.contributing_agents or []),
+            entry_indicators=dict(position.entry_indicators or {}),
+            cash_event_id=cash_event_id or None,
+        )
+        db.add(trade)
+
+        position.status = PositionStatus.CLOSED.value
+        position.closed_at = utcnow()
+
+        db.flush()
+        logger.info(
+            "Ledger: closed position %d - %s net P&L %.4f (%.3f%%), reason=%s",
+            position_id, position.symbol, net_pnl, trade.return_pct, exit_reason,
+        )
+        return trade
 
     def open_positions(self) -> list[Position]:
         """All currently open positions in this mode."""
@@ -312,11 +358,20 @@ class Ledger:
     def record_equity(
         self,
         equity: float,
-        unrealised_pnl: float = 0.0,
+        *,
+        realised_pnl: float,
+        unrealised_pnl: float,
         exposure: float = 0.0,
         open_position_count: int = 0,
     ) -> None:
-        """Append an equity snapshot."""
+        """Append an equity snapshot.
+
+        ``realised_pnl`` is closed-trade net, passed in by the caller. This
+        method does not subtract starting capital from equity: that gap also
+        contains open marks, open entry fees, and funding still on the book.
+        ``unrealised_pnl`` is the marked open P&L. Pass the marked sum when
+        prices exist; do not leave it at zero to hide an open mark.
+        """
         peak = max(self.peak_equity(), equity)
         drawdown = ((peak - equity) / peak * 100.0) if peak > 0 else 0.0
 
@@ -325,7 +380,7 @@ class Ledger:
                 EquitySnapshot(
                     mode=self.mode,
                     equity=equity,
-                    realised_pnl=equity - self.starting_equity,
+                    realised_pnl=realised_pnl,
                     unrealised_pnl=unrealised_pnl,
                     exposure=exposure,
                     open_positions=open_position_count,

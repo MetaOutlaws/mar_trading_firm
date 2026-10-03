@@ -49,10 +49,39 @@ from core.execution.paper_cash import (
     KIND_FUNDING,
     KIND_OPEN,
     PaperCashStore,
+    replay_events,
 )
 from research.costs import DEFAULT_COSTS, CostModel
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ExitTrigger:
+    """A stop or target the current mark has reached. Peeking does not fill."""
+
+    symbol: str
+    reason: str
+    #: True: fill at the mark with no second slippage tick (stop path).
+    at_mark: bool
+    mark_price: float
+    expected_price: float
+
+
+@dataclass(frozen=True)
+class QuotedClose:
+    """Close economics computed from the open row. Nothing has been debited yet."""
+
+    symbol: str
+    side: str
+    quantity: float
+    fill_price: float
+    fee: float
+    expected_price: float
+    gross_pnl: float
+    entry_fee: float
+    funding: float
+    entry_price: float
 
 
 @dataclass
@@ -118,12 +147,15 @@ class PaperBroker(Broker):
         #: Per-symbol funding already in cash for still-open rows (journal replay).
         self._open_funding: dict[str, float] = {}
 
-        #: Realised P&L, tracked separately so equity reconciles exactly.
-        #: Closed-book identity: cash - contributed_capital == realised_pnl ==
-        #: sum(TradeRecord.net_pnl), with entry fees and funding included.
+        #: Closed realised P&L only. On a flat book, cash - contributed_capital
+        #: equals this. On an open book it does not: open entry fees and open
+        #: funding have already left cash and are not closed P&L. Equity is
+        #: cash plus marks, not capital plus this figure.
         self.realised_pnl = 0.0
         self.total_fees = 0.0
         self.total_funding = 0.0
+        #: Close event ids already applied to this process's cash.
+        self._applied_close_ids: set[str] = set()
 
     def close(self) -> None:
         if self._owns_data_source:
@@ -444,59 +476,137 @@ class PaperBroker(Broker):
         )
         return result
 
-    def _apply_close(
+    def _quote_close(
         self,
         symbol: str,
         quantity: float,
         fill_price: float,
         fee: float,
         expected_price: float,
-    ) -> OrderResult:
+    ) -> QuotedClose | None:
+        """Price a close without moving cash or the journal."""
+        position = self._positions.get(symbol)
+        if position is None:
+            return None
+        closing_quantity = min(quantity, position.quantity)
+        fraction = closing_quantity / position.quantity if position.quantity else 1.0
+        direction = 1.0 if position.side == "LONG" else -1.0
+        gross_pnl = (fill_price - position.entry_price) * closing_quantity * direction
+        return QuotedClose(
+            symbol=symbol,
+            side=position.side,
+            quantity=closing_quantity,
+            fill_price=fill_price,
+            fee=fee,
+            expected_price=expected_price,
+            gross_pnl=gross_pnl,
+            entry_fee=position.entry_fee * fraction,
+            # Accrue already brought funding_accrued up to `_now()` for the
+            # full size. The closed slice is realised; leftover stays on the stub.
+            funding=position.funding_accrued * fraction,
+            entry_price=position.entry_price,
+        )
+
+    def quote_mark_close(
+        self, symbol: str, fill_price: float, expected_price: float
+    ) -> QuotedClose | None:
+        """Stop-style quote: fill at ``fill_price`` with no extra slippage tick."""
+        position = self._positions.get(symbol)
+        if position is None:
+            return None
+        costs = self.costs_for(symbol)
+        fee = costs.fee_for(position.quantity * fill_price)
+        return self._quote_close(symbol, position.quantity, fill_price, fee, expected_price)
+
+    def quote_market_close(self, symbol: str) -> QuotedClose | None:
+        """Target and timeout quote: one exit-slippage tick on the live mark."""
+        position = self._positions.get(symbol)
+        if position is None:
+            return None
+        price = self.get_price(symbol) or position.entry_price
+        costs = self.costs_for(symbol)
+        fill_price = costs.exit_price(price, position.side)
+        fee = costs.fee_for(position.quantity * fill_price)
+        return self._quote_close(symbol, position.quantity, fill_price, fee, price)
+
+    def build_close_payload(
+        self,
+        quoted: QuotedClose,
+        *,
+        event_id: str | None,
+        position_id: int | None,
+    ) -> dict:
+        """JSON-shaped close event. Cash figures are the post-close prediction.
+
+        Calling this does not change RAM. The prediction matches
+        ``apply_journal_close`` so a committed payload and the broker agree.
+        """
+        post_cash = self._cash + quoted.gross_pnl - quoted.fee
+        post_realised = (
+            self.realised_pnl + quoted.gross_pnl - quoted.entry_fee - quoted.fee - quoted.funding
+        )
+        payload: dict = {
+            "kind": KIND_CLOSE,
+            "symbol": quoted.symbol,
+            "side": quoted.side,
+            "quantity": quoted.quantity,
+            "fill_price": quoted.fill_price,
+            "expected_price": quoted.expected_price,
+            "fee": quoted.fee,
+            "entry_fee": quoted.entry_fee,
+            "entry_price": quoted.entry_price,
+            "gross_pnl": quoted.gross_pnl,
+            "funding": quoted.funding,
+            "cash_after": post_cash,
+            "realised_pnl": post_realised,
+            "total_fees": self.total_fees + quoted.fee,
+            "total_funding": self.total_funding + quoted.funding,
+        }
+        if event_id:
+            payload["event_id"] = event_id
+        if position_id is not None:
+            payload["position_id"] = position_id
+        return payload
+
+    def apply_journal_close(self, payload: dict) -> OrderResult:
+        """Move RAM cash by a close payload, then append the JSON journal.
+
+        A repeated ``event_id`` does not debit again. Call this only after the
+        SQLite trade commit when the close must survive a crash. Broker-only
+        fills (replay, unit tests) also come through here with no event id.
+        """
+        symbol = str(payload.get("symbol") or "")
+        event_id = str(payload.get("event_id") or "")
+        if event_id and event_id in self._applied_close_ids:
+            self._record_cash_event(payload)
+            return self._order_result_from_close_payload(payload)
+
         position = self._positions.get(symbol)
         if position is None:
             return OrderResult(
                 success=False,
                 symbol=symbol,
-                requested_quantity=quantity,
-                expected_price=expected_price,
+                requested_quantity=float(payload.get("quantity") or 0.0),
+                expected_price=float(payload.get("expected_price") or 0.0),
                 error=f"no open position in {symbol}",
             )
 
-        closing_quantity = min(quantity, position.quantity)
-        fraction = closing_quantity / position.quantity if position.quantity else 1.0
-        direction = 1.0 if position.side == "LONG" else -1.0
-        gross_pnl = (fill_price - position.entry_price) * closing_quantity * direction
-        entry_fee_share = position.entry_fee * fraction
-        # Accrue already brought funding_accrued up to `_now()` for the full
-        # size. Realise the closed slice; leftover stays on the stub.
-        funding_share = position.funding_accrued * fraction
+        closing_quantity = float(payload.get("quantity") or 0.0)
+        gross_pnl = float(payload.get("gross_pnl") or 0.0)
+        fee = float(payload.get("fee") or 0.0)
+        entry_fee_share = float(payload.get("entry_fee") or 0.0)
+        funding_share = float(payload.get("funding") or 0.0)
+        fill_price = float(payload.get("fill_price") or 0.0)
         position_side = position.side
 
-        # Entry fee already left cash on the open. Close moves cash by
-        # gross minus the *exit* fee; funding for this slice is already in cash
-        # via accrue_funding. realised_pnl gets every cost so a flat book
-        # satisfies cash - contributed == realised_pnl.
+        # Entry fee already left cash on the open. Close moves cash by gross
+        # minus the exit fee. Funding for this slice is already in cash.
+        # realised_pnl is closed net only, so a flat book satisfies
+        # cash - contributed == realised_pnl. Equity is not that identity.
         self._cash += gross_pnl - fee
         self.realised_pnl += gross_pnl - entry_fee_share - fee - funding_share
         self.total_fees += fee
         self.total_funding += funding_share
-        self._record_cash_event(
-            {
-                "kind": KIND_CLOSE,
-                "symbol": symbol,
-                "side": position_side,
-                "quantity": closing_quantity,
-                "fill_price": fill_price,
-                "fee": fee,
-                "entry_fee": entry_fee_share,
-                "gross_pnl": gross_pnl,
-                "funding": funding_share,
-                "cash_after": self._cash,
-                "realised_pnl": self.realised_pnl,
-                "total_fees": self.total_fees,
-                "total_funding": self.total_funding,
-            }
-        )
 
         if closing_quantity >= position.quantity - 1e-12:
             del self._positions[symbol]
@@ -505,25 +615,53 @@ class PaperBroker(Broker):
             position.entry_fee -= entry_fee_share
             position.funding_accrued -= funding_share
 
-        result = OrderResult(
-            success=True,
-            order_id=f"paper-{uuid.uuid4().hex[:12]}",
-            symbol=symbol,
-            side="SELL" if position_side == "LONG" else "BUY",
-            requested_quantity=quantity,
-            filled_quantity=closing_quantity,
-            expected_price=expected_price,
-            fill_price=fill_price,
-            fee=fee,
-            funding=funding_share,
-        )
+        if event_id:
+            self._applied_close_ids.add(event_id)
+        self._record_cash_event(payload)
+
         logger.info(
             "PAPER CLOSE %s qty=%.6f @ %.6f | gross P&L %.4f, exit fee %.4f, "
             "entry fee %.4f, funding %.4f, cash %.2f",
             symbol, closing_quantity, fill_price, gross_pnl, fee,
             entry_fee_share, funding_share, self._cash,
         )
-        return result
+        return self._order_result_from_close_payload(payload)
+
+    def _order_result_from_close_payload(self, payload: dict) -> OrderResult:
+        side = str(payload.get("side") or "")
+        return OrderResult(
+            success=True,
+            order_id=f"paper-{uuid.uuid4().hex[:12]}",
+            symbol=str(payload.get("symbol") or ""),
+            side="SELL" if side == "LONG" else "BUY",
+            requested_quantity=float(payload.get("quantity") or 0.0),
+            filled_quantity=float(payload.get("quantity") or 0.0),
+            expected_price=float(payload.get("expected_price") or payload.get("fill_price") or 0.0),
+            fill_price=float(payload.get("fill_price") or 0.0),
+            fee=float(payload.get("fee") or 0.0),
+            funding=float(payload.get("funding") or 0.0),
+        )
+
+    def _apply_close(
+        self,
+        symbol: str,
+        quantity: float,
+        fill_price: float,
+        fee: float,
+        expected_price: float,
+    ) -> OrderResult:
+        quoted = self._quote_close(symbol, quantity, fill_price, fee, expected_price)
+        if quoted is None:
+            return OrderResult(
+                success=False,
+                symbol=symbol,
+                requested_quantity=quantity,
+                expected_price=expected_price,
+                error=f"no open position in {symbol}",
+            )
+        return self.apply_journal_close(
+            self.build_close_payload(quoted, event_id=None, position_id=None)
+        )
 
     def set_stops(
         self, symbol: str, take_profit: float | None, stop_loss: float | None
@@ -611,32 +749,92 @@ class PaperBroker(Broker):
 
         return triggered
 
+    def peek_exit_triggers(self) -> list[ExitTrigger]:
+        """Report TP/SL hits without filling.
+
+        ``check_stops`` still fills for broker-only tests. The trading engine
+        peeks, then commits the cash event and the trade row together, and
+        only then calls ``apply_journal_close``.
+        """
+        triggers: list[ExitTrigger] = []
+        for symbol, position in list(self._positions.items()):
+            price = self.get_price(symbol)
+            if price is None:
+                continue
+            if position.side == "LONG":
+                hit_stop = position.stop_loss is not None and price <= position.stop_loss
+                hit_target = position.take_profit is not None and price >= position.take_profit
+            else:
+                hit_stop = position.stop_loss is not None and price >= position.stop_loss
+                hit_target = position.take_profit is not None and price <= position.take_profit
+            if hit_stop:
+                triggers.append(
+                    ExitTrigger(
+                        symbol=symbol,
+                        reason="stop_loss",
+                        at_mark=True,
+                        mark_price=price,
+                        expected_price=position.stop_loss or price,
+                    )
+                )
+            elif hit_target:
+                triggers.append(
+                    ExitTrigger(
+                        symbol=symbol,
+                        reason="take_profit",
+                        at_mark=False,
+                        mark_price=price,
+                        expected_price=position.take_profit or price,
+                    )
+                )
+        return triggers
+
     # -- cash journal ------------------------------------------------------
     def _restore_cash(self) -> None:
-        """Step 1 of hydrate: replay persisted events or seed starting capital."""
+        """Step 1 of hydrate: replay persisted events or seed starting capital.
+
+        A close that committed in SQLite but died before the JSON append is
+        merged in by ``event_id``. The historical journal rows are not edited.
+        Missing durable ids are appended so the next JSON rewrite keeps them.
+        """
         if self._cash_store is None:
             return
-        if self._cash_store.has_events():
-            state = self._cash_store.replay()
-            self._contributed_capital = state.contributed_capital
-            self._cash = state.cash
-            self.realised_pnl = state.realised_pnl
-            self.total_fees = state.total_fees
-            self.total_funding = state.total_funding
-            self._open_funding = dict(state.open_funding)
-            logger.warning(
-                "Paper cash replayed from %s: cash=%.4f realised=%.4f "
-                "fees=%.4f funding=%.4f contributed=%.4f (%d events)",
-                self._cash_store.path,
-                self._cash,
-                self.realised_pnl,
-                self.total_fees,
-                self.total_funding,
-                self._contributed_capital,
-                len(state.events),
-            )
+        from core.execution.paper_cash import merge_cash_events
+        from core.execution.paper_settle import load_durable_close_payloads
+
+        json_events = self._cash_store.events()
+        if not json_events:
+            self._seed_starting_capital()
             return
-        self._seed_starting_capital()
+        merged = merge_cash_events(json_events, load_durable_close_payloads())
+        state = replay_events(merged)
+        known = {event.get("event_id") for event in json_events if event.get("event_id")}
+        for event in merged:
+            event_id = event.get("event_id")
+            if not event_id:
+                continue
+            self._applied_close_ids.add(str(event_id))
+            if event_id not in known:
+                # Append only. Historical events in the file are not rewritten.
+                self._cash_store.record(dict(event))
+                known.add(event_id)
+        self._contributed_capital = state.contributed_capital
+        self._cash = state.cash
+        self.realised_pnl = state.realised_pnl
+        self.total_fees = state.total_fees
+        self.total_funding = state.total_funding
+        self._open_funding = dict(state.open_funding)
+        logger.warning(
+            "Paper cash replayed from %s: cash=%.4f realised=%.4f "
+            "fees=%.4f funding=%.4f contributed=%.4f (%d events)",
+            self._cash_store.path,
+            self._cash,
+            self.realised_pnl,
+            self.total_fees,
+            self.total_funding,
+            self._contributed_capital,
+            len(state.events),
+        )
 
     def _seed_starting_capital(self) -> None:
         """First persist: starting equity is a capital contribution, not P&L."""

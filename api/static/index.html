@@ -1111,6 +1111,11 @@ function renderOverview() {
     ? (risk.kill_switch.detail || "Trading is halted until a human resets with the investigation phrase.")
     : `${approvedN} research-approved (live still gated). ${paperN} on paper by operator veto.`;
   const positions = risk.open_positions || [];
+  const book = risk.book || {};
+  const equityShown = book.equity != null ? book.equity : eq.equity;
+  const equityHint = book.equity != null
+    ? "cash + marked unrealised"
+    : (eq.recorded_at ? "as of " + rel(eq.recorded_at) : "no snapshot yet");
   const activity = (state.floor.activity || []).slice(0, 8);
   const cont = (state.floor.pipeline || {}).continuity || {};
   return `
@@ -1122,8 +1127,8 @@ function renderOverview() {
     ${dutyCard()}
     ${orgCard()}
     <section class="kpis">
-      ${kpi("Equity", money(eq.equity), eq.recorded_at ? "as of " + rel(eq.recorded_at) : "no snapshot yet")}
-      ${kpi("Net P&amp;L", money(perf.net_pnl), (perf.trades || 0) + " closed trades", pnlClass(perf.net_pnl))}
+      ${kpi("Equity", money(equityShown), equityHint)}
+      ${kpi("Closed trades", money(perf.net_pnl), (perf.trades || 0) + " rows in the trades table", pnlClass(perf.net_pnl))}
       ${kpi("Win rate", perf.trades ? pct(perf.win_rate) : "—", perf.profit_factor != null ? "PF " + perf.profit_factor : "no sample")}
       ${kpi("Open risk", String(positions.length), money(eq.exposure || 0) + " notional")}
       ${kpi("Drawdown", eq.drawdown_pct != null ? pct(eq.drawdown_pct) : "—", "peak " + money(eq.peak_equity))}
@@ -1131,6 +1136,7 @@ function renderOverview() {
       ${kpi("Walk-forward", String((cont.running || 0)), (cont.standby_depth || 0) + " standby · " + (cont.dropped_event_count || 0) + " dropped events", (cont.open_invariant_violations || 0) ? "bad" : "ok")}
       ${kpi("Gemini", ((state.llm.providers || {}).gemini || {}).configured ? "ready" : "missing", "cheap/standard/strong seats", ((state.llm.providers || {}).gemini || {}).configured ? "ok" : "bad")}
     </section>
+    ${bookCard()}
     <section class="grid-2">
       <div class="card">
         <h2>Equity</h2>
@@ -1165,6 +1171,28 @@ function renderOverview() {
 
 function kpi(label, value, hint, klass = "") {
   return `<article class="kpi"><div class="label">${label}</div><div class="value num ${klass}">${value}</div><div class="hint">${hint || ""}</div></article>`;
+}
+
+function bookCard() {
+  const book = (state.risk || {}).book;
+  if (!book) return "";
+  const gap = book.journal_present && book.trades_net_pnl != null && book.closed_realised_pnl != null
+    && Math.abs(Number(book.trades_net_pnl) - Number(book.closed_realised_pnl)) > 0.01;
+  const fundingHint = "open " + money(book.open_funding, 4) + " · closed " + money(book.closed_funding, 4) + " · positive means paid";
+  return `<div class="card" style="margin-bottom:16px">
+    <h2>Paper book</h2>
+    <p class="muted">Six separate figures. Equity is cash plus the marked unrealised P&amp;L. Closed realised P&amp;L is not equity minus contributed capital.</p>
+    <section class="kpis">
+      ${kpi("Contributed capital", money(book.contributed_capital), "deposits, not P&L")}
+      ${kpi("Cash", money(book.cash), "after fees and funding")}
+      ${kpi("Closed realised", money(book.closed_realised_pnl), "closed round trips only", pnlClass(book.closed_realised_pnl))}
+      ${kpi("Open entry costs", money(book.open_entry_costs), "fees still on open positions")}
+      ${kpi("Accrued funding", money(book.accrued_funding, 4), fundingHint, pnlClass(book.accrued_funding))}
+      ${kpi("Marked unrealised", money(book.marked_unrealised_pnl), book.marks_complete ? "open marks" : "a mark is missing", pnlClass(book.marked_unrealised_pnl))}
+    </section>
+    <div class="muted" style="margin-top:8px">Equity ${money(book.equity)} = cash ${money(book.cash)} + marked unrealised ${money(book.marked_unrealised_pnl)}</div>
+    ${gap ? `<div class="warn" style="margin-top:8px">Trades-table net ${money(book.trades_net_pnl)} does not match cash-journal closed realised. Missing closes are not backfilled into cash.</div>` : ""}
+  </div>`;
 }
 
 function dutyCard() {
@@ -1563,7 +1591,7 @@ function fmtPx(n) {
 }
 
 function renderPositions() {
-  return `<div class="card">${positionsTable(state.risk.open_positions || [], true)}</div>`;
+  return `${bookCard()}<div class="card">${positionsTable(state.risk.open_positions || [], true)}</div>`;
 }
 function positionsTable(rows, detailed = false, paged = true) {
   if (!rows.length) return empty("Flat book", "No open positions. Size only appears here after a fill that has not yet hit stop, target, or time.");
