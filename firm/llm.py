@@ -121,6 +121,204 @@ def clear_model_timeout(provider: Provider | str, model: str) -> None:
     _model_open_until.pop(_model_key(provider, model), None)
 
 
+# A 402 / prepaid-credit refusal is not a bad strategy and not a timeout.
+# Retrying every employee every paper cycle wrote hundreds of agent_runs
+# while the floor still looked alive. Pause the provider, allow one probe
+# after this window, and clear a seat only when that seat's own call succeeds.
+# Do not swap to another model: a different name would hide a billing fault.
+BILLING_PROBE_SEC = 600.0
+
+_billing_degraded_seats: set[str] = set()
+_billing_gates: dict[str, dict[str, Any]] = {}
+
+
+def _provider_name(provider: Provider | str) -> str:
+    return provider.value if isinstance(provider, Provider) else str(provider)
+
+
+def reset_billing_pauses() -> None:
+    """Tests only: forget billing pauses and degraded seats."""
+    _billing_degraded_seats.clear()
+    _billing_gates.clear()
+
+
+def is_billing_failure_text(text: str, status_code: int | None = None) -> bool:
+    """True for provider payment failure, not a strategy or timeout fault.
+
+    Matches HTTP 402 and the phrases providers use when prepaid credits are
+    gone. Deliberately does not match the firm's own monthly budget strings.
+    """
+    if status_code == 402:
+        return True
+    lowered = (text or "").lower()
+    if not lowered:
+        return False
+    if "payment required" in lowered:
+        return True
+    if "http 402" in lowered or "returned 402" in lowered or "status 402" in lowered:
+        return True
+    if "prepaid" in lowered and "credit" in lowered:
+        return True
+    if (
+        "credits are depleted" in lowered
+        or "credits depleted" in lowered
+        or "credit depleted" in lowered
+    ):
+        return True
+    return False
+
+
+def billing_degraded_seats() -> frozenset[str]:
+    """Seats waiting for their own successful provider call."""
+    return frozenset(_billing_degraded_seats)
+
+
+def provider_billing_paused(provider: Provider | str) -> bool:
+    return _provider_name(provider) in _billing_gates
+
+
+def billing_pause_remaining(provider: Provider | str) -> float:
+    gate = _billing_gates.get(_provider_name(provider))
+    if not gate:
+        return 0.0
+    return max(0.0, float(gate.get("until") or 0.0) - time.monotonic())
+
+
+def seat_shows_billing_degraded(agent: str, provider: Provider | str | None = None) -> bool:
+    """Floor flag: this seat is paused for billing, or its provider is."""
+    if agent in _billing_degraded_seats:
+        return True
+    if provider is not None and provider_billing_paused(provider):
+        return True
+    return False
+
+
+def billing_heartbeat() -> dict[str, Any]:
+    """Operator heartbeat: billing pause, not a strategy fault.
+
+    Pulled by the duty board and standup. This is the alarm that stays
+    visible between probes; it does not call a provider or a billing API.
+    """
+    providers: dict[str, Any] = {}
+    for name, gate in _billing_gates.items():
+        providers[name] = {
+            "paused": True,
+            "probe_in_sec": int(max(0.0, float(gate.get("until") or 0.0) - time.monotonic())),
+            "detail": str(gate.get("detail") or "")[:240],
+        }
+    degraded = sorted(_billing_degraded_seats)
+    active = bool(providers or degraded)
+    return {
+        "kind": "llm_billing",
+        "degraded": active,
+        "providers": providers,
+        "seats": degraded,
+        "note": (
+            "Provider billing failure (HTTP 402 / payment required / prepaid "
+            "credits depleted). Not a strategy fault. LLM seats on that "
+            "provider are paused. No model swap. Paper fills and exit "
+            "monitoring keep running. A seat leaves degraded after one "
+            "successful call on that provider once credits return."
+        )
+        if active
+        else "No provider billing pause.",
+    }
+
+
+def billing_blocks_seat(provider: Provider | str, agent: str) -> bool:
+    """True when another call would only extend the 402 storm.
+
+    A seat that is degraded but whose provider gate has cleared may call:
+    that call is the successful run that leaves degraded.
+    """
+    del agent
+    gate = _billing_gates.get(_provider_name(provider))
+    if not gate:
+        return False
+    now = time.monotonic()
+    if now < float(gate.get("until") or 0.0):
+        return True
+    return bool(gate.get("inflight"))
+
+
+def mark_seat_billing_degraded(agent: str) -> None:
+    """Remember a seat without extending the provider probe window."""
+    name = (agent or "").strip()
+    if name:
+        _billing_degraded_seats.add(name)
+
+
+def trip_provider_billing(provider: Provider | str, agent: str, detail: str) -> None:
+    """Pause one provider and mark the seat that saw the billing refusal.
+
+    The pause expires into a single probe. It is not a permanent lock and
+    it does not change model or trading mode.
+    """
+    mark_seat_billing_degraded(agent)
+    _billing_gates[_provider_name(provider)] = {
+        "until": time.monotonic() + BILLING_PROBE_SEC,
+        "inflight": False,
+        "detail": (detail or "")[:400],
+    }
+
+
+def open_billing_probe_window(provider: Provider | str) -> None:
+    """Tests: let the next call through without forgetting degraded seats."""
+    gate = _billing_gates.get(_provider_name(provider))
+    if not gate:
+        return
+    gate["until"] = 0.0
+    gate["inflight"] = False
+
+
+def _billing_probe_acquire(provider: Provider | str) -> bool:
+    """Allow the call, or take the one probe after the pause window."""
+    gate = _billing_gates.get(_provider_name(provider))
+    if gate is None:
+        return True
+    now = time.monotonic()
+    if now < float(gate.get("until") or 0.0) or gate.get("inflight"):
+        return False
+    gate["inflight"] = True
+    return True
+
+
+def _billing_probe_release(provider: Provider | str) -> None:
+    gate = _billing_gates.get(_provider_name(provider))
+    if gate is not None:
+        gate["inflight"] = False
+
+
+def note_provider_success(provider: Provider | str, agent: str) -> None:
+    """One successful provider call clears that seat and the provider pause.
+
+    Other seats already marked degraded stay degraded until each of them
+    logs its own success. Credits are back, so they are allowed to try.
+    """
+    name = (agent or "").strip()
+    key = _provider_name(provider)
+    was_paused = name in _billing_degraded_seats or key in _billing_gates
+    if name:
+        _billing_degraded_seats.discard(name)
+    _billing_gates.pop(key, None)
+    if was_paused and not _billing_degraded_seats and not _billing_gates:
+        try:
+            from firm.accountability import clear_recovered_billing_alerts
+
+            clear_recovered_billing_alerts()
+        except Exception:
+            logger.exception("Could not clear billing alarm after %s recovered", agent)
+
+
+def _billing_pause_message(provider: Provider | str) -> str:
+    remaining = int(billing_pause_remaining(provider))
+    return (
+        f"{_provider_name(provider)} billing pause: payment required (HTTP 402). "
+        f"Prepaid credits depleted. Not a strategy fault. No model swap. "
+        f"Probe in {remaining}s. Paper fills and exits keep running."
+    )
+
+
 @dataclass(frozen=True)
 class ModelSpec:
     """A concrete model, its endpoint, and what it costs."""
@@ -236,6 +434,7 @@ def provider_status(
     settings = settings or get_settings()
     catalogue = catalogue or dict(DEFAULT_CATALOGUE)
     return {
+        "billing": billing_heartbeat(),
         "providers": {
             "openai": _key_status(settings.openai_api_key),
             "gemini": _key_status(settings.gemini_api_key),
@@ -493,6 +692,18 @@ class LlmRouter:
             body = str((parsed.get("error") or {}).get("message") or body)
         except Exception:
             pass
+        # A manual ping can see the 402 before the next employee cycle.
+        # Pause the provider here so seats do not storm. Do not swap models
+        # and do not call a billing API.
+        if is_billing_failure_text(body, response.status_code):
+            detail = f"HTTP {response.status_code}: {body}"
+            trip_provider_billing(provider, "", detail)
+            try:
+                from firm.accountability import notify_billing_failure
+
+                notify_billing_failure(provider.value, detail)
+            except Exception:
+                logger.exception("Could not alarm %s billing failure from ping", provider.value)
         return {
             "ok": False,
             "provider": provider.value,
@@ -644,55 +855,27 @@ class LlmRouter:
                 f"{int(cooling)}s after timeout. Research walk-forward does not wait."
             )
 
+        # Billing pause: do not HTTP, and do not substitute another model.
+        if not _billing_probe_acquire(spec.provider):
+            raise LlmError(_billing_pause_message(spec.provider))
+
         started = time.perf_counter()
-        body: dict[str, Any] | None = None
-        # Retry once on 429/503. Do not retry a socket timeout: that doubles a
-        # 3–5 minute hang and is what froze the duty board on Gemini outages.
-        for attempt in range(2):
-            try:
-                response = self._client.post(
-                    PROVIDER_ENDPOINTS[spec.provider],
-                    headers={
-                        "Authorization": f"Bearer {self.api_key_for(spec.provider)}",
-                        "Content-Type": "application/json",
-                    },
-                    json=payload,
-                    # Quant / Desk Head send large prompts; Gemini often needs
-                    # more than the default 180s socket or both retry attempts fail.
-                    timeout=300.0 if spec.tier is ModelTier.STRONG else 180.0,
-                )
-                response.raise_for_status()
-                body = response.json()
-                break
-            except httpx.HTTPStatusError as exc:
-                retryable = exc.response.status_code in {429, 503} and attempt == 0
-                if retryable:
-                    logger.warning(
-                        "%s %s returned 429 for %s; retrying once",
-                        spec.provider.value,
-                        spec.model,
-                        agent,
-                    )
-                    time.sleep(2.0)
-                    continue
-                raise LlmError(
-                    f"{spec.provider.value} returned {exc.response.status_code}: "
-                    f"{exc.response.text[:400]}"
-                ) from exc
-            except httpx.TimeoutException as exc:
-                trip_model_timeout(spec.provider, spec.model)
-                logger.warning(
-                    "%s %s timed out for %s; cooling %ss (no immediate retry)",
-                    spec.provider.value,
-                    spec.model,
-                    agent,
-                    int(PROVIDER_TIMEOUT_COOLDOWN_SEC),
-                )
-                raise LlmError(f"{spec.provider.value} call failed: {exc}") from exc
-            except Exception as exc:
-                raise LlmError(f"{spec.provider.value} call failed: {exc}") from exc
-        if body is None:
-            raise LlmError(f"{spec.provider.value} call failed: empty response")
+        try:
+            body = self._post_provider(agent, spec, payload)
+        except LlmError as exc:
+            if is_billing_failure_text(str(exc)):
+                trip_provider_billing(spec.provider, agent, str(exc))
+            else:
+                _billing_probe_release(spec.provider)
+            raise
+
+        choices = body.get("choices") or []
+        if not choices:
+            # Not a billing recovery. Leave the seat paused and allow a later probe.
+            _billing_probe_release(spec.provider)
+            raise LlmError(f"{spec.provider.value} returned no choices")
+        # HTTP success on this seat is the recovery signal. Do not clear other seats.
+        note_provider_success(spec.provider, agent)
         clear_model_timeout(spec.provider, spec.model)
 
         latency_ms = int((time.perf_counter() - started) * 1000)
@@ -702,9 +885,6 @@ class LlmRouter:
         tokens_out = int(usage.get("completion_tokens", 0))
         search_calls = int(usage.get("num_sources_used", 0)) if enable_search else 0
 
-        choices = body.get("choices") or []
-        if not choices:
-            raise LlmError(f"{spec.provider.value} returned no choices")
         content = (choices[0].get("message") or {}).get("content") or ""
 
         cost = spec.cost_usd(tokens_in, tokens_out, search_calls)
@@ -725,6 +905,80 @@ class LlmRouter:
             latency_ms=latency_ms,
             citations=list(body.get("citations") or []),
         )
+
+    def _post_provider(
+        self,
+        agent: str,
+        spec: ModelSpec,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """POST one chat completion. Retry 429/503 once. Never retry billing.
+
+        The payload model is the seat's configured model. A 402 must not
+        fall through to a different model or provider.
+        """
+        body: dict[str, Any] | None = None
+        for attempt in range(2):
+            try:
+                response = self._client.post(
+                    PROVIDER_ENDPOINTS[spec.provider],
+                    headers={
+                        "Authorization": f"Bearer {self.api_key_for(spec.provider)}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    # Quant / Desk Head send large prompts; Gemini often needs
+                    # more than the default 180s socket or both retry attempts fail.
+                    timeout=300.0 if spec.tier is ModelTier.STRONG else 180.0,
+                )
+                response.raise_for_status()
+                parsed = response.json()
+                if not isinstance(parsed, dict):
+                    raise LlmError(f"{spec.provider.value} call failed: response was not an object")
+                body = parsed
+                break
+            except httpx.HTTPStatusError as exc:
+                error_body = exc.response.text[:400]
+                # Payment required is terminal for this probe. Do not sleep
+                # and do not try another model.
+                if is_billing_failure_text(error_body, exc.response.status_code):
+                    raise LlmError(
+                        f"{spec.provider.value} billing failure (payment required): "
+                        f"HTTP {exc.response.status_code}: {error_body}. "
+                        "Prepaid credits depleted. Not a strategy fault. No model swap."
+                    ) from exc
+                retryable = exc.response.status_code in {429, 503} and attempt == 0
+                if retryable:
+                    logger.warning(
+                        "%s %s returned %s for %s; retrying once",
+                        spec.provider.value,
+                        spec.model,
+                        exc.response.status_code,
+                        agent,
+                    )
+                    time.sleep(2.0)
+                    continue
+                raise LlmError(
+                    f"{spec.provider.value} returned {exc.response.status_code}: "
+                    f"{error_body}"
+                ) from exc
+            except httpx.TimeoutException as exc:
+                trip_model_timeout(spec.provider, spec.model)
+                logger.warning(
+                    "%s %s timed out for %s; cooling %ss (no immediate retry)",
+                    spec.provider.value,
+                    spec.model,
+                    agent,
+                    int(PROVIDER_TIMEOUT_COOLDOWN_SEC),
+                )
+                raise LlmError(f"{spec.provider.value} call failed: {exc}") from exc
+            except LlmError:
+                raise
+            except Exception as exc:
+                raise LlmError(f"{spec.provider.value} call failed: {exc}") from exc
+        if body is None:
+            raise LlmError(f"{spec.provider.value} call failed: empty response")
+        return body
 
     @staticmethod
     def _parse(model: type[T], content: str) -> tuple[T | None, str]:
@@ -751,6 +1005,7 @@ def _strip_fences(content: str) -> str:
 
 
 __all__ = [
+    "BILLING_PROBE_SEC",
     "BudgetExhausted",
     "BudgetGuard",
     "BudgetPosture",
@@ -761,9 +1016,20 @@ __all__ = [
     "ModelTier",
     "PROVIDER_TIMEOUT_COOLDOWN_SEC",
     "Provider",
+    "billing_blocks_seat",
+    "billing_degraded_seats",
+    "billing_heartbeat",
+    "billing_pause_remaining",
     "clear_model_timeout",
+    "is_billing_failure_text",
+    "mark_seat_billing_degraded",
     "model_cooldown_remaining",
+    "note_provider_success",
+    "open_billing_probe_window",
     "provider_status",
+    "reset_billing_pauses",
     "reset_model_cooldowns",
+    "seat_shows_billing_degraded",
     "trip_model_timeout",
+    "trip_provider_billing",
 ]
