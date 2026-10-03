@@ -1,0 +1,134 @@
+{
+  "as_of": "2026-10-03",
+  "constraints": {
+    "headline": "Paper only. Live OFF. Book 12 approved + 56 paper_override. Option B freeze holds.",
+    "detail": "Not Inbox until PASS. This panel does not approve a family, start a walk, or change the book. Binding 2026-10-03. Census figures are quoted, not recomputed."
+  },
+  "headlines": {
+    "current-bar": "Path2 pass bar. Both sides must clear net expR > 0 after the 0.31% round trip, and sit above the census base.",
+    "open-path": "Path2 selector-only is the only capitalize path. Path1 shell retune is closed. Path3 short-only is no.",
+    "kill-class": "Donchian Job 173 and swing-break Job 153 stay retired. No parallel coding and no new cells on that pierce.",
+    "closed-studies": "Today’s stack failed the fee: BTC census, ETH census, MA crosses, and the 15m golden/death playbook.",
+    "pipeline": "Shumba invents one predicate. Garwe locks it. Munha scores the Path2 bar. Brian inboxes only a PASS."
+  },
+  "current_bar": {
+    "hunt": "Hunt a selector on BTC that enters only when a 2–3% move is more likely than the stop — enough that the book is green after the 0.31% round-trip fee.",
+    "shell": [
+      {"k": "Clock", "v": "BTC 4h"},
+      {"k": "Target", "v": "M = 3%"},
+      {"k": "Stop", "v": "S = 1.5%"},
+      {"k": "Horizon", "v": "24h (6 bars)"},
+      {"k": "Fee", "v": "0.31% round trip"},
+      {"k": "Same bar", "v": "Target and stop = full stop"}
+    ],
+    "rules": [
+      "BOTH long and short must have net expR > 0 after 0.31% RT.",
+      "Each side must sit above the unconditional census base for this shell (~−0.211 long / ~−0.234 short at 4h, H=24, M=3, S=1.5).",
+      "A book that is only less negative than −0.211 / −0.234 fails.",
+      "A positive long or short slice does not save a negative both-sides book.",
+      "No side-cut to save a thin green slice. Do not drop M. Do not widen S.",
+      "Thin n is a note, not an automatic fail, and it is not a pass.",
+      "Not Inbox until PASS."
+    ],
+    "scale_label": "Full-stop scale",
+    "scale": "If every miss is a full stop, net expR > 0 needs a target share above (S+0.31)/(M+S) = 1.81/4.5 = 40.2%. Unconditional target-first at the base cell is 21.34% long and 21.22% short, about 1.9× the base rate, not a filter tweak. Timeouts can make a lower share still fail or, if they pay, clear with less. The share is the scale of the lift. The binding test is the net.",
+    "capture": "Unconditional free-bar captures of 2–3% exist (~1-in-3 for 2%, ~1-in-5 for 3% inside 24h on 4h) but are net negative after fees (~−0.21R on the headline 3%/1.5% cells). Leverage does not fix negative expectancy."
+  },
+  "paths": [
+    {
+      "id": "Path1",
+      "status": "CLOSED",
+      "name": "Shell retune — wider stop, smaller target, longer hold",
+      "note": "Cannot clear 0.31% RT on free bars. Not a capitalize path.",
+      "detail": "The least-bad cell is already the wide stop (S=5) and it is still net-negative. Best net in the grid is −0.0531. Holding the best observed gross (+0.0089) fixed, the haircut 0.31/S drops below that gross only if S is larger than 0.31/0.0089, about 35%. That is not a trading shell, and a wider stop would not keep that gross. No shell retune is pre-registered."
+    },
+    {
+      "id": "Path2",
+      "status": "OPEN",
+      "name": "Selector-only",
+      "note": "Only capitalize path. A selector, not a capture.",
+      "detail": "Trend-pullback is a class label, not a family. Munha is not specifying the geometry. Shumba brings one independent mechanism, or brings nothing. Desk shell for the bar stays BTC 4h, both sides, M=3, S=1.5, 0.31% round trip. Entry and hold are whatever the brief locks."
+    },
+    {
+      "id": "Path3",
+      "status": "NO",
+      "name": "Short-only",
+      "note": "Not a candidate, and not a side cut.",
+      "detail": "Same both-sides net test and the same 40.2% full-stop scale. The short side is gross-negative in every census cell. Best short gross expR is −0.0003. If the joint book cannot clear net expR > 0, do not bring it to a lock."
+    }
+  ],
+  "kill_class": {
+    "lead": "Same geometry as retired walks. No parallel coding and no cells.",
+    "items": [
+      {
+        "job": "173",
+        "name": "donchian_n_fail_reversion",
+        "detail": "Pierce a prior N-bar high or low, then close back inside."
+      },
+      {
+        "job": "153",
+        "name": "swing_break_fail_reversion",
+        "detail": "Swing-break failure. Same retired geometry."
+      },
+      {
+        "job": "",
+        "tag": "bolt",
+        "name": "failed-breakout bolts",
+        "detail": "Range pierce-and-close, and volume_dryup_range_fail on that pierce."
+      },
+      {
+        "job": "",
+        "tag": "overlay",
+        "name": "MA golden/death and SMA50/200",
+        "detail": "Classic overlays already FAIL after fees (2026-10-03)."
+      }
+    ],
+    "chair": "Munha chair: no entry rules for failed-breakout. The pass bar above stays if a genuinely different predicate appears."
+  },
+  "closed_studies": {
+    "lead": "Closed today. Not Inbox. None of these start a walk.",
+    "items": [
+      {
+        "name": "BTC movement census",
+        "status": "FAIL",
+        "detail": "No cell has net expR > 0 after the 0.31% round trip. No year split and no bull/bear split does either."
+      },
+      {
+        "name": "ETH census",
+        "status": "STOP",
+        "detail": "Stopped. No SOL."
+      },
+      {
+        "name": "MA cross selectors",
+        "status": "FAIL",
+        "detail": "1h, 4h, and 1d. Classic golden/death and SMA50/200 overlays fail after fees."
+      },
+      {
+        "name": "Operator GC/death playbook 15m",
+        "status": "FAIL",
+        "detail": "Chair FAIL. n=608, net −0.062."
+      }
+    ],
+    "base_caption": "Census base cell for the bar — 4h, H=24h (6 bars), M=3, S=1.5. Quoted, not recomputed.",
+    "base_rows": [
+      {"side": "long", "n": "3557", "target_first": "759 (21.34%)", "gross": "−0.0039", "net": "−0.2106"},
+      {"side": "short", "n": "3596", "target_first": "763 (21.22%)", "gross": "−0.0277", "net": "−0.2344"}
+    ],
+    "notes": [
+      "Best net in the grid: −0.0531. Cell: 1h, H=24h, M=5, S=5, long, n=2347, gross +0.0089.",
+      "Largest gross expR cited for n≥30: +0.0242 on the coarse daily cell M=5, S=1.5, long, n=1899. That cell still nets −0.1825.",
+      "All 25 gross-positive cells with n≥30 are long. No short cell is gross-positive. Best short gross expR is −0.0003.",
+      "Haircut is 0.31/S: 0.2067 R at S=1.5, 0.1033 R at S=3, 0.062 R at S=5."
+    ]
+  },
+  "pipeline": {
+    "steps": [
+      {"who": "Shumba", "does": "Invents one independent delete-predicate."},
+      {"who": "Garwe", "does": "LOCK."},
+      {"who": "Munha", "does": "Scores it against this Path2 bar."},
+      {"who": "Brian", "does": "Inbox YES only on PASS."},
+      {"who": "Then", "does": "Code and walk."}
+    ],
+    "not": "Not Inbox. No walk from this panel. No new family. No re-LOCK of traded_close_hole, void_origin_break, or hour_zone_leave. Protect 12+56. Live off. Option B."
+  }
+}
