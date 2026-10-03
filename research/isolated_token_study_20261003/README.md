@@ -1,5 +1,7 @@
 # MAR isolated research package — 2026-10-03
 
+The 2026-10-03 exploratory run (null selection; book unchanged) is written up in [FINDINGS_2026-10-03.md](FINDINGS_2026-10-03.md); the DATA BLOCKED text below is the frozen protocol record.
+
 **State: DATA BLOCKED (protocol v2).** Complete 1-minute OHLCV for BTCUSDT, ETHUSDT, and SOLUSDT is absent: 0 rows, and 2,499,840 opens missing each, from 2022-01-01 through 2026-10-02 UTC. Funding for all three ends 2026-08-30 08:00 UTC, with a shared 100-stamp hole from 2026-08-30 16:00 UTC through 2026-10-02 16:00 UTC. SGP1 cache was empty; the desktop cache had no 1-minute or 5-minute parquet. 15-minute, 1-hour, and 4-hour files in the export are coverage evidence only and must not be scored under this package. No market backtest has run. No winning strategy, preferred token, forecast return, or leverage recommendation has been established. Fourteen synthetic execution tests pass. This package is separate from Grokbot and the deployed application.
 
 ## What is ready
