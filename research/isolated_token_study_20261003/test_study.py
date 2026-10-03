@@ -22,9 +22,14 @@ class StudyTests(unittest.TestCase):
         c,f=self.tape(); a=self.trade(c,f).iloc[0]; b=self.trade(c,f,slip=.001).iloc[0]
         self.assertAlmostEqual(a.net_return,-.0011); self.assertLess(b.net_return,a.net_return)
     def test_funding_direction(self):
-        c,f=self.tape(); f=pd.DataFrame({'funding_rate':[.001]},index=c.index[1:2])
-        self.assertAlmostEqual(self.trade(c,f).iloc[0].funding,.001)
-        self.assertAlmostEqual(self.trade(c,f,side=-1).iloc[0].funding,-.001)
+        # ns is the pandas 2 default; us is the pandas 3 date_range default.
+        # Both must accrue. Comparing asi8 to Timestamp.value misses us events.
+        c,_=self.tape()
+        for unit in ('ns','us'):
+            ix=c.index.as_unit(unit); cc=c.copy(); cc.index=ix
+            f=pd.DataFrame({'funding_rate':[.001]},index=ix[1:2])
+            self.assertAlmostEqual(self.trade(cc,f).iloc[0].funding,.001)
+            self.assertAlmostEqual(self.trade(cc,f,side=-1).iloc[0].funding,-.001)
     def test_entry_funding_excluded(self):
         c,f=self.tape(); f=pd.DataFrame({'funding_rate':[.001]},index=c.index[:1])
         self.assertEqual(self.trade(c,f).iloc[0].funding,0)
@@ -55,8 +60,11 @@ class StudyTests(unittest.TestCase):
         self.assertTrue(r.reach_3pct)
         self.assertFalse(r['target_3_before_stop_1'])
     def test_ambiguous_exit_funding_uses_worse_case(self):
-        c,f=self.tape(); c.iloc[0,:4]=[100,104,100,103]
-        f=pd.DataFrame({'funding_rate':[.001]},index=c.index[1:2])
-        r=self.trade(c,f).iloc[0]
-        self.assertEqual(r.reason,'target'); self.assertAlmostEqual(r.funding,.001)
+        c,_=self.tape()
+        for unit in ('ns','us'):
+            ix=c.index.as_unit(unit); cc=c.copy(); cc.index=ix
+            cc.iloc[0,:4]=[100,104,100,103]
+            f=pd.DataFrame({'funding_rate':[.001]},index=ix[1:2])
+            r=self.trade(cc,f).iloc[0]
+            self.assertEqual(r.reason,'target'); self.assertAlmostEqual(r.funding,.001)
 if __name__=='__main__': unittest.main(verbosity=2)

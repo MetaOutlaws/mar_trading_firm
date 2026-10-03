@@ -15,6 +15,13 @@ CONFIGS=list(itertools.product(('opening_range','sweep_reclaim'),(1,-1),(.03,.05
 FEE=.00055
 MINUTE=pd.Timedelta(minutes=1)
 
+def epoch_ns(index):
+    # asi8 follows the index unit. Pandas 3 often stores timezone-aware indexes
+    # as datetime64[us], while Timestamp.value and Timedelta.value stay in
+    # nanoseconds. Funding searchsorted and the 8h gap check share this clock
+    # so the same events are found on pandas 2 (ns) and pandas 3 (us).
+    return np.asarray(index.as_unit('ns').asi8, dtype=np.int64)
+
 def load(path:Path, funding=False):
     df=pd.read_parquet(path) if path.suffix=='.parquet' else pd.read_csv(path)
     if 'timestamp' in df: df=df.set_index('timestamp')
@@ -43,7 +50,7 @@ def audit(c, f):
     fw=f.loc[(f.index>=START-pd.Timedelta(hours=8))&(f.index<=END)]
     if len(fw)<2 or fw.index.min()>START or fw.index.max()<END-pd.Timedelta(hours=8):
         raise ValueError('Funding coverage does not span study')
-    if np.diff(fw.index.asi8).max()>pd.Timedelta(hours=8).value:
+    if np.diff(epoch_ns(fw.index)).max()>pd.Timedelta(hours=8).value:
         raise ValueError('Funding gap >8h; resolve using instrument settlement history')
     return {'candles':len(c),'start':str(c.index.min()),'end':str(c.index.max()),
             'missing_required_bars':len(missing),'funding_events':len(fw)}
@@ -75,7 +82,7 @@ class Tape:
         self.c=c; self.idx=c.index
         self.o=c.open.to_numpy(); self.h=c.high.to_numpy()
         self.l=c.low.to_numpy(); self.cl=c.close.to_numpy()
-        self.ft=f.index.asi8
+        self.ft=epoch_ns(f.index)
         # Funding mark proxy explicitly disclosed: contemporaneous minute open.
         loc=c.index.get_indexer(f.index.floor('min'),method='pad')
         vals=f.funding_rate.to_numpy()*self.o[np.clip(loc,0,len(c)-1)]
