@@ -201,17 +201,29 @@ def test_unknown_labels_fail_closed() -> None:
 
 
 def test_module_does_not_open_a_database_or_network() -> None:
+    """The checker must stay a pure function of in-memory rows."""
+    import ast
+
     import core.ledger.host_identity as identity
 
     source = inspect.getsource(identity)
-    for banned in (
-        "sqlite3",
-        "sqlalchemy",
-        "create_engine",
-        "session_scope",
-        "socket",
-        "urllib",
-        "DATABASE_URL",
-        "approved_strategies",
-    ):
-        assert banned not in source
+    tree = ast.parse(source)
+    imported: set[str] = set()
+    called: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name):
+                called.add(func.id)
+            elif isinstance(func, ast.Attribute):
+                called.add(func.attr)
+    assert imported.isdisjoint(
+        {"sqlite3", "sqlalchemy", "socket", "urllib", "httpx", "pathlib", "os", "subprocess"}
+    )
+    assert called.isdisjoint({"open", "connect", "create_engine", "session_scope", "urlopen"})
+    assert "approved_strategies" not in source
+    assert "DATABASE_URL" not in source
