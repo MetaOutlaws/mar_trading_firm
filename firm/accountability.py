@@ -106,6 +106,77 @@ def clear_recovered_timeout_alerts() -> int:
     return acked
 
 
+def notify_billing_failure(agent: str, error: str) -> dict[str, Any]:
+    """Alarm once: the provider refused for billing, not a strategy fault.
+
+    Does not add keys, does not call a billing API, and does not change
+    trading mode. Paper fills and exits are outside this path.
+    """
+    from firm.llm import billing_heartbeat, is_billing_failure_text
+
+    if not is_billing_failure_text(error):
+        return {"alerted": False, "reason": "not_billing"}
+    from firm import memory
+
+    heartbeat = billing_heartbeat()
+    title = "LLM billing: provider payment required"
+    detail = (
+        f"{agent} stopped on a provider billing failure: {error}\n\n"
+        "This is a billing fault (HTTP 402 / payment required / prepaid credits "
+        "depleted), not a strategy fault. LLM seats on that provider are paused. "
+        "No model swap. Paper fills and exit monitoring keep running. "
+        "A seat leaves degraded after one successful provider run once credits "
+        "return. Do not add API keys and do not fund from this process.\n\n"
+        f"Heartbeat: {heartbeat['note']}"
+    )
+    eid = memory.escalate_once(
+        agent="ops_engineer",
+        title=title,
+        detail=detail,
+        severity="warning",
+        root_cause="llm_billing",
+        owner_seat="ops_engineer",
+    )
+    try:
+        from firm.events import emit
+
+        emit(
+            "on_llm_billing",
+            {"agent": agent, "error": error[:300], "heartbeat": heartbeat},
+        )
+    except Exception:
+        logger.exception("Could not emit on_llm_billing")
+    try:
+        from firm.continuity import fill_walk_forward_slots
+
+        # Walk-forward does not use the LLM. A billing pause must not freeze it.
+        fill_walk_forward_slots(source="llm_billing")
+    except Exception:
+        logger.exception("Could not keep research moving after %s billing pause", agent)
+    return {"alerted": eid is not None, "escalation_id": eid, "billing": True, "heartbeat": heartbeat}
+
+
+def clear_recovered_billing_alerts() -> int:
+    """Resolve the billing alarm once no seat is still degraded."""
+    from firm.llm import billing_degraded_seats, provider_billing_paused, Provider
+
+    if billing_degraded_seats():
+        return 0
+    if any(provider_billing_paused(provider) for provider in Provider):
+        return 0
+    from firm import memory
+
+    acked = 0
+    for row in memory.open_escalations(limit=50):
+        cause = str(row.get("root_cause") or "")
+        title = str(row.get("title") or "")
+        if cause != "llm_billing" and not title.startswith("LLM billing:"):
+            continue
+        if memory.resolve_escalation(int(row["id"])):
+            acked += 1
+    return acked
+
+
 def notify_employee_failure(agent: str, error: str) -> dict[str, Any]:
     """Route a live failure to Ops and the duty board. Dedupes open alerts."""
     from firm import memory
@@ -181,6 +252,13 @@ def quant_should_run_now() -> bool:
     age = _age(row.get("started_at")) if row else None
     status = str((row or {}).get("status") or "")
     error = str((row or {}).get("error") or "")
+
+    # A billing pause is not a 10-minute retry. The provider probe window is
+    # the only next attempt; extra-due here is how the 402 storm was fed.
+    from firm.llm import is_billing_failure_text
+
+    if is_billing_failure_text(error):
+        return False
 
     if catalog_needs_replenish():
         if not row:
@@ -462,6 +540,24 @@ def accountability_snapshot() -> dict[str, Any]:
                 }
             )
 
+    from firm.llm import billing_heartbeat
+
+    heartbeat = billing_heartbeat()
+    if heartbeat.get("degraded"):
+        slips.append(
+            {
+                "owner": "ops_engineer",
+                "flagged_by": "billing",
+                "issue": heartbeat["note"],
+                "expected": (
+                    "Operator funds Gemini credits in the provider console. "
+                    "This process will not pay, add keys, or swap models. "
+                    "Paper fills and exits keep running. The seat leaves "
+                    "degraded after one successful provider run."
+                ),
+            }
+        )
+
     slip_owners = {s["owner"] for s in slips}
     llm_failures = live_llm_failures()
 
@@ -490,6 +586,7 @@ def accountability_snapshot() -> dict[str, Any]:
         "slips": slips,
         "duties": duties,
         "llm_failures": llm_failures,
+        "llm_billing": heartbeat,
         "pipeline_moving": bool(
             running
             or research_gate

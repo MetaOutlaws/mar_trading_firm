@@ -42,6 +42,26 @@ from firm.trust import TrustLevel
 logger = logging.getLogger(__name__)
 
 
+def _skip_for_billing(employee: Agent, spec: Any) -> bool:
+    """Pause this seat while its provider is in a billing probe window.
+
+    Marks the seat degraded so the floor does not show a live worker.
+    Does not call the provider and does not swap models.
+    """
+    from firm.llm import billing_blocks_seat, mark_seat_billing_degraded
+
+    if not billing_blocks_seat(spec.provider, employee.name):
+        return False
+    mark_seat_billing_degraded(employee.name)
+    logger.info(
+        "Skipping %s: %s paused after provider billing failure "
+        "(not a strategy fault, no model swap)",
+        employee.name,
+        spec.model,
+    )
+    return True
+
+
 def _safe_integrity() -> dict[str, Any]:
     try:
         return integrity_snapshot()
@@ -218,6 +238,8 @@ class Orchestrator:
                         spec.model,
                     )
                     continue
+                if spec and _skip_for_billing(employee, spec):
+                    continue
                 due.append(employee)
         return due
 
@@ -233,6 +255,11 @@ class Orchestrator:
             logger.exception("Orchestrator could not fill walk-forward slots before LLM seats")
         results: list[AgentResult] = []
         for employee in self.due(now):
+            # due() was computed before this loop. The first 402 re-arms the
+            # pause; later seats in the same cycle must not each HTTP.
+            spec = employee.router.catalogue.get(employee.tier) if employee.tier else None
+            if spec and _skip_for_billing(employee, spec):
+                continue
             logger.info("Running %s (%s)", employee.name, employee.cadence.value)
             result = employee.run()
             results.append(result)

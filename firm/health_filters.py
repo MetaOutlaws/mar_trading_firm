@@ -19,6 +19,11 @@ def is_transient_llm_error(text: str) -> bool:
     """True for a live Gemini/xAI timeout or brief outage — not retired-key noise."""
     if is_resolved_noise(text):
         return False
+    # Billing is a pause, not a timeout to retry every cycle.
+    from firm.llm import is_billing_failure_text
+
+    if is_billing_failure_text(text):
+        return False
     lowered = (text or "").lower()
     return any(
         token in lowered
