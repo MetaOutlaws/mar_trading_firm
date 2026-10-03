@@ -1,0 +1,10 @@
+test_800_randomized_oracle_cases (test_independent.IndependentTests.test_800_randomized_oracle_cases) ... ok
+test_document_short_cadence_audit_blind_spot (test_independent.IndependentTests.test_document_short_cadence_audit_blind_spot) ... ok
+test_flat_market_loses_friction_both_directions (test_independent.IndependentTests.test_flat_market_loses_friction_both_directions) ... ok
+test_funding_audit_counts_prestart_event (test_independent.IndependentTests.test_funding_audit_counts_prestart_event) ... ok
+test_microsecond_and_nanosecond_indexes_agree (test_independent.IndependentTests.test_microsecond_and_nanosecond_indexes_agree) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 1.138s
+
+OK
