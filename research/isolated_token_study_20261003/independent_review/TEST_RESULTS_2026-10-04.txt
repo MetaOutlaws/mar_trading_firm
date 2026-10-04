@@ -1,0 +1,9 @@
+Command: python3 -m unittest discover -s research/isolated_token_study_20261003/independent_review -p "test_*.py"
+Runtime: Python 3, numpy 2.3.5, pandas 2.2.3, pyarrow 25.0.1
+...........
+Ran 11 tests in 1.376s
+OK
+
+Full historical diagnostics: 96 baseline cells completed.
+Alternative study: 80 rows = 20 configurations x 2 partitions x 2 slippage assumptions.
+Survivors: none. Reserved 2026 strategy returns: not evaluated.
