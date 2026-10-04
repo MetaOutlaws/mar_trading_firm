@@ -19,7 +19,7 @@ Scoring is forbidden until a parent reply records that the Garwe lock exists. `r
 ## Data
 
 - Tokens: BTCUSDT, ETHUSDT, SOLUSDT only.
-- Archive SHA256: `344ac29b5b2ee2fe9ba5966026914489dc22dfaed75374fbe863dc` (218,177,784 bytes). Raw candles are not committed.
+- Archive SHA256: `344ac29b5b2ee2fe9ba5966026914489dc22dfaed75374fbe86316052da863dc` (218,177,784 bytes). Raw candles are not committed.
 - Cache layout: `{TOKEN}_1m.parquet` and `funding/{TOKEN}_funding.parquet`.
 - File fingerprints, copied from `independent_review/results_20261004/manifest.json` and checked before any score:
 
