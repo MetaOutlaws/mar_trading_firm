@@ -1,0 +1,8 @@
+{
+  "BTCUSDT": null,
+  "ETHUSDT": null,
+  "SOLUSDT": null,
+  "stage3": "skipped",
+  "year_2026": "not_scored",
+  "source": "Box run and Munha independent score, 2026-10-04. Both fail validation on all 18 Stage 2 configs. Numeric trade tables were not in this workspace."
+}

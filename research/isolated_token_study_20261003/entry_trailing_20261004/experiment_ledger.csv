@@ -1,119 +1,119 @@
 experiment_id,stage,token,side,family,spec,status,trades_discovery,mean_discovery,pf_discovery,trades_validation,mean_validation,pf_validation,stress_mean_discovery,stress_mean_validation,desk_mean_discovery,desk_mean_validation,notes
-s1_BTCUSDT_long_60m_1pct,1,BTCUSDT,long,descriptive,60m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_60m_2pct,1,BTCUSDT,long,descriptive,60m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_60m_3pct,1,BTCUSDT,long,descriptive,60m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_60m_5pct,1,BTCUSDT,long,descriptive,60m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_240m_1pct,1,BTCUSDT,long,descriptive,240m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_240m_2pct,1,BTCUSDT,long,descriptive,240m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_240m_3pct,1,BTCUSDT,long,descriptive,240m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_240m_5pct,1,BTCUSDT,long,descriptive,240m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_480m_1pct,1,BTCUSDT,long,descriptive,480m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_480m_2pct,1,BTCUSDT,long,descriptive,480m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_480m_3pct,1,BTCUSDT,long,descriptive,480m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_480m_5pct,1,BTCUSDT,long,descriptive,480m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_1440m_1pct,1,BTCUSDT,long,descriptive,1440m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_1440m_2pct,1,BTCUSDT,long,descriptive,1440m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_1440m_3pct,1,BTCUSDT,long,descriptive,1440m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_long_1440m_5pct,1,BTCUSDT,long,descriptive,1440m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_60m_1pct,1,BTCUSDT,short,descriptive,60m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_60m_2pct,1,BTCUSDT,short,descriptive,60m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_60m_3pct,1,BTCUSDT,short,descriptive,60m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_60m_5pct,1,BTCUSDT,short,descriptive,60m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_240m_1pct,1,BTCUSDT,short,descriptive,240m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_240m_2pct,1,BTCUSDT,short,descriptive,240m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_240m_3pct,1,BTCUSDT,short,descriptive,240m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_240m_5pct,1,BTCUSDT,short,descriptive,240m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_480m_1pct,1,BTCUSDT,short,descriptive,480m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_480m_2pct,1,BTCUSDT,short,descriptive,480m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_480m_3pct,1,BTCUSDT,short,descriptive,480m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_480m_5pct,1,BTCUSDT,short,descriptive,480m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_1440m_1pct,1,BTCUSDT,short,descriptive,1440m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_1440m_2pct,1,BTCUSDT,short,descriptive,1440m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_1440m_3pct,1,BTCUSDT,short,descriptive,1440m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_BTCUSDT_short_1440m_5pct,1,BTCUSDT,short,descriptive,1440m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_60m_1pct,1,ETHUSDT,long,descriptive,60m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_60m_2pct,1,ETHUSDT,long,descriptive,60m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_60m_3pct,1,ETHUSDT,long,descriptive,60m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_60m_5pct,1,ETHUSDT,long,descriptive,60m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_240m_1pct,1,ETHUSDT,long,descriptive,240m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_240m_2pct,1,ETHUSDT,long,descriptive,240m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_240m_3pct,1,ETHUSDT,long,descriptive,240m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_240m_5pct,1,ETHUSDT,long,descriptive,240m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_480m_1pct,1,ETHUSDT,long,descriptive,480m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_480m_2pct,1,ETHUSDT,long,descriptive,480m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_480m_3pct,1,ETHUSDT,long,descriptive,480m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_480m_5pct,1,ETHUSDT,long,descriptive,480m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_1440m_1pct,1,ETHUSDT,long,descriptive,1440m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_1440m_2pct,1,ETHUSDT,long,descriptive,1440m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_1440m_3pct,1,ETHUSDT,long,descriptive,1440m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_long_1440m_5pct,1,ETHUSDT,long,descriptive,1440m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_60m_1pct,1,ETHUSDT,short,descriptive,60m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_60m_2pct,1,ETHUSDT,short,descriptive,60m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_60m_3pct,1,ETHUSDT,short,descriptive,60m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_60m_5pct,1,ETHUSDT,short,descriptive,60m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_240m_1pct,1,ETHUSDT,short,descriptive,240m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_240m_2pct,1,ETHUSDT,short,descriptive,240m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_240m_3pct,1,ETHUSDT,short,descriptive,240m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_240m_5pct,1,ETHUSDT,short,descriptive,240m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_480m_1pct,1,ETHUSDT,short,descriptive,480m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_480m_2pct,1,ETHUSDT,short,descriptive,480m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_480m_3pct,1,ETHUSDT,short,descriptive,480m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_480m_5pct,1,ETHUSDT,short,descriptive,480m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_1440m_1pct,1,ETHUSDT,short,descriptive,1440m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_1440m_2pct,1,ETHUSDT,short,descriptive,1440m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_1440m_3pct,1,ETHUSDT,short,descriptive,1440m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_ETHUSDT_short_1440m_5pct,1,ETHUSDT,short,descriptive,1440m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_60m_1pct,1,SOLUSDT,long,descriptive,60m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_60m_2pct,1,SOLUSDT,long,descriptive,60m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_60m_3pct,1,SOLUSDT,long,descriptive,60m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_60m_5pct,1,SOLUSDT,long,descriptive,60m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_240m_1pct,1,SOLUSDT,long,descriptive,240m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_240m_2pct,1,SOLUSDT,long,descriptive,240m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_240m_3pct,1,SOLUSDT,long,descriptive,240m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_240m_5pct,1,SOLUSDT,long,descriptive,240m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_480m_1pct,1,SOLUSDT,long,descriptive,480m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_480m_2pct,1,SOLUSDT,long,descriptive,480m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_480m_3pct,1,SOLUSDT,long,descriptive,480m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_480m_5pct,1,SOLUSDT,long,descriptive,480m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_1440m_1pct,1,SOLUSDT,long,descriptive,1440m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_1440m_2pct,1,SOLUSDT,long,descriptive,1440m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_1440m_3pct,1,SOLUSDT,long,descriptive,1440m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_long_1440m_5pct,1,SOLUSDT,long,descriptive,1440m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_60m_1pct,1,SOLUSDT,short,descriptive,60m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_60m_2pct,1,SOLUSDT,short,descriptive,60m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_60m_3pct,1,SOLUSDT,short,descriptive,60m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_60m_5pct,1,SOLUSDT,short,descriptive,60m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_240m_1pct,1,SOLUSDT,short,descriptive,240m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_240m_2pct,1,SOLUSDT,short,descriptive,240m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_240m_3pct,1,SOLUSDT,short,descriptive,240m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_240m_5pct,1,SOLUSDT,short,descriptive,240m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_480m_1pct,1,SOLUSDT,short,descriptive,480m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_480m_2pct,1,SOLUSDT,short,descriptive,480m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_480m_3pct,1,SOLUSDT,short,descriptive,480m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_480m_5pct,1,SOLUSDT,short,descriptive,480m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_1440m_1pct,1,SOLUSDT,short,descriptive,1440m_1pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_1440m_2pct,1,SOLUSDT,short,descriptive,1440m_2pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_1440m_3pct,1,SOLUSDT,short,descriptive,1440m_3pct,pre-registered,,,,,,,,,,,not a trading candidate
-s1_SOLUSDT_short_1440m_5pct,1,SOLUSDT,short,descriptive,1440m_5pct,pre-registered,,,,,,,,,,,not a trading candidate
-rule_compression_BTCUSDT_long,2,BTCUSDT,long,rule_compression,compression,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_fade_BTCUSDT_long,2,BTCUSDT,long,rule_fade,fade,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-model_l2_BTCUSDT_long,2,BTCUSDT,long,model_l2,l2_C1_p60,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_compression_BTCUSDT_short,2,BTCUSDT,short,rule_compression,compression,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_fade_BTCUSDT_short,2,BTCUSDT,short,rule_fade,fade,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-model_l2_BTCUSDT_short,2,BTCUSDT,short,model_l2,l2_C1_p60,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_compression_ETHUSDT_long,2,ETHUSDT,long,rule_compression,compression,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_fade_ETHUSDT_long,2,ETHUSDT,long,rule_fade,fade,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-model_l2_ETHUSDT_long,2,ETHUSDT,long,model_l2,l2_C1_p60,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_compression_ETHUSDT_short,2,ETHUSDT,short,rule_compression,compression,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_fade_ETHUSDT_short,2,ETHUSDT,short,rule_fade,fade,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-model_l2_ETHUSDT_short,2,ETHUSDT,short,model_l2,l2_C1_p60,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_compression_SOLUSDT_long,2,SOLUSDT,long,rule_compression,compression,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_fade_SOLUSDT_long,2,SOLUSDT,long,rule_fade,fade,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-model_l2_SOLUSDT_long,2,SOLUSDT,long,model_l2,l2_C1_p60,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_compression_SOLUSDT_short,2,SOLUSDT,short,rule_compression,compression,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-rule_fade_SOLUSDT_short,2,SOLUSDT,short,rule_fade,fade,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-model_l2_SOLUSDT_short,2,SOLUSDT,short,model_l2,l2_C1_p60,pre-registered,,,,,,,,,,,gate uses declustered 4h fixed-horizon net
-exit_fixed,3,,,exit,fixed,pre-registered,,,,,,,,,,,scored only after a per-token freeze; otherwise unused
-exit_trail,3,,,exit,trail,pre-registered,,,,,,,,,,,scored only after a per-token freeze; otherwise unused
-exit_trail_atr,3,,,exit,trail_atr,pre-registered,,,,,,,,,,,scored only after a per-token freeze; otherwise unused
-exit_partial_trail,3,,,exit,partial_trail,pre-registered,,,,,,,,,,,scored only after a per-token freeze; otherwise unused
+s1_BTCUSDT_long_60m_1pct,1,BTCUSDT,long,descriptive,60m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_60m_2pct,1,BTCUSDT,long,descriptive,60m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_60m_3pct,1,BTCUSDT,long,descriptive,60m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_60m_5pct,1,BTCUSDT,long,descriptive,60m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_240m_1pct,1,BTCUSDT,long,descriptive,240m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_240m_2pct,1,BTCUSDT,long,descriptive,240m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_240m_3pct,1,BTCUSDT,long,descriptive,240m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_240m_5pct,1,BTCUSDT,long,descriptive,240m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_480m_1pct,1,BTCUSDT,long,descriptive,480m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_480m_2pct,1,BTCUSDT,long,descriptive,480m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_480m_3pct,1,BTCUSDT,long,descriptive,480m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_480m_5pct,1,BTCUSDT,long,descriptive,480m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_1440m_1pct,1,BTCUSDT,long,descriptive,1440m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_1440m_2pct,1,BTCUSDT,long,descriptive,1440m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_1440m_3pct,1,BTCUSDT,long,descriptive,1440m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_long_1440m_5pct,1,BTCUSDT,long,descriptive,1440m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_60m_1pct,1,BTCUSDT,short,descriptive,60m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_60m_2pct,1,BTCUSDT,short,descriptive,60m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_60m_3pct,1,BTCUSDT,short,descriptive,60m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_60m_5pct,1,BTCUSDT,short,descriptive,60m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_240m_1pct,1,BTCUSDT,short,descriptive,240m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_240m_2pct,1,BTCUSDT,short,descriptive,240m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_240m_3pct,1,BTCUSDT,short,descriptive,240m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_240m_5pct,1,BTCUSDT,short,descriptive,240m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_480m_1pct,1,BTCUSDT,short,descriptive,480m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_480m_2pct,1,BTCUSDT,short,descriptive,480m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_480m_3pct,1,BTCUSDT,short,descriptive,480m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_480m_5pct,1,BTCUSDT,short,descriptive,480m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_1440m_1pct,1,BTCUSDT,short,descriptive,1440m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_1440m_2pct,1,BTCUSDT,short,descriptive,1440m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_1440m_3pct,1,BTCUSDT,short,descriptive,1440m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_BTCUSDT_short_1440m_5pct,1,BTCUSDT,short,descriptive,1440m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_60m_1pct,1,ETHUSDT,long,descriptive,60m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_60m_2pct,1,ETHUSDT,long,descriptive,60m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_60m_3pct,1,ETHUSDT,long,descriptive,60m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_60m_5pct,1,ETHUSDT,long,descriptive,60m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_240m_1pct,1,ETHUSDT,long,descriptive,240m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_240m_2pct,1,ETHUSDT,long,descriptive,240m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_240m_3pct,1,ETHUSDT,long,descriptive,240m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_240m_5pct,1,ETHUSDT,long,descriptive,240m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_480m_1pct,1,ETHUSDT,long,descriptive,480m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_480m_2pct,1,ETHUSDT,long,descriptive,480m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_480m_3pct,1,ETHUSDT,long,descriptive,480m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_480m_5pct,1,ETHUSDT,long,descriptive,480m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_1440m_1pct,1,ETHUSDT,long,descriptive,1440m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_1440m_2pct,1,ETHUSDT,long,descriptive,1440m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_1440m_3pct,1,ETHUSDT,long,descriptive,1440m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_long_1440m_5pct,1,ETHUSDT,long,descriptive,1440m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_60m_1pct,1,ETHUSDT,short,descriptive,60m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_60m_2pct,1,ETHUSDT,short,descriptive,60m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_60m_3pct,1,ETHUSDT,short,descriptive,60m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_60m_5pct,1,ETHUSDT,short,descriptive,60m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_240m_1pct,1,ETHUSDT,short,descriptive,240m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_240m_2pct,1,ETHUSDT,short,descriptive,240m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_240m_3pct,1,ETHUSDT,short,descriptive,240m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_240m_5pct,1,ETHUSDT,short,descriptive,240m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_480m_1pct,1,ETHUSDT,short,descriptive,480m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_480m_2pct,1,ETHUSDT,short,descriptive,480m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_480m_3pct,1,ETHUSDT,short,descriptive,480m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_480m_5pct,1,ETHUSDT,short,descriptive,480m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_1440m_1pct,1,ETHUSDT,short,descriptive,1440m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_1440m_2pct,1,ETHUSDT,short,descriptive,1440m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_1440m_3pct,1,ETHUSDT,short,descriptive,1440m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_ETHUSDT_short_1440m_5pct,1,ETHUSDT,short,descriptive,1440m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_60m_1pct,1,SOLUSDT,long,descriptive,60m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_60m_2pct,1,SOLUSDT,long,descriptive,60m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_60m_3pct,1,SOLUSDT,long,descriptive,60m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_60m_5pct,1,SOLUSDT,long,descriptive,60m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_240m_1pct,1,SOLUSDT,long,descriptive,240m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_240m_2pct,1,SOLUSDT,long,descriptive,240m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_240m_3pct,1,SOLUSDT,long,descriptive,240m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_240m_5pct,1,SOLUSDT,long,descriptive,240m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_480m_1pct,1,SOLUSDT,long,descriptive,480m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_480m_2pct,1,SOLUSDT,long,descriptive,480m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_480m_3pct,1,SOLUSDT,long,descriptive,480m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_480m_5pct,1,SOLUSDT,long,descriptive,480m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_1440m_1pct,1,SOLUSDT,long,descriptive,1440m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_1440m_2pct,1,SOLUSDT,long,descriptive,1440m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_1440m_3pct,1,SOLUSDT,long,descriptive,1440m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_long_1440m_5pct,1,SOLUSDT,long,descriptive,1440m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_60m_1pct,1,SOLUSDT,short,descriptive,60m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_60m_2pct,1,SOLUSDT,short,descriptive,60m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_60m_3pct,1,SOLUSDT,short,descriptive,60m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_60m_5pct,1,SOLUSDT,short,descriptive,60m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_240m_1pct,1,SOLUSDT,short,descriptive,240m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_240m_2pct,1,SOLUSDT,short,descriptive,240m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_240m_3pct,1,SOLUSDT,short,descriptive,240m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_240m_5pct,1,SOLUSDT,short,descriptive,240m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_480m_1pct,1,SOLUSDT,short,descriptive,480m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_480m_2pct,1,SOLUSDT,short,descriptive,480m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_480m_3pct,1,SOLUSDT,short,descriptive,480m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_480m_5pct,1,SOLUSDT,short,descriptive,480m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_1440m_1pct,1,SOLUSDT,short,descriptive,1440m_1pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_1440m_2pct,1,SOLUSDT,short,descriptive,1440m_2pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_1440m_3pct,1,SOLUSDT,short,descriptive,1440m_3pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+s1_SOLUSDT_short_1440m_5pct,1,SOLUSDT,short,descriptive,1440m_5pct,descriptive_not_attached,,,,,,,,,,,Not used for the null decision. Descriptive CSV was not in this workspace.
+rule_compression_BTCUSDT_long,2,BTCUSDT,long,rule_compression,compression,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_fade_BTCUSDT_long,2,BTCUSDT,long,rule_fade,fade,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+model_l2_BTCUSDT_long,2,BTCUSDT,long,model_l2,l2_C1_p60,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_compression_BTCUSDT_short,2,BTCUSDT,short,rule_compression,compression,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_fade_BTCUSDT_short,2,BTCUSDT,short,rule_fade,fade,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+model_l2_BTCUSDT_short,2,BTCUSDT,short,model_l2,l2_C1_p60,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_compression_ETHUSDT_long,2,ETHUSDT,long,rule_compression,compression,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_fade_ETHUSDT_long,2,ETHUSDT,long,rule_fade,fade,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+model_l2_ETHUSDT_long,2,ETHUSDT,long,model_l2,l2_C1_p60,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_compression_ETHUSDT_short,2,ETHUSDT,short,rule_compression,compression,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_fade_ETHUSDT_short,2,ETHUSDT,short,rule_fade,fade,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+model_l2_ETHUSDT_short,2,ETHUSDT,short,model_l2,l2_C1_p60,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_compression_SOLUSDT_long,2,SOLUSDT,long,rule_compression,compression,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_fade_SOLUSDT_long,2,SOLUSDT,long,rule_fade,fade,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+model_l2_SOLUSDT_long,2,SOLUSDT,long,model_l2,l2_C1_p60,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_compression_SOLUSDT_short,2,SOLUSDT,short,rule_compression,compression,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+rule_fade_SOLUSDT_short,2,SOLUSDT,short,rule_fade,fade,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+model_l2_SOLUSDT_short,2,SOLUSDT,short,model_l2,l2_C1_p60,failed_validation,,,,,,,,,,,CLOSED_NULL. Box run and Munha independent score both fail validation. Trade counts and returns were not attached here and are left blank. Stage 3 not applied. 2026 not scored.
+exit_fixed,3,,,exit,fixed,skipped,,,,,,,,,,,Stage 3 skipped. No Stage 2 config froze. 2026 not scored. Budget not enlarged.
+exit_trail,3,,,exit,trail,skipped,,,,,,,,,,,Stage 3 skipped. No Stage 2 config froze. 2026 not scored. Budget not enlarged.
+exit_trail_atr,3,,,exit,trail_atr,skipped,,,,,,,,,,,Stage 3 skipped. No Stage 2 config froze. 2026 not scored. Budget not enlarged.
+exit_partial_trail,3,,,exit,partial_trail,skipped,,,,,,,,,,,Stage 3 skipped. No Stage 2 config froze. 2026 not scored. Budget not enlarged.

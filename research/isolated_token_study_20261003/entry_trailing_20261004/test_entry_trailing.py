@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import study
 from entry_trailing_20261004.budget import (
     ARCHIVE_SHA256, FILE_SHA256, LEDGER_COLUMNS, OUTCOME_COLUMNS, TOKENS,
-    ledger_template_rows, stage1_ids, stage2_ids,
+    closed_null_rows, stage1_ids, stage2_ids,
 )
 from entry_trailing_20261004.execution import (
     ExitSpec, FundingBook, decluster_times, exit_specs, passes_screen,
@@ -449,14 +449,22 @@ class BudgetAndLockTests(unittest.TestCase):
         for digest in FILE_SHA256.values():
             self.assertIn(digest, text)
 
-    def test_ledger_template_has_no_outcomes(self):
+    def test_closed_null_ledger_has_no_invented_numbers(self):
         path = Path(__file__).with_name('experiment_ledger.csv')
         frame = pd.read_csv(path, dtype=str, keep_default_na=False)
+        expected = pd.DataFrame(closed_null_rows())
         self.assertEqual(list(frame.columns), list(LEDGER_COLUMNS))
-        self.assertEqual(len(frame), len(ledger_template_rows()))
-        self.assertTrue((frame['status'] == 'pre-registered').all())
+        self.assertEqual(len(frame), len(expected))
+        self.assertEqual(frame['experiment_id'].tolist(), expected['experiment_id'].tolist())
+        self.assertEqual(frame['status'].tolist(), expected['status'].tolist())
+        self.assertEqual((frame['status'] == 'failed_validation').sum(), 18)
+        self.assertEqual((frame['status'] == 'skipped').sum(), 4)
         for column in OUTCOME_COLUMNS:
             self.assertTrue((frame[column] == '').all(), column)
+        text = Path(__file__).with_name('CLOSED_NULL.md').read_text()
+        self.assertIn('CLOSED_NULL', text)
+        waiting = Path(__file__).with_name('WAITING_FOR_GARWE_LOCK.md').read_text()
+        self.assertIn('Closed', waiting)
 
     def test_runner_refuses_before_opening_the_cache(self):
         with patch('entry_trailing_20261004.run_study.run', side_effect=AssertionError('cache opened')):

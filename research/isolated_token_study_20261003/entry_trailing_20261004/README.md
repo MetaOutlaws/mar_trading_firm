@@ -1,6 +1,8 @@
 # Entry diagnostics and trailing exits — 2026-10-04
 
-Isolated research. Read `WAITING_FOR_GARWE_LOCK.md` before running anything. The protocol is `EXECUTION_ADDENDUM.md`. It was committed before results. No result file in this directory contains a market return.
+Isolated research. Status: `CLOSED_NULL`. Read `FINDINGS.md`. All 18 Stage 2 configs failed validation on the box run and on Munha's independent score. Stage 3 was skipped. 2026 was not scored. Do not merge this PR for trading, and do not enlarge the budget.
+
+The protocol text is `EXECUTION_ADDENDUM.md`. Numeric trade cells in `experiment_ledger.csv` are blank because those CSVs were not in this workspace. See `results/TABLES_TO_ATTACH.md`.
 
 ## Reproduce the tests
 
@@ -14,7 +16,7 @@ The tests use synthetic bars. They do not open a market cache.
 
 ## Reproduce a locked market run
 
-Do not run this until a parent reply records the Garwe lock, and do not commit the raw parquet files.
+This budget is closed. Do not rerun it to search for a pass. The command below is the one the box was expected to use. Do not commit raw parquet files.
 
 ```bash
 python3 research/isolated_token_study_20261003/entry_trailing_20261004/run_study.py \
@@ -49,7 +51,7 @@ All of these land in `--out`, not in git, until a later review commits tables:
 - `{entry_id}_{discovery|validation}_{comparable|stress|desk}_trades.csv.gz` — declustered Stage 2 trades.
 - `stage3_summary.csv` — present even when empty. `stage3_NOT_SCORED.txt` explains an empty freeze.
 - When a token freezes: `s3_{TOKEN}_{entry_id}_{exit}_{partition}_{cost}_{paired|chronological}_trades.csv.gz`.
-- `experiment_ledger.csv` in that output directory carries the scored Stage 2 rows. The copy in this folder stays the blank template until a reviewed run replaces that decision.
+- `experiment_ledger.csv` in this folder is the decision record: 18 validation failures, Stage 3 skipped, numeric cells blank until the box files are attached.
 
 Per-trade columns: `experiment_id`, `entry`, `exit_bar`, `side`, `entry_price`, `exit_price`, `partial_price`, `gross_return`, `fees`, `funding`, `net_return`, `reason`, `ambiguous`, `holding_minutes`, `mfe`, `mae`, `giveback`, `activated`.
 

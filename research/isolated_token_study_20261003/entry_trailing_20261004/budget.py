@@ -153,6 +153,7 @@ def exit_template_ids() -> list[dict]:
 
 
 def ledger_template_rows() -> list[dict]:
+    """Original blank pre-registration. The committed ledger is closed_null_rows."""
     rows = []
     for source in (stage1_ids(), stage2_ids(), exit_template_ids()):
         for row in source:
@@ -160,4 +161,40 @@ def ledger_template_rows() -> list[dict]:
             full.update(row)
             full['status'] = 'pre-registered'
             rows.append(full)
+    return rows
+
+
+def closed_null_rows() -> list[dict]:
+    """Decision record after the box run and the Munha score.
+
+    Numeric cells stay empty. They were not in this workspace, and they are
+    not inferred. The screen outcome is the part both scores confirmed.
+    """
+    rows = []
+    for row in stage1_ids():
+        full = {col: '' for col in LEDGER_COLUMNS}
+        full.update(row)
+        full['status'] = 'descriptive_not_attached'
+        full['notes'] = (
+            'Not used for the null decision. Descriptive CSV was not in this workspace.'
+        )
+        rows.append(full)
+    for row in stage2_ids():
+        full = {col: '' for col in LEDGER_COLUMNS}
+        full.update(row)
+        full['status'] = 'failed_validation'
+        full['notes'] = (
+            'CLOSED_NULL. Box run and Munha independent score both fail validation. '
+            'Trade counts and returns were not attached here and are left blank. '
+            'Stage 3 not applied. 2026 not scored.'
+        )
+        rows.append(full)
+    for row in exit_template_ids():
+        full = {col: '' for col in LEDGER_COLUMNS}
+        full.update(row)
+        full['status'] = 'skipped'
+        full['notes'] = (
+            'Stage 3 skipped. No Stage 2 config froze. 2026 not scored. Budget not enlarged.'
+        )
+        rows.append(full)
     return rows
