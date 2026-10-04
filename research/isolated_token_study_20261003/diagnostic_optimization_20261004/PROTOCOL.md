@@ -1,0 +1,40 @@
+# Loss diagnosis and bounded chronological optimization
+Frozen 2026-10-04 before new diagnostic/optimization outcomes. User authorizes diagnosis and parameter adjustment with efficient reusable reporting. Offline research only. Prior negative studies remain archived. Base source04aad59d78c3f6b8171a0f53336aa1d59af81ee3 (PR97).
+
+## Data and limits
+Same hash-verified BTC/ETH/SOL one-minute candles and funding. No2026 strategy outcomes or features. All2022–2025 history has been used before; this is chronologically separated historical optimization, not pristine independent confirmation. No worker, VM, live setting or approval change. No position leverage or portfolio equity claims.
+
+## Part1: diagnose existing losses before optimization
+Use the180 original regime_target configurations, chronological base-cost trade exports, separately discovery2022–24 and2025. Reconcile counts/means with archived aggregate results. These observations overlap across configurations and are not unique trades or independent samples.
+
+For every stopped trade, ask whether its ORIGINAL quote-based profit target is subsequently reached within7 calendar days AFTER the stop bar. Do not credit the stop bar because minute OHLC cannot establish ordering. Also ask if recovery occurs before total adverse movement reaches2% of original quote entry. Same-minute adverse/recovery touch goes to adverse. Denominator includes only stops with a complete7-day observation window in the SAME historical partition; separately report censored stops. This7-day horizon is a diagnostic observation window, NOT a holding-time exit or candidate trading strategy. Mere eventual recovery does not establish that waiting or doubling a stop is profitable. Full simulation below measures larger losses, funding and changed opportunity availability.
+
+Record original stopped/target/regime/boundary counts, reconstructed quoted return, slippage drag, fees, funding and net. For target-winning trades record worst adverse quote movement before the exit bar; exclude the target bar to avoid using post-exit lows. Record original1% stop divided by entry-known completed1h ATR14/quote. Use simple mean true range14. Timing feature=signed preceding4h quote move, using only opens at entry and240minutes before entry; bins <=0, (0,1%], >1%. Report outcome/cost/ATR diagnostics by token and period and timing bin, with counts. No bin is used to fit a new filter in this experiment.
+
+## Part2: two chronological optimization folds
+FoldA training2022–2023, evaluation2024. FoldB training2022–2024, evaluation2025. Start flat at each training/evaluation boundary. No time exit; mark unresolved positions at partition end including hypothetical liquidation costs, flag boundary_mtm, include in means and report separately. No trade label crosses from training into evaluation. Indicator warm-up may use earlier observed prices; no future information.
+
+### StageA: entry/regime search,36 settings per token/fold
+Entry clocks5m,15m,60m; directions long/short; entry EMA lengths10,20,40; completed4h regime pairs (EMA20,EMA100) and (EMA50,EMA200). Same definitions as baseline: trend-aligned EMA reclaim entry; regime requires close vs slow, fast vs slow and fast slope over3completed4h bars. Fixed target2.5%, fixed stop1%, regime invalidation exit. No explicit zones/structure filters: prior stage showed zones severely constrained samples. Market EMA regime remains required.
+
+### StageB: risk/target/exit search on TWO StageA entries only
+Choose two StageA settings per token/fold with>=50 completed training trades and>=15 completed trades for each training entry-year. Rank by worst annual mean R at DOUBLED slippage, descending; tie by pooled stressed mean R, then canonical ID. If no setting satisfies counts, record blocked; never lower thresholds. Training positivity is not required to investigate repair, but negative winners are labeled least-negative rather than qualified.
+
+For each of those two entries evaluate stop={fixed1%,1.5×entry1h ATR14,2.5×entry1h ATR14}; volatility stops clipped to0.5–3% quoted entry movement, then frozen for the trade. Targets={2%,2.5%,3%} quoted movement. Exit={orders only,orders plus regime invalidation}.2×3×3×2=36 training settings per token/fold. No additional values. Fee/slippage/funding and quote-based gap/ambiguity conventions identical to baseline. Slippage stress changes fill economics, not quote-defined order levels.
+
+Constant risk comparison: R=net return on entry notional / initial stop fraction. R is a standardized initial-price-risk unit, not account return. Costs/gaps can produce losses exceeding1R. No leverage/compounding or implied account allocation. Rank StageB with same count rule and worst-training-year stressed mean R; tie by pooled stressed mean R, then canonical ID. Record every attempted setting and count rejection, including unprofitable settings. Freeze one winner per token/fold BEFORE evaluation.
+
+Budget: up to(36A+36B)×3tokens×2folds=432 training-setting evaluations. Two costs give up to864 training rows. Settings can repeat across folds; report actual unique IDs and evaluation count. No unregistered refinements. Insufficient-count groups remain blocked.
+
+### Later-period comparison, no feedback into selection
+Evaluate three systems for each frozen token/fold: reference (same selected clock/side, entryEMA20 and regime50/200, stop1%, target2.5%, regime exit); entry_only (selected entry/regime, original fixed risk/target/exit); optimized (selected StageB risk/target/exit). Both costs, chronological one position per system. Reference shares clock/side for attribution; its direction/clock selection is itself training-selected and must not be called an independent universal benchmark. Report overlap and changed trade counts; do not claim random assignment or pure causal attribution.
+
+Candidate qualifications: selected optimized must have>=50 completed evaluation trades, positive evaluation meanR/net, PF>=1.15 and positive stressed meanR, and nonnegative worst-training-year stressed meanR. At least one neighboring target on the SAME selected entry/stop/exit must satisfy the equivalent training positivity/PF/count screen to show local stability. Report train-neighbor values from existingStageB ledger; do not score additional neighbor evaluation results after the winner is fixed. A full research candidate additionally requires both chronological folds to pass for that token (settings may adapt via the fixed algorithm). All still require prospective confirmation; no promotion or2026 evaluation here.
+
+## Uncertainty/reporting
+For each optimized evaluation, weekly-entry-block bootstrap5000 resamples, seed20261004; 95% intervals for meanR and Bonferroni interval across six frozen evaluations. These intervals do NOT undo historical data reuse, training search, long holds or selection dependence; no claim of a valid global432-test significance correction. Report training-neighbor sensitivity rather than one best number.
+
+Deliverables: diagnostic tables; full432-setting attempt ledger and rejection reasons; frozen selections with training-only ranking fields; reference→entry_only→optimized results by token/fold; costs, PF, sample size, hold duration, stop-recovery censoring, minute-close MTM risk-unit drawdown and boundary valuations; parameter change attribution and train-neighbor table; source/input hashes, tests, exact reproduction command and cumulative study register linking prior nulls. Save compact machine-readable evidence and selected trade records on an isolated draft PR. No silent retunes.
+
+## Verification
+Independent scalar execution checks with variable stops and regime-open ordering; risk-unit scaling; stop-recovery same-bar and boundary censorship; training rank invariance to changed evaluation outcomes; feature future-perturbation checks; input hash and archived diagnostic reconciliation. New trade engine imports only offline verified data/feature helpers. Stop after this budget and report the actual outcome.
