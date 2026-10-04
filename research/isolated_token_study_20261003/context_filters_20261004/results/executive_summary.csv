@@ -1,0 +1,5 @@
+filter,configurations,retention_2025,median_2025_completed_trades,zero_trade_2025,positive_discovery,positive_2025,positive_2025_n50,n50_2025,positive_both_periods,full_screen_passes,adjacent_passes
+baseline,180,1.0,231.5,0,0,5,5,180,0,0,0
+structure,180,0.42417381250602176,123.0,0,0,8,5,160,0,0,0
+zones,180,0.026197128817805185,11.0,6,16,24,0,18,2,0,0
+both,180,0.013720011561807495,6.0,8,26,35,0,0,6,0,0

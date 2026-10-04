@@ -1,0 +1,26 @@
+{
+  "status": "complete",
+  "protocol_commit": "c3905f1ef2fd1f01c5b5926b3cde49d16f09cd13",
+  "source_sha256": {
+    "run_context.py": "52d9edf5b2a4de33c5885d65d04fb19f4d1b743bc95654cf9ec86e83ba873e03",
+    "PROTOCOL.md": "bce33a2a57c448bde02edac979a34edebca36a2ffe4202eda6c5c009a4939643",
+    "test_context.py": "5f817f9b6e66747cb361ec2925d7d57a1169bb302901362e0b23246592aaf58f"
+  },
+  "baseline_source_sha256": "c9375c8de8aecab6994307e1c658bcee03e709259d598a7d582a90b347372a63",
+  "baseline_results_sha256": "bf852a992370a52699d05ff675cdfe77025f8fb537cb761f788715e0d083f882",
+  "inputs": {
+    "BTCUSDT_1m.parquet": "a6d3cf242680123f4bc3ca16cf88009d0567d5db65ab770270d98d6d6a9c7aa0",
+    "BTCUSDT_funding.parquet": "8f72152a9e8dab4723c58904dcdea059d1b4484ac63bb9c3c93db3d98136ed2a",
+    "ETHUSDT_1m.parquet": "d14e7fca972102acbb215afa7681863e93cada9be5d296b0dc2a746cfa72a2ab",
+    "ETHUSDT_funding.parquet": "8b95a6e358acb7a0f70a502baa31aded1feb10b407678cc01e64335b152108ef",
+    "SOLUSDT_1m.parquet": "55a4c6a06700cfb4d8b1ba219b94a07fb2daaf96e2c4588a4042ae2a8e84eca6",
+    "SOLUSDT_funding.parquet": "5e43787de674452d41a852bba85eee904e272aac7d052d91b9997bce4d4bdc45"
+  },
+  "scores_2026": false,
+  "approval": "NONE",
+  "total_configurations": 720,
+  "result_rows": 5760,
+  "passes": 0,
+  "adjacent_passes": 0,
+  "baseline_reconciliation_max_error": 9.8879238130678e-17
+}

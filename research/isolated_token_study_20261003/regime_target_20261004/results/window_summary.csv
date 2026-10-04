@@ -1,0 +1,10 @@
+symbol,entry_minutes,configurations,positive_2025,passes_all_screens,stable_adjacent_passes
+BTCUSDT,5,20,0,0,0
+BTCUSDT,15,20,1,0,0
+BTCUSDT,60,20,4,0,0
+ETHUSDT,5,20,0,0,0
+ETHUSDT,15,20,0,0,0
+ETHUSDT,60,20,0,0,0
+SOLUSDT,5,20,0,0,0
+SOLUSDT,15,20,0,0,0
+SOLUSDT,60,20,0,0,0

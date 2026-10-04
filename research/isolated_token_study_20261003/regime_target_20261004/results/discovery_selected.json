@@ -1,0 +1,47 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "tf": 5,
+    "id": "BTCUSDT_5m_long_2.5pct_orders"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 15,
+    "id": "BTCUSDT_15m_long_2.5pct_orders"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 60,
+    "id": "BTCUSDT_60m_long_2pct_regime"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 5,
+    "id": "ETHUSDT_5m_short_3pct_regime"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 15,
+    "id": "ETHUSDT_15m_short_3pct_orders"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 60,
+    "id": "ETHUSDT_60m_long_3pct_regime"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 5,
+    "id": "SOLUSDT_5m_long_2pct_regime"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 15,
+    "id": "SOLUSDT_15m_short_1.5pct_orders"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 60,
+    "id": "SOLUSDT_60m_short_3pct_regime"
+  }
+]

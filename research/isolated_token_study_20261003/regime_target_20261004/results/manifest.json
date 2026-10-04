@@ -1,0 +1,29 @@
+{
+  "status": "complete",
+  "protocol_commit": "37e5dc00f98011c4766e2b6c5cbf7186d4a9cbdc",
+  "scores_2026": false,
+  "inputs": {
+    "BTCUSDT_1m.parquet": "a6d3cf242680123f4bc3ca16cf88009d0567d5db65ab770270d98d6d6a9c7aa0",
+    "BTCUSDT_funding.parquet": "8f72152a9e8dab4723c58904dcdea059d1b4484ac63bb9c3c93db3d98136ed2a",
+    "ETHUSDT_1m.parquet": "d14e7fca972102acbb215afa7681863e93cada9be5d296b0dc2a746cfa72a2ab",
+    "ETHUSDT_funding.parquet": "8b95a6e358acb7a0f70a502baa31aded1feb10b407678cc01e64335b152108ef",
+    "SOLUSDT_1m.parquet": "55a4c6a06700cfb4d8b1ba219b94a07fb2daaf96e2c4588a4042ae2a8e84eca6",
+    "SOLUSDT_funding.parquet": "5e43787de674452d41a852bba85eee904e272aac7d052d91b9997bce4d4bdc45"
+  },
+  "sources": {
+    "run_study.py": "c9375c8de8aecab6994307e1c658bcee03e709259d598a7d582a90b347372a63",
+    "test_sensitivity.py": "b507eae6fea076a4018c15dbfc4a38fd52b693b82fb6b0bcf3402a5d0b565fe9",
+    "PROTOCOL.md": "8e2fea0d1c759b650b7da00129dac52e8ed530e3f0771cd4c81859d148f0f4f8"
+  },
+  "approval": "NONE",
+  "time_exit": false,
+  "configurations": 180,
+  "result_rows": 1440,
+  "passing_configurations": 0,
+  "adjacent_pass_configurations": 0,
+  "runtime": {
+    "numpy": "2.3.5",
+    "pandas": "2.2.3",
+    "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]"
+  }
+}

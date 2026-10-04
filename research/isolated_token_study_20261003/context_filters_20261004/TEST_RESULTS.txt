@@ -1,0 +1,7 @@
+2026-10-04
+Baseline execution/feature suite: 9 tests PASS.
+Context suite: 8 tests PASS.
+Baseline reconstruction: 360 chronological configuration-period rows match.
+Maximum mean difference: 9.8879238130678e-17
+720 configurations, 5760 summary rows, no full screen pass.
+All six raw input hashes verified.
