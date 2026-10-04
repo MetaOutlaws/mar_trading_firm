@@ -291,6 +291,35 @@
           "stress_stop_2_net": "-0.153812"
         }
       }
+    },
+    {
+      "id": "funding_extreme_agree",
+      "family": "funding_extreme_agree",
+      "clock": null,
+      "thresholds": {
+        "label": null
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 180,
+          "target_first_count": 55,
+          "target_first_rate": "0.305556",
+          "gross": "-0.083333",
+          "net_after_0_31_rt": "-0.290000",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.208048"
+        },
+        "short": {
+          "n": 20,
+          "target_first_count": 2,
+          "target_first_rate": "0.100000",
+          "gross": "-0.700000",
+          "net_after_0_31_rt": "-0.906667",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.713824"
+        }
+      }
     }
   ]
 }
