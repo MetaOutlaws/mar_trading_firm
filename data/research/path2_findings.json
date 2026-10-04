@@ -295,9 +295,9 @@
     {
       "id": "funding_extreme_agree",
       "family": "funding_extreme_agree",
-      "clock": null,
+      "clock": "BTCUSDT 4h",
       "thresholds": {
-        "label": null
+        "label": "0.0005 inclusive, which is 1/2000, five times the 0.01% eight-hour baseline. Frozen before any count. Long: the latest funding print known at the bar close is >= +0.0005 and that bar closes above its open. Short: the print is <= -0.0005 and that bar closes below its open. Either piece alone is no trade. Not a fade."
       },
       "verdict": "FAIL",
       "sides": {

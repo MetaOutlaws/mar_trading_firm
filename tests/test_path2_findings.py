@@ -2,7 +2,7 @@
 
 The shipped table is twenty-two rows, all FAIL. ma_macd_rsi_agree is one cell.
 RSI is a state, not a 70/30 cross. A less-negative net stays FAIL.
-funding_extreme_agree has no clock and no frozen thresholds; both stay blank.
+funding_extreme_agree is BTCUSDT 4h with one frozen threshold line.
 Where an older cell says none, that metric stays null. An empty cells list
 still renders nothing.
 """
@@ -150,7 +150,14 @@ _MA_MACD_RSI_SHORT = {
     "same_shell_h18_base_net": "-0.248336",
     "stress_stop_2_net": "-0.153812",
 }
-# Rates stay decimals. The sealed table did not name a clock or thresholds.
+# Rates stay decimals. Clock and the frozen line were filled later; the figures were not.
+_FUNDING_CLOCK = "BTCUSDT 4h"
+_FUNDING_LABEL = (
+    "0.0005 inclusive, which is 1/2000, five times the 0.01% eight-hour baseline. "
+    "Frozen before any count. Long: the latest funding print known at the bar close "
+    "is >= +0.0005 and that bar closes above its open. Short: the print is <= -0.0005 "
+    "and that bar closes below its open. Either piece alone is no trade. Not a fade."
+)
 _FUNDING_LONG = {
     "n": 180,
     "target_first_count": 55,
@@ -326,8 +333,8 @@ def test_shipped_findings_are_the_twenty_two_sealed_rows() -> None:
     assert ma_macd["sides"]["short"] == _MA_MACD_RSI_SHORT
     assert funding["id"] == "funding_extreme_agree"
     assert funding["family"] == "funding_extreme_agree"
-    assert funding["clock"] is None
-    assert funding["thresholds"]["label"] is None
+    assert funding["clock"] == _FUNDING_CLOCK
+    assert funding["thresholds"]["label"] == _FUNDING_LABEL
     assert funding["verdict"] == "FAIL"
     assert funding.get("green_year_note") in (None, "")
     assert funding["sides"]["long"] == _FUNDING_LONG
@@ -371,7 +378,7 @@ def test_shipped_file_loads_twenty_two_rows_all_fail() -> None:
     assert loaded["load_error"] is None
     assert loaded["note"] == SEALED_TABLE_NOTE
     labels = [cell["thresholds_label"] for cell in loaded["cells"]]
-    assert labels == _LABELS + [None]
+    assert labels == _LABELS + [_FUNDING_LABEL]
     macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding = loaded["cells"]
     assert macd["verdict"] == "FAIL"
     assert macd["green_year_note"] is None
@@ -442,8 +449,8 @@ def test_shipped_file_loads_twenty_two_rows_all_fail() -> None:
     assert ma_macd["sides"]["short"]["net_after_0_31_rt"] == "-0.213050"
     assert funding["verdict"] == "FAIL"
     assert funding["family"] == "funding_extreme_agree"
-    assert funding["clock"] is None
-    assert funding["thresholds_label"] is None
+    assert funding["clock"] == _FUNDING_CLOCK
+    assert funding["thresholds_label"] == _FUNDING_LABEL
     assert funding["green_year_note"] is None
     assert funding["sides"]["long"] == _FUNDING_LONG
     assert funding["sides"]["short"] == _FUNDING_SHORT
@@ -592,8 +599,8 @@ def test_floor_helper_returns_the_sealed_rows() -> None:
 
     loaded = _safe_path2_findings()
     assert loaded["sealed"] is True
-    assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS + [None]
+    assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS + [_FUNDING_LABEL]
     assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL"] * 11
-    assert loaded["cells"][-1]["clock"] is None
+    assert loaded["cells"][-1]["clock"] == _FUNDING_CLOCK
     assert loaded["cells"][-1]["family"] == "funding_extreme_agree"
     assert all(cell["green_year_note"] is None for cell in loaded["cells"])
