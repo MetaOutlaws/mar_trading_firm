@@ -1,11 +1,10 @@
 """Path2 findings render only Marcus-sealed rows.
 
-The shipped table is six rows: macd_ma_agree long and short, ma_rsi_agree
-70/30 long and short, and ma_rsi_agree 80/20 long and short. All six are
-FAIL. 80/20 is its own cell. Where that cell says none, the metric stays
-null. n=0 and target-first count 0 stay real zeros. An empty cells list
-still renders nothing. The loader must not invent a rate, a green-year note,
-or a PASS.
+The shipped table is ten rows, all FAIL: macd_ma_agree, ma_rsi_agree 70/30,
+ma_rsi_agree 80/20, va_rsi_agree pair 70/30, and va_rsi_agree pair 80/20.
+The two va_rsi_agree pairs are separate cells. A positive net stays FAIL.
+Where an older cell says none, that metric stays null. An empty cells list
+still renders nothing.
 """
 
 from __future__ import annotations
@@ -85,7 +84,52 @@ _RSI_80_SHORT = {
 }
 
 
-def test_shipped_findings_are_the_six_sealed_rows() -> None:
+_VA_70_LONG = {
+    "n": 127,
+    "target_first_count": 33,
+    "target_first_rate": "26.0%",
+    "gross": "-0.130728",
+    "net_after_0_31_rt": "-0.337395",
+    "same_shell_h18_base_net": "-0.212583",
+    "stress_stop_2_net": "-0.274343",
+}
+_VA_70_SHORT = {
+    "n": 133,
+    "target_first_count": 41,
+    "target_first_rate": "30.8%",
+    "gross": "+0.008648",
+    "net_after_0_31_rt": "-0.198018",
+    "same_shell_h18_base_net": "-0.248336",
+    "stress_stop_2_net": "-0.219031",
+}
+_VA_80_LONG = {
+    "n": 20,
+    "target_first_count": 8,
+    "target_first_rate": "40.0%",
+    "gross": "+0.252953",
+    "net_after_0_31_rt": "+0.046287",
+    "same_shell_h18_base_net": "-0.212583",
+    "stress_stop_2_net": "+0.045730",
+}
+_VA_80_SHORT = {
+    "n": 40,
+    "target_first_count": 13,
+    "target_first_rate": "32.5%",
+    "gross": "-0.025000",
+    "net_after_0_31_rt": "-0.231667",
+    "same_shell_h18_base_net": "-0.248336",
+    "stress_stop_2_net": "-0.246742",
+}
+_LABELS = [
+    "EMA 21 and MACD 12, 26, 9, agreement required",
+    "EMA 21, RSI 14, cell 70/30",
+    "EMA 21, RSI 14, cell 80/20",
+    "6 bars, 70% volume at the close, RSI 14, pair 70/30",
+    "6 bars, 70% volume at the close, RSI 14, pair 80/20",
+]
+
+
+def test_shipped_findings_are_the_ten_sealed_rows() -> None:
     raw_text = PATH2_FINDINGS_PATH.read_text(encoding="utf-8")
     raw = json.loads(raw_text)
     assert raw["sealed"] is True
@@ -95,8 +139,10 @@ def test_shipped_findings_are_the_six_sealed_rows() -> None:
         "macd_ma_agree",
         "ma_rsi_agree",
         "ma_rsi_agree",
+        "va_rsi_agree",
+        "va_rsi_agree",
     ]
-    macd, rsi_70, rsi_80 = raw["cells"]
+    macd, rsi_70, rsi_80, va_70, va_80 = raw["cells"]
     assert macd["clock"] == "4h"
     assert macd["thresholds"]["label"] == "EMA 21 and MACD 12, 26, 9, agreement required"
     assert macd["verdict"] == "FAIL"
@@ -116,24 +162,35 @@ def test_shipped_findings_are_the_six_sealed_rows() -> None:
     assert rsi_80.get("green_year_note") in (None, "")
     assert rsi_80["sides"]["long"] == _RSI_80_LONG
     assert rsi_80["sides"]["short"] == _RSI_80_SHORT
+    assert va_70["id"] != va_80["id"]
+    assert va_70["clock"] == "4h"
+    assert va_70["thresholds"]["label"] == _LABELS[3]
+    assert va_70["verdict"] == "FAIL"
+    assert va_70.get("green_year_note") in (None, "")
+    assert va_70["sides"]["long"] == _VA_70_LONG
+    assert va_70["sides"]["short"] == _VA_70_SHORT
+    assert va_80["clock"] == "4h"
+    assert va_80["thresholds"]["label"] == _LABELS[4]
+    assert va_80["verdict"] == "FAIL"
+    assert va_80.get("green_year_note") in (None, "")
+    assert va_80["sides"]["long"] == _VA_80_LONG
+    assert va_80["sides"]["short"] == _VA_80_SHORT
     assert "PASS" not in raw_text
     assert "+2.000" in raw_text
-    assert "70/30" in raw_text
-    assert "80/20" in raw_text
+    assert "26.0%" in raw_text
+    assert "40.0%" in raw_text
+    assert "-0.025000" in raw_text
+    assert "+0.046287" in raw_text
 
 
-def test_shipped_file_loads_six_rows_all_fail() -> None:
+def test_shipped_file_loads_ten_rows_all_fail() -> None:
     loaded = load_path2_findings()
     assert loaded["sealed"] is True
     assert loaded["load_error"] is None
     assert loaded["note"] == SEALED_TABLE_NOTE
     labels = [cell["thresholds_label"] for cell in loaded["cells"]]
-    assert labels == [
-        "EMA 21 and MACD 12, 26, 9, agreement required",
-        "EMA 21, RSI 14, cell 70/30",
-        "EMA 21, RSI 14, cell 80/20",
-    ]
-    macd, rsi_70, rsi_80 = loaded["cells"]
+    assert labels == _LABELS
+    macd, rsi_70, rsi_80, va_70, va_80 = loaded["cells"]
     assert macd["verdict"] == "FAIL"
     assert macd["green_year_note"] is None
     assert macd["sides"]["long"] == _LONG
@@ -153,6 +210,14 @@ def test_shipped_file_loads_six_rows_all_fail() -> None:
         assert rsi_80["sides"][side]["gross"] is None
         assert rsi_80["sides"][side]["net_after_0_31_rt"] is None
         assert rsi_80["sides"][side]["stress_stop_2_net"] is None
+    # Positive net on the thin 80/20 long side stays the sealed FAIL.
+    assert va_70["verdict"] == "FAIL"
+    assert va_80["verdict"] == "FAIL"
+    assert va_70["sides"]["long"] == _VA_70_LONG
+    assert va_70["sides"]["short"] == _VA_70_SHORT
+    assert va_80["sides"]["long"] == _VA_80_LONG
+    assert va_80["sides"]["short"] == _VA_80_SHORT
+    assert va_80["sides"]["long"]["net_after_0_31_rt"] == "+0.046287"
 
 
 def test_zero_cells_stay_empty(tmp_path) -> None:
@@ -294,10 +359,6 @@ def test_floor_helper_returns_the_sealed_rows() -> None:
 
     loaded = _safe_path2_findings()
     assert loaded["sealed"] is True
-    assert [cell["thresholds_label"] for cell in loaded["cells"]] == [
-        "EMA 21 and MACD 12, 26, 9, agreement required",
-        "EMA 21, RSI 14, cell 70/30",
-        "EMA 21, RSI 14, cell 80/20",
-    ]
-    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL", "FAIL", "FAIL"]
+    assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS
+    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL", "FAIL", "FAIL", "FAIL", "FAIL"]
     assert all(cell["green_year_note"] is None for cell in loaded["cells"])
