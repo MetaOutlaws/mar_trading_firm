@@ -1,0 +1,176 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "tf": 5,
+    "filter": "baseline",
+    "id": "BTCUSDT_5m_long_2.5pct_orders"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 5,
+    "filter": "both",
+    "id": "BTCUSDT_5m_long_1pct_orders"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 5,
+    "filter": "structure",
+    "id": "BTCUSDT_5m_long_3pct_regime"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 5,
+    "filter": "zones",
+    "id": "BTCUSDT_5m_long_1.5pct_regime"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 15,
+    "filter": "baseline",
+    "id": "BTCUSDT_15m_long_2.5pct_orders"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 15,
+    "filter": "structure",
+    "id": "BTCUSDT_15m_long_3pct_regime"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 15,
+    "filter": "zones",
+    "id": "BTCUSDT_15m_short_1pct_regime"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 60,
+    "filter": "baseline",
+    "id": "BTCUSDT_60m_long_2pct_regime"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "tf": 60,
+    "filter": "structure",
+    "id": "BTCUSDT_60m_long_3pct_orders"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 5,
+    "filter": "baseline",
+    "id": "ETHUSDT_5m_short_3pct_regime"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 5,
+    "filter": "both",
+    "id": "ETHUSDT_5m_short_1pct_regime"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 5,
+    "filter": "structure",
+    "id": "ETHUSDT_5m_short_2.5pct_regime"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 5,
+    "filter": "zones",
+    "id": "ETHUSDT_5m_short_2.5pct_regime"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 15,
+    "filter": "baseline",
+    "id": "ETHUSDT_15m_short_3pct_orders"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 15,
+    "filter": "structure",
+    "id": "ETHUSDT_15m_short_3pct_regime"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 15,
+    "filter": "zones",
+    "id": "ETHUSDT_15m_short_1pct_regime"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 60,
+    "filter": "baseline",
+    "id": "ETHUSDT_60m_long_3pct_regime"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "tf": 60,
+    "filter": "structure",
+    "id": "ETHUSDT_60m_long_3pct_regime"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 5,
+    "filter": "baseline",
+    "id": "SOLUSDT_5m_long_2pct_regime"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 5,
+    "filter": "both",
+    "id": "SOLUSDT_5m_short_2.5pct_orders"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 5,
+    "filter": "structure",
+    "id": "SOLUSDT_5m_long_2pct_regime"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 5,
+    "filter": "zones",
+    "id": "SOLUSDT_5m_short_3pct_orders"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 15,
+    "filter": "baseline",
+    "id": "SOLUSDT_15m_short_1.5pct_orders"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 15,
+    "filter": "both",
+    "id": "SOLUSDT_15m_short_1.5pct_orders"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 15,
+    "filter": "structure",
+    "id": "SOLUSDT_15m_short_1.5pct_orders"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 15,
+    "filter": "zones",
+    "id": "SOLUSDT_15m_short_2pct_orders"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 60,
+    "filter": "baseline",
+    "id": "SOLUSDT_60m_short_3pct_regime"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 60,
+    "filter": "structure",
+    "id": "SOLUSDT_60m_short_3pct_orders"
+  },
+  {
+    "symbol": "SOLUSDT",
+    "tf": 60,
+    "filter": "zones",
+    "id": "SOLUSDT_60m_long_1pct_orders"
+  }
+]

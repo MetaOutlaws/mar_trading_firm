@@ -1,0 +1,16 @@
+{
+  "executive_summary.csv": "5abe4f97e0ef1aa07cfb57bbafeb439ae4b78a5ca3795007e3af2c4f759c2269",
+  "entry_acceptance_audit.parquet": "7f22aff6b2a034dd0921079874d0f84e6bd0de596405c6002af5f2cd90c9d77d",
+  "manifest.json": "a3de1554486be55afffb42ddcf6aab3f3ba751dfbcc6ce956e353fb871194e81",
+  "positive_both_periods.csv": "51d79d285add95d06ca82dd8394d25e46b6c8e288a333543acc011e2e27a8065",
+  "discovery_selected.json": "644bfdb817e90e1fefbec96a6a1c438b695b62521653ccf709bbb595cc422a3a",
+  "window_comparison.csv": "ea934feffde9ff1d2486db73cacb699a2349598603611fc98a176775c37fadce",
+  "positive_both_trade_evidence.csv": "88bf051a6ad2f34958e48d18bac14560f504b031ec4b01adb6ab1cba2cb001d5",
+  "all_720_configuration_comparisons.csv": "4d6272022085fa419bba630f1cd4a8596a3cfe841f32cd45d191b4aff90e0817",
+  "all_5760_results.parquet": "38c409f63a10e0abe10eedbbc6a6de8dbc60509707400f0382659699a2cc6937",
+  "baseline_reconciliation.csv": "ece6531fbb07bf6c9980d0db2edb332f14dd4dc3bd9e4bf998e2dc77a2d44222",
+  "screen.csv": "dee36a7427b963c804142b3c0861c48bef7d473ed4ebdcbf352a7efa5b6111b1",
+  "discovery_selected.csv": "768224d1a114acd9a34dbcc113860d1e50d8acdf22cc122b70f8f3577375fc1c",
+  "target_summary.csv": "e09c366f9c81fd8f37703fc7bfbf5ff6b01eb0a8cd4f6c905a2c4dc3530ed4ad",
+  "retention.csv": "f08b0bbddfdedd9ab8bf544665ddec4d097ba4d3c84adea2f715444984f9c8bd"
+}

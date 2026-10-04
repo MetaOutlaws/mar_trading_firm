@@ -1,0 +1,10 @@
+symbol,entry_minutes,baseline_positive_n50,baseline_median_n,structure_positive_n50,structure_median_n,zones_positive_n50,zones_median_n,both_positive_n50,both_median_n
+BTCUSDT,5,0,258.5,0,135.5,0,12.5,0,7.5
+BTCUSDT,15,1,177.5,5,94.5,0,4.0,0,2.0
+BTCUSDT,60,4,99.0,0,49.0,0,2.0,0,1.0
+ETHUSDT,5,0,535.0,0,254.0,0,32.0,0,19.5
+ETHUSDT,15,0,320.5,0,161.5,0,14.0,0,7.5
+ETHUSDT,60,0,132.0,0,61.0,0,4.5,0,4.0
+SOLUSDT,5,0,674.5,0,294.5,0,51.5,0,27.0
+SOLUSDT,15,0,392.0,0,173.5,0,16.5,0,7.0
+SOLUSDT,60,0,150.5,0,68.5,0,9.5,0,3.5

@@ -1,0 +1,5 @@
+Nine tests PASS.
+800 randomized execution comparisons against independent scalar oracle.
+600 randomized barrier-index comparisons.
+Funding, gaps, regime-open precedence, no holding cap, boundary marks, chronological exclusion, MTM drawdown, future-feature independence tested.
+180 configurations, 1440 result rows. Zero passes; zero adjacent stable passing regions.
