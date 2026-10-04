@@ -204,6 +204,35 @@
           "stress_stop_2_net": "+1.345000"
         }
       }
+    },
+    {
+      "id": "adx_ma_agree-4h-floor-20",
+      "family": "adx_ma_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "Wilder 14, ADX floor 20 as a state, DI direction as a state, close versus EMA 21. Both legs required."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 944,
+          "target_first_count": 310,
+          "target_first_rate": "32.8%",
+          "gross": "+0.040455",
+          "net_after_0_31_rt": "-0.166212",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.108236"
+        },
+        "short": {
+          "n": 1231,
+          "target_first_count": 389,
+          "target_first_rate": "31.6%",
+          "gross": "-0.017631",
+          "net_after_0_31_rt": "-0.224298",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.153372"
+        }
+      }
     }
   ]
 }
