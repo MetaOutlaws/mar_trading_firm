@@ -1,7 +1,7 @@
 """Path2 findings render only Marcus-sealed rows.
 
-The shipped table is sixteen rows, all FAIL. adx_ma_agree is its own floor-20
-cell and is not an adx_rsi_agree row. A less-negative net stays FAIL.
+The shipped table is eighteen rows, all FAIL. adx_ma_agree floor 20 and
+floor 25 are separate cells. A less-negative net stays FAIL.
 Where an older cell says none, that metric stays null. An empty cells list
 still renders nothing.
 """
@@ -128,7 +128,26 @@ _LABELS = [
     "Wilder 14, ADX floor 20 as a state, DI direction as a state, RSI 70/30. Both legs required.",
     "Wilder 14, ADX floor 25 as a state, DI direction as a state, RSI 70/30.",
     "Wilder 14, ADX floor 20 as a state, DI direction as a state, close versus EMA 21. Both legs required.",
+    "Wilder 14, ADX floor 25 as a state, DI direction as a state, close versus EMA 21. Both legs required.",
 ]
+_ADX_MA25_LONG = {
+    "n": 700,
+    "target_first_count": 234,
+    "target_first_rate": "33.4%",
+    "gross": "+0.048085",
+    "net_after_0_31_rt": "-0.158581",
+    "same_shell_h18_base_net": "-0.212583",
+    "stress_stop_2_net": "-0.065004",
+}
+_ADX_MA25_SHORT = {
+    "n": 976,
+    "target_first_count": 313,
+    "target_first_rate": "32.1%",
+    "gross": "+0.001735",
+    "net_after_0_31_rt": "-0.204931",
+    "same_shell_h18_base_net": "-0.248336",
+    "stress_stop_2_net": "-0.150666",
+}
 _ADX_MA_LONG = {
     "n": 944,
     "target_first_count": 310,
@@ -167,7 +186,7 @@ _ADX_SHORT = {
 }
 
 
-def test_shipped_findings_are_the_sixteen_sealed_rows() -> None:
+def test_shipped_findings_are_the_eighteen_sealed_rows() -> None:
     raw_text = PATH2_FINDINGS_PATH.read_text(encoding="utf-8")
     raw = json.loads(raw_text)
     assert raw["sealed"] is True
@@ -182,8 +201,9 @@ def test_shipped_findings_are_the_sixteen_sealed_rows() -> None:
         "adx_rsi_agree",
         "adx_rsi_agree",
         "adx_ma_agree",
+        "adx_ma_agree",
     ]
-    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma = raw["cells"]
+    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25 = raw["cells"]
     assert macd["clock"] == "4h"
     assert macd["thresholds"]["label"] == "EMA 21 and MACD 12, 26, 9, agreement required"
     assert macd["verdict"] == "FAIL"
@@ -233,16 +253,33 @@ def test_shipped_findings_are_the_sixteen_sealed_rows() -> None:
     assert adx25.get("green_year_note") in (None, "")
     assert adx25["sides"]["long"] == _ADX_LONG
     assert adx25["sides"]["short"] == _ADX_SHORT
-    assert adx_ma["family"] == "adx_ma_agree"
-    assert adx_ma["clock"] == "4h"
-    assert adx_ma["thresholds"]["label"] == _LABELS[7]
-    assert "floor 20" in adx_ma["thresholds"]["label"]
-    assert "floor 25" not in adx_ma["thresholds"]["label"]
-    assert "RSI" not in adx_ma["thresholds"]["label"]
-    assert adx_ma["verdict"] == "FAIL"
-    assert adx_ma.get("green_year_note") in (None, "")
-    assert adx_ma["sides"]["long"] == _ADX_MA_LONG
-    assert adx_ma["sides"]["short"] == _ADX_MA_SHORT
+    assert adx_ma20["id"] != adx_ma25["id"]
+    assert adx_ma20["family"] == "adx_ma_agree"
+    assert adx_ma20["clock"] == "4h"
+    assert adx_ma20["thresholds"]["label"] == _LABELS[7]
+    assert "floor 20" in adx_ma20["thresholds"]["label"]
+    assert "floor 25" not in adx_ma20["thresholds"]["label"]
+    assert "RSI" not in adx_ma20["thresholds"]["label"]
+    assert adx_ma20["verdict"] == "FAIL"
+    assert adx_ma20.get("green_year_note") in (None, "")
+    assert adx_ma20["sides"]["long"] == _ADX_MA_LONG
+    assert adx_ma20["sides"]["short"] == _ADX_MA_SHORT
+    assert adx_ma25["family"] == "adx_ma_agree"
+    assert adx_ma25["clock"] == "4h"
+    assert adx_ma25["thresholds"]["label"] == _LABELS[8]
+    assert "floor 25" in adx_ma25["thresholds"]["label"]
+    assert "floor 20" not in adx_ma25["thresholds"]["label"]
+    assert "RSI" not in adx_ma25["thresholds"]["label"]
+    assert adx_ma25["verdict"] == "FAIL"
+    assert adx_ma25.get("green_year_note") in (None, "")
+    assert adx_ma25["sides"]["long"] == _ADX_MA25_LONG
+    assert adx_ma25["sides"]["short"] == _ADX_MA25_SHORT
+    assert "33.4%" in raw_text
+    assert "+0.048085" in raw_text
+    assert "-0.065004" in raw_text
+    assert "32.1%" in raw_text
+    assert "+0.001735" in raw_text
+    assert "-0.150666" in raw_text
     assert "PASS" not in raw_text
     assert "32.8%" in raw_text
     assert "-0.166212" in raw_text
@@ -256,14 +293,14 @@ def test_shipped_findings_are_the_sixteen_sealed_rows() -> None:
     assert "+0.046287" in raw_text
 
 
-def test_shipped_file_loads_sixteen_rows_all_fail() -> None:
+def test_shipped_file_loads_eighteen_rows_all_fail() -> None:
     loaded = load_path2_findings()
     assert loaded["sealed"] is True
     assert loaded["load_error"] is None
     assert loaded["note"] == SEALED_TABLE_NOTE
     labels = [cell["thresholds_label"] for cell in loaded["cells"]]
     assert labels == _LABELS
-    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma = loaded["cells"]
+    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25 = loaded["cells"]
     assert macd["verdict"] == "FAIL"
     assert macd["green_year_note"] is None
     assert macd["sides"]["long"] == _LONG
@@ -311,12 +348,19 @@ def test_shipped_file_loads_sixteen_rows_all_fail() -> None:
         assert adx["sides"]["short"]["net_after_0_31_rt"] == "+1.793333"
         assert adx["sides"]["short"]["gross"] == "+2.000000"
         assert adx["sides"]["short"]["stress_stop_2_net"] == "+1.345000"
-    assert adx_ma["verdict"] == "FAIL"
-    assert adx_ma["family"] == "adx_ma_agree"
-    assert adx_ma["thresholds_label"] == _LABELS[7]
-    assert adx_ma["sides"]["long"] == _ADX_MA_LONG
-    assert adx_ma["sides"]["short"] == _ADX_MA_SHORT
-    assert adx_ma["sides"]["long"]["net_after_0_31_rt"] == "-0.166212"
+    assert adx_ma20["verdict"] == "FAIL"
+    assert adx_ma20["family"] == "adx_ma_agree"
+    assert adx_ma20["thresholds_label"] == _LABELS[7]
+    assert adx_ma20["sides"]["long"] == _ADX_MA_LONG
+    assert adx_ma20["sides"]["short"] == _ADX_MA_SHORT
+    assert adx_ma20["sides"]["long"]["net_after_0_31_rt"] == "-0.166212"
+    assert adx_ma25["verdict"] == "FAIL"
+    assert adx_ma25["family"] == "adx_ma_agree"
+    assert adx_ma25["thresholds_label"] == _LABELS[8]
+    assert adx_ma25["sides"]["long"] == _ADX_MA25_LONG
+    assert adx_ma25["sides"]["short"] == _ADX_MA25_SHORT
+    assert adx_ma25["sides"]["long"]["net_after_0_31_rt"] == "-0.158581"
+    assert adx_ma25["sides"]["short"]["net_after_0_31_rt"] == "-0.204931"
 
 
 def test_zero_cells_stay_empty(tmp_path) -> None:
@@ -459,5 +503,5 @@ def test_floor_helper_returns_the_sealed_rows() -> None:
     loaded = _safe_path2_findings()
     assert loaded["sealed"] is True
     assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS
-    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL"] * 8
+    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL"] * 9
     assert all(cell["green_year_note"] is None for cell in loaded["cells"])

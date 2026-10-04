@@ -846,7 +846,8 @@ const PAGE_SIZES = {
   hypotheses: 10,
   positions: 10,
   nextTests: 5,
-  findings: 8,
+  // One scored cell is two rows. 12 cells keeps the sealed table on one page.
+  findings: 12,
 };
 function pageSize(id) {
   return PAGE_SIZES[id] || 10;
