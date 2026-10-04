@@ -262,6 +262,35 @@
           "stress_stop_2_net": "-0.150666"
         }
       }
+    },
+    {
+      "id": "ma_macd_rsi_agree-4h",
+      "family": "ma_macd_rsi_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "EMA 21, MACD 12/26/9, RSI 14 as a state at or above 30 for long and at or below 70 for short. All three required. Note that RSI at the prior bar was not read."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 1162,
+          "target_first_count": 375,
+          "target_first_rate": "32.3%",
+          "gross": "+0.024716",
+          "net_after_0_31_rt": "-0.181951",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.126355"
+        },
+        "short": {
+          "n": 1267,
+          "target_first_count": 397,
+          "target_first_rate": "31.3%",
+          "gross": "-0.006383",
+          "net_after_0_31_rt": "-0.213050",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.153812"
+        }
+      }
     }
   ]
 }
