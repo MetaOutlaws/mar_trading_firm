@@ -59,6 +59,35 @@
           "stress_stop_2_net": "+0.511667"
         }
       }
+    },
+    {
+      "id": "ma_rsi_agree-4h-80-20",
+      "family": "ma_rsi_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "EMA 21, RSI 14, cell 80/20"
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 0,
+          "target_first_count": 0,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": null
+        },
+        "short": {
+          "n": 0,
+          "target_first_count": 0,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": null
+        }
+      }
     }
   ]
 }
