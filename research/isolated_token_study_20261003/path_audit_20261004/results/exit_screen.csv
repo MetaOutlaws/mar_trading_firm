@@ -1,0 +1,13 @@
+symbol,exit,passes_exploratory_screen
+BTCUSDT,fixed,False
+BTCUSDT,partial_trail,False
+BTCUSDT,trail,False
+BTCUSDT,trail_atr,False
+ETHUSDT,fixed,False
+ETHUSDT,partial_trail,False
+ETHUSDT,trail,False
+ETHUSDT,trail_atr,False
+SOLUSDT,fixed,False
+SOLUSDT,partial_trail,False
+SOLUSDT,trail,False
+SOLUSDT,trail_atr,False

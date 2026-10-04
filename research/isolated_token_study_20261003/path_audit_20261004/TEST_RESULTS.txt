@@ -1,0 +1,7 @@
+2026-10-04
+New path-audit unittest suite: 8 tests PASS.
+Archived PR94 unittest suite: 33 tests PASS.
+Maximum reconstructed archived endpoint difference: 2.0903417885520525e-16
+Historical data input hashes: all six match PR94 manifest.
+18 entry configurations; 36 path-diagnostic rows; 48 exit rows; 12 failed exit screens.
+No 2026 outcome scoring.
