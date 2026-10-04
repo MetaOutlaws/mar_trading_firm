@@ -1,0 +1,18 @@
+{
+  "imported_source_sha256": {
+    "study.py": "a5e4bf7f29c047b287af773275c12df59855d5dca8221f6c4da7e6dec2bca6f9",
+    "entry_trailing_20261004/execution.py": "145e30a427b89fe42fd50a56a8f0c260bd93213916fcf102f486b415c491ea2b",
+    "entry_trailing_20261004/features.py": "97309ad3fad00f1de1abf944d2a341243f94b6e0f6616bab42146111c3dfd70b",
+    "entry_trailing_20261004/budget.py": "a36a82b9ce77999d0fb56e76271817e050f6619f866a9c2c6a65aa82d5f8664c"
+  },
+  "published_output_sha256": {
+    "frozen_exit_selection.json": "89f0a6d8dd6a1e9f2a027c91bd06bd83967eab7c6032e92fd5b0773580a5a9ac",
+    "matched_control_schedule.csv.gz": "b203e9f4c3121797cd6e2f9a5575a0515b8abb45d45da7ef54035c4814b8b8f8",
+    "all_real_exits.csv.gz": "a128fa726f1619eeb18d283a9c4a3fc0a92f6448da73f331a9c6855c3e0efbbb",
+    "manifest.json": "8f98d1d481750da944f9f052d934a134315e9d6244e003f4e59d0b91949b4e19",
+    "exit_screen.csv": "753a080da2fbdee28fe4595447d6ade236052dfb2f29bc2872a852b5532a4923",
+    "exit_results.csv": "13c0ae0699a7f84a7f4be9482e3734dd096917890b3832f396ebf60dff38f186",
+    "all_real_paths.csv.gz": "b10b2ee3ca572d74a191833e96e411deea353b71d49153d7354de8ca2632db95",
+    "diagnostics.csv": "f08d4417b901236e1b9f0700fb921a55494276f58d2cc6b523702f7036c0bc40"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "BTCUSDT": "rule_fade_BTCUSDT_long",
+  "ETHUSDT": "rule_compression_ETHUSDT_short",
+  "SOLUSDT": "model_l2_SOLUSDT_long"
+}
