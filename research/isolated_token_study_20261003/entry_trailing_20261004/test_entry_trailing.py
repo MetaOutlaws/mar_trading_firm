@@ -16,8 +16,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import study
 from entry_trailing_20261004.budget import (
-    ARCHIVE_SHA256, FILE_SHA256, LEDGER_COLUMNS, OUTCOME_COLUMNS, TOKENS,
-    closed_null_rows, stage1_ids, stage2_ids,
+    ARCHIVE_SHA256, FILE_SHA256, LEDGER_COLUMNS, TOKENS, stage1_ids, stage2_ids,
 )
 from entry_trailing_20261004.execution import (
     ExitSpec, FundingBook, decluster_times, exit_specs, passes_screen,
@@ -449,20 +448,30 @@ class BudgetAndLockTests(unittest.TestCase):
         for digest in FILE_SHA256.values():
             self.assertIn(digest, text)
 
-    def test_closed_null_ledger_has_no_invented_numbers(self):
+    def test_sealed_ledger_fails_every_validation_row(self):
         path = Path(__file__).with_name('experiment_ledger.csv')
-        frame = pd.read_csv(path, dtype=str, keep_default_na=False)
-        expected = pd.DataFrame(closed_null_rows())
+        raw = path.read_text()
+        frame = pd.read_csv(path)
         self.assertEqual(list(frame.columns), list(LEDGER_COLUMNS))
-        self.assertEqual(len(frame), len(expected))
-        self.assertEqual(frame['experiment_id'].tolist(), expected['experiment_id'].tolist())
-        self.assertEqual(frame['status'].tolist(), expected['status'].tolist())
-        self.assertEqual((frame['status'] == 'failed_validation').sum(), 18)
-        self.assertEqual((frame['status'] == 'skipped').sum(), 4)
-        for column in OUTCOME_COLUMNS:
-            self.assertTrue((frame[column] == '').all(), column)
-        text = Path(__file__).with_name('CLOSED_NULL.md').read_text()
+        self.assertEqual(len(frame), 18)
+        self.assertTrue((frame['status'] == 'scored').all())
+        self.assertTrue((frame['mean_validation'] < 0).all())
+        self.assertTrue((frame['pf_validation'] < 1.15).all())
+        self.assertFalse(((frame['mean_discovery'] > 0) & (frame['mean_validation'] > 0)).any())
+        # Quoted cells for model_l2_SOLUSDT_long, copied from the box CSV.
+        for cell in (
+            'model_l2_SOLUSDT_long',
+            'l2_C1_p60',
+            '0.005532321043406984',
+            '1.5685426330160313',
+            '-0.0027326713929634026',
+            '0.7984988037936258',
+        ):
+            self.assertIn(cell, raw)
+        text = Path(__file__).with_name('FINDINGS_2026-10-04.md').read_text()
         self.assertIn('CLOSED_NULL', text)
+        self.assertIn('model_l2_SOLUSDT_long', text)
+        self.assertIn('-0.0027326713929634026', text)
         waiting = Path(__file__).with_name('WAITING_FOR_GARWE_LOCK.md').read_text()
         self.assertIn('Closed', waiting)
 

@@ -1,9 +1,7 @@
-# Numeric tables not in this workspace
+# Cache and archived output
 
-The screen itself is closed. See `CLOSED_NULL.md`.
+The one-minute cache was not on this cloud VM. Do not commit raw candles.
 
-The one-minute cache was not on this cloud VM, and neither were the box-run CSVs or Munha's score file. `experiment_ledger.csv` records the confirmed outcome and leaves trade counts and returns blank. `results/TABLES_TO_ATTACH.md` is the request for those files.
+The box output from 2026-10-04 is archived under `results_box_20261004/`, including the per-trade `csv.gz` files. `experiment_ledger.csv` in this folder is that ledger. The numeric cells are filled from the CSV. Do not rerun the 18 configs to regenerate them.
 
-Archive SHA256, if a later archive copy is checked: `344ac29b5b2ee2fe9ba5966026914489dc22dfaed75374fbe86316052da863dc`.
-
-Do not rerun the 18 configs to fill the blanks. Attach the existing outputs.
+Archive SHA256, as recorded in the box `manifest.json`: `344ac29b5b2ee2fe9ba5966026914489dc22dfaed75374fbe86316052da863dc`.

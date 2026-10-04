@@ -1,0 +1,60 @@
+{
+  "status": "discovery_validation_complete",
+  "archive_sha256": "344ac29b5b2ee2fe9ba5966026914489dc22dfaed75374fbe86316052da863dc",
+  "garwe_lock_acknowledged": true,
+  "scores_2026": false,
+  "source_sha256": {
+    "EXECUTION_ADDENDUM.md": "2625e64bb2bcf61fff4da24697cfd58044634d033ec88f360982d773f4dd2019",
+    "run_study.py": "bbded141d915315b3139f9c123e9d78dfd3d9f5445b94994f6e32b688a729db6",
+    "execution.py": "145e30a427b89fe42fd50a56a8f0c260bd93213916fcf102f486b415c491ea2b",
+    "stage2.py": "e265e54ae3f8d8f320e0b45e8e4060ffa67099adf7b1abe28b7d0ddcce089aae",
+    "stage3.py": "efed138bfd0bb484c4a761424f704a9b48364107345522741b079d1b23744ba9"
+  },
+  "data": {
+    "BTCUSDT": {
+      "audit": {
+        "candles": 2499840,
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2026-10-02 23:59:00+00:00",
+        "missing_required_bars": 0,
+        "funding_events": 5209
+      },
+      "sha256": {
+        "BTCUSDT_1m.parquet": "a6d3cf242680123f4bc3ca16cf88009d0567d5db65ab770270d98d6d6a9c7aa0",
+        "BTCUSDT_funding.parquet": "8f72152a9e8dab4723c58904dcdea059d1b4484ac63bb9c3c93db3d98136ed2a"
+      }
+    },
+    "ETHUSDT": {
+      "audit": {
+        "candles": 2499840,
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2026-10-02 23:59:00+00:00",
+        "missing_required_bars": 0,
+        "funding_events": 5209
+      },
+      "sha256": {
+        "ETHUSDT_1m.parquet": "d14e7fca972102acbb215afa7681863e93cada9be5d296b0dc2a746cfa72a2ab",
+        "ETHUSDT_funding.parquet": "8b95a6e358acb7a0f70a502baa31aded1feb10b407678cc01e64335b152108ef"
+      }
+    },
+    "SOLUSDT": {
+      "audit": {
+        "candles": 2499840,
+        "start": "2022-01-01 00:00:00+00:00",
+        "end": "2026-10-02 23:59:00+00:00",
+        "missing_required_bars": 0,
+        "funding_events": 5569
+      },
+      "sha256": {
+        "SOLUSDT_1m.parquet": "55a4c6a06700cfb4d8b1ba219b94a07fb2daaf96e2c4588a4042ae2a8e84eca6",
+        "SOLUSDT_funding.parquet": "5e43787de674452d41a852bba85eee904e272aac7d052d91b9997bce4d4bdc45"
+      }
+    }
+  },
+  "frozen_selection": {
+    "BTCUSDT": null,
+    "ETHUSDT": null,
+    "SOLUSDT": null
+  },
+  "reserved_evaluation": "not run"
+}

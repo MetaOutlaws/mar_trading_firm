@@ -2,4 +2,4 @@
 
 Closed. The current status is `CLOSED_NULL`.
 
-See `CLOSED_NULL.md`. The lock stood, both scores failed validation on all 18 Stage 2 configs, Stage 3 was skipped, and 2026 was not scored. This file is no longer a hold.
+The lock stood. The box tables are in `results_box_20261004/`. All 18 Stage 2 rows fail the pre-registered screen, the freeze is null, Stage 3 was not scored, and `scores_2026` is false. See `FINDINGS_2026-10-04.md`. This file is no longer a hold.

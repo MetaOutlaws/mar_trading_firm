@@ -1,13 +1,7 @@
-# Result tables still to attach
+# Attached
 
-The decision is already recorded: all 18 Stage 2 configs fail validation, Stage 3 was skipped, 2026 was not scored. This directory does not contain the box or Munha numeric files. They were not on the cloud VM.
+The request in this note is closed. The box directory was copied verbatim to `../results_box_20261004/`.
 
-Please attach, without changing a threshold:
+That directory holds `stage2_summary.csv`, `experiment_ledger.csv`, `stage1_summary.csv`, `stage1_effects.csv`, `frozen_selection.json`, `stage3_NOT_SCORED.txt`, `stage3_summary.csv`, `manifest.json`, all 108 per-trade `csv.gz` files, and Munha's memo as `MUNHA_NULL_2026-10-04.md`.
 
-- `stage2_summary.csv` from the box run, one row for each of the 18 ids, with trade count, mean, profit factor, doubled-slippage means, and the desk 31 bp means for discovery and validation.
-- `frozen_selection.json` from that run. It should be null for BTCUSDT, ETHUSDT, and SOLUSDT.
-- `stage3_summary.csv` if the runner wrote an empty file, or `stage3_NOT_SCORED.txt`.
-- Declustered per-trade `csv.gz` files if they were kept: `{entry_id}_{discovery|validation}_{comparable|stress|desk}_trades.csv.gz`.
-- Munha's independent score table, if it is a separate file from the box summary.
-
-Until those files are added, the ledger leaves the numeric cells blank on purpose. `frozen_selection.json` and `stage2_screen.csv` in this folder record only the confirmed screen outcome.
+`frozen_selection.json` in this folder is the same bytes as the box file: BTCUSDT, ETHUSDT, and SOLUSDT are null. The package `experiment_ledger.csv` is the box ledger. The old blank `stage2_screen.csv` placeholder was removed so it would not sit beside the scored table.

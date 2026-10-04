@@ -2,8 +2,8 @@
 
 Status: complete for this budget. Research null. Do not merge for trading.
 
-Garwe LOCK stood. The box run and Munha's independent score both say the same thing: all 18 Stage 2 entry configs fail validation. Stage 3 was not run. 2026 was not scored. No token has a frozen entry. Nothing in this package is a candidate.
+Garwe LOCK stood. The box ledger and `stage2_summary.csv` are in `results_box_20261004/`. All 18 Stage 2 rows are scored. `passes_screen` is False on every row. Every validation mean is negative. Frozen selection is null for BTCUSDT, ETHUSDT, and SOLUSDT. Stage 3 was not scored. `scores_2026` is false. Nothing in this package is a candidate.
 
-`WAITING_FOR_GARWE_LOCK` is closed. The experiment budget in `EXECUTION_ADDENDUM.md` stays as registered. Do not add a threshold, a fold, or an exit because this pass failed.
+`WAITING_FOR_GARWE_LOCK` is closed. The numeric cells in `experiment_ledger.csv` are the box file, not blanks. The experiment budget in `EXECUTION_ADDENDUM.md` stays as registered. Do not add a threshold, a fold, or an exit because this screen failed.
 
-The numeric trade tables were not in this workspace. `results/TABLES_TO_ATTACH.md` lists the files to drop in beside this record. Those files archive the path. They do not reopen the screen.
+Read `FINDINGS_2026-10-04.md`.

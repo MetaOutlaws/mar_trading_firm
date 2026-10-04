@@ -1,0 +1,1 @@
+No Stage 2 config passed the pre-registered screen. The four exit specs were not applied to market entries.
