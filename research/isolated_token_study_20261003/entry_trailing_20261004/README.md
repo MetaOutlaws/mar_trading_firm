@@ -1,8 +1,8 @@
 # Entry diagnostics and trailing exits — 2026-10-04
 
-Isolated research. Status: `CLOSED_NULL`. Read `FINDINGS_2026-10-04.md`. All 18 Stage 2 configs fail the pre-registered screen. The freeze is null, so Stage 3 was not scored. `scores_2026` is false. Do not merge this PR for trading, and do not enlarge the budget.
+Isolated research. Research-null: no qualifying candidate. Status: `CLOSED_NULL`. Read `FINDINGS.md`. All 18 Stage 2 configs fail the pre-registered screen. The freeze is null, so Stage 3 was not scored. `scores_2026` is false. Do not merge this PR for trading, and do not enlarge the budget.
 
-The protocol text is `EXECUTION_ADDENDUM.md`. `experiment_ledger.csv` is the box ledger. The verbatim output directory, including per-trade files and Munha's memo, is `results_box_20261004/`.
+The protocol text is `EXECUTION_ADDENDUM.md`. `experiment_ledger.csv` is the box ledger. The verbatim output directory is `results_box_20261004/`. Munha's memo is `MUNHA_NULL_2026-10-04.md`.
 
 ## Reproduce the tests
 
@@ -42,13 +42,14 @@ Archive SHA256: `344ac29b5b2ee2fe9ba5966026914489dc22dfaed75374fbe86316052da863d
 
 ## What the archived run contains
 
-- `manifest.json` — source hashes, the six input hashes, audit counts. `scores_2026` is false. The file does not contain git SHA `c2693bc`.
+- `manifest.json` — source hashes, the six input hashes, audit counts. `scores_2026` is false. It does not contain git SHA `c2693bc5eb0fd272cb016dc7a387a7316fdfb263`.
 - `stage1_summary.csv`, `stage1_effects.csv` — descriptive cells, including failures. Not the screen.
 - `stage2_summary.csv` — all 18 entry configs. `passes_screen` is False on every row.
 - `frozen_selection.json` — null for BTCUSDT, ETHUSDT, and SOLUSDT.
 - 108 `{entry_id}_{discovery|validation}_{comparable|stress|desk}_trades.csv.gz` files — declustered Stage 2 trades.
 - `stage3_summary.csv` — a single newline. `stage3_NOT_SCORED.txt` says the four exit specs were not applied.
 - `experiment_ledger.csv` — the 18 scored Stage 2 rows.
-- `MUNHA_NULL_2026-10-04.md` — Munha's score of those artifacts. He did not rerun.
+
+Munha's memo is `MUNHA_NULL_2026-10-04.md` in this folder, beside the box directory. He did not rerun.
 
 Per-trade columns: `experiment_id`, `entry`, `exit_bar`, `side`, `entry_price`, `exit_price`, `partial_price`, `gross_return`, `fees`, `funding`, `net_return`, `reason`, `ambiguous`, `holding_minutes`, `mfe`, `mae`, `giveback`, `activated`.
