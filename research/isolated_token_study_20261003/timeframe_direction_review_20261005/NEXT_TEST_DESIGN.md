@@ -1,6 +1,6 @@
 # Next test design: top-down structure and pullback location
 
-5 October 2026. DESIGN ONLY, NOT RUN. Prepared from Brian's questions and the archived negative results. This document is a reviewable proposal; it does not claim a new profitable setup or amend completed studies. Grokbot review can occur when Brian requests it. No message or job has been sent to Grokbot.
+5 October 2026. DESIGN ONLY, NOT RUN. The current experiment has superseded this broad proposal with one incremental daily-trend test and non-blocking zones; see ../incremental_context_20261005/PROTOCOL.md and FINDINGS.md. Prepared from Brian's questions and the archived negative results. This document is a reviewable proposal; it does not claim a new profitable setup or amend completed studies. Grokbot review can occur when Brian requests it. No message or job has been sent to Grokbot.
 
 ## Questions
 
@@ -73,8 +73,3 @@ Only after the comparison is complete consider a separately registered stop/targ
 - Retain every row and error. Stop at the declared budget.
 
 Implementation and results are pending. No claim is made that these proposed definitions will improve profitability.
-
-
-## Publication scope
-
-This GitHub publication contains written findings and aggregate comparison tables only. Source scripts, detailed configuration ledgers and trade evidence referenced above remain in the local research package pending specific export approval. No production changes or new tests were executed for this publication.
