@@ -1,0 +1,21 @@
+{
+  "status": "pass",
+  "frozen_outputs_checked": 114,
+  "frozen_sources_checked": 5,
+  "result_rows": 1512,
+  "annual_rows": 2016,
+  "summary_rows_checked": 3528,
+  "ledger_rows": 390696,
+  "training_labels_date_checked": 1688248,
+  "position_occupancy": "all configuration/partition/cost ledgers passed",
+  "finalists": 0,
+  "scores_2026": false,
+  "descriptive_positive_base": 13,
+  "descriptive_positive_stress": 6,
+  "generated": {
+    "FINDINGS.md": "c4aa6f565604af16d994f798c97078659fdf558650811aa10b7bbb17e60e8ce3",
+    "contrasts.csv": "b0fdd8509a12a9c9683fc16d24dfc146f112c2579d32aa4cffdec0b27635f41e",
+    "research_leads.csv": "1a8ad7ea8d0eed36f2f747653585fe3511dfe7d169a23f8544186638aee5f442",
+    "family_summary.csv": "59d5fe779019c81af9d8f125d5a43cb7cba04b654391148476ab3d469c0da65d"
+  }
+}
