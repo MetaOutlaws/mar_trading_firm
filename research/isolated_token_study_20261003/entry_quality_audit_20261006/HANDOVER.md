@@ -5,7 +5,10 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 
 ## Start here
 
-1. Read ../entry_discovery_20261006/FINDINGS.md for the latest entry research.
+1. Read ../compression_replication_20261006/RUN_STATUS.md for the latest work:
+   broader-token protocol/collector/runner are prepared and verified, but new
+   market-data acquisition is blocked in this workspace. No new-token result.
+   Read ../entry_discovery_20261006/FINDINGS.md for the latest completed entry research.
    Compression expansion has sparse positive leads, but 0/180 new configurations
    passed the frozen screen. 2026 remains unscored in that experiment.
    Read FINDINGS.md for the primary-audit result, SECONDARY_FINDINGS.md for
@@ -88,6 +91,24 @@ Use their contents and the pinned snapshot, not the old PR description.
 
 Original row-level identity is not proven. The reconstructed export does not
 claim to reproduce the former feature-enriched CSV column for column.
+
+## Broader-token replication setup
+
+Brian approved scaling the unchanged compression entry across a broader token
+universe, accepting low per-token trade frequency. PROTOCOL.md freezes monthly
+selection of up to 15 new tokens using prior liquidity and listing history.
+The primary pooled test uses 2% SL/2.5% TP across all three clocks and both sides,
+one position per token, six overall and three per direction. The 3%/3% arm is
+descriptive. Historical universe/funding provenance and statistical evidence
+are required before qualification; leverage remains untested.
+
+A resumable public-data collector, input validator and offline runner are ready.
+Four focused tests passed and 216 prior compression cells reconciled. Direct
+Bybit access returned a non-JSON Site Unavailable page, including the collector
+preflight. No collector has been launched on Singapore from this workspace.
+The private MAR_compression_replication_kit_20261006.zip includes code, protocol,
+verification and exact RUN_ME.md instructions. It is a code/readiness package,
+not a replacement for the two previous full evidence checkpoints or source data.
 
 ## Pending, not running in the background
 
