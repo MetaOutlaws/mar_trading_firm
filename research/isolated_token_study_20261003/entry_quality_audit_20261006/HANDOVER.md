@@ -5,7 +5,10 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 
 ## Start here
 
-1. Read FINDINGS.md for the primary-audit result, SECONDARY_FINDINGS.md for
+1. Read ../entry_discovery_20261006/FINDINGS.md for the latest entry research.
+   Compression expansion has sparse positive leads, but 0/180 new configurations
+   passed the frozen screen. 2026 remains unscored in that experiment.
+   Read FINDINGS.md for the primary-audit result, SECONDARY_FINDINGS.md for
    the completed 1h/24h audit, COSTED_FINDINGS.md for the completed matched
    costed-opportunity diagnostic, and ../breakout_retest_20261006/FINDINGS.md
    for the completed standalone breakout/retest experiment. No entry qualified.
@@ -21,6 +24,7 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 |---|---|---|
 | isolated_token_study_1m_2022_20261002_v2.zip | Original BTC/ETH/SOL data and funding, saved privately | SHA256 below; 17 ZIP members pass CRC |
 | MAR_research_checkpoint_20261006.zip | Updated research code/evidence, reconstruction, primary and secondary comparisons, breakout/retest results and pinned report snapshots | SHA256SUMS.json verifies every packaged payload; previous saved version retained |
+| MAR_entry_discovery_checkpoint_20261006.zip | Incremental discovery code/evidence, features, training labels, signals, ledgers, report snapshot and updated handover; restore alongside the base checkpoint | DISCOVERY_SHA256SUMS.json and verify_discovery_checkpoint.py; base archive SHA recorded below |
 | individual_trades_reconstructed.csv.gz | 38,469 reconstructed baseline positions, base costs | Reconstruction manifest and 72-row published reconciliation |
 | prediction_v1/primary_summary.csv | 36 period-specific primary results, CIs, coverage and flags | Prediction manifest |
 | prediction_v1/paired_signals.csv.gz | Every matched signal and mean control result | Prediction manifest |
@@ -32,6 +36,9 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 | published_snapshot/ | 23 research files retrieved from pinned GitHub commit | Snapshot index and package hashes |
 | published_stage2_snapshot/ | Exact newly published reports, protocols and aggregate tables | Package hashes and ARTIFACT_INDEX.json |
 | published_costed_snapshot/ | Latest costed protocol, findings, aggregates and updated handover | Package hashes and ARTIFACT_INDEX.json |
+
+Base research checkpoint (costed stage, saved version 2) SHA256:
+`7d357d4b5176d8190ee8efdd42fb3a6bd02a0b2c94262dc8b04ea04c49d9dc92`
 
 Original data ZIP SHA256:
 `344ac29b5b2ee2fe9ba5966026914489dc22dfaed75374fbe86316052da863dc`
@@ -68,12 +75,25 @@ Use their contents and the pinned snapshot, not the old PR description.
   reference checks passed; report verification checked 184 frozen output hashes
   and all 144 contrasts against saved outcomes, matched pairs and weights.
 
+- Distinct entry discovery: 180 new configurations plus 72 controls across 5m,
+  15m and 1h, both directions and two stop/target arms; 1,512 result rows.
+  13 configurations positive in all three historical partitions at normal costs,
+  six at doubled slippage, but 0 pre-2025 finalists. Compression supplies five
+  of those six sparse stressed-cost leads. No 2026 scoring or strategy promotion.
+- Reverse engineering: three depth-two trees and 1,688,248 overlapping training
+  opportunities; best selected training regions remained negative after costs.
+- Four focused discovery tests passed. Verified 114 frozen output hashes, five
+  frozen sources, 3,528 period/annual summaries against 390,696 ledger rows,
+  every ledger's occupancy and every training label's pre-2024 dates.
+
 Original row-level identity is not proven. The reconstructed export does not
 claim to reproduce the former feature-enriched CSV column for column.
 
 ## Pending, not running in the background
 
-- Separate profit-protection comparison.
+- Broader-universe replication of the frozen compression entry and historical
+  open-interest/liquidation/flow data acquisition; neither has run.
+- Separate profit-protection comparison (deferred by Brian's entry-research priority).
 - The cost-aware minimum zone-target-distance fallback remains unverified as
   completed; check evidence before asserting it has run.
 - Fresh confirmation of any future selected strategy. 2025 is already reused.
@@ -83,9 +103,10 @@ screen. A new adaptive-stop experiment must name a genuinely different
 hypothesis; do not silently repeat or relabel the old test.
 
 The latest breakout/retest rule is closed with a failed screen; do not tune its
-lookback, ATR band or expiry merely to make a historical cell survive. Complete the
-research record by reading the completed costed diagnostic, then freeze any new
-entry or profit-protection hypothesis separately. The planned profit-protection
+lookback, ATR band or expiry merely to make a historical cell survive. The latest
+entry-discovery experiment is also complete; its positive examples are exploratory
+and were highlighted after reviewing 2025. Preserve the exact compression rule
+for broader replication; do not tune it to force a historical finalist. The planned profit-protection
 test must keep reference entries, initial stop/target and regime exit fixed,
 and replay occupancy to measure both saved profits and winners cut short.
 More model credits do not change sample independence. Reserve unused data for
@@ -93,12 +114,19 @@ eventual confirmation.
 
 ## Restart instructions
 
-Extract the checkpoint into a new directory. Extract the original source ZIP
-into `data_cache/` there. Use Python 3.12; the recorded run used 3.12.14.
+Extract MAR_research_checkpoint_20261006.zip (base version 2) into a new directory
+and run its verify_checkpoint.py BEFORE applying the discovery supplement.
+Then extract MAR_entry_discovery_checkpoint_20261006.zip into that same directory
+and run verify_discovery_checkpoint.py. The supplement updates START_HERE.md and
+the research HANDOVER.md, so the old base hash check is expected to differ for
+those files after applying it; its separate original archive remains unchanged.
+Extract the original source ZIP into `data_cache/` there. Use Python 3.12; the
+recorded run used 3.12.14. The base archive and source data are separately indexed
+in DISCOVERY_ARTIFACT_INDEX.json.
 
 ```bash
 python -m pip install -r research/isolated_token_study_20261003/entry_quality_audit_20261006/requirements-audit.txt
-python verify_checkpoint.py
+python verify_discovery_checkpoint.py
 python research/isolated_token_study_20261003/entry_quality_audit_20261006/audit_inputs.py --cache data_cache
 ```
 
@@ -119,6 +147,13 @@ Fresh secondary and breakout/retest runs, each into a new directory:
 ```bash
 python research/isolated_token_study_20261003/entry_quality_audit_20261006/run_secondary.py --cache data_cache --reconstructed rerun_reconstruction --out rerun_secondary
 python research/isolated_token_study_20261003/breakout_retest_20261006/run_breakout.py --cache data_cache --reconstructed rerun_reconstruction --out rerun_breakout
+```
+
+Fresh entry discovery (also needs scikit-learn 1.8.0):
+
+```bash
+python -m pip install scikit-learn==1.8.0
+python research/isolated_token_study_20261003/entry_discovery_20261006/run_discovery.py --cache data_cache --reconstructed research/isolated_token_study_20261003/entry_quality_audit_20261006/reconstruction_v1 --out rerun_entry_discovery
 ```
 
 Fresh costed-opportunity diagnostic:
