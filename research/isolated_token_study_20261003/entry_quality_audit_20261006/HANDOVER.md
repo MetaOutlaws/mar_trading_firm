@@ -6,8 +6,9 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 ## Start here
 
 1. Read FINDINGS.md for the primary-audit result, SECONDARY_FINDINGS.md for
-   the completed 1h/24h audit, and ../breakout_retest_20261006/FINDINGS.md for
-   the completed standalone breakout/retest experiment. No entry qualified.
+   the completed 1h/24h audit, COSTED_FINDINGS.md for the completed matched
+   costed-opportunity diagnostic, and ../breakout_retest_20261006/FINDINGS.md
+   for the completed standalone breakout/retest experiment. No entry qualified.
 2. Read each frozen protocol and RECONSTRUCTION_AMENDMENT.md before rerunning.
    Protocol status text describes the pre-run state; this handover tracks completion.
 3. Use the private checkpoint archive for complete code, detailed evidence and
@@ -26,9 +27,11 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 | prediction_v1/control_draws.csv.gz | All 1,126,166 control draws, including reuse | Prediction manifest |
 | prediction_v1/excluded_signals.csv.gz | Unmatched/censored signal reasons | Prediction manifest |
 | secondary_v1/ | 1h/24h observations, all matches/exclusions, 216 result rows | Secondary manifest |
+| costed_v1/ | 144 matched costed comparisons, complete outcomes/draws/pairs/exclusions and cost attribution | Run manifest and COSTED_REPORT_VERIFICATION.json |
 | ../breakout_retest_20261006/results_v1/ | 576 costed result rows, 140,120 ledger rows including both costs, setups and 432 control contrasts | Run manifest and REPORT_VERIFICATION.json |
 | published_snapshot/ | 23 research files retrieved from pinned GitHub commit | Snapshot index and package hashes |
 | published_stage2_snapshot/ | Exact newly published reports, protocols and aggregate tables | Package hashes and ARTIFACT_INDEX.json |
+| published_costed_snapshot/ | Latest costed protocol, findings, aggregates and updated handover | Package hashes and ARTIFACT_INDEX.json |
 
 Original data ZIP SHA256:
 `344ac29b5b2ee2fe9ba5966026914489dc22dfaed75374fbe86316052da863dc`
@@ -57,14 +60,19 @@ Use their contents and the pinned snapshot, not the old PR description.
 - Five additional focused tests passed (one secondary-window and four setup-state
   tests). All 144 control reconciliations passed; all 576 summary rows match
   their ledgers and respect position occupancy. Sixteen frozen output hashes verified.
+- Matched costed-opportunity diagnostic: 58,690 of 59,617 zone signals matched;
+  1,126,229 control draws and 144 arm/period/cost contrasts. Pooled 2025 zone
+  net returns are -0.4402% and -0.4295%, below matched controls in both arms.
+  All discovery arm/group means are negative; the failed primary gate is unchanged.
+- Two costed-diagnostic implementation tests passed. All 72 chronological
+  reference checks passed; report verification checked 184 frozen output hashes
+  and all 144 contrasts against saved outcomes, matched pairs and weights.
 
 Original row-level identity is not proven. The reconstructed export does not
 claim to reproduce the former feature-enriched CSV column for column.
 
 ## Pending, not running in the background
 
-- Matched costed-opportunity exit diagnostic for the original zone audit. This
-  is distinct from the completed horizon observations and chronological entry replay.
 - Separate profit-protection comparison.
 - The cost-aware minimum zone-target-distance fallback remains unverified as
   completed; check evidence before asserting it has run.
@@ -76,9 +84,12 @@ hypothesis; do not silently repeat or relabel the old test.
 
 The latest breakout/retest rule is closed with a failed screen; do not tune its
 lookback, ATR band or expiry merely to make a historical cell survive. Complete the
-outstanding matched costed diagnostic to finish the existing audit, then freeze
-any new entry or profit-protection hypothesis separately. More model credits do
-not change sample independence. Reserve unused data for eventual confirmation.
+research record by reading the completed costed diagnostic, then freeze any new
+entry or profit-protection hypothesis separately. The planned profit-protection
+test must keep reference entries, initial stop/target and regime exit fixed,
+and replay occupancy to measure both saved profits and winners cut short.
+More model credits do not change sample independence. Reserve unused data for
+eventual confirmation.
 
 ## Restart instructions
 
@@ -109,6 +120,17 @@ Fresh secondary and breakout/retest runs, each into a new directory:
 python research/isolated_token_study_20261003/entry_quality_audit_20261006/run_secondary.py --cache data_cache --reconstructed rerun_reconstruction --out rerun_secondary
 python research/isolated_token_study_20261003/breakout_retest_20261006/run_breakout.py --cache data_cache --reconstructed rerun_reconstruction --out rerun_breakout
 ```
+
+Fresh costed-opportunity diagnostic:
+
+```bash
+python research/isolated_token_study_20261003/entry_quality_audit_20261006/run_costed.py --cache data_cache --reconstructed rerun_reconstruction --out rerun_costed
+```
+
+Costed opportunities overlap and do not enforce position occupancy. Their counts
+and mean returns are not a portfolio replay. The chronological pass in that runner
+is solely a reference check. Do not mistake costed-summary rows or reused control
+draws for independent executed trades.
 
 The report generator reads the archived `results_v1` and `secondary_v1` paths;
 it is a report/checking utility, not the scoring runner. All entry clocks remain
