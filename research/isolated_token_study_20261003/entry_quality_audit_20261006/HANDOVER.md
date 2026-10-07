@@ -5,7 +5,53 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 
 ## Start here
 
-## Latest completed: profit protection and confirmed paper scan — 7 October 2026
+## Latest completed: fixed failed-breakout exit — 7 October 2026
+
+The predeclared rule exits at the next minute open after a completed hourly
+close back through the FIXED entry-time 20-hour breakout boundary. Original
+hourly entries, SL2% / TP2.5%, costs and admission limits remain unchanged.
+Protocol was published before scoring at fe51e67511a8ae7b738d7a27c7a0914d3573ba75.
+
+Decision: reject this treatment under the frozen improvement screen. In 2025,
+36 baseline trades become 38: actual stops fall 14 to 2, but 23 early failure
+exits and 13 targets produce +0.1031% base / -0.0254% stressed mean net return,
+versus baseline +0.4992% / +0.3685%. Net win rate falls 61.1% to 34.2%.
+On the same 36 entries, 12 original stops improve but 11 target winners are
+cut short. Two new winning entries only partly offset the damage.
+
+In 2022–24, 97 baseline trades become 104: 12 stops, 59 failure exits, 33
+targets, -0.0432% base / -0.1654% stress, versus +0.2268% / +0.1037% baseline.
+Seven newly admitted trades partly offset, but do not reverse, the lost returns.
+All three tokens worsen under stressed costs in both partitions. Every one of
+the 82 chronological failure exits is a net loss at both cost levels.
+
+Read hourly_failed_breakout_20261007/FINDINGS.md and PROTOCOL.md. Validation:
+22 tests; 143 independently reconstructed entry boundaries; 286 independent
+raw paths; 286 raw/266 admitted baseline rows exactly reconciled; eight
+independent admissions; 124 report-row checks. The 550 ledger rows are cost
+scenarios across 133 baseline and 142 treatment admissions, not 550 independent
+trades. There are 78 affected original admissions in the changed-trades CSV.
+
+Both the price-break-even and fixed failed-breakout exit hypotheses are now
+completed with negative improvement findings. Keep the approved baseline
+unchanged and pause further fitting of these exits to the same history.
+Priorities: acquire/audit additional-token data for the existing frozen
+replication protocol and collect prospective paper evidence. Preserve reserved
+2026 outcomes and the broader-token qualification rules. A future exit study
+requires a distinct hypothesis and separately frozen protocol. No test is
+running in the background; no production exit changes or leverage tests.
+
+Current operational evidence remains the operator-supplied scanning_verified
+for all six hourly BTC/ETH/SOL LONG/SHORT configurations, errors [], cycle
+2026-10-07T10:05:31.385232+00:00. No newer cloud observation is claimed here.
+
+Restore MAR_exit_studies_checkpoint_20261007.zip on top of the full
+MAR_hourly_compression_checkpoint_20261007.zip. This combined increment
+contains both exit studies; the earlier standalone profit-protection increment
+is not also required. Keep the original raw candle/funding ZIP separately.
+Follow RESTORE_EXIT_STUDIES.md and verify all hashes.
+
+## Previous completed: profit protection and confirmed paper scan — 7 October 2026
 
 The operator's screenshot returned `scanning_verified` for all six hourly
 BTC/ETH/SOL LONG/SHORT paper configurations, with `errors: []`. The completed
