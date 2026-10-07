@@ -3,7 +3,46 @@
 Updated 7 October 2026. Owner: Brian / Meta Outlaws.
 Objective: identify positive net expectancy that survives execution costs and independent confirmation, then improve risk and exits. Fewer trades are acceptable; support may be pooled across tokens without assuming those tokens are independent.
 
-## Latest completed: fixed failed-breakout exit — 7 October 2026
+## Latest completed: previous-day sweep confirmation — 7 October 2026
+
+Duplicate audit corrected the novelty claim: prior_day_extreme_reject was already
+family 118/PR16. No exact 15m next-candle confirmation variant was found in the
+inspected GitHub/Grokbot records; external runtime history is not certified.
+The separately frozen confirmation comparison is now completed and REJECTED.
+Protocol-before-scoring commit 7403b72ef1a8c99e920ddcd39dfa3c0597547781.
+
+2025 immediate: 687 entries, 684 closed, 380 stops, 304 targets, 3 terminal marks;
+mean net -0.2464% base/-0.3874% stress. Confirmed: 230 entries, 227 closed, 132 stops,
+95 targets, 3 marks; mean -0.3505%/-0.4858%, closed win rate 41.85%.
+2022–24 immediate 1,825 entries/1004 stops/-0.2249% base/-0.3657% stress;
+confirmed 559 entries/293 stops/-0.1088%/-0.2475%. Neither arm is profitable.
+Confirmation filters both losers and winners, and later entry consumes the
+apparent selection benefit. All three tokens are negative under stress in both
+periods. Do not rescue this failed rule by selecting a positive year or cell.
+
+13 tests, 3503 independently reconstructed first setups, 4,151 raw-path checks,
+eight admissions and 124 report-row reconciliations passed. 6,602 scenario rows
+are 2,512 immediate plus 789 confirmed admissions at two costs, not independent
+trades. Read sweep_confirmation_20261007/{NOVELTY_AUDIT,PROTOCOL,FINDINGS}.md.
+results_v2 is complete; results_v1 is a preserved pre-scoring software failure.
+
+Next: acquire/audit additional-token data for the frozen replication protocol
+and collect prospective evidence from the approved hourly pilot. This new entry
+comparison and both previous exit treatments are closed. No further experiment
+runs in the background; reserved 2026 remains unscored. Any future entry test
+needs a distinct, audited hypothesis and pre-scoring protocol.
+
+The latest observed cloud cycle remains 2026-10-07T10:05:31.385232+00:00,
+six hourly BTC/ETH/SOL LONG/SHORT paper configurations, errors [].
+No current SSH channel or newer cloud observation is claimed.
+
+Restore MAR_sweep_and_exit_studies_checkpoint_20261007.zip on top of
+MAR_hourly_compression_checkpoint_20261007.zip, keeping the original raw ZIP
+separately. This combined increment includes both earlier exit studies and the
+sweep comparison. The separate previous exit increments are not also required.
+See sweep_confirmation_handover/RESTORE_SWEEP_STUDY.md and verify hashes.
+
+## Previous completed: fixed failed-breakout exit — 7 October 2026
 
 The predeclared rule exits at the next minute open after a completed hourly
 close back through the FIXED entry-time 20-hour breakout boundary. Original
@@ -226,4 +265,3 @@ A changed plan is recorded as a dated amendment before the next outcome is opene
 - Private MAR_three_token_compression_checkpoint_20261007.zip: exact source, frozen features, complete new ledgers and verification.
 
 Hourly compression, the funding-predicate comparison and the 4h trend-alignment comparison are now completed. Broader-token confirmation, further entry filters, exit optimization and forward confirmation remain pending. The original frozen protocols and all failed results remain preserved.
-
