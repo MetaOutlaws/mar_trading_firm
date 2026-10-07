@@ -4,7 +4,56 @@ Owner: Brian / Meta Outlaws. Repository: MetaOutlaws/mar_trading_firm.
 Purpose: reproducible handover and restart without reconstructing the chat.
 
 
-## Latest completed: independent ADX strength gate — 7 October 2026
+## Latest completed: independent RSI exhaustion exclusion, 8 October 2026 Dubai
+
+Fixed LONG RSI14<=70 / SHORT RSI14>= 30 on the ORIGINAL hourly compression
+baseline. Both periods stay positive after stressed costs, but improvement in
+both FAILS. Historical improvement retained; regime explanation UNVALIDATED.
+2022–24: baseline 97 trades/44 stops/+0.2268% base/+0.1037% stress; RSI 69/29/
++0.3727%/+0.2445%. Directly excludes 16 stops and 13 targets; one new ETH stop
+means net 15 fewer stops. 2023 and historical SOL worsen; ETH remains negative.
+2025: baseline 36/14/+0.4992%/+0.3685%; RSI 35/14/+0.4480%/+0.3164%.
+Zero stops avoided and one BTC SHORT target excluded; no added/displaced entry.
+The one excluded winner (2025-03-09 11:00 UTC, RSI 28.4743) explains the difference.
+
+Protocol published before scoring at 0d86fcd168518e405d26835e2749b5537a3ea72c.
+Earlier pre-scoring commit 28c3da989a518dbf161c108893cbffbd2bb957d4 corrected its
+RSI provenance wording before freeze; same definition as original anatomy.
+15 tests, 143 independently reconstructed contexts/barriers, original-feature
+equality, eight admissions, exact baseline and 152 report rows verified.
+Read hourly_rsi_filter_20261008/{NOVELTY_AUDIT,PROTOCOL,FINDINGS}.md.
+Single successful run results_v1. Ledger 474 scenario rows = 133 baseline +104
+RSI admissions, both costs; excluded ledger 60 scenario rows = 30 admissions.
+
+## Paper preference and operational status
+
+BTC24 confirmation remains OWNER-APPROVED preferred paper variant. Read
+hourly_btc_confirmation_20261007/OWNER_APPROVAL.md. Approval does not establish
+independent edge or cloud activation. Activation PENDING / NOT VERIFIED;
+latest observed operational cycle still original baseline at
+2026-10-07T10:05:31.385232+00:00, six hourly configurations, errors []. No fresh
+SSH monitoring or runtime edit is claimed. Already-granted paper approval
+persists; implement/activate exact predicate, avoid duplicate entries, preserve
+positions and verify scan before claiming deployment. No live/leverage change.
+
+## Active research queue
+
+1. NEXT: audit/freeze one Connors RSI predicate against ORIGINAL hourly baseline.
+   No implicit BTC, ADX, RSI or extension stacking. Exact rule unscored/unfrozen.
+2. THEN: review H-EXT-REGIME-01 and separately preregister causal state definitions
+   if testing a regime explanation for retained historical observations. Neither
+   calendar 2022–24 nor 2025 is itself a market-state rule. Extension and RSI
+   historical improvements remain documented with their later failures.
+3. WHEN AVAILABLE: additional-token/prospective confirmation. Reserved 2026 is
+   unscored. No background research runs and no cutoff rescue.
+
+Restore MAR_rsi_filter_checkpoint_20261008.zip over the full original
+MAR_hourly_compression_checkpoint_20261007.zip. It includes all prior increments,
+BTC owner approval and the RSI study. Prior increments need not also be applied.
+Keep raw data separately. Read rsi_filter_handover/RESTORE_RSI_STUDY.md.
+Older sections below are dated history superseded by this latest status.
+
+## Previous completed: independent ADX strength gate — 7 October 2026
 
 ADX14>=25 on the ORIGINAL hourly baseline fails consistent improvement.
 Protocol-before-scoring commit 1cc0931d185ca586d2f5cca9d5274e2431eca41f.
