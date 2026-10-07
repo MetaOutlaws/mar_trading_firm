@@ -11,13 +11,65 @@ Objective: identify positive net expectancy that survives execution costs and in
 | Selection of research leads | Which individual configurations merit replication? | Thirteen configurations were positive across development 2022–23, selection 2024 and evaluation 2025 at base costs. Six remained positive in all three at doubled slippage: five compression and one funding. These are related, post-review leads; they are not independent discoveries. |
 | Three-token pooled compression replay | Does trading the whole unchanged compression rule across all clocks work under shared position limits? | Completed. 2025 primary 2% SL / 2.5% TP: 222 closed, 114 stops, mean net -0.0559% base / -0.1839% stress. Historical 2022–24 also negative. Wider 3%/3% arm negative too. No promotion. |
 | Broader-token replication | Does the unchanged event generalize to additional historically eligible tokens? | Original protocol frozen; data acquisition pending. No additional-token outcome has been calculated here. |
-| Hourly-only diagnostic | Is the positive admitted hourly subset preserved when all hourly opportunities are replayed on their own? | Next proposed test. Not run. |
+| Hourly-only diagnostic | Is the positive admitted hourly subset preserved when all hourly opportunities are replayed on their own? | Completed: 36 evaluation trades; +0.4992% base / +0.3685% stress; 14 stops. Positive historical aggregate, but negative 2023 and wide intervals. Exploratory continuation only. |
 
 The screenshot showed selected compression examples: SOL 1h long (7 trades, +0.894% net), ETH 15m short (8, +0.615%) and BTC 1h short (4, +1.346%). Those original results remain valid. They were not averages for the whole compression family, and the BTC example used the other stop/target arm.
 
 The full compression family was already negative in the original discovery: -0.095% per trade with 2%/2.5%, before the later shared-position replay produced -0.0559%. The original family aggregation allowed overlapping configurations; the later replay admitted one position per token across clocks/sides. The screenshot's positive cells were already net of costs. No later addition of costs explains the apparent change.
 
 The hourly subset of the latest primary basket averaged +0.4201% base / +0.2869% stress over 27 trades in 2025, with 11 stops; it also had positive historical 2022–24 means. Its confidence intervals cross zero. Lower-clock positions could block hourly entries, so this is not a standalone hourly strategy result.
+
+## Latest completed follow-ups — 7 October 2026
+
+Read `family_followups_20261007/FINDINGS.md` and its pre-scoring `PROTOCOL.md`
+relative to the research root. Brian approved three focused hypotheses:
+hourly compression, the extreme-funding predicate and 4h trend alignment.
+
+Primary 2% stop / 2.5% target, reused 2025:
+
+| Variant | Closed trades | Stops | Mean net base | Mean net stress |
+|---|---:|---:|---:|---:|
+| Hourly compression | 36 | 14 (38.9%) | +0.4992% | +0.3685% |
+| Original extreme-funding breakout | 211 | 124 (58.8%) | -0.3952% | -0.5490% |
+| Same breakout without the extreme-funding predicate | 1,462 | 800 (54.7%) | -0.2210% | -0.3663% |
+| Trend pullback with aligned 4h regime | 220 | 115 (52.3%) | -0.1036% | -0.2440% |
+| Original trend pullback | 361 | 193 (53.5%) | -0.1538% | -0.2927% |
+
+Mean returns include terminal marks: two for funding, three for its comparator,
+two for original pullbacks; none for hourly compression or aligned pullbacks.
+Closed counts and stop fractions exclude marks.
+
+Hourly compression alone meets the local continuation point criterion. Its
+2022–24 mean is +0.2268% base / +0.1037% stress on 97 trades, but 2023 lost
+money and confidence intervals cross zero. Historical stressed performance
+turns negative without BTC. This remains exploratory, not a confirmed edge.
+The 3%/3% hourly sensitivity has 35 closed 2025 trades, 14 stops and +0.3439%
+base / +0.2126% stress. It changes both barriers.
+
+Funding and trend-alignment hypotheses have no continuation support under
+their frozen primary criteria. Record these comparisons as complete; no
+automatic threshold sweep follows. Shock reversal and the learned rule remain
+paused pending materially new hypotheses/data.
+
+Validation: 108 original event groups, 57,728 unique raw barrier checks,
+48 independent admission replays, 48 pooled/1,116 subgroup/96 annual/24 contrast
+rows, and 36,488 ledger rows including alternative variants and cost scenarios.
+The old 3,736-row compression basket reproduced exactly. Four focused tests pass.
+A rejection-log integrity mismatch was reconstructed to its original recorded
+hash exactly; the mismatched copy and recovery evidence are retained. No outcome
+or entry rule changed in that recovery.
+
+The private `MAR_entry_family_followups_checkpoint_20261007.zip` contains all
+needed source, frozen features, detailed new evidence, prior comparator evidence,
+reports and restore instructions. Only the separately saved original candle/
+funding ZIP is needed as an external input. Its separate checkpoint-verification
+JSON records archive hash and fresh restore checks.
+
+Next: collect/audit additional-token data and predeclare a separate hourly
+confirmation comparison before viewing new outcomes. Keep the original broader
+all-clock primary protocol and its eight-new-token gate intact. Update the
+candidate-set/multiplicity plan before independent confirmation. No new-token
+test, 2026 price scoring, cloud change, leverage test or forward process started.
 
 ## Route from the current evidence
 
@@ -58,4 +110,5 @@ A changed plan is recorded as a dated amendment before the next outcome is opene
 - entry_quality_audit_20261006/HANDOVER.md: full history and restoration instructions.
 - Private MAR_three_token_compression_checkpoint_20261007.zip: exact source, frozen features, complete new ledgers and verification.
 
-This roadmap records the route forward. The hourly-only, filter, exit and forward-confirmation experiments above have not been run by creating this document.
+Hourly compression, the funding-predicate comparison and the 4h trend-alignment comparison are now completed. Broader-token confirmation, further entry filters, exit optimization and forward confirmation remain pending. The original frozen protocols and all failed results remain preserved.
+
