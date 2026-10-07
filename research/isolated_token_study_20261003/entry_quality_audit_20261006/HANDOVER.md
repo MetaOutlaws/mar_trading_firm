@@ -5,11 +5,64 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 
 ## Start here
 
-Read [RESEARCH_ROADMAP.md](../RESEARCH_ROADMAP.md) for the current hypothesis sequence, decisions and experiment reporting rules. The next proposed run is hourly-only compression; it has not run. The prior positive examples were selected configurations, while the full-family and shared-position tests were negative.
+## Latest completed follow-ups — 7 October 2026
+
+Read `family_followups_20261007/FINDINGS.md` and its pre-scoring `PROTOCOL.md`
+relative to the research root. Brian approved three focused hypotheses:
+hourly compression, the extreme-funding predicate and 4h trend alignment.
+
+Primary 2% stop / 2.5% target, reused 2025:
+
+| Variant | Closed trades | Stops | Mean net base | Mean net stress |
+|---|---:|---:|---:|---:|
+| Hourly compression | 36 | 14 (38.9%) | +0.4992% | +0.3685% |
+| Original extreme-funding breakout | 211 | 124 (58.8%) | -0.3952% | -0.5490% |
+| Same breakout without the extreme-funding predicate | 1,462 | 800 (54.7%) | -0.2210% | -0.3663% |
+| Trend pullback with aligned 4h regime | 220 | 115 (52.3%) | -0.1036% | -0.2440% |
+| Original trend pullback | 361 | 193 (53.5%) | -0.1538% | -0.2927% |
+
+Mean returns include terminal marks: two for funding, three for its comparator,
+two for original pullbacks; none for hourly compression or aligned pullbacks.
+Closed counts and stop fractions exclude marks.
+
+Hourly compression alone meets the local continuation point criterion. Its
+2022–24 mean is +0.2268% base / +0.1037% stress on 97 trades, but 2023 lost
+money and confidence intervals cross zero. Historical stressed performance
+turns negative without BTC. This remains exploratory, not a confirmed edge.
+The 3%/3% hourly sensitivity has 35 closed 2025 trades, 14 stops and +0.3439%
+base / +0.2126% stress. It changes both barriers.
+
+Funding and trend-alignment hypotheses have no continuation support under
+their frozen primary criteria. Record these comparisons as complete; no
+automatic threshold sweep follows. Shock reversal and the learned rule remain
+paused pending materially new hypotheses/data.
+
+Validation: 108 original event groups, 57,728 unique raw barrier checks,
+48 independent admission replays, 48 pooled/1,116 subgroup/96 annual/24 contrast
+rows, and 36,488 ledger rows including alternative variants and cost scenarios.
+The old 3,736-row compression basket reproduced exactly. Four focused tests pass.
+A rejection-log integrity mismatch was reconstructed to its original recorded
+hash exactly; the mismatched copy and recovery evidence are retained. No outcome
+or entry rule changed in that recovery.
+
+The private `MAR_entry_family_followups_checkpoint_20261007.zip` contains all
+needed source, frozen features, detailed new evidence, prior comparator evidence,
+reports and restore instructions. Only the separately saved original candle/
+funding ZIP is needed as an external input. Its separate checkpoint-verification
+JSON records archive hash and fresh restore checks.
+
+Next: collect/audit additional-token data and predeclare a separate hourly
+confirmation comparison before viewing new outcomes. Keep the original broader
+all-clock primary protocol and its eight-new-token gate intact. Update the
+candidate-set/multiplicity plan before independent confirmation. No new-token
+test, 2026 price scoring, cloud change, leverage test or forward process started.
+
+
+Read [RESEARCH_ROADMAP.md](../RESEARCH_ROADMAP.md) for the current hypothesis sequence, decisions and experiment reporting rules. The three focused follow-ups are complete; only hourly compression met the local continuation point criterion. The prior positive examples were selected configurations, while the full-family and shared-position tests were negative.
 
 Read the latest completed experiment below first; the older stages follow.
 
-## Latest completed experiment — 7 October 2026
+## Earlier completed three-token basket — 7 October 2026
 
 Brian authorized a local BTC/ETH/SOL diagnostic while additional-token data
 were unavailable. Read `three_token_compression_20261007/FINDINGS.md` relative
@@ -256,4 +309,5 @@ attempt, negative result and exclusion; export full ledgers plus concise tables;
 save a checkpoint; reopen it and verify its manifest; publish permitted reports;
 update this status register with completed, pending and blocked work separately.
 Do not mark an experiment complete merely because code or a plan was saved.
+
 
