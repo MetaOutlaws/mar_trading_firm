@@ -34,11 +34,11 @@ average[j]=(13*average[j-1]+change[j])/14. RSI=100*avgGain/(avgGain+avgLoss).
 Both averages zero gives50; positive gain and zero loss gives100; reverse gives0.
 Warmup remains missing and missing context at a selected entry fails validation.
 
-Preserve legacy entry_rsi14 from original signal features as historical context;
-use the explicitly recomputed filter_rsi14 for this predicate. The earlier
-discovery feature used a different smoothing initialization; its source, trigger
-and saved results are not changed. This study's definition follows the explicit
-arithmetic seeds already used in the prior trade-anatomy audit.
+Preserve entry_rsi14 from original signal features as historical context;
+use independently recomputed filter_rsi14 for this predicate. Discovery imports
+the arithmetic-seeded RSI from the prior trade-anatomy audit, so its definition
+is the same. Verify equality with those original signal values at every entry;
+its source, trigger and saved results remain unchanged.
 
 ## Fixed execution and sample
 
@@ -92,3 +92,8 @@ its exact predicate is not yet frozen or scored. H-EXT-REGIME-01 remains a later
 causal state comparison, preserving the extension cap's2022–24 improvement.
 Broader-token/prospective confirmation remains pending. No runtime change or
 automatic approval is part of this experiment.
+
+Pre-scoring correction: initial protocol commit28c3da989a518dbf161c108893cbffbd2bb957d4
+incorrectly described discovery's RSI seed as different. Source inspection of
+entry_discovery/features.py confirmed its import of anatomy.rsi. This wording
+and the added equality check were corrected before any freeze or scoring.
