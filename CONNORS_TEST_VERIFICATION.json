@@ -1,0 +1,6 @@
+{
+  "status": "pass",
+  "focused_tests": 17,
+  "command": "python -m pytest -q tests/test_hourly_connors.py tests/test_hourly_connors_deploy.py",
+  "cloud_activation_verified": false
+}
