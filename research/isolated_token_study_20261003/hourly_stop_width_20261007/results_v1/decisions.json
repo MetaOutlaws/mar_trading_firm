@@ -1,0 +1,22 @@
+[
+  {
+    "stop": 0.01,
+    "exploratory_continuation": false,
+    "automatic_change": false
+  },
+  {
+    "stop": 0.03,
+    "exploratory_continuation": false,
+    "automatic_change": false
+  },
+  {
+    "stop": 0.04,
+    "exploratory_continuation": false,
+    "automatic_change": false
+  },
+  {
+    "stop": 0.05,
+    "exploratory_continuation": false,
+    "automatic_change": false
+  }
+]
