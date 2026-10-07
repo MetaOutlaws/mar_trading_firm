@@ -1,0 +1,29 @@
+{
+  "qualified": false,
+  "independent_replication": false,
+  "new_tokens": 0,
+  "required_new_tokens": 8,
+  "primary_applicable_checks": {
+    "1": {
+      "at_least_100_closed": true,
+      "at_least_50_entry_dates": true,
+      "at_least_26_entry_weeks": true,
+      "positive_mean": false,
+      "positive_1w_lower_CI": false,
+      "positive_4w_lower_CI": false,
+      "all_leave_one_token_out_means_positive": false
+    },
+    "2": {
+      "at_least_100_closed": true,
+      "at_least_50_entry_dates": true,
+      "at_least_26_entry_weeks": true,
+      "positive_mean": false,
+      "positive_1w_lower_CI": false,
+      "positive_4w_lower_CI": false,
+      "all_leave_one_token_out_means_positive": false
+    }
+  },
+  "reason": "Previously studied three-token diagnostic; original broad-token qualification unavailable.",
+  "scores_2026": false,
+  "leverage_ready": false
+}
