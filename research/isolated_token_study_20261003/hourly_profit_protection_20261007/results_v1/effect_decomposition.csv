@@ -1,0 +1,5 @@
+partition,stress,retained_pair_delta_net,new_admission_net,removed_baseline_net,total_chronological_delta_net,retained,new_admissions,dropped_baseline
+evaluation,1,-0.08058442190622689,0.0,0.0,-0.08058442190622689,36,0,0
+evaluation,2,-0.08062495116215916,0.0,0.0,-0.08062495116215916,36,0,0
+historical,1,-0.010595405606915326,0.0,0.0,-0.010595405606915326,97,0,0
+historical,2,-0.010571060283382422,0.0,0.0,-0.010571060283382422,97,0,0
