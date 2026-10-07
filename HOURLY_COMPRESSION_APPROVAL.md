@@ -7,10 +7,12 @@ All existing research results are retained unchanged.
 
 ## Status
 
-Implementation and activation package prepared and locally verified. **Not yet
-installed or verified scanning on Singapore.** DigitalOcean reports the droplet
-active, but this chat has no SSH execution connection. Publishing this branch
-does not deploy it. Activation must run inside the actual paper container.
+Implementation prepared and locally verified. The operator attempted activation
+on 7 October 2026: code installation succeeded, but approval replacement failed
+with EBUSY because the JSON file is individually bind-mounted. **Approval and
+scanning are not yet verified.** The corrected host-side repair preserves the
+existing book, pauses its container readers by stopping them, replaces the host
+file atomically, then starts the same containers and checks remounted bytes.
 
 The six records use `paper_override=true`, `approved=false`, and unrestricted
 regime activation. In this codebase `approved` means research/live eligibility;
@@ -63,13 +65,28 @@ and reconcile paper versus the reference before interpreting performance.
 
 ## Operator activation and verification
 
-Use the separately supplied `enable_hourly_compression_20261007.py` installer
-inside the running `mo-paper-paper-1` container. It checks PAPER mode and hashes
-of the reviewed runtime interfaces before writing anything. Any mismatch stops
-installation and requires reviewing the current server version. No server
-restart, container restart, environment edit, old-book replacement or forced
-order is needed: the existing paper loop refreshes its strategy registry and
-approval book each cycle.
+Use the revised `enable_hourly_compression_20261007.py` through SSH with HOST
+`python3 -`, not `docker exec`. It verifies PAPER mode and pinned runtime/code
+hashes, discovers the writable file-bind source via Docker inspect, and refuses
+unexpected running consumers. Only the previously running paper engine and API
+may be stopped. After both readers/writers stop, it rereads the current host
+approval book, backs it up, merges six additions and atomically replaces that
+host file while retaining permissions and ownership. It starts the original
+containers in a finally block, then checks they see identical current bytes.
+It never truncates the mounted file under active readers or changes the entry
+rule, risk settings or live approval. Container data is retained by stop/start.
+
+The previous installer ran far enough to install code but failed before the
+approval replacement. The v2 repair accepts only that known old helper hash or
+the new helper hash; unknown modifications still require review. Its container
+helper is now idempotent when all six exact approval rows already exist, so
+finalization does not try renaming a mounted file again.
+
+Validation: 15 automated tests including simulated EBUSY, untouched bytes on
+failure, host atomic merge/backup and metadata, repeat application, consumer
+stop/start ordering, failure recovery, and complete generated-command flow.
+Actual Singapore repair and fresh scanning confirmation remain pending operator
+execution. No new historical research result or strategy parameter changed.
 
 After installing, run `python /app/scripts/enable_hourly_compression.py --verify`
 inside that container after a fresh completed cycle. `installed_awaiting_cycle`
