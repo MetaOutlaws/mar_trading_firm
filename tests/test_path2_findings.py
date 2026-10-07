@@ -1,10 +1,11 @@
 """Path2 findings render only Marcus-sealed rows.
 
-The shipped table is twenty-six rows, all FAIL. ma_macd_rsi_agree is one cell.
+The shipped table is twenty-eight rows, all FAIL. ma_macd_rsi_agree is one cell.
 RSI is a state, not a 70/30 cross. A less-negative net stays FAIL.
 funding_extreme_agree is BTCUSDT 4h with one frozen threshold line.
 london_am_range_break is one BTCUSDT 4h cell. Rates stay decimals.
 prior_utc_day_mid_cross is one BTCUSDT 4h cell. A less-negative net stays FAIL.
+eth_btc_return_agree is one BTCUSDT 4h cell. Rates stay decimals.
 Where an older cell says none, that metric stays null. An empty cells list
 still renders nothing.
 """
@@ -228,6 +229,29 @@ _MID_SHORT = {
     "same_shell_h18_base_net": "-0.248336",
     "stress_stop_2_net": "-0.133446",
 }
+_ETH_CLOCK = "BTCUSDT 4h"
+_ETH_LABEL = (
+    "prior ETH close-to-close (close[t-1]\u2212close[t-2])/close[t-2] "
+    "at or beyond \u00b10.003 AND BTC same-bar close through open; either alone no trade."
+)
+_ETH_LONG = {
+    "n": 1128,
+    "target_first_count": 347,
+    "target_first_rate": "0.307624",
+    "gross": "+0.011404",
+    "net_after_0_31_rt": "-0.195263",
+    "same_shell_h18_base_net": "-0.212583",
+    "stress_stop_2_net": "-0.159413",
+}
+_ETH_SHORT = {
+    "n": 1111,
+    "target_first_count": 360,
+    "target_first_rate": "0.324032",
+    "gross": "+0.052204",
+    "net_after_0_31_rt": "-0.154463",
+    "same_shell_h18_base_net": "-0.248336",
+    "stress_stop_2_net": "-0.109531",
+}
 _ADX_MA25_LONG = {
     "n": 700,
     "target_first_count": 234,
@@ -284,7 +308,7 @@ _ADX_SHORT = {
 }
 
 
-def test_shipped_findings_are_the_twenty_six_sealed_rows() -> None:
+def test_shipped_findings_are_the_twenty_eight_sealed_rows() -> None:
     raw_text = PATH2_FINDINGS_PATH.read_text(encoding="utf-8")
     raw = json.loads(raw_text)
     assert raw["sealed"] is True
@@ -304,8 +328,9 @@ def test_shipped_findings_are_the_twenty_six_sealed_rows() -> None:
         "funding_extreme_agree",
         "london_am_range_break",
         "prior_utc_day_mid_cross",
+        "eth_btc_return_agree",
     ]
-    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london, mid = raw["cells"]
+    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london, mid, eth = raw["cells"]
     assert macd["clock"] == "4h"
     assert macd["thresholds"]["label"] == "EMA 21 and MACD 12, 26, 9, agreement required"
     assert macd["verdict"] == "FAIL"
@@ -412,6 +437,24 @@ def test_shipped_findings_are_the_twenty_six_sealed_rows() -> None:
     assert mid.get("green_year_note") in (None, "")
     assert mid["sides"]["long"] == _MID_LONG
     assert mid["sides"]["short"] == _MID_SHORT
+    assert eth["id"] == "eth_btc_return_agree"
+    assert eth["family"] == "eth_btc_return_agree"
+    assert eth["clock"] == _ETH_CLOCK
+    assert eth["thresholds"]["label"] == _ETH_LABEL
+    assert "\u2212" in eth["thresholds"]["label"]
+    assert "\u00b1" in eth["thresholds"]["label"]
+    assert eth["verdict"] == "FAIL"
+    assert eth.get("green_year_note") in (None, "")
+    assert eth["sides"]["long"] == _ETH_LONG
+    assert eth["sides"]["short"] == _ETH_SHORT
+    assert "0.307624" in raw_text
+    assert "0.324032" in raw_text
+    assert "+0.011404" in raw_text
+    assert "-0.195263" in raw_text
+    assert "-0.159413" in raw_text
+    assert "+0.052204" in raw_text
+    assert "-0.154463" in raw_text
+    assert "-0.109531" in raw_text
     assert "0.307918" in raw_text
     assert "0.302806" in raw_text
     assert "+0.007469" in raw_text
@@ -461,14 +504,14 @@ def test_shipped_findings_are_the_twenty_six_sealed_rows() -> None:
     assert "+0.046287" in raw_text
 
 
-def test_shipped_file_loads_twenty_six_rows_all_fail() -> None:
+def test_shipped_file_loads_twenty_eight_rows_all_fail() -> None:
     loaded = load_path2_findings()
     assert loaded["sealed"] is True
     assert loaded["load_error"] is None
     assert loaded["note"] == SEALED_TABLE_NOTE
     labels = [cell["thresholds_label"] for cell in loaded["cells"]]
-    assert labels == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL, _MID_LABEL]
-    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london, mid = loaded["cells"]
+    assert labels == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL, _MID_LABEL, _ETH_LABEL]
+    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london, mid, eth = loaded["cells"]
     assert macd["verdict"] == "FAIL"
     assert macd["green_year_note"] is None
     assert macd["sides"]["long"] == _LONG
@@ -569,6 +612,17 @@ def test_shipped_file_loads_twenty_six_rows_all_fail() -> None:
     assert mid["sides"]["short"]["target_first_rate"] == "0.302806"
     assert mid["sides"]["long"]["net_after_0_31_rt"] == "-0.199198"
     assert mid["sides"]["short"]["net_after_0_31_rt"] == "-0.207597"
+    assert eth["verdict"] == "FAIL"
+    assert eth["family"] == "eth_btc_return_agree"
+    assert eth["clock"] == _ETH_CLOCK
+    assert eth["thresholds_label"] == _ETH_LABEL
+    assert eth["green_year_note"] is None
+    assert eth["sides"]["long"] == _ETH_LONG
+    assert eth["sides"]["short"] == _ETH_SHORT
+    assert eth["sides"]["long"]["target_first_rate"] == "0.307624"
+    assert eth["sides"]["short"]["target_first_rate"] == "0.324032"
+    assert eth["sides"]["long"]["net_after_0_31_rt"] == "-0.195263"
+    assert eth["sides"]["short"]["net_after_0_31_rt"] == "-0.154463"
 
 
 def test_zero_cells_stay_empty(tmp_path) -> None:
@@ -710,9 +764,9 @@ def test_floor_helper_returns_the_sealed_rows() -> None:
 
     loaded = _safe_path2_findings()
     assert loaded["sealed"] is True
-    assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL, _MID_LABEL]
-    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL"] * 13
-    assert loaded["cells"][-1]["clock"] == _MID_CLOCK
-    assert loaded["cells"][-1]["family"] == "prior_utc_day_mid_cross"
-    assert loaded["cells"][-2]["family"] == "london_am_range_break"
+    assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL, _MID_LABEL, _ETH_LABEL]
+    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL"] * 14
+    assert loaded["cells"][-1]["clock"] == _ETH_CLOCK
+    assert loaded["cells"][-1]["family"] == "eth_btc_return_agree"
+    assert loaded["cells"][-2]["family"] == "prior_utc_day_mid_cross"
     assert all(cell["green_year_note"] is None for cell in loaded["cells"])
