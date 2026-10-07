@@ -3,7 +3,60 @@
 Updated 7 October 2026. Owner: Brian / Meta Outlaws.
 Objective: identify positive net expectancy that survives execution costs and independent confirmation, then improve risk and exits. Fewer trades are acceptable; support may be pooled across tokens without assuming those tokens are independent.
 
-## Latest completed: previous-day sweep confirmation — 7 October 2026
+## Latest completed: hourly breakout-extension filter — 7 October 2026
+
+The approved selectivity plan's first comparison is complete. The fixed cap
+keeps a signal only within one prior hourly ATR beyond its 20-hour boundary.
+Protocol and duplicate audit published before scoring at
+3565cd83ce2aeddcace324c415880a5ab892ad50. No exact cap found in inspected records;
+external unrecorded Grokbot jobs are not certified.
+
+2025 baseline: 36 trades, 14 stops, 22 targets, 61.11% win rate,
++0.4992% base / +0.3685% stressed mean net per trade.
+Filtered: 22 trades, 10 stops, 12 targets, 54.55% win rate,
++0.1999% / +0.0635%. It avoids four stops but excludes ten target winners;
+stop rate worsens from 38.89% to 45.45%. No 2025 admissions are added.
+Historical 2022–24: baseline 97 trades / 44 stops / +0.2268% / +0.1037%;
+filtered 60 / 26 / +0.3109% / +0.1834%. Historical filtering admits one extra
+stop, which is included. All three tokens worsen under stress in 2025.
+
+Decision: reject this cap as a baseline improvement. It remains positive pooled
+but fails consistent improvement; intervals cross zero and 2025 is reused.
+Keep the approved hourly paper strategy unchanged. Read
+hourly_extension_filter_20261007/{NOVELTY_AUDIT,PROTOCOL,FINDINGS}.md.
+12 tests, 143 geometry checks, 143 barrier checks, eight independent admissions,
+exact baseline reconciliation and report reconciliation passed. The full ledger
+has 430 cost-scenario rows across 133 baseline and 82 filtered admissions.
+
+## Active queue while additional-token data is unavailable
+
+1. NEXT: BTC direction confirmation for ETH/SOL hourly compression entries.
+   Hypothesis: market alignment improves selection. Audit duplication and freeze
+   one causal BTC rule before scoring. BTC's own sleeve stays unchanged; report
+   ETH/SOL and full-basket comparisons against the ORIGINAL hourly baseline.
+2. THEN: ADX, RSI and Connors RSI as separate entry-time comparisons. Exact
+   predicates and thresholds remain unfrozen. Audit, freeze, then score each
+   independently; no extension cap or stacking of filters.
+3. WHEN DATA RETURNS: resume broader-token replication under its existing
+   frozen protocol. Preserve reserved 2026 and collect prospective paper evidence.
+
+Each completed comparison must show trade and stop counts/rates, winners lost,
+net means at base/stress costs, token/year concentration and uncertainty. Do not
+retune a failed predicate on the same history. No later study has been scored
+or left running. Earlier dated next-step text below is historical and superseded
+by this queue. Runtime changes require a separate decision.
+
+Latest observed cloud cycle remains 2026-10-07T10:05:31.385232+00:00,
+six hourly BTC/ETH/SOL LONG/SHORT paper configurations, errors []. This is the
+operator's earlier observation, not new SSH monitoring.
+
+Restore MAR_entry_filters_checkpoint_20261007.zip over the full
+MAR_hourly_compression_checkpoint_20261007.zip. It includes the prior two exit
+studies, sweep confirmation and this extension study. Keep the original raw
+candle/funding ZIP separately; previous incremental ZIPs need not also be
+extracted. Follow extension_filter_handover/RESTORE_ENTRY_FILTERS.md.
+
+## Previous completed: previous-day sweep confirmation — 7 October 2026
 
 Duplicate audit corrected the novelty claim: prior_day_extreme_reject was already
 family 118/PR16. No exact 15m next-candle confirmation variant was found in the

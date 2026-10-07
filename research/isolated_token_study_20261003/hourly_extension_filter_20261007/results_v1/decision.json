@@ -1,0 +1,12 @@
+{
+  "checks": {
+    "positive_stressed_mean_both": true,
+    "improved_stressed_mean_both": false,
+    "nonempty_both": true
+  },
+  "exploratory_point_pass": false,
+  "independent_edge_established": false,
+  "deployment_qualified": false,
+  "retained_cutoff": 1.0,
+  "scores_2026": false
+}
