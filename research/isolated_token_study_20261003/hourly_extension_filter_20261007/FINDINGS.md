@@ -6,6 +6,10 @@ reused 2025. Both treatment aggregates remain positive after costs; this is a
 failed IMPROVEMENT hypothesis, not a claim that the filtered pooled rule loses.
 No threshold search follows this result.
 
+Owner clarification: preserve the label **historical improvement (2022–24)**.
+Regime usefulness remains a separate unvalidated hypothesis, H-EXT-REGIME-01;
+see REGIME_FOLLOWUP.md. The unconditional decision does not erase that finding.
+
 ## Frozen question
 Does refusing a breakout more than one prior hourly ATR beyond its prior
 20-hour boundary improve entry selectivity? Keep only
