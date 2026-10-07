@@ -4,7 +4,68 @@ Owner: Brian / Meta Outlaws. Repository: MetaOutlaws/mar_trading_firm.
 Purpose: reproducible handover and restart without reconstructing the chat.
 
 
-## Latest completed: hourly breakout-extension filter — 7 October 2026
+## Latest completed: BTC direction confirmation — 7 October 2026
+
+PROMISING EXPLORATORY CANDIDATE. ETH/SOL hourly LONG requires BTC24 > 0;
+SHORT requires BTC24 < 0, using completed hourly closes. BTC entries unchanged.
+Original 2% stop / 2.5% target, fees/funding, slippage and occupancy retained.
+Protocol-before-scoring commit a4ce9d72ca67e7483fea78b1b436cf925fa80a3c.
+
+Full basket 2022–24: baseline 97 trades / 44 stops / +0.2268% base / +0.1037%
+stress; confirmed 89 / 37 / +0.4017% / +0.2825%. Seven stops avoided and one
+target sacrificed. 2025: baseline 36 / 14 / +0.4992% / +0.3685%; confirmed
+35 / 13 / +0.5791% / +0.4505%, with one SOL stop avoided and zero winners lost.
+ETH/SOL stressed means improve -0.0580% to +0.2343% historically and +0.4077%
+to +0.5692% in 2025. No new or displaced admissions; BTC paths unchanged.
+
+Both affected-subset and full-basket point screens pass. However, the entire
+2025 gain comes from ONE trade, historical ETH and 2023 remain negative, and
+absolute mean intervals cross zero. Independent edge/deployment qualification
+remain false. Retain the candidate; the approved paper baseline stays unchanged.
+
+15 tests; 143 independently verified BTC contexts and143 barriers; eight
+admission replays; exact baseline and BTC reconciliation; 180 report rows passed.
+514 cost-scenario rows =133 baseline +124 confirmed admissions at two costs,
+with overlapping arms. Read hourly_btc_confirmation_20261007/{NOVELTY_AUDIT,
+PROTOCOL,FINDINGS}.md. results_v1 is the single completed scoring attempt.
+
+## Preserved owner observation: extension cap and regimes
+
+Label the extension cap HISTORICAL IMPROVEMENT (2022–24), REGIME EXPLANATION
+PENDING. Historical stressed mean rose +0.1037% to +0.1834%, but 2025 worsened.
+Keep this evidence under H-EXT-REGIME-01 in
+hourly_extension_filter_20261007/REGIME_FOLLOWUP.md. The unconditional rejection
+does not erase its historical benefit. No causal market-state rule is tested
+yet and no finding says all of 2025 was choppy. Calendar periods are not regime
+definitions; the cap's 2023 result worsened. A future separately registered
+study must compare common, entry-time states within both periods.
+
+## Active queue
+
+1. NEXT: audit/freeze one ADX condition against the ORIGINAL hourly baseline.
+2. THEN: RSI and Connors RSI independently, with predeclared definitions/cutoffs.
+3. REVISIT: H-EXT-REGIME-01 after these context studies, using one causal state
+   definition and an explicit separate protocol. Preserve both positive and
+   negative cells; don't choose a regime using eventual winning trades.
+4. WHEN DATA RETURNS: broader-token replication and confirmation of retained
+   candidates. Prospective paper evidence stays separate; reserved 2026 unscored.
+
+Do not stack the BTC condition or extension cap into the next comparison.
+Later predicates are not frozen, scored or running in the background. Every
+test reports trade/stop counts and rates, excluded winners, costs, uncertainty,
+and token/year concentration. Earlier dated next-step sections are historical.
+
+Latest observed cloud cycle remains 2026-10-07T10:05:31.385232+00:00, six hourly
+BTC/ETH/SOL LONG/SHORT paper configurations, errors []. No fresh SSH observation
+or runtime/approval change is claimed.
+
+Restore MAR_btc_confirmation_checkpoint_20261007.zip over the full
+MAR_hourly_compression_checkpoint_20261007.zip. This increment includes both
+exit studies, sweep, extension (with the regime note), and BTC confirmation.
+Keep the original raw candle/funding ZIP separately. Previous increment ZIPs
+need not also be extracted. Read btc_confirmation_handover/RESTORE_BTC_STUDY.md.
+
+## Previous completed: hourly breakout-extension filter — 7 October 2026
 
 The approved selectivity plan's first comparison is complete. The fixed cap
 keeps a signal only within one prior hourly ATR beyond its 20-hour boundary.
