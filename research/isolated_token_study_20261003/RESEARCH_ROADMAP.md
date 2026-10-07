@@ -3,6 +3,36 @@
 Updated 7 October 2026. Owner: Brian / Meta Outlaws.
 Objective: identify positive net expectancy that survives execution costs and independent confirmation, then improve risk and exits. Fewer trades are acceptable; support may be pooled across tokens without assuming those tokens are independent.
 
+## Latest owner decision and stop-only experiment — 7 October 2026
+
+Brian explicitly approved hourly compression on BTC/ETH/SOL, both directions,
+for PAPER use at SL2% / TP2.5%. Preserve the original positive baseline and
+record owner approval separately from independent research qualification.
+The runtime module and guarded activation script are prepared and tested;
+Singapore is active in DigitalOcean, but this chat has no SSH execution access.
+**Cloud activation/scanning is pending, not verified.** No cloud write occurred.
+
+The stop-only protocol was published before scoring. With TP fixed at 2.5%,
+2025 results (closed/stops; net base/stress) are: SL1% 37/25, -0.1092%/-0.2385%;
+SL2% 36/14, +0.4992%/+0.3685%; SL3% 36/13, +0.2627%/+0.1320%;
+SL4% 36/10, +0.4418%/+0.3111%; SL5% 36/8, +0.5779%/+0.4477%.
+SL1% loses 11 baseline target winners. SL5% recovers six of 14 baseline stops,
+but has lower mean R than SL2%. No alternative improves both stressed mean net
+and mean R in both partitions; the approved 2% baseline remains unchanged.
+Read hourly_stop_width_20261007/FINDINGS.md and PROTOCOL.md.
+
+Verification: 143 raw signals, 715 independent barriers, 20 independent
+admission replays, 266 exactly reconciled baseline rows, 1,330 alternative
+ledger rows. Six implementation tests pass; 143 research entry signals and
+1,734 rolling candidate checks match. No new token or 2026 price scoring.
+
+Next research: a separately frozen profit-protection comparison with unchanged
+hourly entries and initial 2%/2.5% barriers, counting winners cut short as well
+as stopped-trade profits saved. It has NOT run. New-token confirmation remains
+pending. None of the old negative family findings or positive hourly findings
+has been overwritten. Older status sections below describe their dated stages.
+
+
 ## Where we are
 
 | Work | Question | Status and evidence |
