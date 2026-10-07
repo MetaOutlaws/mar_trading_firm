@@ -3,7 +3,66 @@
 Updated 7 October 2026. Owner: Brian / Meta Outlaws.
 Objective: identify positive net expectancy that survives execution costs and independent confirmation, then improve risk and exits. Fewer trades are acceptable; support may be pooled across tokens without assuming those tokens are independent.
 
-## Latest completed: BTC direction confirmation — 7 October 2026
+## Latest completed: independent ADX strength gate — 7 October 2026
+
+ADX14>=25 on the ORIGINAL hourly baseline fails consistent improvement.
+Protocol-before-scoring commit 1cc0931d185ca586d2f5cca9d5274e2431eca41f.
+2022–24: baseline 97 trades /44 stops /+0.2268% base /+0.1037% stress;
+ADX 39 /22 /-0.2724% /-0.3931%. It excludes 22 original stops and38 targets,
+then admits two additional target winners. Stop rate worsens45.36% to56.41%.
+2025: baseline36 /14 /+0.4992% /+0.3685%; ADX8 /3 /+0.5874% /+0.4874%.
+It excludes11 stops and18 targets, then admits one new BTC winner. The seven
+retained original entries have a LOWER mean than baseline; the extra winner
+produces the improved actual mean. Positive2025 evidence is retained with its
+thin sample: seven BTC trades, one ETH target and zero SOL trades.
+
+Every historical ADX year is negative; absolute/difference intervals cross zero.
+15 tests,143 independent ADX contexts/barriers, eight admissions, exact baseline
+reconciliation and144 report rows passed. Ledger360 scenario rows =133 baseline
++47 ADX admissions at two costs. Read hourly_adx_filter_20261007/{NOVELTY_AUDIT,
+PROTOCOL,FINDINGS}.md. Single completed scoring attempt results_v1.
+
+## Current owner-approved paper preference and deployment status
+
+Brian approved btc24_confirm as the preferred current hourly paper variant on
+7 October 2026 at 23:18 Dubai time. Read
+hourly_btc_confirmation_20261007/OWNER_APPROVAL.md. Scope: original hourly
+BTC/ETH/SOL both directions,2% SL/2.5% TP; ETH/SOL must agree with completed
+BTC24 sign; BTC entries unchanged. Paper approval persists for later activation.
+Do not conflate the owner's decision with statistical proof: independent edge
+is unestablished and 2025 benefit comes from one excluded SOL stop.
+
+Cloud activation of BTC confirmation is PENDING / NOT VERIFIED. This research
+task did not install it or edit the cloud approval book. Latest operational
+evidence remains the original six-sleeve baseline scan at
+2026-10-07T10:05:31.385232+00:00, errors []. No fresh SSH monitoring is claimed.
+Operational follow-up: implement/activate the exact approved BTC predicate,
+avoid duplicate baseline/variant entries, preserve positions and verify scanning
+before recording deployment complete. Do not ask again for already granted
+paper-variant approval. Live trading or leverage was not authorized here.
+
+## Active research queue
+
+1. NEXT: one separately audited/frozen RSI predicate against the ORIGINAL baseline.
+2. THEN: independent Connors RSI predicate, same controls and execution.
+3. REVISIT: H-EXT-REGIME-01 with causal state definitions across both periods.
+   Extension cap retains its historical 2022–24 improvement label; regime
+   explanation is unvalidated. No calendar period is treated as a regime rule.
+4. WHEN DATA RETURNS: broader-token and prospective confirmation of retained
+   candidates. Reserved 2026 remains unscored. No filters stacked implicitly.
+
+Preserve both positive and negative observations; current ADX's positive 2025
+sample does not erase its failed historical screen. Later predicates remain
+unfrozen/unscored and no next study runs in the background. Older dated status
+sections below describe earlier decisions and are superseded by this section.
+
+Restore MAR_adx_filter_checkpoint_20261007.zip over the full
+MAR_hourly_compression_checkpoint_20261007.zip. It includes all earlier research
+increments, the BTC owner approval and this ADX study. Keep original raw data
+separately; previous increments need not also be extracted. Read
+adx_filter_handover/RESTORE_ADX_STUDY.md.
+
+## Previous completed: BTC direction confirmation — 7 October 2026
 
 PROMISING EXPLORATORY CANDIDATE. ETH/SOL hourly LONG requires BTC24 > 0;
 SHORT requires BTC24 < 0, using completed hourly closes. BTC entries unchanged.
