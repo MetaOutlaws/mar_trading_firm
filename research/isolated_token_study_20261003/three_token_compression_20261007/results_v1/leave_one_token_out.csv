@@ -1,0 +1,25 @@
+partition,stop,target,stress,excluded_symbol,n,mean_net_return,mean_R,method
+historical,0.02,0.025,1,BTCUSDT,502,-0.0021513556562475235,-0.10756778281237617,Remove token from admitted ledger; no replacement/re-admission
+historical,0.02,0.025,1,ETHUSDT,508,-0.002558083028540317,-0.12790415142701586,Remove token from admitted ledger; no replacement/re-admission
+historical,0.02,0.025,1,SOLUSDT,550,-0.0028083186801627093,-0.14041593400813548,Remove token from admitted ledger; no replacement/re-admission
+historical,0.02,0.025,2,BTCUSDT,502,-0.003608206678449554,-0.18041033392247768,Remove token from admitted ledger; no replacement/re-admission
+historical,0.02,0.025,2,ETHUSDT,508,-0.00400950604748859,-0.20047530237442943,Remove token from admitted ledger; no replacement/re-admission
+historical,0.02,0.025,2,SOLUSDT,550,-0.0038079191951769834,-0.19039595975884918,Remove token from admitted ledger; no replacement/re-admission
+historical,0.03,0.03,1,BTCUSDT,451,-0.0020299145148733795,-0.06766381716244599,Remove token from admitted ledger; no replacement/re-admission
+historical,0.03,0.03,1,ETHUSDT,434,-0.0019408176592459472,-0.06469392197486493,Remove token from admitted ledger; no replacement/re-admission
+historical,0.03,0.03,1,SOLUSDT,455,-0.002327169259904688,-0.0775723086634896,Remove token from admitted ledger; no replacement/re-admission
+historical,0.03,0.03,2,BTCUSDT,451,-0.0035052826218663737,-0.11684275406221246,Remove token from admitted ledger; no replacement/re-admission
+historical,0.03,0.03,2,ETHUSDT,434,-0.0034350110549806563,-0.1145003684993552,Remove token from admitted ledger; no replacement/re-admission
+historical,0.03,0.03,2,SOLUSDT,455,-0.0033263092112938743,-0.11087697370979581,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.02,0.025,1,BTCUSDT,126,-0.0008426595967743446,-0.04213297983871725,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.02,0.025,1,ETHUSDT,158,-0.001217073355707745,-0.06085366778538727,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.02,0.025,1,SOLUSDT,160,0.00031349608320263285,0.015674804160131638,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.02,0.025,2,BTCUSDT,126,-0.002334461599060146,-0.11672307995300729,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.02,0.025,2,ETHUSDT,158,-0.0026104077222382904,-0.1305203861119145,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.02,0.025,2,SOLUSDT,160,-0.0006864766502300099,-0.034323832511500466,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.03,0.03,1,BTCUSDT,120,-0.0031425221610824655,-0.10475073870274881,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.03,0.03,1,ETHUSDT,137,-0.005304029137965392,-0.17680097126551303,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.03,0.03,1,SOLUSDT,135,-0.0031046776164451646,-0.10348925388150546,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.03,0.03,2,BTCUSDT,120,-0.004650833031641472,-0.15502776772138238,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.03,0.03,2,ETHUSDT,137,-0.006749762887176753,-0.22499209623922511,Remove token from admitted ledger; no replacement/re-admission
+evaluation,0.03,0.03,2,SOLUSDT,135,-0.004103888671704967,-0.13679628905683222,Remove token from admitted ledger; no replacement/re-admission
