@@ -1,9 +1,48 @@
-# MAR research handover — 6 October 2026
+# MAR research handover — updated 7 October 2026
 
 Owner: Brian / Meta Outlaws. Repository: MetaOutlaws/mar_trading_firm.
 Purpose: reproducible handover and restart without reconstructing the chat.
 
 ## Start here
+
+Read the latest completed experiment below first; the older stages follow.
+
+## Latest completed experiment — 7 October 2026
+
+Brian authorized a local BTC/ETH/SOL diagnostic while additional-token data
+were unavailable. Read `three_token_compression_20261007/FINDINGS.md` relative
+to the research root, and its frozen scope amendment `PROTOCOL.md`.
+
+- All three entry clocks (5m, 15m, 1h), both sides, unchanged compression entry;
+  full raw opportunities replayed under shared per-token occupancy.
+- Pooled 2025 primary 2% SL / 2.5% TP: 222 closed trades, 114 stops (51.35%),
+  mean net -0.0559% base / -0.1839% stressed slippage. No terminal mark.
+- Pooled 3% SL / 3% TP: 196 entries, 195 closed, 102 stops (52.31% of closed),
+  one terminal mark; mean net -0.3885% base / -0.5196% stress including the mark.
+- Both arms negative in historical 2022–24 too. No qualified strategy.
+- Admitted 1h primary subset: 27 evaluation trades, 11 stops, +0.4201% base /
+  +0.2869% stress. Confidence intervals cross zero. This is a post-review
+  descriptive subset of the shared basket, not a separately replayed 1h system.
+- Original 216 compression cells reconciled; four focused tests passed.
+  Eighteen signal groups, 2,992 independent raw barrier checks, eight admission
+  replays and 232 pooled/subgroup/annual summaries verified; 3,736 ledger rows
+  include alternative arms and duplicated base/stress scenarios.
+- 2026 remains unscored. Zero new tokens. No production or leverage changes.
+
+`MAR_three_token_compression_checkpoint_20261007.zip` contains the full source
+needed for this run, the nine frozen feature files, all new evidence, reference
+verification and restoration instructions. It requires only the separately
+saved original `isolated_token_study_1m_2022_20261002_v2.zip` for raw candles and
+funding; older evidence archives remain available for earlier research stages.
+The new archive's `CHECKPOINT_SHA256SUMS.json` and `verify_checkpoint.py` verify
+its payload. Its outer SHA256 and published commit are in the separate
+`MAR_three_token_compression_checkpoint_verification_20261007.json`.
+
+Additional-token acquisition remains pending. No Grok/SSH/cloud collection was
+started from this workspace. If pursuing 1h alone, freeze a new hypothesis and
+replay all hourly signals before independent new-asset/forward confirmation.
+Do not treat this three-token diagnostic as passing the original eight-new-token gate.
+
 
 1. Read ../compression_replication_20261006/RUN_STATUS.md for the latest work:
    broader-token protocol/collector/runner are prepared and verified, but new
@@ -215,3 +254,4 @@ attempt, negative result and exclusion; export full ledgers plus concise tables;
 save a checkpoint; reopen it and verify its manifest; publish permitted reports;
 update this status register with completed, pending and blocked work separately.
 Do not mark an experiment complete merely because code or a plan was saved.
+
