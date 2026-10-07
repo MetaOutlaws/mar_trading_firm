@@ -1,0 +1,17 @@
+{
+  "status": "pass",
+  "frozen_output_hashes": 16,
+  "frozen_source_hashes": 64,
+  "input_hashes": 6,
+  "feature_hashes": 9,
+  "original_compression_signal_groups": 18,
+  "independent_barrier_checks": 2992,
+  "independent_admission_runs": 8,
+  "pooled_summary_rows": 8,
+  "subgroup_summary_rows": 208,
+  "annual_summary_rows": 16,
+  "ledger_rows": 3736,
+  "cost_and_partition_checks": "pass",
+  "new_tokens": 0,
+  "scores_2026": false
+}
