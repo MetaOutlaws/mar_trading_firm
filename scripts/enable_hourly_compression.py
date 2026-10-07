@@ -5,6 +5,7 @@ Run inside the actual paper container from /app. Default is read-only.
 cycle; it neither invokes a trading cycle nor creates orders itself.
 """
 import argparse
+import errno
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -100,17 +101,28 @@ def main():
     now = datetime.now(timezone.utc)
     backup = path.with_name(path.name + ".before-hourly-" + now.strftime("%Y%m%dT%H%M%S%fZ"))
     backup.write_bytes(before)
-    fd, temporary = tempfile.mkstemp(prefix=".hourly-", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w") as handle:
-            json.dump(updated, handle, indent=2)
-            handle.write("\n"); handle.flush(); os.fsync(handle.fileno())
-        os.chmod(temporary, path.stat().st_mode & 0o777)
-        if before != path.read_bytes():
-            raise RuntimeError("approval book changed before write; retry")
-        os.replace(temporary, path)
-    finally:
-        if os.path.exists(temporary): os.unlink(temporary)
+    if updated != current:
+        fd, temporary = tempfile.mkstemp(prefix=".hourly-", dir=path.parent)
+        try:
+            with os.fdopen(fd, "w") as handle:
+                json.dump(updated, handle, indent=2)
+                handle.write("\n"); handle.flush(); os.fsync(handle.fileno())
+            os.chmod(temporary, path.stat().st_mode & 0o777)
+            if before != path.read_bytes():
+                raise RuntimeError("approval book changed before write; retry")
+            try:
+                os.replace(temporary, path)
+            except OSError as exc:
+                if exc.errno == errno.EBUSY:
+                    raise RuntimeError(
+                        "Approval file is a Docker mount point. Approval bytes were not changed. "
+                        "Use the host-side repair installer; do not truncate this mounted file."
+                    ) from exc
+                raise
+        finally:
+            if os.path.exists(temporary): os.unlink(temporary)
+    if json.loads(path.read_bytes()) != updated:
+        raise RuntimeError("Approval readback differs; inspect the backup and current book")
     # If this fails, retain the backup and report failure; never claim running.
     count = verify_plan()
     record = {"status": "installed_awaiting_cycle", "activated_at": now.isoformat(), "sleeves": count,
