@@ -147,3 +147,9 @@ H-EXT-REGIME-01 and whether a separately motivated common-state comparison can
 explain retained historical observations; do not infer that explanation now.
 Broader-token and prospective confirmation remain necessary for independent
 evidence. No background study is running.
+
+## Owner follow-up, 8 October 2026 Dubai
+
+Brian requests retaining possible use when observable market conditions resemble
+the historical sample. See REGIME_FOLLOWUP.md, hypothesis H-RSI-REGIME-01.
+This preserves the historical benefit while leaving the regime rule untested.
