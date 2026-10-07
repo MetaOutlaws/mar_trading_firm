@@ -349,6 +349,35 @@
           "stress_stop_2_net": "-0.128235"
         }
       }
+    },
+    {
+      "id": "prior_utc_day_mid_cross",
+      "family": "prior_utc_day_mid_cross",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "prior completed UTC day mid=(H+L)/2; min range (H−L)/mid ≥ 0.005; long = first close cross up through mid; short = first close cross down; wick pierce that closes back is no trade."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 682,
+          "target_first_count": 210,
+          "target_first_rate": "0.307918",
+          "gross": "+0.007469",
+          "net_after_0_31_rt": "-0.199198",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.194115"
+        },
+        "short": {
+          "n": 677,
+          "target_first_count": 205,
+          "target_first_rate": "0.302806",
+          "gross": "-0.000931",
+          "net_after_0_31_rt": "-0.207597",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.133446"
+        }
+      }
     }
   ]
 }
