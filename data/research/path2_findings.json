@@ -320,6 +320,35 @@
           "stress_stop_2_net": "-0.713824"
         }
       }
+    },
+    {
+      "id": "london_am_range_break",
+      "family": "london_am_range_break",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "prior completed 07:00–11:00 UTC box from 1h bars opening 07/08/09/10; min range (H-L)/mid >= 0.004; long = close cross up through high; short = cross down through low; close back inside is no trade."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 862,
+          "target_first_count": 274,
+          "target_first_rate": "0.317865",
+          "gross": "+0.033733",
+          "net_after_0_31_rt": "-0.172933",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.138613"
+        },
+        "short": {
+          "n": 855,
+          "target_first_count": 263,
+          "target_first_rate": "0.307602",
+          "gross": "-0.000012",
+          "net_after_0_31_rt": "-0.206679",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.128235"
+        }
+      }
     }
   ]
 }

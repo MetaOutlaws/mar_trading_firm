@@ -1,8 +1,9 @@
 """Path2 findings render only Marcus-sealed rows.
 
-The shipped table is twenty-two rows, all FAIL. ma_macd_rsi_agree is one cell.
+The shipped table is twenty-four rows, all FAIL. ma_macd_rsi_agree is one cell.
 RSI is a state, not a 70/30 cross. A less-negative net stays FAIL.
 funding_extreme_agree is BTCUSDT 4h with one frozen threshold line.
+london_am_range_break is one BTCUSDT 4h cell. Rates stay decimals.
 Where an older cell says none, that metric stays null. An empty cells list
 still renders nothing.
 """
@@ -176,6 +177,30 @@ _FUNDING_SHORT = {
     "same_shell_h18_base_net": "-0.248336",
     "stress_stop_2_net": "-0.713824",
 }
+_LONDON_CLOCK = "BTCUSDT 4h"
+_LONDON_LABEL = (
+    "prior completed 07:00\u201311:00 UTC box from 1h bars opening 07/08/09/10; "
+    "min range (H-L)/mid >= 0.004; long = close cross up through high; "
+    "short = cross down through low; close back inside is no trade."
+)
+_LONDON_LONG = {
+    "n": 862,
+    "target_first_count": 274,
+    "target_first_rate": "0.317865",
+    "gross": "+0.033733",
+    "net_after_0_31_rt": "-0.172933",
+    "same_shell_h18_base_net": "-0.212583",
+    "stress_stop_2_net": "-0.138613",
+}
+_LONDON_SHORT = {
+    "n": 855,
+    "target_first_count": 263,
+    "target_first_rate": "0.307602",
+    "gross": "-0.000012",
+    "net_after_0_31_rt": "-0.206679",
+    "same_shell_h18_base_net": "-0.248336",
+    "stress_stop_2_net": "-0.128235",
+}
 _ADX_MA25_LONG = {
     "n": 700,
     "target_first_count": 234,
@@ -232,7 +257,7 @@ _ADX_SHORT = {
 }
 
 
-def test_shipped_findings_are_the_twenty_two_sealed_rows() -> None:
+def test_shipped_findings_are_the_twenty_four_sealed_rows() -> None:
     raw_text = PATH2_FINDINGS_PATH.read_text(encoding="utf-8")
     raw = json.loads(raw_text)
     assert raw["sealed"] is True
@@ -250,8 +275,9 @@ def test_shipped_findings_are_the_twenty_two_sealed_rows() -> None:
         "adx_ma_agree",
         "ma_macd_rsi_agree",
         "funding_extreme_agree",
+        "london_am_range_break",
     ]
-    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding = raw["cells"]
+    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london = raw["cells"]
     assert macd["clock"] == "4h"
     assert macd["thresholds"]["label"] == "EMA 21 and MACD 12, 26, 9, agreement required"
     assert macd["verdict"] == "FAIL"
@@ -339,6 +365,23 @@ def test_shipped_findings_are_the_twenty_two_sealed_rows() -> None:
     assert funding.get("green_year_note") in (None, "")
     assert funding["sides"]["long"] == _FUNDING_LONG
     assert funding["sides"]["short"] == _FUNDING_SHORT
+    assert london["id"] == "london_am_range_break"
+    assert london["family"] == "london_am_range_break"
+    assert london["clock"] == _LONDON_CLOCK
+    assert london["thresholds"]["label"] == _LONDON_LABEL
+    assert "\u2013" in london["thresholds"]["label"]
+    assert london["verdict"] == "FAIL"
+    assert london.get("green_year_note") in (None, "")
+    assert london["sides"]["long"] == _LONDON_LONG
+    assert london["sides"]["short"] == _LONDON_SHORT
+    assert "0.317865" in raw_text
+    assert "0.307602" in raw_text
+    assert "+0.033733" in raw_text
+    assert "-0.172933" in raw_text
+    assert "-0.138613" in raw_text
+    assert "-0.000012" in raw_text
+    assert "-0.206679" in raw_text
+    assert "-0.128235" in raw_text
     assert "0.305556" in raw_text
     assert "0.100000" in raw_text
     assert "-0.083333" in raw_text
@@ -372,14 +415,14 @@ def test_shipped_findings_are_the_twenty_two_sealed_rows() -> None:
     assert "+0.046287" in raw_text
 
 
-def test_shipped_file_loads_twenty_two_rows_all_fail() -> None:
+def test_shipped_file_loads_twenty_four_rows_all_fail() -> None:
     loaded = load_path2_findings()
     assert loaded["sealed"] is True
     assert loaded["load_error"] is None
     assert loaded["note"] == SEALED_TABLE_NOTE
     labels = [cell["thresholds_label"] for cell in loaded["cells"]]
-    assert labels == _LABELS + [_FUNDING_LABEL]
-    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding = loaded["cells"]
+    assert labels == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL]
+    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london = loaded["cells"]
     assert macd["verdict"] == "FAIL"
     assert macd["green_year_note"] is None
     assert macd["sides"]["long"] == _LONG
@@ -458,6 +501,17 @@ def test_shipped_file_loads_twenty_two_rows_all_fail() -> None:
     assert funding["sides"]["short"]["target_first_rate"] == "0.100000"
     assert funding["sides"]["long"]["net_after_0_31_rt"] == "-0.290000"
     assert funding["sides"]["short"]["net_after_0_31_rt"] == "-0.906667"
+    assert london["verdict"] == "FAIL"
+    assert london["family"] == "london_am_range_break"
+    assert london["clock"] == _LONDON_CLOCK
+    assert london["thresholds_label"] == _LONDON_LABEL
+    assert london["green_year_note"] is None
+    assert london["sides"]["long"] == _LONDON_LONG
+    assert london["sides"]["short"] == _LONDON_SHORT
+    assert london["sides"]["long"]["target_first_rate"] == "0.317865"
+    assert london["sides"]["short"]["target_first_rate"] == "0.307602"
+    assert london["sides"]["long"]["net_after_0_31_rt"] == "-0.172933"
+    assert london["sides"]["short"]["net_after_0_31_rt"] == "-0.206679"
 
 
 def test_zero_cells_stay_empty(tmp_path) -> None:
@@ -599,8 +653,9 @@ def test_floor_helper_returns_the_sealed_rows() -> None:
 
     loaded = _safe_path2_findings()
     assert loaded["sealed"] is True
-    assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS + [_FUNDING_LABEL]
-    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL"] * 11
-    assert loaded["cells"][-1]["clock"] == _FUNDING_CLOCK
-    assert loaded["cells"][-1]["family"] == "funding_extreme_agree"
+    assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL]
+    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL"] * 12
+    assert loaded["cells"][-1]["clock"] == _LONDON_CLOCK
+    assert loaded["cells"][-1]["family"] == "london_am_range_break"
+    assert loaded["cells"][-2]["family"] == "funding_extreme_agree"
     assert all(cell["green_year_note"] is None for cell in loaded["cells"])
