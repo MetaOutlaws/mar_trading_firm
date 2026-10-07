@@ -5,6 +5,8 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 
 ## Start here
 
+Read [RESEARCH_ROADMAP.md](../RESEARCH_ROADMAP.md) for the current hypothesis sequence, decisions and experiment reporting rules. The next proposed run is hourly-only compression; it has not run. The prior positive examples were selected configurations, while the full-family and shared-position tests were negative.
+
 Read the latest completed experiment below first; the older stages follow.
 
 ## Latest completed experiment — 7 October 2026
