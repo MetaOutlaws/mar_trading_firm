@@ -1,0 +1,15 @@
+partition,stress,filter_overlap,n,stop_count,target_count,mean_net
+evaluation,1,both_pass,19,5,14,0.010580438749956985
+evaluation,1,both_reject,1,1,0,-0.022955028808295985
+evaluation,1,crsi_only_reject,19,9,10,0.0013238078782052435
+evaluation,2,both_pass,19,5,14,0.00920499300978813
+evaluation,2,both_reject,1,1,0,-0.025002088957402597
+evaluation,2,crsi_only_reject,19,9,10,0.00017326502209461499
+historical,1,both_pass,61,24,37,0.005017904518344872
+historical,1,both_reject,4,3,1,-0.011581191265044375
+historical,1,btc_only_reject,4,4,0,-0.022808674911427178
+historical,1,crsi_only_reject,35,16,19,0.0021487749481497627
+historical,2,both_pass,61,24,37,0.0038146745467950082
+historical,2,both_reject,4,3,1,-0.013090983641675578
+historical,2,btc_only_reject,4,4,0,-0.024599593606495683
+historical,2,crsi_only_reject,35,16,19,0.000980427929725081

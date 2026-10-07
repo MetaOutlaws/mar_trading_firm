@@ -1,0 +1,17 @@
+{
+  "status": "pass",
+  "cached_raw_cost_rows_reconciled": 286,
+  "prior_arm_cost_rows_reconciled": {
+    "baseline": 266,
+    "btc24_confirm": 248,
+    "crsi_not_exhausted": 158
+  },
+  "independent_admission_runs": 16,
+  "causal_predicate_rows": 286,
+  "ledger_rows": 822,
+  "cached_minute_paths": 143,
+  "new_minute_paths_simulated": 0,
+  "attribution_checks": 12,
+  "cost_causality": "pass",
+  "scores_2026": false
+}

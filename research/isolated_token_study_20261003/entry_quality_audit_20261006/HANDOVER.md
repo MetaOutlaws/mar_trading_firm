@@ -4,7 +4,64 @@ Owner: Brian / Meta Outlaws. Repository: MetaOutlaws/mar_trading_firm.
 Purpose: reproducible handover and restart without reconstructing the chat.
 
 
-## Latest completed: Connors RSI candidate, 8 October 2026 Dubai
+## Latest status: BTC / Connors interaction and paper approval — 8 October 2026 Dubai
+
+Brian approved standalone Connors RSI for PAPER at 01:08 Dubai. This is the latest
+paper preference: BTC/ETH/SOL LONG/SHORT, 1h, original compression plus CRSI(3,2,100),
+LONG<=90 / SHORT>=10, SL2%/TP2.5%, no timeout. Preserve the prior BTC approval record
+as history. No combined-filter, broader-token, live or leverage activation.
+
+The next four-arm test is COMPLETE. Stressed average net returns per trade:
+
+| Arm | 2022–24 trades / stops / mean | 2025 trades / stops / mean |
+|---|---|---|
+| Original | 97 / 44 / +0.1037% | 36 / 14 / +0.3685% |
+| BTC only | 89 / 37 / +0.2825% | 35 / 13 / +0.4505% |
+| Connors only | 60 / 26 / +0.1952% | 19 / 5 / +0.9205% |
+| Both | 56 / 22 / +0.3849% | 19 / 5 / +0.9205% |
+
+Both removes four additional historical stops without losing any Connors target
+winner; 2025 admissions are identical to Connors. The predeclared requirement to
+strictly improve over EACH standalone in BOTH periods therefore FAILS. Preserve
+as historical incremental benefit, not independently validated regime behavior.
+Point estimates favor the combination historically and tie Connors in 2025, but
+owner approval remains standalone Connors; no silent switch to the stack.
+
+Full research: hourly_btc_connors_interaction_20261008/{PROTOCOL,FINDINGS}.md and
+results_v1. Protocol-before-scoring commit 6d2d4018935efb439e9acfe3e8b299976f2496f1.
+143 verified cached raw paths, 286 raw cost rows reconciled; all three old arms
+exactly reproduced (266/248/158 admitted cost rows), 16 independent admissions,
+12 attribution checks. Ledger822 rows=(133 baseline+124 BTC+79 Connors+75 both)*2
+costs, NOT822 independent trades. No2026 price outcomes. Reused2025 exploratory.
+
+Runtime: standalone rule implemented, 17 focused tests pass, 143 full and143
+rolling850-hour context checks pass, six full signal frames checked. Published
+runtime commit c0d1328810d3e9d39a8bc1998eadb1b75205a8ee, draft PR101 stacked on PR100.
+Installer replaces only six exact baseline paper records, preserves unrelated
+approvals and positions, and verifies a subsequent healthy scan. Production
+fills/exits/risk occupancy differ from the frozen research simulation.
+
+CLOUD INSTALLATION/SCANNING NOT VERIFIED. DigitalOcean droplet605464227 is active;
+this workspace's SSH to178.128.215.94 reports Network is unreachable. No shell
+connector is available. Latest observed original scan remains
+2026-10-07T10:05:31.385232+00:00. Run enable_hourly_connors_20261008.py through the
+owner's Windows PowerShell SSH connection, then the --verify command in
+ENABLE_HOURLY_CONNORS.md. Publication or installed_awaiting_cycle is not proof of
+scanning_verified. No background monitoring/research by this chat.
+
+NEXT RESEARCH: predeclare common causal trend/chop states and test the retained
+H-EXT-REGIME-01 and H-RSI-REGIME-01 separately; retain H-BTC-CRSI-REGIME-01 alongside.
+No calendar switches or blanket characterization of all2022–24/all2025. Then
+broader-token and genuinely prospective confirmation when data become available.
+More tokens may increase opportunities but do not guarantee transferable edge.
+
+Restore the newest MAR_btc_connors_checkpoint_20261008.zip over the full original
+MAR_hourly_compression_checkpoint_20261007.zip; raw data remain separate. Earlier
+incremental evidence is included, so no previous increment also needs extraction.
+Read RESTORE_BTC_CONNORS_STUDY.md. Older sections below are dated history and are
+superseded by this latest status where operational preferences have changed.
+
+## Historical record before latest approval: Connors RSI candidate, 8 October 2026 Dubai
 
 Fixed LONG CRSI(3,2,100)<=90 / SHORT>=10 on ORIGINAL hourly compression,
 same 2%SL/2.5%TP. Positive stressed mean and improvement both periods PASS.

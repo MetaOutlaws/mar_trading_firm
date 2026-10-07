@@ -1,0 +1,13 @@
+partition,stress,treatment,comparator,shared,direct_exclusions,lost_through_occupancy,newly_admitted,direct_excluded_net_sum,occupancy_lost_net_sum,new_net_sum,actual_difference_net_sum,retained_stops,retained_targets,excluded_by_combination_stops,excluded_by_combination_targets,lost_to_changed_occupancy_stops,lost_to_changed_occupancy_targets,newly_admitted_stops,newly_admitted_targets
+evaluation,1,both,baseline,19,17,0,0,-0.021305358770528526,0.0,0.0,0.02130535877052847,5,14,9,8,0,0,0,0
+evaluation,1,both,btc24_confirm,19,16,0,0,0.0016496700377674686,0.0,0.0,-0.0016496700377674756,5,14,8,8,0,0,0,0
+evaluation,1,both,crsi_not_exhausted,19,0,0,0,0.0,0.0,0.0,0.0,5,14,0,0,0,0,0,0
+evaluation,2,both,baseline,19,17,0,0,-0.042234857265620256,0.0,0.0,0.04223485726562026,5,14,9,8,0,0,0,0
+evaluation,2,both,btc24_confirm,19,16,0,0,-0.01723276830821765,0.0,0.0,0.017232768308217683,5,14,8,8,0,0,0,0
+evaluation,2,both,crsi_not_exhausted,19,0,0,0,0.0,0.0,0.0,0.0,5,14,0,0,0,0,0,0
+historical,1,both,baseline,55,42,0,1,-0.085031732517991,0.0,-0.022183999336552913,0.06284773318143808,21,34,23,19,0,0,1,0
+historical,1,both,btc24_confirm,55,34,0,1,0.052527732187895235,0.0,-0.022183999336552913,-0.0747117315244481,21,34,16,18,0,0,1,0
+historical,1,both,crsi_not_exhausted,56,4,0,0,-0.09123469964570871,0.0,0.0,0.09123469964570874,22,34,4,0,0,0,0,0
+historical,2,both,baseline,55,42,0,1,-0.13810391243916545,0.0,-0.02320611895584044,0.11489779348332509,21,34,23,19,0,0,1,0
+historical,2,both,btc24_confirm,55,34,0,1,0.012658396553519587,0.0,-0.02320611895584044,-0.03586451550935996,21,34,16,18,0,0,1,0
+historical,2,both,crsi_not_exhausted,56,4,0,0,-0.09839837442598273,0.0,0.0,0.09839837442598272,22,34,4,0,0,0,0,0

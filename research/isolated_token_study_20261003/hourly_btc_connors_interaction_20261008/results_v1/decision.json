@@ -1,0 +1,13 @@
+{
+  "checks": {
+    "positive_stressed_both": true,
+    "nonempty_both": true,
+    "improved_vs_baseline_both": true,
+    "improved_vs_btc24_confirm_both": true,
+    "improved_vs_crsi_not_exhausted_both": false
+  },
+  "exploratory_point_pass": false,
+  "independent_edge_established": false,
+  "deployment_qualified": false,
+  "scores_2026": false
+}
