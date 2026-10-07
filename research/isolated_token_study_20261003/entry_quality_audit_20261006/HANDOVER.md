@@ -5,6 +5,45 @@ Purpose: reproducible handover and restart without reconstructing the chat.
 
 ## Start here
 
+## Latest completed: profit protection and confirmed paper scan — 7 October 2026
+
+The operator's screenshot returned `scanning_verified` for all six hourly
+BTC/ETH/SOL LONG/SHORT paper configurations, with `errors: []`. The completed
+cycle started at 2026-10-07T10:05:31.385232+00:00, after successful activation.
+This is evidence of that cycle, not continuous SSH monitoring by this chat.
+
+The profit-protection protocol was published before scoring at
+8f26ae5a4c49f521dbdee860c209387fea203976. One fixed treatment moved the stop to
+the entry quote on the minute after a completed +2% favorable close, keeping
+hourly entries, initial SL2% / TP2.5%, costs and occupancy fixed.
+
+Result: reject this treatment under its improvement screen. In 2025, 36 trades
+remain; original stops fall 14 to 13, but five protective exits cut four target
+winners and intercept only one original stop. Mean net falls +0.4992% to
++0.2754% base, and +0.3685% to +0.1445% stress. Net win rate falls 61.1% to 50.0%.
+In 2022–24, 97 trades remain; two original stops and two target winners are
+intercepted, and stressed mean falls +0.1037% to +0.0928%. No extra or dropped
+admissions explain either comparison. All nine protective exits are net losses
+at both cost levels. The approved paper baseline stays unchanged.
+
+Read hourly_profit_protection_20261007/FINDINGS.md and PROTOCOL.md. Verification:
+19 tests; 286 independent raw path checks; 286 raw/266 admitted baseline rows
+reconciled exactly; eight independent admissions; 124 report-row checks.
+532 ledger rows represent 133 admissions × two arms × two cost scenarios.
+All prior outcomes and frozen evidence remain intact. No new-token or 2026
+outcome, live change, or leverage test.
+
+Proposed next research: freeze one failed-breakout exit at a completed hourly
+close back inside the ENTRY-TIME breakout boundary, with next-minute execution,
+and compare winners cut short with losses reduced. This has NOT run and is
+not approved for deployment. Broader-token/forward confirmation remains
+pending; reused 2025 is not an independent holdout.
+
+Restore the incremental MAR_profit_protection_checkpoint_20261007.zip AFTER
+the full MAR_hourly_compression_checkpoint_20261007.zip; keep the original
+raw candle/funding ZIP separate. Follow RESTORE_PROFIT_PROTECTION.md and verify
+each manifest. No experiment is running in the background.
+
 ## Latest owner decision and stop-only experiment — 7 October 2026
 
 Brian explicitly approved hourly compression on BTC/ETH/SOL, both directions,
@@ -12,7 +51,7 @@ for PAPER use at SL2% / TP2.5%. Preserve the original positive baseline and
 record owner approval separately from independent research qualification.
 The runtime module and guarded activation script are prepared and tested;
 Singapore is active in DigitalOcean, but this chat has no SSH execution access.
-**Cloud activation/scanning is pending, not verified.** No cloud write occurred.
+At that earlier preparation stage, cloud activation was pending. The current\noperator-confirmed scanning status is recorded above.
 
 The stop-only protocol was published before scoring. With TP fixed at 2.5%,
 2025 results (closed/stops; net base/stress) are: SL1% 37/25, -0.1092%/-0.2385%;
@@ -28,9 +67,9 @@ admission replays, 266 exactly reconciled baseline rows, 1,330 alternative
 ledger rows. Six implementation tests pass; 143 research entry signals and
 1,734 rolling candidate checks match. No new token or 2026 price scoring.
 
-Next research: a separately frozen profit-protection comparison with unchanged
+At this earlier stage, the queued research was a profit-protection comparison with unchanged
 hourly entries and initial 2%/2.5% barriers, counting winners cut short as well
-as stopped-trade profits saved. It has NOT run. New-token confirmation remains
+as stopped-trade profits saved. That comparison has since completed; see the latest section above. New-token confirmation remains
 pending. None of the old negative family findings or positive hourly findings
 has been overwritten. Older status sections below describe their dated stages.
 
