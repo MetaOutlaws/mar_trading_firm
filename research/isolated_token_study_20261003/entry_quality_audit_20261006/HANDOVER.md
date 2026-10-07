@@ -4,7 +4,68 @@ Owner: Brian / Meta Outlaws. Repository: MetaOutlaws/mar_trading_firm.
 Purpose: reproducible handover and restart without reconstructing the chat.
 
 
-## Latest completed: independent RSI exhaustion exclusion, 8 October 2026 Dubai
+## Latest completed: Connors RSI candidate, 8 October 2026 Dubai
+
+Fixed LONG CRSI(3,2,100)<=90 / SHORT>=10 on ORIGINAL hourly compression,
+same 2%SL/2.5%TP. Positive stressed mean and improvement both periods PASS.
+2022–24 baseline 97 trades/44 stops/+0.2268% base/+0.1037% stress becomes
+Connors 60/26/+0.3193%/+0.1952%. Directly avoids 19 stops and removes 19 targets;
+one newly admitted ETH stop gives net 18 fewer actual stops.
+2025 baseline 36/14/+0.4992%/+0.3685% becomes 19/5/+1.0580%/+0.9205%.
+Nine original stops avoided, eight target winners excluded; no new/displaced
+admissions. Win rate 61.11% to 73.68%. All token means improve both periods,
+but historical ETH stays negative and shorts worsen in BOTH periods.
+
+Historical confidence intervals span zero; 2025 four-week absolute/difference
+intervals are positive but ONE-week intervals both span zero. This sensitivity
+and only 19 trades in repeatedly inspected data limit confidence. Intervals
+are unadjusted for multiple research attempts. No independent edge established.
+Connors has higher 2025 but lower historical mean than BTC confirmation.
+Retain PROMISING EXPLORATORY CANDIDATE; no automatic approval or combination.
+
+Protocol-before-scoring commit fbc792125db770aad6a27182341f60cfd4ad29f2.
+18 tests, 143 independently reconstructed contexts/barriers and anatomy equality,
+eight admissions, exact baseline and 150 report rows verified. One successful
+results_v1. Read hourly_connors_filter_20261008/{NOVELTY_AUDIT,PROTOCOL,FINDINGS}.md.
+Ledger 424 scenario rows = (133 baseline+79 Connors)*2 costs; excluded CSV 110 rows
+= 55 original admissions*2 costs. No 2026 price feature/outcome scored.
+
+## Owner regime-use note retained
+
+H-RSI-REGIME-01 now explicitly preserves Brian's potential use of RSI when
+observable conditions resemble the historical sample. Read RSI REGIME_FOLLOWUP.md.
+Label HISTORICAL IMPROVEMENT (2022–24), REGIME EXPLANATION UNVALIDATED.
+H-EXT-REGIME-01 remains intact. Neither year range is a trading state; 2023 and
+token counterexamples remain visible. No conditional switch tested/deployed.
+
+## Current paper preference and cloud status
+
+BTC24 confirmation remains OWNER-APPROVED preferred PAPER variant. Connors is
+a new research candidate, not an automatic replacement. Read BTC OWNER_APPROVAL.md.
+BTC activation PENDING / NOT VERIFIED. Latest observed operational cycle remains
+original baseline 2026-10-07T10:05:31.385232+00:00, six configurations, errors [].
+No new SSH monitoring, approval-book/runtime/live/leverage change. Existing
+paper approval persists; preserve positions and avoid duplicate entries when
+eventually implementing/activating the exact approved predicate and verifying it.
+
+## Next research priority, updated because Connors passed
+
+1. NEXT: freeze one four-arm interaction comparison: original baseline, BTC24
+   only, Connors only, both fixed filters. Require incremental value versus BOTH
+   standalone candidates, not merely the original baseline. Study overlap in
+   excluded stops/winners and replay all raw opportunities. Unscored/unfrozen.
+2. THEN: H-EXT-REGIME-01 and H-RSI-REGIME-01, common causal states across both
+   periods, each fixed filter separately. Exact states remain unscored/unfrozen.
+3. WHEN AVAILABLE: broader-token/prospective confirmation. Reserved 2026 unscored.
+   No cutoff rescue, automatic stacking or background research running.
+
+Restore MAR_connors_filter_checkpoint_20261008.zip over the full original
+MAR_hourly_compression_checkpoint_20261007.zip. All previous increments and
+BTC owner approval included; previous increments need not also be extracted.
+Keep raw inputs separately; read connors_filter_handover/RESTORE_CONNORS_STUDY.md.
+Older sections below are dated history superseded by this latest status.
+
+## Previous completed: independent RSI exhaustion exclusion, 8 October 2026 Dubai
 
 Fixed LONG RSI14<=70 / SHORT RSI14>= 30 on the ORIGINAL hourly compression
 baseline. Both periods stay positive after stressed costs, but improvement in

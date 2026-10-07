@@ -1,0 +1,11 @@
+{
+  "checks": {
+    "full_basket_positive_stressed_both": true,
+    "full_basket_improved_stressed_both": true,
+    "full_basket_nonempty_both": true
+  },
+  "exploratory_point_pass": true,
+  "independent_edge_established": false,
+  "deployment_qualified": false,
+  "scores_2026": false
+}
