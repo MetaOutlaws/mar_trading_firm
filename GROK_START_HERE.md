@@ -1,5 +1,46 @@
 # Grok: fill-price research audit and current paper rule,8 October2026
 
+## Latest research: sampled exits completed, 8 October 2026
+
+H-EXIT-POLLING-01 compares intrabar exits with current-price checks every1,5,15
+minutes. One minute is primary. All use immediate entries,fill-origin SL2%/TP2.5%,
+unchanged fees/funding/slippage rules and the approved entry filters.
+
+Doubled-slippage mean net/trade, intrabar -> one-minute sampling:
+- 2022–24:41 trades,+0.0702% -> +0.0681%,stops20 ->21.
+- 2025:15 trades,+1.0412% -> +0.8269%,stops4 ->5.
+- 2026 Jan–2 Oct:9 trades,+1.7240% -> +1.3193%,stops1 ->2.
+
+One former target winner becomes a stop in each period. Same65 signals remain
+admitted. All sampled pooled means stay positive at both costs;every sampled
+four-week95% mean interval includes zero. Worst net stopped loss reaches2.7864%
+with1-minute sampling and3.3014% with15 minutes despite a2% stop trigger.
+Coarser polling can skip recoverable stops and capture favorable target overshoot,
+but also miss winners and deepen losses. Do not select a slower polling cadence.
+
+47 tests;138 raw/130 admitted comparator rows reconciled;552 paths/cost rows,
+24 admissions and18 attributions verified;592 report rows and156 intervals
+independently rebuilt. One successful preflight and one treatment run.
+
+Clarified runtime difference:sampled paper stops ALSO omit the second adverse
+exit-slippage charge,as OHLC replay does. This research retains that charge in
+all arms to isolate sampling. Reconcile it separately next. One-minute data cannot
+reconstruct15-second quotes,worker interruptions or target re-quoting latency.
+No claim of observed cloud reliability follows from the15-second waiting-loop constant.
+
+APPROVED PAPER remains hourly_compression_btc_connors_loweff_v1,BTC/ETH/SOL
+LONG+SHORT,1h,SL2%/TP2.5%,no timeout. No execution or approval change.
+Implementation remains3c226bca19cca1c771bcb2ed637f9ec39f74c432.
+Next:isolated stop-exit cost reconciliation,then winner/loser review under the
+reconciled model. Expanded-token protocol stays frozen;no new-token outcomes.
+
+Protocol-before-outcomes:a058b599b4b7473260bf90466be231487c327c9a.
+Results:7535474d278ece30f8260046b70666603bdc4f0e,PR99,
+research/isolated_token_study_20261003/hourly_exit_polling_20261008/FINDINGS.md.
+Newest archive:MAR_exit_polling_checkpoint_20261008.zip,over the original
+MAR_hourly_compression_checkpoint_20261007.zip. Full per-trade evidence and
+private operational handover are in the checkpoint. Earlier sections are historical.
+
 ## Latest research: entry latency completed, 8 October 2026
 
 H-ENTRY-LATENCY-01 tested 0,1,5,15-minute fills with the same approved signals,
