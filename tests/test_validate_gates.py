@@ -461,13 +461,27 @@ def test_record_helpers_and_sitout_reason() -> None:
 
 
 def test_read_live_soko_trend_from_file(tmp_path, monkeypatch) -> None:
+    from datetime import datetime, timezone
+
     from core.data.soko_trend import read_live_soko_trend
 
+    # A label with no as_of is stale. These files are inside the default 6h window.
+    now = datetime(2026, 10, 8, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr("core.data.soko_trend._utcnow", lambda: now)
+    monkeypatch.setattr(
+        "firm.memory.latest_regime",
+        lambda: {"regime": "chop", "recorded_at": "2026-10-08T11:00:00Z"},
+    )
     dest = tmp_path / "last_soko_trend.json"
-    dest.write_text(json.dumps({"trend": "Bull"}), encoding="utf-8")
-    monkeypatch.setattr("core.data.soko_trend._read_regime_snapshot", lambda: None)
+    dest.write_text(
+        json.dumps({"trend": "Bull", "as_of": "2026-10-08T11:00:00Z"}),
+        encoding="utf-8",
+    )
     assert read_live_soko_trend(dest) == "bull"
-    dest.write_text(json.dumps({"btc_trend": "down"}), encoding="utf-8")
+    dest.write_text(
+        json.dumps({"btc_trend": "down", "as_of": "2026-10-08T11:30:00+00:00"}),
+        encoding="utf-8",
+    )
     assert read_live_soko_trend(dest) == "bear"
 
 
