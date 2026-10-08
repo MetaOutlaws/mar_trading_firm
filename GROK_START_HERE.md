@@ -1,5 +1,154 @@
 # Grok: fill-price research audit and current paper rule,8 October2026
 
+## Owner update: retest challenger approved for PAPER,8 October2026
+
+At20:30:58 Asia/Dubai,Brian approved the exact fixed retest challenger for paper
+testing and explicitly approved public GitHub publication to MetaOutlaws/
+mar_trading_firm,PR99/PR101. This supersedes the earlier 'not approved' status.
+It does not rewrite the recorded research-screen result or prior evidence.
+
+Approved challenger:hourly_compression_btc_connors_loweff_retest_v1.
+Baseline/control:hourly_compression_btc_connors_loweff_v1,immediate entry.
+Current paper approval scope:BTC/ETH/SOL,LONG+SHORT,1h,SL2%,TP2.5%,no holding
+timeout. Challenger waits at most60 minutes for a frozen boundary retest and
+completed-minute reclaim,then enters at next-minute open. No fallback or retuning.
+The baseline remains available as the separately measured comparison control.
+
+PRIMARY doubled-cost mean net/trade:2022–24 +0.1291%→+0.7682%;2025
++0.8729%→+1.8852%;2026 through2October +1.3411%→+2.2594%.2026's marginal decline
+was net per ORIGINAL signal,+1.3411%→+1.2552%,not net per completed trade.
+The owner accepts the observed opportunity-cost/trade-frequency trade-off for
+paper testing. All-period historical screen remains failed;owner paper approval
+is recorded separately in OWNER_APPROVAL.md/json. Small samples and reused
+periods do not establish future certainty.
+
+RUNTIME STATUS:paper approval is recorded;retest runtime integration and cloud
+activation verification are pending. Research code already implements the rule;
+the pinned cloud implementation implements immediate entry. Do not claim retest
+scanning/trading is active,and do not clone the old approval under a new strategy
+name without its causal pending-entry adapter and restart/idempotency tests.
+No execution code,production config or live-trading permission changes this turn.
+
+NEXT COMPARISON:H-RETEST-EXPANSION-01,registered separately before new-token
+outcomes. Compare the two fixed entry rules on ALL eligible newly downloaded
+tokens under identical historical membership,signals,SL/TP,costs and independent
+portfolio admission replays. Report net/trade AND net/original signal,win rates,
+stop counts/rates,missed winners,fill delays and all token/side cells.
+2022–24 historical replication and2025 evaluation;additional-token2026 outcomes
+remain unopened for a separately specified later stage. Original
+H-HOURLY-EXPANSION-01 and its accounting remain unchanged.
+
+Read hourly_retest_expansion_20261008/PROTOCOL.md and TODO.md. Data-readiness
+checks are scheduled hourly at21:00,22:00,23:00 on8October and00:00 on9October,
+Asia/Dubai. Accessible data and engineering/parity gates are required before
+scoring. Prevent duplicate runs across workers;record any missing-data blocker.
+Do not assume files downloaded in another worker's environment are accessible.
+
+Publication package:original25 research files plus this owner approval and the
+new companion protocol/queue,with updated public handover on both branches.
+Earlier GitHub-publication blocks are historical;the owner now supplied the
+specific authorization. Publication commit/readback evidence is recorded in
+retest_approval_handover/PUBLICATION.json after completion.
+
+Latest handover overlay:MAR_retest_approval_handover_20261008.zip. Apply it after
+MAR_retest_entry_checkpoint_20261008.zip (complete repaired archive SHA256
+ a0d73470e4607d7995d4f789107d06d301de77747d8452bf05b73eaa3f4d3a80),itself restored
+over MAR_hourly_compression_checkpoint_20261007.zip. All trading outcomes and
+frozen protocols from the previous experiment remain unchanged. Earlier sections
+below describe their historical point in time and do not override this update.
+
+## Latest completed: breakout retest entry, 8 October 2026
+
+H-BREAKOUT-RETEST-ENTRY-01 is complete. The fixed retest rule is a promising
+research challenger: higher net return per filled trade in ALL three periods
+and all four exit/cost views. It is NOT a newly approved paper strategy.
+Its predeclared primary screen fails because2026 net per ORIGINAL signal
+is slightly lower, despite better return per filled trade. Preserve the result
+and the rule; do not change the screen, optimize the waiting window or deploy it.
+
+Rule: keep the approved hourly compression+BTC+Connors+low-efficiency signals;
+wait at most60 minutes for a minute touch of the frozen prior20h breakout
+boundary and a completed minute close strictly back beyond it. Enter at the
+following minute open. Touch and reclaim in one completed minute are allowed.
+No fallback. SL2%/TP2.5% from actual slipped fill, no holding timeout. Admission
+is replayed at actual fill, without reserving capacity while waiting.
+
+Primary results include fees, funding, doubled slippage, reconciled stop costs
+and one-minute sampled exits. Both directions, BTC/ETH/SOL:
+
+| Period | Immediate trades / stops | Immediate mean net | Retest trades / stops | Retest mean net | Immediate → retest win rate |
+|---|---:|---:|---:|---:|---:|
+| 2022–24 | 41 / 21 | +0.1291% | 26 / 10 | +0.7682% | 48.78% → 61.54% |
+| 2025 | 15 / 5 | +0.8729% | 9 / 1 | +1.8852% | 66.67% → 88.89% |
+| 2026 Jan–2 Oct | 9 / 2 | +1.3411% | 5 / 0 | +2.2594% | 77.78% → 100.00% |
+
+| Period | Raw signals | Qualified / admitted | No trade: no retest / no reclaim | Immediate net / original signal | Retest net / original signal |
+|---|---:|---:|---:|---:|---:|
+| 2022–24 | 45 | 28 / 26 | 15 / 2 | +0.1176% | +0.4438% |
+| 2025 | 15 | 9 / 9 | 5 / 1 | +0.8729% | +1.1311% |
+| 2026 Jan–2 Oct | 9 | 5 / 5 | 4 / 0 | +1.3411% | +1.2552% |
+
+The2026 sample ends exclusively at2 October16:00UTC. There are no boundary
+marks or endpoint-censored entries. Historical28 qualified retests become26
+admitted trades after two occupancy rejections. Across69 raw signals there
+are42 qualified and40 admitted retests, with27 no-fills. Do not count the420
+ledger rows across scenarios as420 independent trades.
+
+Primary stops:28/65 immediate trades versus11/40 retest trades. Nonfills miss
+12 immediate target winners but avoid14 immediate stops:2022–24 misses6 targets
+and10 stops;2025 misses4 targets and2 stops;2026 misses2 targets and2 stops.
+A previously blocked historical signal becomes admitted and stops out. That
+replacement and changes in shared-trade outcomes are included in the totals.
+
+2026 return per original signal falls from+1.3411% to+1.2552%, a difference
+of−0.0858 percentage points. The2025 improvement on that denominator occurs
+only in the primary one-minute doubled-slippage view;intrabar and base-cost
+views show a decline. Historical net per signal improves in all four views.
+All12 per-filled-trade mean comparisons improve, but this does not establish
+higher total return at the existing signal supply or future profitability.
+The user values fewer,higher-quality trades and broader token coverage:the
+conditional improvement is useful evidence to retain,not a reason to overwrite
+the preregistered opportunity-cost screen. Broader-token transfer is untested.
+
+All three primary paired four-week95% intervals for improvement include zero,
+for both mean net per trade and net per original signal.2026 has only five
+retained trades and two tokens,all winners;100% observed win rate is not a
+forecast. All periods have already been examined in prior research.
+
+Verification:14 focused tests;276 baseline paths/costs and260 admissions exactly
+reconciled;69 reconstructed boundaries;69 independent retest selections and69
+causal prefixes;168 treatment path/cost checks;24 admission replays;276 paired
+rows,132 report rows and144 bootstrap values independently rebuilt. One successful
+preflight and one successful treatment run,with no scoring or verifier retries.
+
+PUBLICATION STATUS:local rules/code were frozen before scoring at
+2026-10-08T16:10:59.917840+00:00. The preregistration ZIP was saved before scoring.
+GitHub protocol_commit is null. Automatic approval review blocked public upload
+twice,including after destination verification and removal of per-signal data.
+This study has NOT been published to GitHub. The last research head remains
+61b1e70e2762d625d15bc8feccd26cbe44c590dd. A concrete public patch is prepared
+for explicit confirmation;no further GitHub writes are attempted this turn.
+
+APPROVED PAPER remains hourly_compression_btc_connors_loweff_v1,BTC/ETH/SOL,
+LONG+SHORT,1h,SL2%/TP2.5%,no timeout,immediate entry. Runtime implementation
+remains3c226bca19cca1c771bcb2ed637f9ec39f74c432. No cloud health/activation check,
+runtime change,approval change,new-token outcome or order occurred in this test.
+
+NEXT:freeze this exact challenger for broader-token and prospective comparison
+against the approved immediate-entry rule. Prepare a separate companion protocol
+BEFORE opening expanded-token outcomes;preserve H-HOURLY-EXPANSION-01 unchanged,
+including its original conservative accounting. Do not silently append this
+challenger to that previously frozen experiment. New data should test both
+conditional trade quality and opportunity cost. More threshold/deadline searching
+on the same69 signals is lower priority than this independent comparison.
+This companion replication is proposed,not run or deployed.
+
+Newest cumulative archive:MAR_retest_entry_checkpoint_20261008.zip,restore over
+MAR_hourly_compression_checkpoint_20261007.zip. It retains previous experiments,
+full per-trade/per-signal evidence,failures and the pinned runtime snapshot.
+Read hourly_retest_entry_20261008/{PROTOCOL,FINDINGS,PUBLICATION_EXCEPTION}.md.
+Earlier sections below are historical and do not override this status.
+
 ## Latest completed: winner/loser diagnostic, 8 October 2026
 
 H-WINNER-LOSER-DIAGNOSTIC-01 is complete. Keep the approved PAPER strategy.

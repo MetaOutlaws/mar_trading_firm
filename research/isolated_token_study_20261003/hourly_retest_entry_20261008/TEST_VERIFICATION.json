@@ -1,0 +1,7 @@
+{
+  "status": "pass",
+  "tests": 14,
+  "command": "latency_env/bin/python -m pytest -q research/isolated_token_study_20261003/hourly_retest_entry_20261008/test_retest.py",
+  "coverage": ["long/short symmetry", "touch equality", "strict reclaim", "same-minute touch and reclaim", "armed persistence", "60-minute deadline", "no retest/no reclaim", "endpoint censorship", "future and fill-candle independence", "gap-through reclaim", "100 random independent selections", "admission at actual fill and exit-minute occupancy", "invalid geometry"],
+  "treatment_data_scored": false
+}

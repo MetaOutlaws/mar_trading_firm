@@ -1,0 +1,13 @@
+poll_minutes,partition,stress,view,original_admitted,qualified,unfilled,baseline_mean_net,retest_zero_fill_mean_net,difference_mean_net
+0,evaluation,1,counterfactual_original_admitted_signals_no_admission_replay,15,9,6,0.014229388276160543,0.010880971260736293,-0.003348417015424252
+0,evaluation,2,counterfactual_original_admitted_signals_no_admission_replay,15,9,6,0.010741570139168306,0.010476135698107646,-0.00026543444106066303
+0,historical,1,counterfactual_original_admitted_signals_no_admission_replay,41,25,16,0.003785716739701263,0.00553469309991296,0.0017489763602116968
+0,historical,2,counterfactual_original_admitted_signals_no_admission_replay,41,25,16,0.0012886793915347428,0.005249726292866034,0.003961046901331291
+0,reserved_replication,1,counterfactual_original_admitted_signals_no_admission_replay,9,5,4,0.018069465459094557,0.012763247556757807,-0.005306217902336747
+0,reserved_replication,2,counterfactual_original_admitted_signals_no_admission_replay,9,5,4,0.017348612781195556,0.012261892084914607,-0.005086720696280949
+1,evaluation,1,counterfactual_original_admitted_signals_no_admission_replay,15,9,6,0.015073642525521689,0.011951341193477304,-0.003122301332044387
+1,evaluation,2,counterfactual_original_admitted_signals_no_admission_replay,15,9,6,0.008729096259138756,0.011311316861157402,0.0025822206020186447
+1,historical,1,counterfactual_original_admitted_signals_no_admission_replay,41,25,16,0.004086451891103873,0.005831681910864054,0.0017452300197601824
+1,historical,2,counterfactual_original_admitted_signals_no_admission_replay,41,25,16,0.0012910714442524447,0.005386794398534251,0.004095722954281807
+1,reserved_replication,1,counterfactual_original_admitted_signals_no_admission_replay,9,5,4,0.018281421496256185,0.013430107286937018,-0.004851314209319167
+1,reserved_replication,2,counterfactual_original_admitted_signals_no_admission_replay,9,5,4,0.013410714639436456,0.012552235591563068,-0.0008584790478733876

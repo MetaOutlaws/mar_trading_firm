@@ -1,0 +1,10 @@
+{
+  "status": "pass",
+  "paired_raw_rows_verified": 276,
+  "baseline_rows_exact": 276,
+  "baseline_admitted_rows_exact": 260,
+  "report_rows_checked": 132,
+  "bootstrap_values_independently_rebuilt": 144,
+  "source_input_runtime_reference_output_hashes_verified": true,
+  "decision_rebuilt": true
+}
