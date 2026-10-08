@@ -1,3 +1,5 @@
+> SUPERSEDED 8 October 2026 08:39 Dubai: current owner-approved PAPER rule adds the low-efficiency-only extension cap to BTC+Connors. Read current GROK_START_HERE.md and hourly_extension_regime_20261008/OWNER_APPROVAL.md. Older instructions below are historical.
+
 > SUPERSEDED 8 October2026 08:11 Dubai: owner now approves BTC + Connors. Read GROK_START_HERE.md and use scripts/install_hourly_btc_connors_20261008.py. The standalone instructions below are historical.
 
 # Activate the approved standalone Connors hourly paper sleeve
