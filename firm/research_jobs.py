@@ -1103,33 +1103,310 @@ def _verdict_blurb(job: dict[str, Any]) -> str:
     return str(job.get("detail") or "Walk-forward finished.")
 
 
+def _normalize_clock(clock: str) -> str:
+    """`1h` and `1h/1h` are the same grid. Mixed clocks (`1h/4h`) stay mixed."""
+    text = str(clock or "").strip()
+    if not text:
+        return ""
+    if "/" not in text:
+        return f"{text}/{text}"
+    return text
+
+
+def _coverage_for(family: str, clock: str, side: str) -> set[str]:
+    """Keys this family/clock/side occupies. BOTH covers LONG and SHORT."""
+    from firm.research_catalog import coverage_keys
+
+    clock_n = _normalize_clock(clock)
+    if not family or not clock_n:
+        return set()
+    return coverage_keys(family, clock_n, side or "BOTH")
+
+
+def _walk_forward_spec_from_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Inbox next-step payload for one catalog hypothesis."""
+    fid = str(row.get("family") or "")
+    name = str(row.get("name") or fid)
+    clock = str(row.get("clock") or "4h/4h")
+    hid = str(row.get("id") or "")
+    return {
+        "kind": "strategy",
+        "title": f"Next: walk-forward {name}",
+        "family": fid,
+        "action": "walk_forward",
+        "clock": clock,
+        "side": row.get("side") or "BOTH",
+        "hypothesis_id": hid,
+        "id": hid,
+        "rationale": str(row.get("justification") or ""),
+        "param_change": row.get("param_change") or {},
+        "force_retest": row.get("force_retest"),
+        "operator_queued": row.get("operator_queued"),
+        "added_by": row.get("added_by") or "",
+        "disposition": row.get("disposition") or "",
+    }
+
+
+def _inbox_walk_forward_asks() -> list[dict[str, Any]]:
+    """Pending, rejected, and approved walk-forward Inbox asks.
+
+    Empty or missing firm db is "no asks", not a reason to file a new one.
+    A ledger reset does not erase these rows.
+    """
+    from config.settings import get_settings
+
+    url = get_settings().resolved_database_url()
+    if url.startswith("sqlite:///"):
+        db_path = Path(url[len("sqlite:///") :])
+        if not db_path.exists():
+            return []
+    try:
+        from sqlalchemy import inspect, select
+
+        from core.db import get_engine, session_scope
+        from firm.memory_models import Proposal, ProposalStatus
+    except Exception:
+        logger.debug("Inbox walk-forward lookup unavailable", exc_info=True)
+        return []
+    try:
+        if not inspect(get_engine()).has_table("proposals"):
+            return []
+    except Exception:
+        logger.debug("Inbox walk-forward table check failed", exc_info=True)
+        return []
+    statuses = {
+        ProposalStatus.PENDING.value,
+        ProposalStatus.REJECTED.value,
+        ProposalStatus.APPROVED.value,
+    }
+    try:
+        with session_scope() as session:
+            rows = session.scalars(select(Proposal).where(Proposal.status.in_(statuses))).all()
+            out: list[dict[str, Any]] = []
+            for proposal in rows:
+                payload = proposal.payload if isinstance(proposal.payload, dict) else {}
+                action = str(payload.get("action") or "")
+                title = str(proposal.title or "")
+                walk = action == "walk_forward" or (
+                    action == ""
+                    and (
+                        proposal.kind == "strategy"
+                        or title.lower().startswith("next: walk-forward")
+                    )
+                )
+                if not walk:
+                    continue
+                family = str(payload.get("family") or payload.get("name") or "").strip()
+                if not family or family in {"unknown", "strategy"}:
+                    family = infer_family(payload, title)
+                if not family or family == "unknown":
+                    continue
+                clock = _normalize_clock(str(payload.get("clock") or ""))
+                if not clock:
+                    clock = _normalize_clock(CLOCK_BY_FAMILY.get(family, ""))
+                side = str(payload.get("side") or "BOTH").upper()
+                out.append(
+                    {
+                        "status": proposal.status,
+                        "family": family,
+                        "clock": clock,
+                        "side": side,
+                        "keys": _coverage_for(family, clock, side),
+                    }
+                )
+            return out
+    except Exception:
+        logger.debug("Inbox walk-forward lookup failed", exc_info=True)
+        return []
+
+
+def _open_explicit_retest(spec: dict[str, Any], jobs: list[dict[str, Any]]) -> bool:
+    """Operator-queued frozen near-miss whose own hypothesis id has not finished.
+
+    The base family@clock@side being done does not block that tagged retest.
+    It still must not be re-filed after the operator rejected that same ask.
+    """
+    from firm.research_catalog import auto_advance_grid_spent, is_explicit_retest
+
+    if not is_explicit_retest(spec):
+        return False
+    return not auto_advance_grid_spent(spec, jobs=jobs)
+
+
+def walk_forward_ask_block_reason(
+    spec: dict[str, Any],
+    *,
+    jobs: list[dict[str, Any]] | None = None,
+    inbox_asks: list[dict[str, Any]] | None = None,
+    tested_keys: set[str] | None = None,
+    approved_keys: set[str] | None = None,
+) -> str | None:
+    """Why this next-step walk-forward must not be filed, or None if it is open.
+
+    Terminal means approved, rejected (a finished reject or a previously
+    rejected identical Inbox ask), or a completed grid. BOTH covers LONG and
+    SHORT. An identical pending ask is a duplicate, not a second gate.
+
+    `remaining_hypotheses` deliberately ignores the paper book so catalog
+    tests can isolate jobs. Filing must not: a book verdict, history row, or
+    rejected ask is already terminal even after a jobs-ledger reset.
+    """
+    from firm.memory_models import ProposalStatus
+    from firm.research_catalog import durable_tested_keys, paper_book_approved_keys
+
+    if str(spec.get("action") or "walk_forward") not in {"", "walk_forward"}:
+        return None
+    family = str(spec.get("family") or "")
+    clock = _normalize_clock(str(spec.get("clock") or ""))
+    side = str(spec.get("side") or "BOTH").upper()
+    if not family or not clock:
+        return None
+    if jobs is None:
+        jobs = _load()
+    keys = _coverage_for(family, clock, side)
+    if not keys:
+        return None
+    open_retest = _open_explicit_retest(spec, jobs)
+    if not open_retest:
+        for job in jobs:
+            if job.get("status") not in {"done", "failed"}:
+                continue
+            if int(job.get("pairs_approved") or 0) <= 0:
+                continue
+            if keys & _coverage_for(
+                str(job.get("family") or ""),
+                str(job.get("clock") or ""),
+                str(job.get("side") or "BOTH"),
+            ):
+                return "approved"
+        if approved_keys is None:
+            approved_keys = paper_book_approved_keys()
+        if keys & approved_keys:
+            return "approved"
+    asks = _inbox_walk_forward_asks() if inbox_asks is None else inbox_asks
+    overlapped = [ask for ask in asks if keys & set(ask.get("keys") or set())]
+    if any(ask.get("status") == ProposalStatus.PENDING.value for ask in overlapped):
+        return "duplicate pending Inbox ask"
+    if any(ask.get("status") == ProposalStatus.APPROVED.value for ask in overlapped):
+        return "approved"
+    if any(ask.get("status") == ProposalStatus.REJECTED.value for ask in overlapped):
+        return "previously rejected identical Inbox ask"
+    if open_retest:
+        return None
+    if tested_keys is None:
+        tested_keys = durable_tested_keys(jobs)
+    covered = set(tested_keys)
+    for job in jobs:
+        if job.get("status") not in {"done", "failed"}:
+            continue
+        covered.update(
+            _coverage_for(
+                str(job.get("family") or ""),
+                str(job.get("clock") or ""),
+                str(job.get("side") or "BOTH"),
+            )
+        )
+    if keys & covered:
+        return "completed grid"
+    return None
+
+
+def note_suppressed_walk_forward_ask(spec: dict[str, Any], reason: str) -> None:
+    """One info line: which ask was not filed, and the terminal reason."""
+    logger.info(
+        "Suppressing next-step Inbox ask walk-forward %s %s %s: %s",
+        spec.get("family"),
+        _normalize_clock(str(spec.get("clock") or "")) or spec.get("clock"),
+        str(spec.get("side") or "BOTH").upper(),
+        reason,
+    )
+
+
 def _next_step_spec(job: dict[str, Any]) -> dict[str, Any] | None:
-    """What should run next. Continuity auto-starts Tier A; Inbox is for B/C."""
-    from firm.research_catalog import remaining_hypotheses
+    """What should run next. Continuity auto-starts Tier A; Inbox is for B/C.
+
+    Skips a family@clock@side that is already approved, rejected, or a
+    completed grid, including a previously rejected identical Inbox ask.
+    If nothing open remains, return None. Do not refill from CLOCK_BY_FAMILY.
+    """
+    from firm.research_catalog import (
+        durable_tested_keys,
+        paper_book_approved_keys,
+        remaining_hypotheses,
+    )
 
     remaining = remaining_hypotheses()
     if remaining:
-        row = remaining[0]
-        fid = str(row["family"])
-        name = str(row.get("name") or fid)
-        clock = str(row.get("clock") or "4h/4h")
-        return {
-            "kind": "strategy",
-            "title": f"Next: walk-forward {name}",
-            "family": fid,
-            "action": "walk_forward",
-            "clock": clock,
-            "side": row.get("side") or "BOTH",
-            "hypothesis_id": row.get("id"),
-            "rationale": str(row.get("justification") or ""),
-        }
+        jobs = _load()
+        inbox = _inbox_walk_forward_asks()
+        tested = durable_tested_keys(jobs)
+        approved = paper_book_approved_keys()
+        logged = False
+        for row in remaining:
+            spec = _walk_forward_spec_from_row(row)
+            reason = walk_forward_ask_block_reason(
+                spec,
+                jobs=jobs,
+                inbox_asks=inbox,
+                tested_keys=tested,
+                approved_keys=approved,
+            )
+            if reason:
+                # The first skipped row is the ask this tick would have filed.
+                if not logged:
+                    note_suppressed_walk_forward_ask(spec, reason)
+                    logged = True
+                continue
+            return spec
+        return None
     # Do not invent a CLOCK_BY_FAMILY leftover (including Donchian 1h/4h)
     # just because remaining is empty. Idle is the correct next step.
-    tested = _tested_families()
+    tested_families = _tested_families()
     family = str(job.get("family") or "")
     if family:
-        tested.add(family)
-    return next_catalog_step(tested=tested, coded=set(list_strategies()))
+        tested_families.add(family)
+    spec = next_catalog_step(tested=tested_families, coded=set(list_strategies()))
+    if spec and spec.get("action") == "walk_forward":
+        reason = walk_forward_ask_block_reason(spec)
+        if reason:
+            note_suppressed_walk_forward_ask(spec, reason)
+            return None
+    return spec
+
+
+def _catalog_only_terminal_walk_forwards(jobs: list[dict[str, Any]] | None = None) -> bool:
+    """True when every leftover hypothesis is already a terminal grid.
+
+    Empty remaining is not this case — that path may still file a coding
+    brief. Non-empty leftovers that are all approved, rejected, or finished
+    must go idle instead of refilling Inbox.
+    """
+    from firm.research_catalog import (
+        durable_tested_keys,
+        paper_book_approved_keys,
+        remaining_hypotheses,
+    )
+
+    rows = jobs if jobs is not None else _load()
+    remaining = remaining_hypotheses(rows)
+    if not remaining:
+        return False
+    inbox = _inbox_walk_forward_asks()
+    tested = durable_tested_keys(rows)
+    approved = paper_book_approved_keys()
+    for row in remaining:
+        if (
+            walk_forward_ask_block_reason(
+                _walk_forward_spec_from_row(row),
+                jobs=rows,
+                inbox_asks=inbox,
+                tested_keys=tested,
+                approved_keys=approved,
+            )
+            is None
+        ):
+            return False
+    return True
 
 
 def _tested_families() -> set[str]:
@@ -1230,8 +1507,15 @@ def _notify_job_complete(job: dict[str, Any]) -> None:
         severity="warning" if not passed else "info",
     )
     # Continuity auto-starts Tier A. Only file Inbox when auto-advance is off.
+    # A terminal family@clock@side (approved, rejected, completed grid) or an
+    # identical pending/rejected ask is not filed again.
     if not pipeline_config().auto_advance:
         nxt = _next_step_spec(job)
+        if nxt and nxt.get("action") == "walk_forward":
+            reason = walk_forward_ask_block_reason(nxt)
+            if reason:
+                note_suppressed_walk_forward_ask(nxt, reason)
+                nxt = None
         if nxt and not _already_pending_next(str(nxt["action"]), str(nxt["family"])):
             kind = ProposalKind.STRATEGY if nxt["kind"] == "strategy" else ProposalKind.OPERATIONAL
             memory.record_proposal(
@@ -1243,6 +1527,8 @@ def _notify_job_complete(job: dict[str, Any]) -> None:
                     "family": nxt["family"],
                     "action": nxt["action"],
                     "clock": nxt.get("clock") or "",
+                    "side": nxt.get("side") or "BOTH",
+                    "hypothesis_id": nxt.get("hypothesis_id") or "",
                     "operator_next": True,
                     "from_job_id": job.get("id"),
                 },
@@ -1480,9 +1766,18 @@ def ensure_next_gate() -> dict[str, Any]:
         return {"filed": False, "reason": "no_done_job"}
     job = done[-1]
     nxt = _next_step_spec(job)
+    if nxt and nxt.get("action") == "walk_forward":
+        reason = walk_forward_ask_block_reason(nxt, jobs=jobs)
+        if reason:
+            note_suppressed_walk_forward_ask(nxt, reason)
+            nxt = None
     if not nxt:
         if any(int(j.get("pairs_approved") or 0) > 0 for j in jobs):
             return {"filed": False, "reason": "approvals_exist_catalog_drained"}
+        # Leftover catalog rows that already finished must not become a new
+        # Inbox ask or a catalog-review stand-in. Wait for a new brief.
+        if _catalog_only_terminal_walk_forwards(jobs):
+            return {"filed": False, "reason": "terminal_family_idle"}
         nxt = _catalog_review_spec(job)
     family = str(nxt["family"])
     if _already_pending_next(str(nxt["action"]), family) or (
@@ -1491,6 +1786,11 @@ def ensure_next_gate() -> dict[str, Any]:
         return {"filed": False, "reason": "already_gated", "family": family}
     if nxt["action"] == "catalog_review" and _already_decided_catalog_review():
         return {"filed": False, "reason": "catalog_review_already_decided"}
+    if nxt.get("action") == "walk_forward":
+        reason = walk_forward_ask_block_reason(nxt, jobs=jobs)
+        if reason:
+            note_suppressed_walk_forward_ask(nxt, reason)
+            return {"filed": False, "reason": reason, "family": family}
     kind = ProposalKind.STRATEGY if nxt["kind"] == "strategy" else ProposalKind.OPERATIONAL
     memory.record_proposal(
         agent="research_pipeline",
@@ -1501,6 +1801,8 @@ def ensure_next_gate() -> dict[str, Any]:
             "family": family,
             "action": nxt["action"],
             "clock": nxt.get("clock") or "",
+            "side": nxt.get("side") or "BOTH",
+            "hypothesis_id": nxt.get("hypothesis_id") or "",
             "operator_next": True,
             "from_job_id": job.get("id"),
         },
