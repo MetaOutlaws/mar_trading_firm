@@ -82,6 +82,16 @@ class Settings(BaseSettings):
     # ---- Logging ------------------------------------------------------------
     log_level: str = "INFO"
 
+    # ---- Paper regime feed --------------------------------------------------
+    #: Max age of ``data/last_soko_trend.json`` ``as_of`` and of the regime
+    #: analyst snapshot ``recorded_at``. A label older than this is stale.
+    #: Missing or unparseable timestamps are stale too. A timestamp more than
+    #: five minutes in the future is stale (smaller lead is clock skew and
+    #: still fresh). When the file and the memory snapshot are both stale or
+    #: not bull/bear/chop, regime-gated paper sleeves sit out. Live does not
+    #: read this. Env: ``SOKO_TREND_MAX_AGE_HOURS``.
+    soko_trend_max_age_hours: float = Field(default=6.0, gt=0)
+
     # ---- Research pipeline continuity ---------------------------------------
     #: Fail-closed: unset or false never auto-starts a walk-forward (clock
     #: expand, leftover fill, universe widen, next-family). Operator/Inbox
