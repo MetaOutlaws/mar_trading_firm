@@ -1,5 +1,79 @@
 # MAR research handover — updated 7 October 2026
 
+## Latest completed: stop-cost reconciliation, 8 October 2026
+
+H-STOP-COST-01 is complete. Research previously applied an extra adverse exit
+slippage tick to every stop. The pinned paper execution contract and sampled
+paper stop method instead close at the resolved quote, without that extra tick.
+This audit reconciles only that convention and fees on the revised exit notional.
+Every signal, path, stop/target, exit time, funding charge and admission stays fixed.
+Targets and endpoint marks remain exactly unchanged. This is accounting alignment,
+not a better entry signal, rescued trade or new independent edge.
+
+Primary:one-minute observed-quote paths, doubled-slippage scenario. All returns
+include fees and funding. The same65 admitted signals appear in both cost models.
+
+| Period | Trades | Stops | Targets | Previous mean net | Reconciled mean net | Change, percentage points |
+|---|---:|---:|---:|---:|---:|---:|
+| 2022–24 | 41 | 21 | 20 | +0.0681% | +0.1291% | +0.0610 |
+| 2025 | 15 | 5 | 10 | +0.8269% | +0.8729% | +0.0460 |
+| 2026 Jan–2 Oct | 9 | 2 | 7 | +1.3193% | +1.3411% | +0.0218 |
+
+All28 primary stressed stops remain stops;37 targets remain targets. Stop rates
+are51.22%,33.33%,22.22% by period;net win rates48.78%,66.67%,77.78% are unchanged.
+The historical mean remains thin at+0.1291% per trade. The primary four-week95%
+interval includes zero in each period. Positive cost deltas are mechanically
+expected and do not establish stronger prediction or future profitability.
+
+The biggest primary stopped loss improves from−2.7864% to−2.6890%,but remains
+beyond the nominal2% stop. Observed quote overshoot,fees and funding remain.
+This correction does not solve missed targets, gaps or delayed supervision.
+No polling interval is selected from the contextual5/15-minute comparisons.
+
+29 focused tests passed, including actual AST-extracted pinned runtime quote
+methods. One initial test harness namespace error was fixed before freeze and
+retained. One successful preflight and one treatment run; no treatment retuning.
+552 raw reference rows and520 admitted reference rows reconciled;48 independent
+admission replays;1,072 independent scalar cash checks;616 report rows and144
+bootstrap intervals rebuilt.1,104 raw and1,040 admitted output rows are repeated
+cost/path scenarios,not that many independent trades. Only69 raw/65 admitted
+signals exist. Sources,6 inputs,358 runtime Python files and output hashes verified.
+
+Protocol published before outcomes:84fd62b97d714898db09669546c63cc8ac91dc2d,
+10 files read back exactly. Results in research PR99 under
+research/isolated_token_study_20261003/hourly_stop_cost_20261008/FINDINGS.md.
+
+APPROVED PAPER stays hourly_compression_btc_connors_loweff_v1,BTC/ETH/SOL,
+LONG+SHORT,1h,SL2%/TP2.5%,no timeout. No strategy,approval,polling,cloud or
+implementation change. Runtime implementation remains
+3c226bca19cca1c771bcb2ed637f9ec39f74c432. Paper activation/health was not checked.
+Matching this one convention does not imply full runtime execution parity.
+
+RESEARCH REFERENCE going forward for these three tokens:immediate entries,
+fill-origin brackets,runtime_stop_fill accounting;retain intrabar and one-minute
+execution sensitivity views alongside the conservative all-exit-slip results.
+Neither minute-based scenario represents measured15-second execution. Do not
+overwrite prior evidence. The separately frozen H-HOURLY-EXPANSION-01 primary
+cost model remains unchanged;no new-token outcomes were opened.
+
+NEXT:H-WINNER-LOSER-DIAGNOSTIC-01. Compare entry-time features of winners AND
+losers under the reconciled accounting,with original conservative and intrabar
+outcomes visible. First describe volume,volatility/extension,Connors RSI/RSI,
+BTC alignment,efficiency and calendar clustering;check whether relationships
+persist by token/side and later periods. MFE/MAE and time-to-exit describe paths,
+not entry predictors. Use2022–24 for proposing any rule,then freeze one isolated
+candidate before later-period comparison. All three periods have already been
+examined;this cannot create an untouched holdout. No thresholds or new filters
+were selected by this cost audit. New-token replication remains the next source
+of genuinely additional cross-token evidence when the data are ready.
+
+Newest cumulative archive:MAR_stop_cost_checkpoint_20261008.zip,restore over
+MAR_hourly_compression_checkpoint_20261007.zip. It includes every earlier
+increment,frozen code,ledgers,attempt records and pinned runtime snapshot.
+Raw inputs stay in the separate saved raw-data archive. Public root handover
+and private operational handover are distinguished in the restore instructions.
+Earlier status sections below are historical and do not override this one.
+
 ## Latest completed: sampled-exit audit, 8 October 2026
 
 H-EXIT-POLLING-01 is complete. One-minute quote polling (the prespecified primary
