@@ -4,7 +4,52 @@ Owner: Brian / Meta Outlaws. Repository: MetaOutlaws/mar_trading_firm.
 Purpose: reproducible handover and restart without reconstructing the chat.
 
 
-## Current owner approval — 8 October 2026 08:39 Dubai
+## Latest completed: RSI by market state, 8 October 2026
+
+H-RSI-REGIME-01 is complete. The approved PAPER strategy remains
+hourly_compression_btc_connors_loweff_v1: BTC+Connors with a one-ATR extension cap
+only when pre-signal ER24<0.30. BTC/ETH/SOL both directions,1h,SL2%/TP2.5%,no timeout.
+Runtime code commit3c226bca19cca1c771bcb2ed637f9ec39f74c432 in PR101. Cloud installation
+and scanning remain unverified here and require Grok’s actual operational evidence.
+
+Four added-RSI policies tested with RSI14 LONG<=70/SHORT>=30, same ER cutoff and
+all other assumptions fixed. Stressed results:
+
+| RSI policy | 2022–24 trades / stops / mean | 2025 trades / stops / mean |
+|---|---|---|
+| None, approved benchmark |41 /15 /+0.5003%|15 /3 /+1.1993%|
+| Always |38 /14 /+0.4914%|15 /3 /+1.1993%|
+| Directional only |38 /14 /+0.4914%|15 /3 /+1.1993%|
+| Low-efficiency only |41 /15 /+0.5003%|15 /3 /+1.1993%|
+
+Always/directional removes one historical stop and two target winners. No new
+or occupancy-displaced trades. Low-efficiency changes no raw opportunities or
+admissions. All2025 variants are identical. No policy passes the frozen benefit
+screen, so no RSI14 addition or retuning. Differences’ intervals include zero.
+The approved rule’s earlier positive results remain intact.
+
+Protocol-before-scoring commit7088e063ff876fd7b0c3b9d1c142433be698120c. One successful
+run results_v1.23 focused tests;143 independent RSI+143 ER contexts;286 raw cost
+rows reconciled;120 approved opportunity/112 approved admission cost rows matched;
+16 independent admissions,12 attributions and28 report-row checks.436 overlapping
+arm/cost rows, not independent trades. No2026 outcomes or new token scores.
+
+NEXT: independent confirmation. First audit whether the reserved2026 BTC/ETH/SOL
+interval is genuinely unused and has sufficient coverage, then preregister a
+separate fixed-strategy validation before scoring. If already used, label it
+exploratory. Broader-token validation remains queued until data arrive. Prospective
+paper observations begin after verified deployment. No new filtering experiment
+or background monitor was started in this turn.
+
+Read research/isolated_token_study_20261003/hourly_rsi_regime_20261008/FINDINGS.md,
+PROTOCOL.md and results_v1. Restore the original hourly base, then the newest
+MAR_rsi_regime_checkpoint_20261008.zip. Old included status/approval notes are
+historical where this latest handover supersedes them. Both requested6October
+original ZIPs retain their verified bytes and separate identities.
+
+---
+
+## Historical approval checkpoint before the RSI regime study — 8 October 2026 08:39 Dubai
 
 BTC + Connors + LOW-EFFICIENCY-ONLY one-ATR extension cap is now the approved
 PAPER deployment. Strategy hourly_compression_btc_connors_loweff_v1. ER24<0.30

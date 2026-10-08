@@ -1,0 +1,24 @@
+{
+  "status": "complete",
+  "completed_at": "2026-10-08T05:09:16.522543+00:00",
+  "output_hashes": {
+    "individual_trades.csv": "4321902c1f56632973e418d909c3082ea9f43c46101c4150789f3ff72c038c42",
+    "freeze.json": "6221266477d0a931cf6a4c0a55b06b9030c6088734cfc6b8898d76a8b875d124",
+    "annual_by_entry_year.csv": "4ca234ce6f4403d111d48514f570d7e3999cbed558b9d76441f0e2107cf5f41c",
+    "pooled_results.csv": "7722cf5c967b768bf388d391511d8fe8a7a9955a2f92c263c11d3fa388a5f74b",
+    "decision.json": "096cbd5a2ae302e2bb980e91364315c83073458d7e41aeebda439104ff22f44e",
+    "state_effects.csv": "95396f3a7549ebdab8e6204777097c2cad6324e4503436d1d81c3afa0e37e17c",
+    "admission_changes.csv": "809767f88cab215adbcaac13c336cbb62fd86947b51351fb9e3463c21fb6e54d",
+    "contrasts.csv": "417b0db1455f2bd6789431d97bc1d7d9368c68247476906650b00442f4f55d51",
+    "admission_decomposition.csv": "d64289082d503e80083f6a5082074f17b522361de5d362ab440a4da0c0ed04d2",
+    "rsi_regime_context.csv": "c3fbe26a0000f9ae23471f115db699792d82370baf397051b25c25913ab62853",
+    "subgroups.csv": "0157d4f6109146963672040e94fa4021a3c2891515612d77433b44845b19210f",
+    "pooled_ledger.parquet": "b522e024e185edf3e73abe4646f0cd9c7d0f8696618df61b5c6e03c01476bb35",
+    "VERIFICATION.json": "35fc4a631845a7fc736c309820cb99af70641288f9cc963eda9fb4585e7d2fd2",
+    "rejections.csv": "375e7e4c4880270d5d8d3077a6f9c87034acd480d6901d4c7b86974f93bbd1a2",
+    "all_opportunities.parquet": "17de4f7c28f5c9ff547f55e023b246ac869bd44e56fa412c584dcede9290f2b7",
+    "raw_signal_outcomes.csv": "e581ad8e41d1bef93cd342a01eede7645d68277b827bf8e85205f8e45a252075",
+    "exclusion_summary.csv": "839b0ca48ce72c5be1bfaec90bd2a53a9ab05007045138b98e6fdba0fb44a3f6",
+    "leave_one_token_out.csv": "b491dcadfb475a0ff94f121f93fde45f70932f47cdf03b09ddd517e1aa587dad"
+  }
+}

@@ -1,0 +1,9 @@
+partition,stress,directional,n,baseline_mean,retained_n,retained_mean,removed_n,removed_stops,removed_targets,removed_mean,method
+evaluation,1,False,14,0.015946027960846175,14,0.015946027960846175,0,0,0,,diagnostic benchmark subset; not a new admission replay
+evaluation,1,True,1,-0.02223891493169485,1,-0.02223891493169485,0,0,0,,diagnostic benchmark subset; not a new admission replay
+evaluation,2,False,14,0.014508129770334109,14,0.014508129770334109,0,0,0,,diagnostic benchmark subset; not a new admission replay
+evaluation,2,True,1,-0.023216823066094516,1,-0.023216823066094516,0,0,0,,diagnostic benchmark subset; not a new admission replay
+historical,1,False,33,0.006409266049531834,33,0.006409266049531834,0,0,0,,diagnostic benchmark subset; not a new admission replay
+historical,1,True,8,0.005487835366690888,5,0.004306585105880006,3,1,2,0.007456585801375689,diagnostic benchmark subset; not a new admission replay
+historical,2,False,33,0.005221802299918324,33,0.005221802299918324,0,0,0,,diagnostic benchmark subset; not a new admission replay
+historical,2,True,8,0.004099693751534269,5,0.0028850416131304254,3,1,2,0.006124113982207341,diagnostic benchmark subset; not a new admission replay
