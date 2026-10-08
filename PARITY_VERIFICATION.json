@@ -1,0 +1,48 @@
+{
+  "status": "pass",
+  "checks": [
+    {
+      "symbol": "BTCUSDT",
+      "side": 1,
+      "full_history_bars": 32904,
+      "signals": 39,
+      "rolling_candidates_checked": 416
+    },
+    {
+      "symbol": "BTCUSDT",
+      "side": -1,
+      "full_history_bars": 32904,
+      "signals": 22,
+      "rolling_candidates_checked": 370
+    },
+    {
+      "symbol": "ETHUSDT",
+      "side": 1,
+      "full_history_bars": 32904,
+      "signals": 26,
+      "rolling_candidates_checked": 254
+    },
+    {
+      "symbol": "ETHUSDT",
+      "side": -1,
+      "full_history_bars": 32904,
+      "signals": 22,
+      "rolling_candidates_checked": 286
+    },
+    {
+      "symbol": "SOLUSDT",
+      "side": 1,
+      "full_history_bars": 32904,
+      "signals": 22,
+      "rolling_candidates_checked": 199
+    },
+    {
+      "symbol": "SOLUSDT",
+      "side": -1,
+      "full_history_bars": 32904,
+      "signals": 12,
+      "rolling_candidates_checked": 209
+    }
+  ],
+  "scope": "entry predicate on membership-period candles; runtime execution contract is separately documented"
+}
