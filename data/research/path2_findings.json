@@ -407,6 +407,35 @@
           "stress_stop_2_net": "-0.109531"
         }
       }
+    },
+    {
+      "id": "oi_delta_agree",
+      "family": "oi_delta_agree",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "Binance USDT-M OI 4h change at or beyond ±0.75%, using the last 5m snapshot strictly before close (declared cross-venue proxy), AND same-bar close through open; either leg alone no trade; OI NaN or 0 counts as missing, no trade."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 1104,
+          "target_first_count": 349,
+          "target_first_rate": "0.316123",
+          "gross": "+0.029848",
+          "net_after_0_31_rt": "-0.176818",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.119969"
+        },
+        "short": {
+          "n": 1147,
+          "target_first_count": 322,
+          "target_first_rate": "0.280732",
+          "gross": "-0.077282",
+          "net_after_0_31_rt": "-0.283949",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.202034"
+        }
+      }
     }
   ]
 }
