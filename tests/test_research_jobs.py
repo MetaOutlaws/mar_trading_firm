@@ -372,6 +372,14 @@ def test_paper_scan_family_follows_latest_coded_job(tmp_path, monkeypatch) -> No
 
 
 def test_paper_plan_scans_donchian_when_that_job_is_running(tmp_path, monkeypatch) -> None:
+    """A running Donchian job moves the scan pointer, not the paper blotter.
+
+    b117648 (Brian YES, 2026-09-09) disabled unapproved forward-test inject.
+    The catalog clock for ``donchian_breakout`` is still 1h long / 4h short,
+    but those rows are not placed on the paper plan unless the sleeve is
+    research-approved or an operator paper override. Empty approvals mean
+    an empty paper plan and an empty live plan.
+    """
     from config.universe import Universe, get_universe
     from core.execution.engine import build_plan
     from firm import research_jobs
@@ -391,13 +399,13 @@ def test_paper_plan_scans_donchian_when_that_job_is_running(tmp_path, monkeypatc
         '{"jobs":[{"family":"donchian_breakout","status":"running","symbols":["BTCUSDT"]}]}',
         encoding="utf-8",
     )
+    assert research_jobs.paper_scan_family() == "donchian_breakout"
+    assert research_jobs.CLOCK_BY_FAMILY["donchian_breakout"] == "1h/4h"
     plan = build_plan(require_approval=False, candidates=["BTCUSDT"])
-    assert plan.entries
-    donch = [e for e in plan.entries if e.strategy.name == "donchian_breakout"]
-    assert donch
-    clocks = {entry.side.value: entry.timeframe for entry in donch}
-    assert clocks["LONG"] == "1h"
-    assert clocks["SHORT"] == "4h"
+    assert plan.entries == []
+    assert not any(e.strategy.name == "donchian_breakout" for e in plan.entries)
+    live_plan = build_plan(require_approval=True)
+    assert live_plan.entries == []
 
 
 def test_three_part_approval_keys_are_readable() -> None:
