@@ -2,7 +2,7 @@
 
 | Priority | Task | Status | Completion evidence |
 |---|---|---|---|
-| P0 | Publish retest experiment and owner paper approval to PR99/PR101 | In progress | Commit IDs and exact file readback |
+| P0 | Publish retest experiment and owner paper approval to PR99/PR101 | Complete | Research b2140ca485c9d5ad645cb8c2acc59a65d2cafd44; runtime public handover1e24a411c42a05b10a85a9e6dc56626e47568481; exact readbacks |
 | P1 | Check additional-token download availability tonight,Asia/Dubai | Queued | Accessible files and coverage/membership audit |
 | P1 | Compare frozen immediate baseline versus frozen60m retest across all eligible new tokens | Waiting for data and adapter parity | H-RETEST-EXPANSION-01 full ledgers,stops,win rates,net/trade and net/signal |
 | P1 | Integrate approved retest challenger into PAPER runner | Pending engineering | Durable pending state,minute-close reclaim,deadline,next-open execution,restart/idempotency and attribution tests |

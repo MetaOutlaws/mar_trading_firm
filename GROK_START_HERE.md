@@ -1,5 +1,7 @@
 # Grok: fill-price research audit and current paper rule,8 October2026
 
+PUBLICATION COMPLETE:research commit b2140ca485c9d5ad645cb8c2acc59a65d2cafd44 and runtime public handover commit1e24a411c42a05b10a85a9e6dc56626e47568481 were uploaded and read back exactly. PR101 had already merged;its new source-branch handover is a post-merge publication,not part of the historical merged diff. See hourly_retest_entry_20261008/PUBLICATION_RECORD.json.
+
 ## Owner update: retest challenger approved for PAPER,8 October2026
 
 At20:30:58 Asia/Dubai,Brian approved the exact fixed retest challenger for paper
