@@ -1,0 +1,22 @@
+CONTEXTS_RUNTIME_PATHS_COSTS_VERIFIED BTCUSDT {'independent_contexts': 61, 'runtime_frames': 2, 'runtime_hour_side_checks': 65808, 'runtime_850_hour_checks': 61}
+Traceback (most recent call last):
+  File "/workspace/scratch/b19a3bac5f86/three_token_work_20261007/research/isolated_token_study_20261003/hourly_reserved_2026_20261008/run_replication_2026.py", line 205, in <module>
+    else:globals()[a.command](a.cache,a.runtime,a.out)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b19a3bac5f86/three_token_work_20261007/research/isolated_token_study_20261003/hourly_reserved_2026_20261008/run_replication_2026.py", line 169, in preflight
+    opp,t,summary=calculate(cache,runtime,{'historical':('2022-01-01','2025-01-01'),'evaluation':('2025-01-01','2026-01-01')},out)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b19a3bac5f86/three_token_work_20261007/research/isolated_token_study_20261003/hourly_reserved_2026_20261008/run_replication_2026.py", line 117, in calculate
+    raw,v=contexts(c,f,btc,symbol,member,begin,end,runtime);verification.append(dict(symbol=symbol,**v))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b19a3bac5f86/three_token_work_20261007/research/isolated_token_study_20261003/hourly_reserved_2026_20261008/run_replication_2026.py", line 66, in contexts
+    raw=pd.concat(candidates);runtime_checks=runtime_parity(c,btc,symbol,b,raw,begin,end,runtime,set(ranks.index))
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b19a3bac5f86/three_token_work_20261007/research/isolated_token_study_20261003/hourly_reserved_2026_20261008/run_replication_2026.py", line 78, in runtime_parity
+    rule=Rule(replace(Rule().params,side=side));full=rule.generate_signals(rule.prepare_market_context(symbol,h,bh))
+                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b19a3bac5f86/hourly_connors_runtime_20261008/core/strategy/hourly_compression_btc_connors_v1.py", line 19, in prepare_market_context
+    self.validate_candles(source)
+  File "/workspace/scratch/b19a3bac5f86/hourly_connors_runtime_20261008/core/strategy/base.py", line 189, in validate_candles
+    raise ValueError(f"{self.name}: candles missing columns {sorted(missing)}")
+ValueError: hourly_compression_btc_connors_loweff_v1: candles missing columns ['high', 'low', 'open', 'volume']
