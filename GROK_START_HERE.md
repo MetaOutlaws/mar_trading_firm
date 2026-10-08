@@ -1,5 +1,87 @@
 # Grok: fill-price research audit and current paper rule,8 October2026
 
+## Latest completed: sampled-exit audit, 8 October 2026
+
+H-EXIT-POLLING-01 is complete. One-minute quote polling (the prespecified primary
+test),five-minute and15-minute scenarios retain positive pooled means in all
+three periods at base and doubled-slippage costs. One-minute sampling converts
+three former target winners to stops. Historical profit margin remains thin.
+No polling-speed,approval,entry,SL/TP or production configuration changed.
+
+The table shows mean NET trade return / stop count with fees,funding and doubled
+slippage. All arms use immediate entries and SL2%/TP2.5% from the slipped fill.
+Actual sampled exit quotes can be beyond either threshold. Same65 admitted
+signals throughout; targets equal trades minus stops. These are exit-polling
+intervals, NOT the previous experiment's entry delays.
+
+| Exit model | 2022–24: mean / stops (41 trades) | 2025: mean / stops (15 trades) | 2026: mean / stops (9 trades) |
+|---|---:|---:|---:|
+| Intrabar benchmark | +0.0702% / 20 | +1.0412% / 4 | +1.7240% / 1 |
+| Every1 minute(s) | +0.0681% / 21 | +0.8269% / 5 | +1.3193% / 2 |
+| Every5 minute(s) | +0.2586% / 19 | +1.1222% / 4 | +1.4312% / 2 |
+| Every15 minute(s) | +0.3724% / 18 | +1.0849% / 4 | +1.3560% / 2 |
+
+Primary1-minute effect:one target-to-stop conversion in EACH period. Across65
+trades,25 benchmark stops become28 sampled stops,40 targets become37. No stop
+becomes a target in this primary stressed comparison. No new/displaced admissions,
+boundary marks or same-minute ambiguities occur. Every sampled stop fills beyond
+its nominal2% quote-loss threshold. Worst net stopped loss across periods:
+intrabar−2.3271%,1-minute−2.7864%,5-minute−2.9668%,15-minute−3.3014%. A nominal2%
+trigger is not a2% realized loss cap when the price is only observed periodically.
+
+All sampled-arm four-week95% mean intervals include zero. Primary intervals:
+2022–24 −0.7325% to+0.7697%;2025 −0.3857% to+1.8653%;2026 −0.3295% to+2.4175%.
+The point screen passes; independent edge, statistical equivalence, future
+certainty and full production execution parity remain unestablished. These are
+previously examined periods, not fresh holdouts. No deliberate slower-polling
+rule should be inferred from higher averages in selected cells.
+
+Coarser polling sometimes skips stops that later recover, and can capture prices
+beyond the target. It can also miss target touches and close later at a loss.
+The historical ETH winner entered2023-09-30 14:00 UTC exits at a sampled quote
+2.7198 percentage points beyond its2.5% target (net+4.9922%). Such overshoot helps
+offset other deterioration; it is not a guaranteed improvement in execution.
+Both favorable and adverse overshoot are fully retained in the evidence.
+
+Runtime finding clarified:sampled paper stops, as well as OHLC-resolved stops,
+omit the extra adverse exit-slippage tick. This experiment deliberately retains
+the original research charge on every exit in every arm to isolate sampling.
+Reconciling that convention is the next separate comparison. Targets may be
+requoted by the runtime; that extra request latency is not simulated.
+
+Sampling uses observed minute OPEN quotes on fixed global UTC1/5/15-minute
+grids, strictly after entry. Funding ends at the known sampled timestamp;
+intrabar exits retain their conservative within-minute funding bound. The
+15-second runtime waiting-loop constant cannot be reconstructed from minute
+candles, and does not prove continuous coverage while workers/scans execute.
+These scenarios are neither measured cloud delays nor guaranteed bounds on
+actual15-second fills. No candles were interpolated and no missed touch was queued.
+
+Protocol commit a058b599b4b7473260bf90466be231487c327c9a preceded outcomes, with10
+exact file readbacks.47 tests passed. preflight_v1 exactly reproduced138 raw and
+130 admitted benchmark cost rows. results_v1 is the single treatment run:
+552 independent paths/cost rows,24 independent admissions,18 attribution checks;
+independent reporting rebuilt592 rows and156 bootstrap intervals.520 trade rows
+represent65 signals x4 exit models x2 costs. No failed treatment or retuning.
+
+APPROVED PAPER strategy remains hourly_compression_btc_connors_loweff_v1,
+BTC/ETH/SOL LONG+SHORT,1h,SL2%/TP2.5%,no timeout. Keep its existing settings.
+Immediate entry with fill-origin brackets remains the research benchmark;
+polling scenarios quantify a remaining execution sensitivity, not an approved
+strategy replacement. Paper activation/health was not checked in this research run.
+
+NEXT: reconcile the stop-exit cost convention on frozen paths, separately from
+sampling or entry delay. Then return to winner/loser diagnostics under the
+reconciled execution model before proposing new entry/risk filters. Actual
+15-second reliability needs quote/cycle/worker timestamps;minute OHLC cannot
+supply it. H-HOURLY-EXPANSION-01 remains frozen,with no new-token results opened.
+
+Read hourly_exit_polling_20261008/FINDINGS.md and PROTOCOL.md in research PR99.
+Newest cumulative archive:MAR_exit_polling_checkpoint_20261008.zip,restored over
+MAR_hourly_compression_checkpoint_20261007.zip. It carries all earlier increments,
+code,ledgers,attempt logs and the runtime snapshot;raw inputs remain separately
+saved. Earlier status sections below are historical and do not override this one.
+
 ## Latest completed: entry-latency audit, 8 October 2026
 
 H-ENTRY-LATENCY-01 is complete. Immediate,1-,5- and15-minute entries all have

@@ -1,0 +1,8 @@
+{
+  "status": "pass",
+  "report_rows_independently_rebuilt": 592,
+  "bootstrap_intervals_independently_rebuilt": 156,
+  "raw_rows": 552,
+  "ledger_rows": 520,
+  "frozen_sources_inputs_references_and_output_hashes_verified": true
+}
