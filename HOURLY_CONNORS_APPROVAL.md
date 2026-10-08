@@ -1,3 +1,5 @@
+> SUPERSEDED 8 October2026 08:11 Dubai: owner now approves BTC + Connors. Read GROK_START_HERE.md and use scripts/install_hourly_btc_connors_20261008.py. The standalone instructions below are historical.
+
 # Activate the approved standalone Connors hourly paper sleeve
 
 Status: owner approved; code and installer tested; cloud installation and scanning
