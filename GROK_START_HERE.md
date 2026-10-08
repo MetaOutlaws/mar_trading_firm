@@ -1,40 +1,40 @@
-# Grok: current research and paper approval, 8 October 2026
+# Grok: fill-price research audit and current paper rule,8 October2026
 
-Current approved PAPER strategy: hourly_compression_btc_connors_loweff_v1.
-BTC/ETH/SOL, both directions, hourly. Original compression + Connors + BTC
-confirmation, with a one-ATR extension cap only when pre-signal ER24<0.30.
-SL2%, TP2.5%, no maximum hold. No RSI14 or ADX addition. No runtime rule changed
-in this research update; this document does not verify cloud activation.
+Approved PAPER strategy remains hourly_compression_btc_connors_loweff_v1:
+BTC/ETH/SOL,both sides,1h,SL2%/TP2.5%,no timeout. Original compression + Connors +
+BTC confirmation + one-ATR extension cap only when pre-signal ER24<0.30.
+No runtime or approval change. Actual installation/scanning is not verified here.
 
-H-2026-REPLICATION-01 is complete. Frozen rule tested from 1 January through
-2 October 2026 16:00 UTC exclusive: 9 trades, 8 targets, 1 stop (11.11%),
-88.89% win rate; mean net +1.7240% base / +1.5689% doubled slippage.
-Earlier stressed means: 2022–24 +0.5003% (41 trades/15 stops), 2025 +1.1993%
-(15 trades/3 stops). All three tokens positive in2026; ETH has just one trade.
+Latest H-FILL-BRACKETS-01 audit aligns research bracket origin with the slipped
+entry fill already used by runtime. Stressed mean returns:2022–24 +0.0702%
+(41 trades,20 stops,21 targets);2025 +1.0412%(15,4,11);2026 +1.7240%(9,1,8).
+Old quote-origin means were+0.5003%,+1.1993%,+1.5689% respectively. Five historical
+winners and one2025 winner become stops;no admission identities change. Historical
+ETH is negative. Positive pooled point results remain,but historical margin is thin
+and uncertainty/earlier selection prevent a certainty claim. No retuning followed.
 
-The four-week-block95% interval is −0.1300% to +2.0857%, so the stronger uncertainty
-check does not pass. This is positive temporal replication, not an untouched
-holdout: earlier descriptive2026 market outcomes were exposed, and outside-worker
-use is unknown. No certainty, independent-edge or leverage qualification is claimed.
+Read [PR99](https://github.com/MetaOutlaws/mar_trading_firm/pull/99),
+research/isolated_token_study_20261003/hourly_fill_brackets_20261008/FINDINGS.md
+and PROTOCOL.md.25 tests,276 paths/cost/risk-level checks,12 admissions,6 attributions,
+and48 independently reconstructed intervals pass.260 rows are65 overlapping trades
+under two arms/two costs. Prior evidence is preserved.2026 is already examined.
 
-Research source: [PR99](https://github.com/MetaOutlaws/mar_trading_firm/pull/99),
-research/isolated_token_study_20261003/hourly_reserved_2026_20261008/.
-Read FINDINGS.md, PROTOCOL.md, PRIOR_USE_AUDIT.md and results_v1.
-Protocol was published and verified before scoring; historical preflight reproduced
-all56 previously approved trades across two cost assumptions. New-run contexts,
-runtime signals, minute paths, costs, admissions and bootstrap reports were checked.
-The results CSV contains18 rows representing9 trades at two cost settings.
+New-token protocol is frozen in hourly_expanded_replication_20261008/PROTOCOL.md.
+It adds this exact hourly candidate alongside the preserved original all-clock
+study;primary fill-origin brackets were chosen before this audit's results.
+No new-token data were inspected and no new-token runner has been implemented.
+Freeze and verify acquisition coverage and scoring code before opening outcomes.
 
-Runtime source: [PR101](https://github.com/MetaOutlaws/mar_trading_firm/pull/101).
-Retain the owner-approved rule and existing reviewed deployment procedure in
-HOURLY_LOWEFF_APPROVAL.md. Do not treat publication as proof of installation or
-scanning. Do not enable duplicate older hourly variants or change existing exits.
+Next research: scanner latency and sampled exits,separately from the stop-exit
+slippage convention. Use real operational evidence when available;minute-data
+proxies do not establish full production parity. Winner/loss diagnosis should use
+the fill-origin results (25 stops/40 targets),not only the old quote-based ledger.
 
-Next: obtain actual paper cycle/signal/fill evidence and collect forward observations
-with the frozen rule. Run the preregistered broader-token replication when data
-arrive. Further tuning on2026 is exploratory. No background monitor was started.
+Runtime [PR101](https://github.com/MetaOutlaws/mar_trading_firm/pull/101) and its
+reviewed HOURLY_LOWEFF_APPROVAL.md remain the operational source. Publication is
+not proof of scanning. No new symbol,live/leverage or duplicate strategy approval.
+The complete operational instructions remain in the owner's private checkpoint.
 
-Recovery: original MAR_hourly_compression_checkpoint_20261007.zip followed by
-MAR_2026_replication_checkpoint_20261008.zip; raw inputs remain separate.
-The complete operational handover and older checkpoint upload instructions remain
-in the owner's private checkpoint. This public handover contains research only.
+Recovery:original MAR_hourly_compression_checkpoint_20261007.zip followed by
+MAR_fill_brackets_checkpoint_20261008.zip;raw inputs separate. Current checkpoint
+preserves all previous increments. No background test/monitor is running.
