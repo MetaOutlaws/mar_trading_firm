@@ -1,3 +1,5 @@
+> SUPERSEDED 8 October 2026 08:39 Dubai: current owner-approved PAPER rule adds the low-efficiency-only extension cap to BTC+Connors. Read current GROK_START_HERE.md and hourly_extension_regime_20261008/OWNER_APPROVAL.md. Older instructions below are historical.
+
 # Latest owner approval: BTC + Connors hourly PAPER strategy
 
 Brian, 8 October 2026 08:11:48 Dubai, explicitly directs deployment of BTC +

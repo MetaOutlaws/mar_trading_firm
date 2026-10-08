@@ -4,7 +4,36 @@ Owner: Brian / Meta Outlaws. Repository: MetaOutlaws/mar_trading_firm.
 Purpose: reproducible handover and restart without reconstructing the chat.
 
 
-## Latest: BTC + Connors approval; extension-regime test complete — 8 October2026 Dubai
+## Current owner approval — 8 October 2026 08:39 Dubai
+
+BTC + Connors + LOW-EFFICIENCY-ONLY one-ATR extension cap is now the approved
+PAPER deployment. Strategy hourly_compression_btc_connors_loweff_v1. ER24<0.30
+before the signal hour applies the cap; ER>=0.30 does not. BTC/ETH/SOL both
+sides,1h,SL2%/TP2.5%,no timeout. Read hourly_extension_regime_20261008/
+OWNER_APPROVAL.md and the current root GROK_START_HERE.md. All earlier hourly
+selection instructions below are historical and superseded.
+
+Runtime prepared in PR101;43 targeted tests and143 full+143 rolling context
+checks pass. Cloud installation/scanning remains NOT VERIFIED here. Grok must
+use scripts/install_hourly_btc_connors_loweff_20261008.py, then verify a fresh
+healthy hourly cycle. Preserve other strategies, positions and their exits.
+
+Approved stressed results:2022–24 41 trades/15 stops/+0.5003% mean;2025 15 trades/
+3 stops/+1.1993%. No-cap comparison56/22/+0.3849% and19/5/+0.9205%. Confidence
+intervals for improvement include zero; no claim of independent/certain edge.
+
+Both exact6October checkpoint archives were recovered and internally verified.
+Release upload remains pending because this connector cannot upload release
+assets. See handover/checkpoints_20261006 in PR99 for hashes and the authenticated
+Grok upload helper; no archive upload is claimed. Owner has direct downloads.
+
+No new research experiment this turn. RSI regime study remains queued; freeze
+its next protocol using the newly approved benchmark before scoring. The old
+extension-regime research sources/results remain unchanged.
+
+---
+
+## Historical 08:11 approval and research snapshot: BTC + Connors; extension-regime test complete — 8 October2026 Dubai
 
 CURRENT OWNER-APPROVED PAPER DEPLOYMENT IS BTC + CONNORS. Brian's08:11 Dubai
 instruction supersedes standalone Connors. Read hourly_btc_connors_interaction_20261008/
