@@ -128,20 +128,22 @@ def test_paper_plan_scans_override_and_live_does_not(monkeypatch) -> None:
     assert universe.is_approved("BTCUSDT", "SHORT") is True
     assert universe.is_approved("SOLUSDT", "LONG") is False
     assert universe.has_paper_override("mama_fama_cross", "BTCUSDT", "SHORT", "4h") is True
-    atr_1h = {
+    # b117648 emptied PAPER_SCAN_SLEEVES (Brian YES, 2026-09-09). The 1h ATR
+    # inject on BNB/XRP/AVAX is not a research approval and not a paper
+    # override, so it must be absent from both books. Live stays the single
+    # approved 4h sleeve asserted above.
+    atr_1h_paper = {
         (e.symbol, e.side.value, e.strategy.name, e.timeframe)
         for e in paper.entries
         if e.strategy.name == "atr_channel_breakout" and e.timeframe == "1h"
     }
-    assert atr_1h == {
-        ("BNBUSDT", "LONG", "atr_channel_breakout", "1h"),
-        ("BNBUSDT", "SHORT", "atr_channel_breakout", "1h"),
-        ("XRPUSDT", "LONG", "atr_channel_breakout", "1h"),
-        ("XRPUSDT", "SHORT", "atr_channel_breakout", "1h"),
-        ("AVAXUSDT", "LONG", "atr_channel_breakout", "1h"),
-        ("AVAXUSDT", "SHORT", "atr_channel_breakout", "1h"),
+    atr_1h_live = {
+        (e.symbol, e.side.value, e.strategy.name, e.timeframe)
+        for e in live.entries
+        if e.strategy.name == "atr_channel_breakout" and e.timeframe == "1h"
     }
-    assert not any(e.timeframe == "1h" and e.strategy.name == "atr_channel_breakout" for e in live.entries)
+    assert atr_1h_paper == set()
+    assert atr_1h_live == set()
 
 
 def test_certify_paper_allows_operator_overrides(tmp_path, monkeypatch) -> None:
@@ -282,5 +284,11 @@ def test_certify_paper_accepts_atr_1h_candidates(tmp_path, monkeypatch) -> None:
     report = integrity_mod.certify_paper()
     sleeve = next(c for c in report["checks"] if c["name"] == "paper_sleeve")
     clock = next(c for c in report["checks"] if c["name"] == "paper_clock")
+    # The approved 4h BTC sleeve is on the cycle, so the family allow-list
+    # still passes. The 1h BNB row used to be a PAPER_SCAN_SLEEVES exception
+    # (catalog clock for atr_channel_breakout is 4h/4h). b117648 emptied that
+    # tuple, so certify must reject the stale 1h candidate instead of
+    # treating ``paper_candidate`` as a clock waiver.
     assert sleeve["ok"] is True
-    assert clock["ok"] is True
+    assert clock["ok"] is False
+    assert "BNBUSDT LONG 1h (want 4h)" in clock["detail"]

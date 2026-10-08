@@ -215,6 +215,16 @@ def test_recovered_timeout_is_not_a_live_failure(firm_db, monkeypatch, tmp_path)
 
 
 def test_refresh_scan_plan_switches_sleeve(tmp_path, monkeypatch) -> None:
+    """The research pointer switches sleeves; the paper blotter does not.
+
+    Commit b117648 (Brian YES, 2026-09-09) stopped ``build_plan`` from
+    injecting the latest coded job as an unapproved forward-test. The old
+    expectation (donchian, then bollinger, plus leftover ATR rows) was the
+    pre-change blotter. ``paper_scan_family`` still follows the job ledger:
+    a done job, then a running job. With no approvals and no paper
+    overrides, both paper plans stay empty. Live (``require_approval=True``)
+    stays empty too — this test must not unlock a sleeve.
+    """
     from config.universe import Universe, get_universe
     from core.execution.engine import build_plan
     from firm import research_jobs
@@ -229,14 +239,14 @@ def test_refresh_scan_plan_switches_sleeve(tmp_path, monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(research_jobs, "JOBS_PATH", tmp_path / "research_jobs.json")
+    research_jobs._LAST_GOOD_JOBS = None
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":[{"family":"donchian_breakout","status":"done","symbols":["BTCUSDT"]}]}',
         encoding="utf-8",
     )
+    assert research_jobs.paper_scan_family() == "donchian_breakout"
     first = build_plan(require_approval=False, candidates=["BTCUSDT"])
-    first_names = {e.strategy.name for e in first.entries}
-    assert "donchian_breakout" in first_names
-    assert first_names <= {"donchian_breakout", "atr_channel_breakout"}
+    assert {e.strategy.name for e in first.entries} == set()
 
     (tmp_path / "research_jobs.json").write_text(
         '{"jobs":['
@@ -245,10 +255,11 @@ def test_refresh_scan_plan_switches_sleeve(tmp_path, monkeypatch) -> None:
         "]}",
         encoding="utf-8",
     )
+    assert research_jobs.paper_scan_family() == "bollinger_mean_reversion"
     second = build_plan(require_approval=False, candidates=["BTCUSDT"])
-    second_names = {e.strategy.name for e in second.entries}
-    assert "bollinger_mean_reversion" in second_names
-    assert second_names <= {"bollinger_mean_reversion", "atr_channel_breakout"}
+    assert {e.strategy.name for e in second.entries} == set()
+    live_plan = build_plan(require_approval=True)
+    assert live_plan.entries == []
 
 
 def test_named_strategy_does_not_fall_back_to_rsi() -> None:
