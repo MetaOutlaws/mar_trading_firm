@@ -1,0 +1,9 @@
+{
+  "status": "pass",
+  "raw_signals": 69,
+  "independent_indicator_checks": 276,
+  "all_pinned_entry_features_match": true,
+  "causal_prefix_checks": 6,
+  "new_associations_scored": false,
+  "feature_sha256": "05ba8da1b890f0bd0404ce110c51287bc661011efae411cd6d2daeee9de01f86"
+}
