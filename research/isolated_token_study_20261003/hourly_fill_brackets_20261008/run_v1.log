@@ -1,0 +1,16 @@
+PATHS_AND_COSTS_VERIFIED BTCUSDT
+PATHS_AND_COSTS_VERIFIED ETHUSDT
+PATHS_AND_COSTS_VERIFIED SOLUSDT
+           arm            partition  stress  n     mean  stop_count  target_count  boundary_count
+quote_brackets           historical       1 41 0.006229          15            26               0
+quote_brackets           historical       2 41 0.005003          15            26               0
+quote_brackets           evaluation       1 15 0.013400           3            12               0
+quote_brackets           evaluation       2 15 0.011993           3            12               0
+quote_brackets reserved_replication       1  9 0.017240           1             8               0
+quote_brackets reserved_replication       2  9 0.015689           1             8               0
+ fill_brackets           historical       1 41 0.003529          18            23               0
+ fill_brackets           historical       2 41 0.000702          20            21               0
+ fill_brackets           evaluation       1 15 0.014097           3            12               0
+ fill_brackets           evaluation       2 15 0.010412           4            11               0
+ fill_brackets reserved_replication       1  9 0.018015           1             8               0
+ fill_brackets reserved_replication       2  9 0.017240           1             8               0

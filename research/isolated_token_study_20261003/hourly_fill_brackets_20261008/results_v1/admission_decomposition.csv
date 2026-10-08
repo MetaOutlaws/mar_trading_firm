@@ -1,0 +1,7 @@
+partition,stress,shared,newly_admitted,displaced,shared_delta_net_sum,new_net_sum,displaced_quote_net_sum,actual_difference_additive_sum,shared_stops,shared_targets,newly_admitted_stops,newly_admitted_targets,displaced_stops,displaced_targets
+evaluation,1,15,0,0,0.010455875622256944,0.0,0.0,0.010455875622256916,3,12,0,0,0,0
+evaluation,2,15,0,0,-0.023711846631058204,0.0,0.0,-0.023711846631058187,4,11,0,0,0,0
+historical,1,41,0,0,-0.11070446674032478,0.0,0.0,-0.11070446674032478,18,23,0,0,0,0
+historical,2,41,0,0,-0.17632253485665308,0.0,0.0,-0.17632253485665306,20,21,0,0,0,0
+reserved_replication,1,9,0,0,0.00697815615231364,0.0,0.0,0.006978156152313675,1,8,0,0,0,0
+reserved_replication,2,9,0,0,0.01395783618524819,0.0,0.0,0.01395783618524818,1,8,0,0,0,0

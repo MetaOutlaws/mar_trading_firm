@@ -1,0 +1,13 @@
+{
+  "positive_point_robustness_all_periods": true,
+  "checks": {
+    "historical": true,
+    "evaluation": true,
+    "reserved_replication": true
+  },
+  "statistical_equivalence_established": false,
+  "independent_edge_established": false,
+  "production_execution_parity": false,
+  "automatic_deployment": false,
+  "additional_token_outcomes_scored": false
+}
