@@ -1,0 +1,14 @@
+{
+  "status": "pass",
+  "entry_outcome_rows_exactly_reconciled": 520,
+  "primary_anatomy_rows": 65,
+  "historical_candidate_rows_rebuilt": 24,
+  "report_rows_independently_rebuilt": 1473,
+  "bootstrap_intervals_independently_rebuilt": 96,
+  "sources_inputs_runtime_references_outputs_verified": true,
+  "selection_precedes_later_associations": true,
+  "verifier_revision": "verify_report_v2.py",
+  "verifier_sha256": "72ccc3479979166a38d44ef8e7d9a1dfe9bf752697aa158dff2e865d3fe3a900",
+  "original_verifier_retained": true,
+  "verification_only_correction": "Exact round-trip CSV float parsing at median boundaries; no outcome or nomination change"
+}

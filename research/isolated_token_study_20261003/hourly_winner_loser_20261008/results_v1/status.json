@@ -1,0 +1,22 @@
+{
+  "status": "complete",
+  "completed_at": "2026-10-08T15:20:37.418964+00:00",
+  "output_hashes": {
+    "freeze.json": "70e3d1ad8cb6e14e549130ad7288af7f3d9c91c525a1ea8641149955a92d39b8",
+    "feature_profiles.csv": "945ee147da13da2a0d68e8dda54f76ead638892d43cc736dd5aed0b65933ba9c",
+    "nominee_subsets.csv": "e2f991bb208f221421f2027e6ff3c4719d08365ea450a9202b4ebfd1e4f45941",
+    "entry_outcome_evidence.parquet": "33593a4d73a04d9bcf79a5126003c811e87c25837eef397fdbd0fe091c94c415",
+    "model_summaries.csv": "887d732d8cc5a58ca7f1bd01f1739f38cd2d243542e3e5af920b52dba84724dd",
+    "entry_outcome_evidence.csv": "8d92273b33a4f059fd554ff7fd38ae9c4b561bd5835f7fcf58efbd7e81d5d064",
+    "path_summary.csv": "aef90053ed6c5907c49d721cfc854cfaad8782b68ab97f613b1931c55b884f4d",
+    "calendar_clusters.csv": "189ce6dde32d6d77c391fbcecac71d9d1132fbed1901f5c3ca69aa0c19d06974",
+    "primary_summary.csv": "35e792078d4d7e7f346520cf6c2c8428acd11df6174309ddbfa40e7cafa9febf",
+    "feature_bins.csv": "d53cf7bc8b47456207472c786fd94ac463b6397aa18fd3bc66f41fe0117b7d7c",
+    "excursion_counts.csv": "c9e881dc8108b65d0a787d5886f531dea6a67553e7b9a97e69cfb57cc7a9dfcf",
+    "nominee_subgroups.csv": "3761f16970042805cb9254ee041a4d4dce8d25c06b53b23d1c6ef8a86d615510",
+    "primary_trade_anatomy.parquet": "ae3cbe6e875418432331e4e6713148666a5c12ce7f393b22d5c1f93401064d60",
+    "primary_trade_anatomy.csv": "c0f4c8ab95bbb0777542428b401e80be490e0b269ad51a37da0bcdd31fc0416d",
+    "VERIFICATION.json": "3062dd239e13b81d4838532603fe583dce138f255221546252888dd6f681db49",
+    "decision.json": "b8351d9400cc5bc836dc7e411fa1df5fb4697daf179dbddbb2a85f27ae5a11c0"
+  }
+}

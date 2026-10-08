@@ -1,5 +1,98 @@
 # Grok: fill-price research audit and current paper rule,8 October2026
 
+## Latest completed: winner/loser diagnostic, 8 October 2026
+
+H-WINNER-LOSER-DIAGNOSTIC-01 is complete. Keep the approved PAPER strategy.
+The historically strongest lead,smaller breakout extension,does not transfer
+consistently:it improves2022–24 and2026,but weakens2025 in ALL eight fixed
+execution/cost views. Do not add the tighter extension filter or replace it
+post hoc with another indicator from this diagnostic.
+
+Twelve causal entry features were examined,including volume,RSI14,Connors RSI,
+ADX,volatility,compression,body size,BTC/own-token momentum and prior efficiency.
+The nominee was selected using2022–24 only,then published BEFORE generating
+later-period feature/outcome tables. The frozen split is extension_atr<=
+0.5337759022674707,the historical median distance beyond the prior20-hour
+breakout boundary in units of priorATR. It is a diagnostic split,not a deployable
+precision-optimized threshold. All periods were already examined in prior work.
+
+Primary evidence:one-minute sampled exits,doubled slippage,reconciled stop
+accounting,fees and funding. These are ORIGINAL ADMITTED SUBSETS,not a new
+portfolio backtest;an actual filter requires replaying all69 raw opportunities.
+
+| Period | Baseline trades / stops / mean net | Closer-entry subset trades / stops / mean net | Excluded targets / stops |
+|---|---:|---:|---:|
+| 2022–24 | 41 / 21 / +0.1291% | 21 / 7 / +1.0745% | 6 / 14 |
+| 2025 | 15 / 5 / +0.8729% | 7 / 4 / -0.2288% | 7 / 1 |
+| 2026 Jan–2 Oct | 9 / 2 / +1.3411% | 5 / 0 / +2.3685% | 2 / 2 |
+
+Historical retained win rate66.67% versus baseline48.78%;2025 retained42.86%
+versus66.67%;2026 retained100% versus77.78%,with only5 retained trades.2025's
+tighter split removes SEVEN target winners and only ONE stop. The2025 loss of
+performance persists with intrabar exits,base costs,and the old cost convention;
+it is not explained solely by the sampled-exit mismatch. The2026 result contains
+only two baseline losses and no retained ETH trades,so100% is very limited evidence.
+
+No one of the12 continuous features has a strictly consistent winner/loser rank
+direction in all three primary periods. Lower ADX,lower volatility and lower
+aligned Connors were historical associations,not stable replacement filters.
+Higher volume is not universally better. Calendar years are not trading regimes;
+do not label2025 'chop' merely because a preferred rule weakens there.
+
+PATH FINDINGS:19/37 eventual winners (51.35%) moved at least1% against the slipped
+entry,7/37 moved at least1.5%,and none reached2% adverse excursion before their
+sampled target exit.15/28 stopped trades (53.57%) had first shown at least1%
+gross favorable excursion;7/28 reached at least2%. These extrema include held
+minute highs/lows and the exit quote. They are not executable net profit or an
+alternate stop/trailing backtest. A1% stop risks interrupting many winning paths,
+but this does not establish that widening2% or tightening after profit improves
+the whole portfolio. The earlier failed profit-protection studies remain valid.
+
+Historical results remain fragile:remove the single largest sampled winner and
+mean net falls from+0.1291% to about+0.0075%. The41 historical trades span38 dates
+and36 active weeks;15 evaluation trades span15 dates/14 weeks;9 recent trades
+span7 dates/7 weeks. The stopped trades have distinct entry dates within each
+period. This small sample cannot establish a calendar/regime switching rule.
+
+Verification:13 tests passed;276 independent indicator checks;6 causal prefix
+checks;520 reference outcome rows exactly reconciled;65 independent sampled
+path checks;24 historical candidate rows,1,473 report rows and96 bootstrap
+intervals independently rebuilt. One preflight,one historical run and one later
+diagnostic run. The first report verifier encountered CSV float rounding at
+exact median boundaries;round-trip parsing corrected only the verifier.
+Original verifier and correction are preserved;outcomes and nomination unchanged.
+
+Protocol-before-associations:bfd30e13a4ebe0240e3e4d82d91dbb9fbdac7255,10 files
+read back exactly. Historical nomination-before-later-tables:
+e71c81dceba1be016fdc1c727402edbff645b90a,9 files read back exactly.
+Read hourly_winner_loser_20261008/{PROTOCOL,FINDINGS,DEVELOPMENT_FINDING}.md,
+development_v1/selection.json and results_v1 in research PR99.
+
+APPROVED PAPER remains hourly_compression_btc_connors_loweff_v1,BTC/ETH/SOL,
+LONG+SHORT,1h,SL2%/TP2.5%,no timeout;the existing low-efficiency extension cap
+remains1ATR. No new0.534ATR cap,RSI/ADX gate,stop width or polling setting is
+approved or deployed. Runtime implementation stays
+3c226bca19cca1c771bcb2ed637f9ec39f74c432. No cloud-health verification this turn.
+
+NEXT PROPOSED ISOLATED TEST:H-BREAKOUT-RETEST-ENTRY-01. Hypothesis:an approved
+breakout can obtain a better entry after a boundary retest and completed
+one-minute reclaim,without excluding it solely for its initial extension.
+Compare immediate entry against one fixed retest rule;keep signal eligibility,
+initial2% stop/2.5% target from fill,and exit model unchanged. Report nonfills,
+missed target winners,stops,new admissions,mean per filled trade AND net per
+original signal including unfilled zeros. A retest can miss strong continuations;
+that opportunity cost is central,not a reason to hide nonfills.
+This is a proposal requiring its own exact protocol and novelty audit before
+outcomes;no retest result or background run exists. It is a different entry
+mechanism from raising an indicator threshold. Additional-token replication
+remains the preferred source of new evidence when its data become available.
+
+Newest cumulative archive:MAR_winner_loser_checkpoint_20261008.zip,restore over
+MAR_hourly_compression_checkpoint_20261007.zip. Full per-trade anatomy,all
+entry-feature comparisons,older increments,failed attempts and runtime snapshot
+are retained. H-HOURLY-EXPANSION-01 remains unchanged;no new-token outcomes opened.
+Earlier status sections below are historical and do not override this one.
+
 ## Latest completed: stop-cost reconciliation, 8 October 2026
 
 H-STOP-COST-01 is complete. Research previously applied an extra adverse exit
