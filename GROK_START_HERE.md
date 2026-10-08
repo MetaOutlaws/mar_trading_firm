@@ -1,4 +1,4 @@
-# Grok handover — current owner approval, 8 October 2026 08:39 Dubai
+# Grok handover — current approval and completed RSI regime study, 8 October 2026
 
 CURRENT approved PAPER rule: BTC + Connors + an extension cap ONLY in low-efficiency
 conditions. This supersedes BTC+Connors without a cap and standalone Connors.
@@ -120,6 +120,15 @@ original bytes and historical notes. For the latest hourly research use the
 7October hourly base +8October extension-regime increment, then this approval
 and current GitHub handover. Old deployment notes are superseded.
 
-No new experiment was run in this approval/upload turn. RSI regime testing is
-queued; freeze its protocol against the newly approved conditional-cap benchmark
-before scoring. New-token and prospective validation remain outstanding.
+H-RSI-REGIME-01 is now complete. Read hourly_rsi_regime_20261008/FINDINGS.md in
+PR99. RSI14 adds no value: low-efficiency-only changes no trades; always or
+directional-only removes one historical stop and two winners, lowering stressed
+mean+0.5003% to+0.4914%. All2025 variants remain15 trades/3 stops/+1.1993%.
+No RSI policy passes the frozen point screen. Do not add RSI14 or retune thresholds.
+23 focused tests,143 independent RSI and143 ER checks,16 admission replays pass.
+No2026 outcomes scored. Runtime rule, installer and approval are unchanged.
+
+Next research is independent confirmation, beginning with a provenance/coverage
+audit of reserved2026 BTC/ETH/SOL data before a separate preregistered validation.
+Only genuinely unused data can be called independent. Broader-token work awaits
+new data. No automatic follow-on experiment or background monitor is running.
