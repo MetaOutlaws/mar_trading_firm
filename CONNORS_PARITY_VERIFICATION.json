@@ -1,0 +1,9 @@
+{
+  "status": "pass",
+  "historical_entry_contexts": 143,
+  "rolling_850_hour_checks": 143,
+  "full_history_signal_frames": 6,
+  "max_rolling_crsi_error": 0.0,
+  "scope": "entry rule parity, not production fills",
+  "scores_2026": false
+}

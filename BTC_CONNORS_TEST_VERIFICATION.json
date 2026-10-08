@@ -1,0 +1,8 @@
+{
+  "status": "pass",
+  "tests_passed": 37,
+  "tests_deselected": 1,
+  "command": "python -m pytest -q tests/test_hourly_btc_connors.py tests/test_hourly_btc_connors_deploy.py tests/test_paper_guards.py tests/test_f05_exit_supervision.py -k 'not approved_count_matches_approved_true_research_keys'",
+  "limitation": "One unrelated API approved-count test could not import FastAPI in this local environment; initial attempt 27 passed and 1 failed on missing dependency. No claim that this API test passed.",
+  "cloud_activation_verified": false
+}
