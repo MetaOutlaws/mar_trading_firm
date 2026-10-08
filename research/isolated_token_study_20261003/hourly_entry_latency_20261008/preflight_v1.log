@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/b19a3bac5f86/three_token_work_20261007/research/isolated_token_study_20261003/hourly_entry_latency_20261008/run_latency.py", line 187, in <module>
+    else:globals()[a.command](a.cache,a.runtime,a.out)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b19a3bac5f86/three_token_work_20261007/research/isolated_token_study_20261003/hourly_entry_latency_20261008/run_latency.py", line 154, in preflight
+    out.mkdir(parents=True,exist_ok=False);verify_references(cache,runtime)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b19a3bac5f86/three_token_work_20261007/research/isolated_token_study_20261003/hourly_entry_latency_20261008/run_latency.py", line 28, in verify_references
+    inputs,refs=prior.verify_reference_files(cache,runtime)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b19a3bac5f86/three_token_work_20261007/research/isolated_token_study_20261003/hourly_fill_brackets_20261008/run_fill_brackets.py", line 39, in verify_reference_files
+    for n,h in f.get(group,{}).items():assert sha(root/n)==h,n
+                                              ^^^^^^^^^^^^^^
+AssertionError: BTCUSDT_1m.parquet

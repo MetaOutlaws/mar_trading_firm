@@ -1,0 +1,9 @@
+{
+  "status": "pass",
+  "total_tests": 40,
+  "new_latency_tests": 15,
+  "retained_bracket_tests": 25,
+  "pytest_version": "9.1.1",
+  "duration_seconds": 2.49,
+  "delayed_market_outcomes_scored": false
+}
