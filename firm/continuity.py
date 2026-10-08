@@ -712,6 +712,37 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
             skipped.append(f"{family} {clock} {side} already finished")
             continue
 
+        from firm.research_jobs import (
+            note_suppressed_walk_forward_ask,
+            walk_forward_ask_block_reason,
+        )
+
+        # Rejected Inbox asks are terminal even when the jobs ledger was reset
+        # and the paper book has not yet absorbed the grid.
+        block_reason = walk_forward_ask_block_reason(
+            {**spent_row, "action": "walk_forward"},
+            jobs=list_jobs(),
+        )
+        # A pending Inbox ask is a filing duplicate, not a reason to drop a
+        # Tier A start. Approved, rejected, and completed grids are terminal.
+        if block_reason and block_reason != "duplicate pending Inbox ask":
+            note_suppressed_walk_forward_ask(
+                {"family": family, "clock": clock, "side": side},
+                block_reason,
+            )
+            stamp_job(
+                int(job["id"]),
+                status="gated",
+                stage="standby",
+                updated_by="desk_head",
+                blocked_by="terminal_family",
+                next_action="idle_or_queue_novel",
+                next_action_owner="desk_head",
+            )
+            skipped_keys.add(_advance_key(family, clock, side, hid))
+            skipped.append(f"{family} {clock} {side} {block_reason}")
+            continue
+
         expand_block = unauthorized_clock_expand(job, jobs=list_jobs())
         if expand_block:
             _warn_gated_auto_expand(expand_block, job=job)
@@ -848,10 +879,32 @@ def fill_walk_forward_slots(*, source: str = "event") -> dict[str, Any]:
 def _file_inbox_gate(job: dict[str, Any], envelope: dict[str, Any], *, reason: str) -> None:
     from firm import memory
     from firm.memory_models import ProposalKind
-    from firm.research_jobs import _already_pending_next
+    from firm.research_jobs import (
+        _already_pending_next,
+        note_suppressed_walk_forward_ask,
+        walk_forward_ask_block_reason,
+    )
 
     family = str(job.get("family") or "")
     clock = str(job.get("clock") or "")
+    side = str(job.get("side") or "BOTH")
+    spec = {
+        "action": "walk_forward",
+        "family": family,
+        "clock": clock,
+        "side": side,
+        "hypothesis_id": job.get("hypothesis_id") or "",
+        "id": job.get("hypothesis_id") or "",
+        "force_retest": job.get("force_retest"),
+        "operator_queued": job.get("operator_queued"),
+        "added_by": job.get("added_by") or job.get("last_updated_by") or "",
+        "disposition": job.get("disposition") or "",
+        "param_change": job.get("param_change") or {},
+    }
+    block_reason = walk_forward_ask_block_reason(spec)
+    if block_reason:
+        note_suppressed_walk_forward_ask(spec, block_reason)
+        return
     if _already_pending_next("walk_forward", family):
         return
     ttl_hours = pipeline_config().tier_b_hours if envelope.get("tier") == "B" else 14 * 24

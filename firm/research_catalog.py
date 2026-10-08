@@ -2631,23 +2631,24 @@ def history_max_job_id() -> int:
     return int(load_walk_forward_history().get("max_job_id") or 0)
 
 
-def paper_book_finished_keys() -> set[str]:
-    """family@clock[@side] keys already measured on the paper/approvals book.
+def _iter_paper_book_grids() -> list[tuple[str, str, str, bool]]:
+    """`(family, clock, side, approved)` rows already written to the paper book.
 
-    Presence in approved_strategies.json means a walk-forward wrote a verdict
-    (approved or rejected). Auto-advance must not re-run that grid to fill a slot.
+    Presence is a finished walk-forward (approved or rejected). `approved` is
+    True only when that row's verdict flag is true. Callers must not rewrite
+    the book from here.
     """
     from config.universe import APPROVALS_PATH
 
-    out: set[str] = set()
+    rows: list[tuple[str, str, str, bool]] = []
     if not APPROVALS_PATH.exists():
-        return out
+        return rows
     try:
         raw = json.loads(APPROVALS_PATH.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        return out
+        return rows
     if not isinstance(raw, dict):
-        return out
+        return rows
     for key, row in raw.items():
         if not key or str(key).startswith("_"):
             continue
@@ -2664,7 +2665,33 @@ def paper_book_finished_keys() -> set[str]:
         if not family or not tf:
             continue
         clock = f"{tf}/{tf}"
-        out.update(coverage_keys(family, clock, str(side or "BOTH").upper()))
+        approved = isinstance(row, dict) and row.get("approved") is True
+        rows.append((family, clock, str(side or "BOTH").upper(), approved))
+    return rows
+
+
+def paper_book_finished_keys() -> set[str]:
+    """family@clock[@side] keys already measured on the paper/approvals book.
+
+    Presence in approved_strategies.json means a walk-forward wrote a verdict
+    (approved or rejected). Auto-advance must not re-run that grid to fill a slot.
+    """
+    out: set[str] = set()
+    for family, clock, side, _approved in _iter_paper_book_grids():
+        out.update(coverage_keys(family, clock, side))
+    return out
+
+
+def paper_book_approved_keys() -> set[str]:
+    """Coverage keys whose paper-book verdict is approved.
+
+    A rejected verdict still occupies the grid (`paper_book_finished_keys`)
+    but is not an approval. BOTH covers LONG and SHORT, matching `coverage_keys`.
+    """
+    out: set[str] = set()
+    for family, clock, side, approved in _iter_paper_book_grids():
+        if approved:
+            out.update(coverage_keys(family, clock, side))
     return out
 
 
