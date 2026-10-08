@@ -1,0 +1,21 @@
+{
+  "status": "nominated",
+  "basis": "historical_only",
+  "historical_n": 41,
+  "later_associations_scored": false,
+  "automatic_deployment": false,
+  "feature": "extension_atr",
+  "direction": "lower",
+  "threshold": 0.5337759022674707,
+  "retained": 21,
+  "excluded": 20,
+  "retained_mean": 0.010745358437735714,
+  "excluded_mean": -0.008635929898904987,
+  "difference": 0.0193812883366407,
+  "oriented_auc": 0.7476190476190476,
+  "leave_BTC_difference": 0.026545841754290197,
+  "leave_ETH_difference": 0.017310070761103927,
+  "leave_SOL_difference": 0.015197988453947618,
+  "minimum_leave_token_difference": 0.015197988453947618,
+  "eligible": true
+}

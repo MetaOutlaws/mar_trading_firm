@@ -1,0 +1,12 @@
+{
+  "status": "complete",
+  "completed_at": "2026-10-08T15:17:39.514736+00:00",
+  "output_hashes": {
+    "freeze.json": "1c6d8e4db2b0accfd3aa4ad66195a26fe77e41a28f4386593e89db4d733f50d1",
+    "selection.json": "f59759750281d49a093cf2ad3884ddc32f1eb837da4f7fa3f6e93ccffb9970a5",
+    "bin_edges.json": "8ee4a52a97fec03022c89493927d0f683ee8ff049894ba4e037c89a1c9775cf9",
+    "historical_features.csv": "e27b967c759f4ea4ee66e7df57a48e783c38041b97d9473e9a4ec02c033e1010",
+    "historical_candidates.csv": "01f796ff45acaedb62b270a768b8e82896685429e1f6021be1636682032b8bb4",
+    "VERIFICATION.json": "9c89a017eb4368a704682d050708b8a0e2c30fe2a3dffb9e154ebce8e414f9cf"
+  }
+}
