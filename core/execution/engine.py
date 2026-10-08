@@ -1148,6 +1148,17 @@ class TradingEngine:
         if now > close_at + MAX_CANDLE_LATENCY:
             return None, latest_price
 
+        if getattr(strategy, "requires_btc_confirmation", False):
+            if entry.timeframe != "1h":
+                raise RuntimeError("BTC/Connors approval requires the 1h clock")
+            # Use the same captured clock for both assets. Never include forming
+            # BTC candles, forward-fill a missing hour or fall back to own context.
+            btc_closed = closed if entry.symbol == "BTCUSDT" else closed_candles(
+                self._data.fetch_latest("BTCUSDT", "1h", bars=strategy.min_bars + 50),
+                "1h", now=now,
+            )
+            closed = strategy.prepare_market_context(entry.symbol, closed, btc_closed)
+
         return strategy.latest_signal(entry.symbol, closed), latest_price
 
     def _refresh_crowding(self) -> None:

@@ -1,0 +1,30 @@
+{
+  "strategy": "hourly_compression_btc_connors_loweff_v1",
+  "owner_approved_at": "2026-10-08T08:39:01+04:00",
+  "installer": "scripts/install_hourly_btc_connors_loweff_20261008.py",
+  "installer_sha256": "48e2a0f5ef6d90c7818be313909c5828d7d234291f72e37ec86d48a2dc496971",
+  "critical": {
+    "core/execution/contract.py": "da24f1c9ea311252fda35c9329c84ad4bf6d26a89001daada4204eb92b1ecc54",
+    "core/strategy/base.py": "908731ab97ec8dbf037c7189f071ce0a1d6c55940ffb036c174d7df162702a3e",
+    "core/strategy/registry.py": "3d1bfbd9cbc6e1aa6adcb43849e49f9cfe93020eb31cadede942393b338db979",
+    "config/universe.py": "06511e221e3970088dec54f55d9448878a5ef7c54f30fa219f8d16dbf44a141a",
+    "core/data/ohlcv.py": "bc83562a669044903a1c9b31a64f24e140f9434dd0d018ae07e3dcffbe86b7bd",
+    "core/strategy/hourly_compression_v1.py": "ee263f0979a77f82ce7d84b650b72559028d93f1c91f453e48bbebfea6e9c078",
+    "scripts/enable_hourly_compression.py": "ed01c30d77c29707f719150afbf02bcfec17b79be2d5093569c05da7cfd062ba"
+  },
+  "allowed_previous": {
+    "core/execution/engine.py": [
+      "5023966b642c49ea809d6b613391a1dbf8c732fc673d7f727b457489a297b9c4"
+    ]
+  },
+  "payload_sha256": {
+    "core/execution/engine.py": "f275183bf25f4e1bac1de718d78b11be84c86b18e26e8caa57fccf3f9f571493",
+    "core/strategy/hourly_compression_connors_v1.py": "c0423954360e6f1a040a8b2b1895c008c56ba4233f3751402ae3a934fc7101b7",
+    "scripts/enable_hourly_connors.py": "f10f57bf1a5be8c8d8181c246064a2703a3ffeccf4c5b9b00087d55752e3e4de",
+    "core/strategy/hourly_compression_btc_connors_v1.py": "99d5c04660ae77cc62e80b9229c5595508adc607639cdd8bad1ced5cb42f6223",
+    "scripts/enable_hourly_btc_connors.py": "1b994b68cddf6771b88cebb7f82eb43d06e52241506621473bdd037e32365a0b",
+    "core/strategy/hourly_compression_btc_connors_loweff_v1.py": "9875dafa6574cfbd6a628acde962cc6cb71f97449f65f35d145a075f17fcd671",
+    "scripts/enable_hourly_btc_connors_loweff.py": "f8776df8f103d49e23859c4ade21f2e6a01a485ade7c959d6a2e0e112a09d5a4"
+  },
+  "cloud_activation_verified": false
+}

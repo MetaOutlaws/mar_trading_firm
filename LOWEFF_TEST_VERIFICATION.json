@@ -1,0 +1,8 @@
+{
+  "status": "pass",
+  "targeted_tests": 43,
+  "excluded_tests": 1,
+  "command": "python -m pytest -q tests/test_hourly_btc_connors_loweff.py tests/test_hourly_btc_connors_loweff_deploy.py tests/test_paper_guards.py tests/test_f05_exit_supervision.py -k 'not approved_count_matches_approved_true_research_keys'",
+  "limitation": "One unrelated API approved-count test remains unverified locally because FastAPI is unavailable. No claim of a complete suite or cloud activation.",
+  "cloud_activation_verified": false
+}
