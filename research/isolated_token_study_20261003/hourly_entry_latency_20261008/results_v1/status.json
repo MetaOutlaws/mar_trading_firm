@@ -1,0 +1,27 @@
+{
+  "status": "complete",
+  "completed_at": "2026-10-08T12:33:27.223940+00:00",
+  "output_hashes": {
+    "freeze.json": "bf4eb386838528b9c2f04234bc5a829d2115731a176d1bdc5087394a55dc926e",
+    "all_opportunities.parquet": "c53e0e2363f46c8c6626fa3e3c53e457f64e3763a52ec91902913ce2292273ac",
+    "frozen_signals.parquet": "d435c792fd928599a0c4645c1487ccee75f877f731e01cecc272b3be13f625db",
+    "paired_raw_outcomes.csv": "b358b245e78bfcb6dcf370846c114c712184ec0b3a754d42e96cbe8db9a9b839",
+    "endpoint_exclusions.csv": "184d945b8a12aad5d0dcf30f710474c279c2b7fc58c793fd9e6eedb2425d7fca",
+    "pooled_ledger.parquet": "70402692d456b3732e12c9949398772be06c3a5f2a60c74d0245c9195388fd9c",
+    "rejections.csv": "bd85860958069076320b4d439c97d68e1b5dba7b43799ba31dbc5fd8699c3c57",
+    "matched_results.csv": "2168c8c829caf7bbc6bf6a19ef0a673d6e11a0f469502c3952166463dd118619",
+    "admission_changes.csv": "7a24ad2a7b0d97f58acc8dabc72f081d479e7e553acbdb35fe10135f5a9adec5",
+    "leave_one_token_out.csv": "679f9a1f05070a199fddb17d7982f340081c247c4a5417bef70f81eadcfeb5d4",
+    "changed_trade_paths.csv": "99a00caeff6664009db95aa820351b4002412fe49efa13f3313e40297a92451e",
+    "pooled_results.csv": "0365eafc46baaebfc295e620d2d0a337a7c9ae5831d971808c45ce807898f2bc",
+    "admission_decomposition.csv": "5478c93b9b752cbdaad1c894df6202afd5160145d7f36ec9ae05e2035a7bc058",
+    "entry_timing_diagnostics.csv": "1ec94fe5e771add835ce86bd501a620d18879f31eb8dbc97a72f98ec4b037003",
+    "individual_trades.csv": "679807c27a670c220a62e7b088bc149cb34511b83d00b227f6ee67d7e41b87b4",
+    "subgroups.csv": "64a7bead20dd3d92efa0cc465902d696d3545391a428fc28dd52a424689a41d4",
+    "VERIFICATION.json": "844b7441bd24853a156dce89bb520823adc5aff7f689de250e2d413b945314d5",
+    "matched_baseline_signals.csv": "b3c1cf94eb2f8d0358587c2673d7c6522816a7164856da75d62387a691e5293e",
+    "decision.json": "652a158537b1f136bcf72880ef245c480862cf085b420933b19cfe918f62b140",
+    "outcome_transitions.csv": "02d4120b6618e94c2d40ea6e78c50adcfb809413cc6437443872a1b82a6c2fbb",
+    "contrasts.csv": "67c0aedff972a83c9702db6b729ee40c3ce9c220ed6ff602b1d00e9e840c9dde"
+  }
+}

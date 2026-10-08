@@ -1,0 +1,25 @@
+{
+  "primary_delay_minutes": 5,
+  "primary_positive_point_screen": true,
+  "checks": {
+    "1": {
+      "historical": true,
+      "evaluation": true,
+      "reserved_replication": true
+    },
+    "5": {
+      "historical": true,
+      "evaluation": true,
+      "reserved_replication": true
+    },
+    "15": {
+      "historical": true,
+      "evaluation": true,
+      "reserved_replication": true
+    }
+  },
+  "automatic_deployment": false,
+  "independent_edge_established": false,
+  "production_execution_parity": false,
+  "additional_token_outcomes_scored": false
+}
