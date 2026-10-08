@@ -3,7 +3,71 @@
 Updated 7 October 2026. Owner: Brian / Meta Outlaws.
 Objective: identify positive net expectancy that survives execution costs and independent confirmation, then improve risk and exits. Fewer trades are acceptable; support may be pooled across tokens without assuming those tokens are independent.
 
-## Latest status: BTC / Connors interaction and paper approval — 8 October 2026 Dubai
+## Latest: BTC + Connors approval; extension-regime test complete — 8 October2026 Dubai
+
+CURRENT OWNER-APPROVED PAPER DEPLOYMENT IS BTC + CONNORS. Brian's08:11 Dubai
+instruction supersedes standalone Connors. Read hourly_btc_connors_interaction_20261008/
+OWNER_APPROVAL.md. BTC/ETH/SOL, both directions,1h,SL2%/TP2.5%,no timeout; own
+CRSI(3,2,100) LONG<=90/SHORT>=10, ETH/SOL confirmed by matching completed BTC24
+return sign; BTC unchanged. No live/leverage/new-token approval.
+
+Runtime is implemented in PR101, branch codex/hourly-connors-paper-20261008,
+commit b7a4178a299273ae86fc1630aa9feea882ed6d3b. Read root GROK_START_HERE.md.
+37 targeted tests pass;143 full+143 rolling contexts match. One unrelated API
+count test is unverified locally due missing FastAPI, recorded transparently.
+Grok will review and deploy with its existing cloud access, then verify a fresh
+healthy hourly scan, no duplicate sleeves and preserved positions/exits. Cloud
+installation/scanning of the combination remains NOT VERIFIED by this chat.
+Do NOT run the superseded standalone installer. No new SSH probe this turn.
+
+Selection rationale: combination improves2022–24 mean +0.1952% to+0.3849%
+stressed, saves4 Connors stops and loses0 target winners.2025 identical19 trades,
+5 stops,14 targets,+0.9205%. Prior strict experimental flag is preserved, but
+owner PAPER selection correctly accepts historical improvement with unchanged
+2025. This is point evidence, not statistical non-inferiority or certain profit.
+
+NEXT TEST NOW COMPLETE: H-EXT-REGIME-01. ER24 before the signal hour partitions
+states at0.30, same definition across both periods. Extension<=1 priorATR,
+unchanged entries/exits otherwise. Main benchmark is BTC+Connors; original
+baseline is a separate diagnostic. Protocol committed before scoring:
+94ee97be88aacf0dca4dc9f927274c718027dced. No threshold search or2026 outcomes.
+
+| Policy on BTC+Connors | 2022–24 trades/stops/stressed mean | 2025 trades/stops/stressed mean |
+|---|---|---|
+| No extension cap (approved) |56/22/+0.3849%|19/5/+0.9205%|
+| Cap always |38/14/+0.4914%|15/3/+1.1993%|
+| Cap only directional |53/21/+0.3720%|19/5/+0.9205%|
+| Cap only low-efficiency |41/15/+0.5003%|15/3/+1.1993%|
+
+Low-efficiency-only passes the predeclared practical point screen at both costs;
+directional-only fails. Candidate removes7 stops/8 targets historically and2
+stops/2 targets in2025, with no new/displaced admissions. Average quality rises,
+but historical additive return sum falls slightly; not an account return.
+Incremental confidence intervals include zero in both periods. Historical SOL
+mean worsens;2025 ETH has only2 trades. All candidate token/annual/leave-one-out
+means are positive.2025 directional state has only1 benchmark trade, so no
+claim that conditionality beats always-on activation there. Full-year path-state
+frequencies differ modestly, not evidence that all2022–24=trend/all2025=chop.
+
+This candidate is RESEARCH ONLY; latest approved deployment stays BTC+Connors.
+No auto regime/extension switch. Read hourly_extension_regime_20261008/FINDINGS.md,
+PROTOCOL.md and results_v1.32 independent admission replays,143 independent
+state checks, exact three prior-arm reproduction,24 attribution checks,56 report
+row checks.1372 ledger rows are overlapping eight arms and two cost scenarios.
+
+NEXT: H-RSI-REGIME-01 using exactly the same state definition, separately on the
+approved BTC+Connors benchmark; no silent stacking with the new extension cap.
+Then broader-token/prospective confirmation when data are available. Previous
+extension/RSI/BTC-Connors conditional-use hypotheses remain retained. No background
+experiment or monitoring is running in this chat.
+
+Recovery: newest MAR_extension_regime_checkpoint_20261008.zip over the original
+full MAR_hourly_compression_checkpoint_20261007.zip; raw inputs remain separate.
+The newest increment contains all previous research increments and latest owner
+status. Read RESTORE_EXTENSION_REGIME_STUDY.md. Older sections below are historical
+and superseded where paper preference or next-test status differs.
+
+## Historical status before owner correction: BTC / Connors interaction and paper approval — 8 October 2026 Dubai
 
 Brian approved standalone Connors RSI for PAPER at 01:08 Dubai. This is the latest
 paper preference: BTC/ETH/SOL LONG/SHORT, 1h, original compression plus CRSI(3,2,100),

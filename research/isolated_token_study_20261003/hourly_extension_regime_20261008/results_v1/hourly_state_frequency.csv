@@ -1,0 +1,13 @@
+symbol,partition,directional,hours,total_valid_hours
+BTCUSDT,historical,False,19272,26278
+BTCUSDT,historical,True,7006,26278
+BTCUSDT,evaluation,False,6566,8760
+BTCUSDT,evaluation,True,2194,8760
+ETHUSDT,historical,False,19028,26278
+ETHUSDT,historical,True,7250,26278
+ETHUSDT,evaluation,False,6412,8760
+ETHUSDT,evaluation,True,2348,8760
+SOLUSDT,historical,False,19494,26278
+SOLUSDT,historical,True,6784,26278
+SOLUSDT,evaluation,False,6465,8760
+SOLUSDT,evaluation,True,2295,8760

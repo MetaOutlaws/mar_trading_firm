@@ -1,3 +1,5 @@
+> Superseded as current deployment preference on8 October2026 08:11 Dubai: latest owner-approved PAPER variant is BTC + Connors. See hourly_btc_connors_interaction_20261008/OWNER_APPROVAL.md and root GROK_START_HERE.md. Original approval below remains historical.
+
 # Owner approval: preferred hourly paper variant
 
 Recorded 7 October 2026, from Brian's instruction at 23:18 Dubai time:
