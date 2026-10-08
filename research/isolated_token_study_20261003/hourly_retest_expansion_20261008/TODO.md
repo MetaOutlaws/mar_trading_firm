@@ -3,7 +3,9 @@
 | Priority | Task | Status | Completion evidence |
 |---|---|---|---|
 | P0 | Publish retest experiment and owner paper approval to PR99/PR101 | Complete | Research b2140ca485c9d5ad645cb8c2acc59a65d2cafd44; runtime public handover1e24a411c42a05b10a85a9e6dc56626e47568481; exact readbacks |
-| P1 | Check additional-token download availability tonight,Asia/Dubai | Queued | Accessible files and coverage/membership audit |
+| P1 | Check additional-token download availability tonight,Asia/Dubai | Waiting for an accessible mount/upload | The Windows-local dataset is not mounted here; no newer Library/GitHub data record at the latest check |
+| P1 | Restore frozen reference inputs and prevent duplicate independent runs | Complete | Retest checkpoint and six BTC/ETH/SOL inputs re-hashed; `run_state.py` uses an atomic `codex_independent` claim |
+| P1 | Prepare outcome-blind collector audit | Complete | `data_gate.py`; manifest/membership/grid/funding/closed-2026 gates; synthetic tests in `test_preparation.py` |
 | P1 | Compare frozen immediate baseline versus frozen60m retest across all eligible new tokens | Waiting for data and adapter parity | H-RETEST-EXPANSION-01 full ledgers,stops,win rates,net/trade and net/signal |
 | P1 | Integrate approved retest challenger into PAPER runner | Pending engineering | Durable pending state,minute-close reclaim,deadline,next-open execution,restart/idempotency and attribution tests |
 | P2 | Verify actual cloud activation after integration | Pending | Strategy/config hashes,current cycles,eligible symbols,pending decisions and paper ledger evidence |
