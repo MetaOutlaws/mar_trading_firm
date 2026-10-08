@@ -1,0 +1,19 @@
+{
+  "status": "complete",
+  "completed_at": "2026-10-08T05:59:45.639953+00:00",
+  "scores_2026": true,
+  "output_hashes": {
+    "individual_trades.csv": "dbb11176155f6995587032196622409a0e83653e2331e096a5bc633a5a7fb512",
+    "freeze.json": "72220f88a01ff495704bf75c6bb6c17a20572075883526ab7c664d310be140bd",
+    "pooled_results.csv": "55e3ae24028fdaf9abbb5a8fe0607082503fd55ab8638061413c506ca692fd60",
+    "membership_audit.csv": "d5960cee634451b5f60c4de687a1ace4b3c17f169788f38523561d98394fff42",
+    "decision.json": "9a65d8b7becbc99b3eca2efc537b0763ac7c0fef0254bfeef0867ea65eeeb5cb",
+    "signal_contexts.parquet": "293b3917fef199327a281ff4a72a2ec921b734fa790dc9fa8eec78d5314c8119",
+    "subgroups.csv": "723acfb72e726a5fc6d519716a521f19c7d5a25ac5785858da15bf34da5ed718",
+    "pooled_ledger.parquet": "98fa2e9c95efea3ed8ed45b1a1e548323e158320148ee1f4583c91893d1b67db",
+    "VERIFICATION.json": "afdc34fe610474dcb676139af906d001887d7cad564e8175843247a1d4abb95a",
+    "rejections.csv": "fb9a998af705afc72c043d044106e84193c8dde53f9abcf300c78d200ca85ebc",
+    "all_opportunities.parquet": "237b0fd8bd7cc5e3256caf82a324c082d237a888af1301f2fd7bbb1f298722ce",
+    "leave_one_token_out.csv": "c8c4f2f94cc3aaa2fd5aa1b0ff982eb50489ccb9961582732f4a7e6d1ad64ffa"
+  }
+}

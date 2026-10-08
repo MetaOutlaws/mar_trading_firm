@@ -1,0 +1,9 @@
+{
+  "status": "pass",
+  "report_rows_checked": 36,
+  "independent_bootstrap_intervals": 4,
+  "unique_trades": 9,
+  "cost_rows": 18,
+  "frozen_input_and_source_hashes_verified": true,
+  "earlier_results_unmodified": true
+}
