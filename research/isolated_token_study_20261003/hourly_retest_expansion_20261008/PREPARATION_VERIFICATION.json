@@ -1,19 +1,31 @@
 {
   "status": "pass",
   "experiment_id": "H-RETEST-EXPANSION-01",
-  "verified_at": "2026-10-08T23:40:00Z",
+  "verified_at": "2026-10-09T01:20:06Z",
   "outcome_blind": true,
   "additional_token_outcomes_scored": false,
   "scores_2026": false,
   "production_changes": false,
-  "synthetic_tests_passed": 5,
+  "synthetic_tests_passed": 8,
   "checks": [
     "safe manifest paths",
     "collector hashes and frozen membership",
     "reserved-2026 and reference membership rejection",
     "atomic independent-run claim",
-    "minute-grid, OHLC and funding audit"
+    "minute-grid, OHLC and funding audit",
+    "adapter partition and closed-2026 boundary",
+    "audited membership ingestion",
+    "reference-symbol exclusion"
   ],
+  "reference_parity": {
+    "signals": 69,
+    "baseline_paths_and_costs": 276,
+    "treatment_paths_and_costs": 168,
+    "causal_prefix_checks": 69,
+    "admission_replays": 24,
+    "immediate_ledger_rows": 260,
+    "retest_ledger_rows": 160
+  },
   "restored_reference_inputs": {
     "BTCUSDT_1m.parquet": "a6d3cf242680123f4bc3ca16cf88009d0567d5db65ab770270d98d6d6a9c7aa0",
     "funding/BTCUSDT_funding.parquet": "8f72152a9e8dab4723c58904dcdea059d1b4484ac63bb9c3c93db3d98136ed2a",
@@ -24,10 +36,13 @@
   },
   "source_hashes": {
     "PROTOCOL.md": "f4e33286207ab92f77708b24f499cb462ee2b32e5de37a744d260babcf2c3cc6",
-    "TODO.md": "74db175c30b38d61ef45432e1171e51acc4cc4464a11ca20a6dd464403001bfb",
-    "PREPARATION_STATUS.md": "4db67ae01565ebd078cad08dc2cfd04803ff4455a68adf0935d705bd1a9926cf",
+    "TODO.md": "e8bfca406aace21c0615dda7d731d40772b7e6bcc7f43fe173f7247a220a5f09",
+    "PREPARATION_STATUS.md": "82645032813bf5e23d4667216ff8425070592150c652bb442f44dd75a522162b",
     "data_gate.py": "e6bc33a8da40da8693f7a8e246a1f2a57596b90778f330587110eab7a1faed7f",
     "run_state.py": "23aa11ae9c9a5c353c2cdb53c6db76bfe264424c8eee39f9b95a8eac34936a2b",
-    "test_preparation.py": "e4e15ad9f02f4c7b757340bdac34c50511389e6f03095caf052a7c6684820456"
+    "test_preparation.py": "e4e15ad9f02f4c7b757340bdac34c50511389e6f03095caf052a7c6684820456",
+    "adapter.py": "0dc1b98ce1c64d1d066cb66498387a51db8b2ac78e857acdfa987c2a212629b6",
+    "test_adapter.py": "beac7e88095094fd48be016db346b0d7e8e42a6c130404c1f1cd1719eab051c7",
+    "reference_parity_v1/VERIFICATION.json": "0c437d53cac2f45e9f4d4e011f7314b94008d38440e81b3334e4e91825bd8531"
   }
 }

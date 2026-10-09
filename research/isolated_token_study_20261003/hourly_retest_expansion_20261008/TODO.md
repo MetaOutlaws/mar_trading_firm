@@ -6,7 +6,8 @@
 | P1 | Check additional-token download availability tonight,Asia/Dubai | Waiting for an accessible mount/upload | The Windows-local dataset is not mounted here; no newer Library/GitHub data record at the latest check |
 | P1 | Restore frozen reference inputs and prevent duplicate independent runs | Complete | Retest checkpoint and six BTC/ETH/SOL inputs re-hashed; `run_state.py` uses an atomic `codex_independent` claim |
 | P1 | Prepare outcome-blind collector audit | Complete | `data_gate.py`; manifest/membership/grid/funding/closed-2026 gates; synthetic tests in `test_preparation.py` |
-| P1 | Compare frozen immediate baseline versus frozen60m retest across all eligible new tokens | Waiting for data and adapter parity | H-RETEST-EXPANSION-01 full ledgers,stops,win rates,net/trade and net/signal |
+| P1 | Complete adapter and frozen-reference parity | Complete | 69 signals; 276 immediate paths; 168 retest paths; 24 admission replays; 420 ledger rows exact |
+| P1 | Compare frozen immediate baseline versus frozen60m retest across all eligible new tokens | Waiting for audited data and runner freeze | H-RETEST-EXPANSION-01 full ledgers,stops,win rates,net/trade and net/signal |
 | P1 | Integrate approved retest challenger into PAPER runner | Pending engineering | Durable pending state,minute-close reclaim,deadline,next-open execution,restart/idempotency and attribution tests |
 | P2 | Verify actual cloud activation after integration | Pending | Strategy/config hashes,current cycles,eligible symbols,pending decisions and paper ledger evidence |
 | P2 | Separate additional-token2026 replication | Reserved,unopened | Separate fixed protocol before2026 outcomes |
