@@ -69,3 +69,12 @@ missed-winner and delay accounting, paired 1/4-week bootstrap at both fixed seed
 concentration sensitivities, protocol classification and hashed output readback.
 Synthetic accounting tests pass. The run remains unclaimed pending audited data
 and a freeze against the published runner hash.
+
+## Independent result verifier prepared — 9 October 2026
+
+`verify_results.py` is separate from the one-shot scorer. After a completed run
+it revalidates frozen hashes and safety flags, reconstructs all 16 independent
+portfolio admission replays, recalculates every admitted cash return and both
+return denominators, checks every token/side cell and original-signal pair, and
+writes a hash-bound independent verification report. Synthetic mutation,
+denominator, zero-fill and closed-2026 tests pass. No run was claimed.

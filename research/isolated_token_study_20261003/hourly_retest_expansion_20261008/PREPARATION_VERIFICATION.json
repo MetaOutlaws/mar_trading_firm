@@ -1,12 +1,12 @@
 {
   "status": "pass",
   "experiment_id": "H-RETEST-EXPANSION-01",
-  "verified_at": "2026-10-09T03:18:04Z",
+  "verified_at": "2026-10-09T03:48:26Z",
   "outcome_blind": true,
   "additional_token_outcomes_scored": false,
   "scores_2026": false,
   "production_changes": false,
-  "synthetic_tests_passed": 16,
+  "synthetic_tests_passed": 20,
   "checks": [
     "safe manifest paths",
     "collector hashes and frozen membership",
@@ -23,7 +23,11 @@
     "separate-arm opportunity denominator and missed-trade accounting",
     "all token-side cells including empty cells",
     "deterministic paired calendar-week block bootstrap",
-    "strong-support provenance and no-deployment safety gate"
+    "strong-support provenance and no-deployment safety gate",
+    "independent cash-return recalculation and mutation rejection",
+    "completed-trade and original-signal denominator recalculation",
+    "independent verifier closed-2026 boundary rejection",
+    "independent zero-fill signal-pair accounting"
   ],
   "reference_parity": {
     "signals": 69,
@@ -45,7 +49,7 @@
   "source_hashes": {
     "PROTOCOL.md": "f4e33286207ab92f77708b24f499cb462ee2b32e5de37a744d260babcf2c3cc6",
     "TODO.md": "ba9e8d07185fd73bad1e5e3fbec081d20c66f1092a2dfaba30067da888822593",
-    "PREPARATION_STATUS.md": "d589d5a98032e91739df4f37b2fcec2296e249554fd07f4fe958b8d6a0de9c39",
+    "PREPARATION_STATUS.md": "d7da7ae0dbca19c11f80e71648512cdace24574f3fbcef606975a09e02ba26b9",
     "data_gate.py": "e6bc33a8da40da8693f7a8e246a1f2a57596b90778f330587110eab7a1faed7f",
     "run_state.py": "23aa11ae9c9a5c353c2cdb53c6db76bfe264424c8eee39f9b95a8eac34936a2b",
     "test_preparation.py": "e4e15ad9f02f4c7b757340bdac34c50511389e6f03095caf052a7c6684820456",
@@ -56,6 +60,8 @@
     "test_freeze_gate.py": "5d1ee3a53eb111e732be6b38628a1f0ca12c2cee641cdcf5259c47ba20708674",
     "PRIOR_USE_AUDIT.md": "f3a5db3a1157df8b7a1e3afea387c4e2017636d85098eee8da9c5e39bcf558fc",
     "run_expansion.py": "9295892dc184a3dfa5190651e6652592f298ba87b22fe98f1dc7068a7dd695d1",
-    "test_run_expansion.py": "c6e86139596b5f6d6d87fc876ae9b952babc90fd2bf91297d236daa3160d1e01"
+    "test_run_expansion.py": "c6e86139596b5f6d6d87fc876ae9b952babc90fd2bf91297d236daa3160d1e01",
+    "verify_results.py": "01d48f15696a4d4fce3ec71c0143f1061f9a87da5c8f827188e47124705f5a75",
+    "test_verify_results.py": "1fa43875217f114ca0401349a6472849d80fc6343943e4dbf77646eba38facaf"
   }
 }
