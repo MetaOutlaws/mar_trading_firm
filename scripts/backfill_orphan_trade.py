@@ -2,6 +2,7 @@
 
 The command now lives in ``scripts/backfill_consolidated_trades.py``.
 This module remains so an earlier invocation still runs the same main.
+Pass ``--input`` and ``--variant A`` or ``--variant B``.
 """
 
 from __future__ import annotations

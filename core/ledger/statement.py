@@ -91,6 +91,9 @@ def book_statement(
     ``positions`` need ``symbol``, ``side``, ``quantity``, and ``entry_price``.
     A missing mark is left blank for that symbol. Equity is published only
     when every open position has a mark, because equity is cash plus marks.
+
+    Cash is this replay. It is not a sum of rows in ``paper_cash_events``.
+    That table records commits; a payload without an event id is not cash.
     """
     if not events:
         return _empty_book(trades_net_pnl=trades_net_pnl)
