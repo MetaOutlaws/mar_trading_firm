@@ -1388,3 +1388,28 @@ attempt, negative result and exclusion; export full ledgers plus concise tables;
 save a checkpoint; reopen it and verify its manifest; publish permitted reports;
 update this status register with completed, pending and blocked work separately.
 Do not mark an experiment complete merely because code or a plan was saved.
+
+
+## Additional-token retest comparison completed — 9 October 2026
+
+H-RETEST-EXPANSION-01 is complete and independently verified across all 93
+eligible additional tokens (207 original signals). Primary stressed minute-quote
+2025 retest results: 20 completed trades, +0.7418% net/trade, +0.2967% per
+original signal, 65% wins, seven stops; immediate: 47 trades, -0.3892%
+net/trade, -0.3659% per original signal, 40.43% wins, 28 stops. Retest skips
+ten baseline targets and 18 baseline stops. Historical 2022–2024 returns are
+negative for both arms. The preregistered overall classification is inconclusive,
+with small sample and unverified universe/funding/classification provenance.
+
+Full explanation: `../hourly_retest_expansion_20261008/RESULTS_20261009.md`.
+Aggregate evidence: `../hourly_retest_expansion_20261008/results_20261009/`.
+Private full CSV and audit checkpoint: MAR_retest_expansion_checkpoint_20261009.zip.
+Original archive is preserved as 12 numbered parts plus reassembly manifest.
+Prior findings and original failed opportunity-cost screen are unchanged.
+
+The fixed follow-through and H-RETEST-EXPANSION-2026-01 protocol are registered
+in `../hourly_retest_expansion_20261008/NEXT_STAGES_20261009.md`. A prepared
+collector covers 2025-Q4 warm-up and nine full 2026 months, but the initial
+official API availability request returned non-JSON: acquisition blocked,
+no 2026 outcomes scored. Runtime integration/cloud activation remain pending;
+paper scope remains BTC/ETH/SOL, with no live or wider deployment change.

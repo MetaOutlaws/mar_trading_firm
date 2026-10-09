@@ -1,0 +1,5 @@
+entry_rule,partition,removed_symbol,removed_net_return,admitted_after_removal,mean_net_after_removal
+immediate,historical,WIFUSDT,0.04176091606993909,153,-0.0031960758214372035
+immediate,evaluation,FARTCOINUSDT,0.027701809087706804,46,-0.004578909964366017
+retest,historical,ETCUSDT,0.031108731627653707,78,-0.0029357936756141613
+retest,evaluation,ONDOUSDT,0.025501692624121605,19,0.00646580967948574
