@@ -49,11 +49,23 @@ to bind the independent run to.
 1. Audit and hash the accessible collector output with `data_gate.py`.
 2. Run the completed adapter against that audited cache and review the
    outcome-blind signal inventory.
-3. Complete the scoring/report runner, review it, then bind its exact hash with
-   `freeze_gate.py` together with the protocol, audited inputs and membership.
+3. Publish the completed scoring/report runner, review it, then bind its exact
+   hash with `freeze_gate.py` together with the protocol, audited inputs and
+   membership.
 4. Atomically claim and execute one independent H-RETEST-EXPANSION-01 run.
 5. Independently verify every path, cost, admission replay, paired attribution
    and report row before publishing aggregate evidence and private CSV ledgers.
 
 Grok output, if later found, remains separate prior-use evidence and is not used
 to select thresholds, tokens, sides or the retest deadline.
+
+## One-shot scorer prepared — 9 October 2026
+
+`run_expansion.py` now implements the frozen comparison without opening any
+additional-token outcomes: immutable-freeze verification, atomic independent-run
+claim, 2026 hard boundary, exact retest-prefix checks, actual-fill SL2%/TP2.5%,
+separate arm admission books, both return denominators, all token/side cells,
+missed-winner and delay accounting, paired 1/4-week bootstrap at both fixed seeds,
+concentration sensitivities, protocol classification and hashed output readback.
+Synthetic accounting tests pass. The run remains unclaimed pending audited data
+and a freeze against the published runner hash.
