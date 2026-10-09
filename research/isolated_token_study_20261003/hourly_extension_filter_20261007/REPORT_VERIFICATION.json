@@ -1,0 +1,12 @@
+{
+  "status": "pass",
+  "reported_rows_reconciled": 150,
+  "uncompressed_export_rows": 430,
+  "excluded_baseline_cost_rows": 104,
+  "frozen_sources": 83,
+  "frozen_features": 9,
+  "frozen_inputs": 6,
+  "frozen_references": 4,
+  "verified_output_hashes": 19,
+  "reserved_2026_scored": false
+}

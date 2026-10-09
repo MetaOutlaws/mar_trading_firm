@@ -1,0 +1,14 @@
+{
+  "status": "pass",
+  "tests": 29,
+  "pytest": "9.1.1",
+  "seconds": 0.47,
+  "test_sha256": "7ec02018e90acc3c9b265bd6bc9bf8a1747904cc416d59e43f17a73526d9c781",
+  "runtime_AST_methods": [
+    "exit_fill_price",
+    "quote_mark_close",
+    "quote_market_close"
+  ],
+  "full_runtime_import_test": false,
+  "pre_freeze_test_harness_correction": "SignalSide namespace;27 passed and2 failed initially;retained source"
+}

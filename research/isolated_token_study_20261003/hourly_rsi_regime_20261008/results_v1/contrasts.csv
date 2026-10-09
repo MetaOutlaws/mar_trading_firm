@@ -1,0 +1,13 @@
+partition,stress,treatment,comparator,difference_mean_net,treatment_n,comparator_n,difference_mean_R,difference_block_1_low_R,difference_block_1_high_R,difference_block_1_draws,difference_block_4_low_R,difference_block_4_high_R,difference_block_4_draws
+evaluation,1,approved_always,approved_none,0.0,15,15,0.0,0.0,0.0,10000,0.0,0.0,10000
+evaluation,1,approved_directional,approved_none,0.0,15,15,0.0,0.0,0.0,10000,0.0,0.0,10000
+evaluation,1,approved_loweff,approved_none,0.0,15,15,0.0,0.0,0.0,10000,0.0,0.0,10000
+evaluation,2,approved_always,approved_none,0.0,15,15,0.0,0.0,0.0,10000,0.0,0.0,10000
+evaluation,2,approved_directional,approved_none,0.0,15,15,0.0,0.0,0.0,10000,0.0,0.0,10000
+evaluation,2,approved_loweff,approved_none,0.0,15,15,0.0,0.0,0.0,10000,0.0,0.0,10000
+historical,1,approved_always,approved_none,-9.68771924678936e-05,38,41,-0.004843859623394675,-0.08937694907620447,0.09611551539035895,10000,-0.08246393584821538,0.09123236365403514,10000
+historical,1,approved_directional,approved_none,-9.68771924678936e-05,38,41,-0.004843859623394675,-0.08937694907620447,0.09611551539035895,10000,-0.08246393584821538,0.09123236365403514,10000
+historical,1,approved_loweff,approved_none,0.0,41,41,0.0,0.0,0.0,10000,0.0,0.0,10000
+historical,2,approved_always,approved_none,-8.852050197866862e-05,38,41,-0.004426025098933445,-0.08810020116801826,0.09571023986018572,10000,-0.08149843419177047,0.09023499732156616,10000
+historical,2,approved_directional,approved_none,-8.852050197866862e-05,38,41,-0.004426025098933445,-0.08810020116801826,0.09571023986018572,10000,-0.08149843419177047,0.09023499732156616,10000
+historical,2,approved_loweff,approved_none,0.0,41,41,0.0,0.0,0.0,10000,0.0,0.0,10000

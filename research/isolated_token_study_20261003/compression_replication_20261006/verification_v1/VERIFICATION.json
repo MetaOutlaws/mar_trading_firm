@@ -1,0 +1,10 @@
+{
+  "status": "pass",
+  "reference_cells_checked": 216,
+  "input_hashes_checked": 6,
+  "feature_hashes_checked": 9,
+  "admission_constraints": "passed on old reference opportunities",
+  "new_token_results": 0,
+  "scores_2026": false,
+  "reference_results_are_new_evidence": false
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "hypothesis": "hourly_compression",
+    "continuation_point_criterion": true,
+    "positive_stressed_mean_both_periods": true,
+    "positive_stressed_difference_both_periods": true,
+    "positive_absolute_lower_CIs_both_periods": false,
+    "positive_difference_lower_CIs_both_periods": false,
+    "status": "exploratory_continuation",
+    "independent_edge_established": false,
+    "deployment_qualified": false,
+    "scores_2026": false
+  },
+  {
+    "hypothesis": "funding_condition",
+    "continuation_point_criterion": false,
+    "positive_stressed_mean_both_periods": false,
+    "positive_stressed_difference_both_periods": false,
+    "positive_absolute_lower_CIs_both_periods": false,
+    "positive_difference_lower_CIs_both_periods": false,
+    "status": "no_continuation_support",
+    "independent_edge_established": false,
+    "deployment_qualified": false,
+    "scores_2026": false
+  },
+  {
+    "hypothesis": "trend_alignment",
+    "continuation_point_criterion": false,
+    "positive_stressed_mean_both_periods": false,
+    "positive_stressed_difference_both_periods": false,
+    "positive_absolute_lower_CIs_both_periods": false,
+    "positive_difference_lower_CIs_both_periods": false,
+    "status": "no_continuation_support",
+    "independent_edge_established": false,
+    "deployment_qualified": false,
+    "scores_2026": false
+  }
+]

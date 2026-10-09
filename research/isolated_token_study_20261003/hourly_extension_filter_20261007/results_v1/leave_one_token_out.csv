@@ -1,0 +1,25 @@
+arm,partition,stress,excluded_symbol,n,mean_net,method
+baseline,historical,1,BTCUSDT,58,0.0008070737174981362,Remove token from admitted ledger; no replacement replay
+baseline,historical,1,ETHUSDT,61,0.004807281285307994,Remove token from admitted ledger; no replacement replay
+baseline,historical,1,SOLUSDT,75,0.0013322355211118817,Remove token from admitted ledger; no replacement replay
+baseline,historical,2,BTCUSDT,58,-0.0005796627746771713,Remove token from admitted ledger; no replacement replay
+baseline,historical,2,ETHUSDT,61,0.003443632254784337,Remove token from admitted ledger; no replacement replay
+baseline,historical,2,SOLUSDT,75,0.00033084355619359865,Remove token from admitted ledger; no replacement replay
+baseline,evaluation,1,BTCUSDT,19,0.00566012149174621,Remove token from admitted ledger; no replacement replay
+baseline,evaluation,1,ETHUSDT,28,0.004732004521477822,Remove token from admitted ledger; no replacement replay
+baseline,evaluation,1,SOLUSDT,25,0.004776300800510055,Remove token from admitted ledger; no replacement replay
+baseline,evaluation,2,BTCUSDT,19,0.004076770213485848,Remove token from admitted ledger; no replacement replay
+baseline,evaluation,2,ETHUSDT,28,0.0033353326794914014,Remove token from admitted ledger; no replacement replay
+baseline,evaluation,2,SOLUSDT,25,0.003778882830348722,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,historical,1,BTCUSDT,39,0.0016853065824912771,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,historical,1,ETHUSDT,37,0.004167985609950693,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,historical,1,SOLUSDT,44,0.0034803695742158273,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,historical,2,BTCUSDT,39,0.00026328448731148546,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,historical,2,ETHUSDT,37,0.0027280314953302,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,historical,2,SOLUSDT,44,0.0024754144027479166,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,evaluation,1,BTCUSDT,12,0.003400600371086653,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,evaluation,1,ETHUSDT,18,0.0023951169173107682,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,evaluation,1,SOLUSDT,14,0.00028815631701178485,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,evaluation,2,BTCUSDT,12,0.0017342456866178337,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,evaluation,2,ETHUSDT,18,0.0009508503765964307,Remove token from admitted ledger; no replacement replay
+extension_cap_1atr,evaluation,2,SOLUSDT,14,-0.0007120863834978155,Remove token from admitted ledger; no replacement replay

@@ -1,0 +1,7 @@
+arm,partition,stress,excluded_symbol,n,mean_net,method
+hourly_compression_btc_connors_loweff_v1,reserved_replication,1,BTCUSDT,6,0.02200939728969385,remove from admitted ledger; no replacement replay
+hourly_compression_btc_connors_loweff_v1,reserved_replication,1,ETHUSDT,8,0.016556993699093785,remove from admitted ledger; no replacement replay
+hourly_compression_btc_connors_loweff_v1,reserved_replication,1,SOLUSDT,4,0.011450567907040337,remove from admitted ledger; no replacement replay
+hourly_compression_btc_connors_loweff_v1,reserved_replication,2,BTCUSDT,6,0.0201794816480496,remove from admitted ledger; no replacement replay
+hourly_compression_btc_connors_loweff_v1,reserved_replication,2,ETHUSDT,8,0.014940210742398458,remove from admitted ledger; no replacement replay
+hourly_compression_btc_connors_loweff_v1,reserved_replication,2,SOLUSDT,4,0.010450464965884601,remove from admitted ledger; no replacement replay

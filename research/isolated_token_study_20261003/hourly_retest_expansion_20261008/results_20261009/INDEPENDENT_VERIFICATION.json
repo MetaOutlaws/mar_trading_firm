@@ -1,0 +1,22 @@
+{
+  "actual_entry_year_rows_recalculated": 32,
+  "additional_token_2026_outcomes_scored": false,
+  "automatic_deployment": false,
+  "cash_paths_recalculated": 1200,
+  "entry_year_cells_recalculated": 32,
+  "experiment_id": "H-RETEST-EXPANSION-01",
+  "freeze_sha256": "911b4884ae6e193250929c475ee2d98e04801b4edf65c0aeb60a50f9072eebc2",
+  "hashed_outputs_checked": 22,
+  "independent_admission_replays": 16,
+  "ledger_rows": 1200,
+  "opportunity_rows": 1228,
+  "pooled_denominator_rows_recalculated": 16,
+  "production_changes": false,
+  "run_record_sha256": "776621a76884fbbef9c7147823835a7b532bd1ee1e278672332cae891591c6a5",
+  "scorer_verification_sha256": "c12a48f15ab670a809659a32579d7db327914067afa224aab79a192880f8e428",
+  "signal_pairs_recalculated": 828,
+  "signals": 207,
+  "status": "pass",
+  "token_side_cells_recalculated": 2976,
+  "weekly_intervals_recalculated": 112
+}

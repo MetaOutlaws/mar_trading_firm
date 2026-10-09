@@ -1,0 +1,16 @@
+{
+  "point_screen_by_policy": {
+    "directional": false,
+    "loweff": true
+  },
+  "checks": {
+    "directional_cost1": false,
+    "directional_cost2": false,
+    "loweff_cost1": true,
+    "loweff_cost2": true
+  },
+  "independent_edge_established": false,
+  "statistical_noninferiority_established": false,
+  "automatic_deployment": false,
+  "scores_2026": false
+}

@@ -1,0 +1,26 @@
+{
+  "status": "complete",
+  "completed_at": "2026-10-08T16:12:19.451586+00:00",
+  "output_hashes": {
+    "freeze.json": "fb43d40759aef3d45f7a3712b64953b6e890c6eb0648a0661431cfdc835300c6",
+    "entry_timing.csv": "556637f8cef55ce2b160fc1d538d14493819b406f4cc2d3008fe801fe49f10c5",
+    "all_opportunities.parquet": "0766e8fd75b51fd84f23b23d4a68ea2fe8b457e65a415fd4166d25153a5cb704",
+    "entry_plans.parquet": "245f49440529ca072a11d943f2356eb909b388307f63bb52cae3bf4f1e65224a",
+    "frozen_signals.parquet": "b3a0748a1f15fa26599bfd0d9e8831fa0349fa364b72f1bf3917a3a42832f033",
+    "paired_raw_outcomes.csv": "db8541ccd5278f7359395cc4238f1a452bd4d689631c1e9e1da6dcaa812fc0c4",
+    "entry_plans.csv": "f9286621c867e045e10b2787bd2ab6486ff7bd666b824c07ae74ab2558426d8f",
+    "pooled_ledger.parquet": "9c0bae73d5510b64e8cf312d7750f270eae36d8e7546298fedcc49b09c4f66f5",
+    "rejections.csv": "ae1c331a2e786fe99d3d30030e822e6e5ad9d6089039d6949aed117c394d58e3",
+    "matched_results.csv": "d17d43910e5b6f5e05be75648c6fcc263771be8ccc45b97d78e43dda604802c8",
+    "pooled_results.csv": "ae7f3391bac25015c1d19d40d20bc926f5084f372f8b842702143afe585ee687",
+    "missed_trades.csv": "10855b435345cf7552d0eaeb9f99ce659d5c1742154e12529a33b711bbc4d2c2",
+    "admission_decomposition.csv": "c1640914e771fc8fa13c69633dcf3493f6bd4e1396b0220a887ad716c96f8b6e",
+    "individual_trades.csv": "d5bdb76284778e1a8616a25a5aeb866c5bb845bb97fbd386299448beeba84f6b",
+    "subgroups.csv": "32d2f30c1f384b20be9c8509477aa16768625180fa61e38432ed4a333878567c",
+    "VERIFICATION.json": "92a0a74deccc4eee75d1a66f1a4ef413485bc2cc0915e0130e532cd460e7eb21",
+    "matched_baseline_signals.csv": "a4afb7f650ce6b12cd5891838f346ca7d927a13e2a3e1cb6707ccf2b69067fda",
+    "decision.json": "30c68835fa63755dab5ae50ca5f521e317fc456daec819a77f91982189c1887a",
+    "outcome_transitions.csv": "0f38df2b9f4217cc355972396885f5e0ea2d0c89fd411da669a8629459c4868f",
+    "contrasts.csv": "0a37ffa08b03907b3eb3584e1d6ec37263bf3efa690cf207a203d75dfbebe820"
+  }
+}

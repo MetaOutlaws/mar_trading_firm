@@ -1,0 +1,7 @@
+{
+  "status": "pass",
+  "tests_passed": 25,
+  "command": "python -m pytest -q test_brackets.py",
+  "new_fill_outcomes_scored": false,
+  "completed_at": "2026-10-08T06:31:58.981044+00:00"
+}

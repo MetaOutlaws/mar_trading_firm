@@ -1,0 +1,12 @@
+{
+  "status": "pass",
+  "unique_frozen_signals": 69,
+  "independent_minute_paths": 552,
+  "independent_cost_rows": 552,
+  "independent_admission_runs": 24,
+  "zero_delay_opportunity_rows_reconciled": 138,
+  "zero_delay_admitted_rows_reconciled": 130,
+  "endpoint_exclusions": 0,
+  "ledger_rows": 520,
+  "admission_attribution_checks": 18
+}

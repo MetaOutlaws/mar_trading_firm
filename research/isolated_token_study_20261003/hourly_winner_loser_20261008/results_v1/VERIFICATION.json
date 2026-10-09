@@ -1,0 +1,11 @@
+{
+  "status": "pass",
+  "raw_signals": 69,
+  "unique_admitted": 65,
+  "evidence_rows": 520,
+  "independent_sampled_anatomy_rows": 65,
+  "entry_features": 12,
+  "nominee_fixed_before_later_tables": true,
+  "selection_sha256": "f59759750281d49a093cf2ad3884ddc32f1eb837da4f7fa3f6e93ccffb9970a5",
+  "no_runtime_changes": true
+}

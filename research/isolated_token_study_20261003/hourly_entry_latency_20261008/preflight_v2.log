@@ -1,0 +1,15 @@
+DELAY_PATHS_AND_COSTS_VERIFIED BTCUSDT
+DELAY_PATHS_AND_COSTS_VERIFIED ETHUSDT
+DELAY_PATHS_AND_COSTS_VERIFIED SOLUSDT
+{
+  "status": "pass",
+  "unique_frozen_signals": 69,
+  "independent_minute_paths": 138,
+  "independent_cost_rows": 138,
+  "independent_admission_runs": 6,
+  "zero_delay_opportunity_rows_reconciled": 138,
+  "zero_delay_admitted_rows_reconciled": 130,
+  "endpoint_exclusions": 0,
+  "ledger_rows": 130,
+  "delayed_outcomes_scored": false
+}

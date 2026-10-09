@@ -1,0 +1,19 @@
+{
+  "status": "complete",
+  "completed_at": "2026-10-08T13:56:12.769559+00:00",
+  "output_hashes": {
+    "freeze.json": "c4cbce9528491c29050adf2cfd4fa21f72c2b1aed4dd3a0069f7a5ef87713fda",
+    "all_opportunities.parquet": "812898656fca86b1a893a9a11da87c1fdaef572987fc2d419aca936b0a346c7e",
+    "admission_identity.csv": "ad920dc8545a30d22ff1f2e1570cdf1cb2737e5f13517c8c6c0967fde00bd7fe",
+    "stop_risk.csv": "d5ee712a7a27e8c7bb8e76e7cc613cc3bbc101a7d601baebd6d17ffc625a1c6d",
+    "pooled_ledger.parquet": "685a9be909a3c3e83c26dd7ca69c1260538a98603700d14d9a4221ffe34315ca",
+    "rejections.csv": "788d044c9ae0632238e61b875d727f4071ee1113a4571f770488f9733f6336e7",
+    "pooled_results.csv": "8a3b02b82cdfbe10ac7f1086d47c28bdd6978f3db08c91b4caac4df3c46ee910",
+    "individual_trades.csv": "7336ab853b950eeae2f2f90e222e496e694a4aff6937cca78e6d4cf825028555",
+    "subgroups.csv": "56d345d31066d190b216ee1e3c9801bfc867a02e16fdbfb1592dac0fa00ad090",
+    "VERIFICATION.json": "59e1b3cd6a9b9a59e6d1ccfa97f23f009a431151b893ea15f81806c28098f042",
+    "paired_cost_changes.csv": "c116d88735f943ab33821276fee93740e10ea80627565dfd376f6d2e122ef85b",
+    "decision.json": "685603e01927297fcbd911985372978f970affcc8088589d412b2c16012b855a",
+    "contrasts.csv": "517da6d2ce1427e80671a07bf9111ee462aa0ed7cd37796a9f2ec677e4da9674"
+  }
+}

@@ -1,0 +1,6 @@
+CONTEXTS_RUNTIME_PATHS_COSTS_VERIFIED BTCUSDT {'independent_contexts': 12, 'runtime_frames': 2, 'runtime_hour_side_checks': 13184, 'runtime_850_hour_checks': 12}
+CONTEXTS_RUNTIME_PATHS_COSTS_VERIFIED ETHUSDT {'independent_contexts': 6, 'runtime_frames': 2, 'runtime_hour_side_checks': 13184, 'runtime_850_hour_checks': 6}
+CONTEXTS_RUNTIME_PATHS_COSTS_VERIFIED SOLUSDT {'independent_contexts': 12, 'runtime_frames': 2, 'runtime_hour_side_checks': 13184, 'runtime_850_hour_checks': 12}
+           partition  stress  n     mean  stop_count  target_count  boundary_count
+reserved_replication       1  9 0.017240           1             8               0
+reserved_replication       2  9 0.015689           1             8               0

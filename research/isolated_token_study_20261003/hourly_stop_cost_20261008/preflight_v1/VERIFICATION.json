@@ -1,0 +1,9 @@
+{
+  "status": "pass",
+  "reference_raw_rows": 552,
+  "reference_admitted_rows": 520,
+  "reference_sources": 118,
+  "runtime_sources": 358,
+  "input_hashes": 6,
+  "treatment_scored": false
+}

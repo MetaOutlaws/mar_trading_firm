@@ -1,0 +1,39 @@
+{
+  "admission_replays": 24,
+  "baseline_paths_and_costs": 276,
+  "experiment_id": "H-RETEST-EXPANSION-01",
+  "immediate_ledger_rows": 260,
+  "ledger_rows": 420,
+  "new_token_outcomes_scored": false,
+  "production_changes": false,
+  "reference_signals": 69,
+  "retest_ledger_rows": 160,
+  "runtime_signal_checks": [
+    {
+      "independent_contexts": 73,
+      "runtime_850_hour_checks": 73,
+      "runtime_frames": 2,
+      "runtime_hour_side_checks": 78992,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "independent_contexts": 54,
+      "runtime_850_hour_checks": 54,
+      "runtime_frames": 2,
+      "runtime_hour_side_checks": 78992,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "independent_contexts": 46,
+      "runtime_850_hour_checks": 46,
+      "runtime_frames": 2,
+      "runtime_hour_side_checks": 78992,
+      "symbol": "SOLUSDT"
+    }
+  ],
+  "scores_2026": false,
+  "status": "pass",
+  "treatment_entry_selections": 69,
+  "treatment_paths_and_costs": 168,
+  "treatment_prefix_checks": 69
+}

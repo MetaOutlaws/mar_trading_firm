@@ -1,0 +1,24 @@
+{
+  "additional_token_2026_outcomes_scored": false,
+  "automatic_deployment": false,
+  "classification": "inconclusive",
+  "experiment_id": "H-RETEST-EXPANSION-01",
+  "period_checks": {
+    "evaluation": true,
+    "historical": false
+  },
+  "positive_point_evidence": false,
+  "production_changes": false,
+  "return_sums_are_account_pnl": false,
+  "strong_support": false,
+  "strong_support_requirements": {
+    "evaluation_closed_trades_at_least_100": false,
+    "evaluation_entry_dates_at_least_50": false,
+    "evaluation_entry_weeks_at_least_26": false,
+    "evaluation_tokens_at_least_8": true,
+    "independently_verified_provenance": false,
+    "positive_challenger_mean_lower_bounds_both_costs_blocks_seeds": false,
+    "positive_difference_lower_bounds_both_costs_blocks_seeds": false,
+    "positive_stressed_leave_one_token_out_means": true
+  }
+}

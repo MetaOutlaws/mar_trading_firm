@@ -1,0 +1,5 @@
+partition,stress,shared,direct_exclusions,lost_through_occupancy,newly_admitted,direct_excluded_net_sum,occupancy_lost_net_sum,new_net_sum,actual_difference_net_sum,retained_delta_net_sum
+evaluation,1,22,14,0,0,0.13574622877725487,0.0,0.0,-0.13574622877725487,0.0
+evaluation,2,22,14,0,0,0.11868148709576407,0.0,0.0,-0.11868148709576404,0.0
+historical,1,59,38,0,1,0.011262706939066464,0.0,-0.022183999336552913,-0.033446706275619326,0.0
+historical,2,59,38,0,1,-0.03264066931993301,0.0,-0.02320611895584044,0.009434550364092575,0.0

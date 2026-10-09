@@ -1,0 +1,54 @@
+{
+  "repository": "MetaOutlaws/mar_trading_firm",
+  "release_tag": "research-checkpoints-20261006",
+  "github_release_upload_verified": false,
+  "assets": [
+    {
+      "name": "MAR_entry_discovery_checkpoint_20261006.zip",
+      "bytes": 334164151,
+      "sha256": "8667f9ffa8085e6c241f8e23bdba994154a8cf67b54c343aa3d28143cd1bd1cc",
+      "files": 146,
+      "zip_crc": "pass",
+      "top_level": [
+        "DISCOVERY_ARTIFACT_INDEX.json",
+        "DISCOVERY_PUBLICATION.json",
+        "DISCOVERY_SHA256SUMS.json",
+        "MAR_entry_discovery_contrasts_20261006.csv",
+        "MAR_entry_discovery_findings_20261006.md",
+        "MAR_entry_discovery_leads_20261006.csv",
+        "START_HERE.md",
+        "build_discovery_checkpoint.py",
+        "published_discovery_snapshot",
+        "research",
+        "verify_discovery_checkpoint.py"
+      ],
+      "includes_raw_parquet": true,
+      "internal_manifest_hashes_verified": 145
+    },
+    {
+      "name": "MAR_research_checkpoint_20261006.zip",
+      "bytes": 344597378,
+      "sha256": "7d357d4b5176d8190ee8efdd42fb3a6bd02a0b2c94262dc8b04ea04c49d9dc92",
+      "files": 619,
+      "zip_crc": "pass",
+      "top_level": [
+        "ARTIFACT_INDEX.json",
+        "COSTED_PUBLICATION.json",
+        "MAR_breakout_retest_contrasts_20261006.csv",
+        "MAR_costed_entry_contrasts_20261006.csv",
+        "MAR_costed_entry_findings_20261006.md",
+        "MAR_stage2_findings_20261006.md",
+        "SHA256SUMS.json",
+        "STAGE2_PUBLICATION.json",
+        "START_HERE.md",
+        "published_costed_snapshot",
+        "published_snapshot",
+        "published_stage2_snapshot",
+        "research",
+        "verify_checkpoint.py"
+      ],
+      "includes_raw_parquet": true,
+      "internal_manifest_hashes_verified": 618
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "checks": {
+    "at_least_50_closed_both": true,
+    "positive_base_mean_both": false,
+    "base_pf_at_least_1p15_both": false,
+    "positive_stressed_mean_both": false,
+    "improved_stressed_mean_both": false
+  },
+  "exploratory_continuation": false,
+  "independent_edge_established": false,
+  "deployment_qualified": false,
+  "scores_2026": false
+}

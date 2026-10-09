@@ -1,0 +1,10 @@
+{
+  "status": "pass",
+  "baseline_paths_and_costs": 276,
+  "baseline_admitted_rows": 260,
+  "independent_boundaries": 69,
+  "admission_replays": 12,
+  "runtime_sources": 358,
+  "inputs": 6,
+  "treatment_scored": false
+}

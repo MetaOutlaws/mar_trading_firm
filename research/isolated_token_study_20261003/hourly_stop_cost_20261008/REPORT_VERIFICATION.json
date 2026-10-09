@@ -1,0 +1,12 @@
+{
+  "status": "pass",
+  "independent_scalar_cash_rows": 1072,
+  "report_rows_independently_rebuilt": 616,
+  "bootstrap_intervals_independently_rebuilt": 144,
+  "paired_cost_rows_verified": 552,
+  "admission_identity_rows": 48,
+  "raw_rows": 1104,
+  "ledger_rows": 1040,
+  "sources_inputs_references_runtime_outputs_verified": true,
+  "all_nonstop_rows_exactly_unchanged": true
+}

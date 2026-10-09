@@ -1,0 +1,22 @@
+{
+  "status": "published",
+  "repository": "MetaOutlaws/mar_trading_firm",
+  "owner_paper_approval_at": "2026-10-08T20:30:58+04:00",
+  "research_commit": "b2140ca485c9d5ad645cb8c2acc59a65d2cafd44",
+  "research_branch": "codex/research-handover-20261006",
+  "research_pr": 99,
+  "research_files_exactly_verified": 29,
+  "runtime_public_handover_commit": "1e24a411c42a05b10a85a9e6dc56626e47568481",
+  "runtime_branch": "codex/hourly-connors-paper-20261008",
+  "runtime_public_handover_verified": true,
+  "pr101_note": "PR101 was already merged before this turn; latest branch documentation commit is post-merge and not part of its historical diff.",
+  "runtime_implementation_commit": "3c226bca19cca1c771bcb2ed637f9ec39f74c432",
+  "runtime_code_changed": false,
+  "cloud_activation_verified": false,
+  "retest_runtime_integration": "pending",
+  "new_token_protocol": "H-RETEST-EXPANSION-01",
+  "new_token_outcomes_scored": false,
+  "original_frozen_results_unchanged": true,
+  "readiness_watch": "21:00,22:00,23:00 October8 and00:00 October9,2026,Asia/Dubai",
+  "prior_checkpoint_sha256": "a0d73470e4607d7995d4f789107d06d301de77747d8452bf05b73eaa3f4d3a80"
+}

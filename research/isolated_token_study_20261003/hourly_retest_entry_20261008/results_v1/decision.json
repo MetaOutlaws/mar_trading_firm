@@ -1,0 +1,13 @@
+{
+  "primary_continuation_screen_pass": false,
+  "checks": {
+    "historical": true,
+    "evaluation": true,
+    "reserved_replication": false
+  },
+  "automatic_deployment": false,
+  "independent_edge_established": false,
+  "new_deadline_selected": false,
+  "additional_token_outcomes_scored": false,
+  "runtime_changed": false
+}

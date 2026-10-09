@@ -1,0 +1,62 @@
+{
+  "status": "pass",
+  "method": "Raw validity/counts and prior entry timestamps only; no new return scoring.",
+  "coverage": [
+    {
+      "symbol": "BTCUSDT",
+      "minutes": 2499840,
+      "first": "2022-01-01 00:00:00+00:00",
+      "last": "2026-10-02 23:59:00+00:00",
+      "minutes_2026": 396000,
+      "missing_minutes": 0,
+      "invalid_ohlcv_rows": 0,
+      "funding_events": 6303,
+      "funding_2026": 825,
+      "last_funding": "2026-10-02 16:00:00+00:00",
+      "max_funding_gap_hours": 8,
+      "historical_funding_schedule_independently_verified": false
+    },
+    {
+      "symbol": "ETHUSDT",
+      "minutes": 2499840,
+      "first": "2022-01-01 00:00:00+00:00",
+      "last": "2026-10-02 23:59:00+00:00",
+      "minutes_2026": 396000,
+      "missing_minutes": 0,
+      "invalid_ohlcv_rows": 0,
+      "funding_events": 6084,
+      "funding_2026": 825,
+      "last_funding": "2026-10-02 16:00:00+00:00",
+      "max_funding_gap_hours": 8,
+      "historical_funding_schedule_independently_verified": false
+    },
+    {
+      "symbol": "SOLUSDT",
+      "minutes": 2499840,
+      "first": "2022-01-01 00:00:00+00:00",
+      "last": "2026-10-02 23:59:00+00:00",
+      "minutes_2026": 396000,
+      "missing_minutes": 0,
+      "invalid_ohlcv_rows": 0,
+      "funding_events": 5802,
+      "funding_2026": 825,
+      "last_funding": "2026-10-02 16:00:00+00:00",
+      "max_funding_gap_hours": 8,
+      "historical_funding_schedule_independently_verified": false
+    }
+  ],
+  "inputs": {
+    "BTCUSDT_1m.parquet": "a6d3cf242680123f4bc3ca16cf88009d0567d5db65ab770270d98d6d6a9c7aa0",
+    "funding/BTCUSDT_funding.parquet": "8f72152a9e8dab4723c58904dcdea059d1b4484ac63bb9c3c93db3d98136ed2a",
+    "ETHUSDT_1m.parquet": "d14e7fca972102acbb215afa7681863e93cada9be5d296b0dc2a746cfa72a2ab",
+    "funding/ETHUSDT_funding.parquet": "8b95a6e358acb7a0f70a502baa31aded1feb10b407678cc01e64335b152108ef",
+    "SOLUSDT_1m.parquet": "55a4c6a06700cfb4d8b1ba219b94a07fb2daaf96e2c4588a4042ae2a8e84eca6",
+    "funding/SOLUSDT_funding.parquet": "5e43787de674452d41a852bba85eee904e272aac7d052d91b9997bce4d4bdc45"
+  },
+  "prior_ledger_files": 58,
+  "prior_2026_entry_rows": 0,
+  "end_exclusive": "2026-10-02T16:00:00+00:00",
+  "terminal_eight_hours_excluded_for_funding_coverage": true,
+  "holdout_untouched": false,
+  "reason": "Original study generated full-span future-path opportunity summaries including 2026. Unknown external Grok use. Documented recent strategy runs exclude 2026."
+}

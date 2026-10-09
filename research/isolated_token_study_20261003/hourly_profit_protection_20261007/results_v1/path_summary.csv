@@ -1,0 +1,9 @@
+partition,baseline_reason,scope,n,median_pre_exit_mfe,median_pre_exit_mae,close_1pct_count,close_1p5pct_count,close_2pct_count
+evaluation,stop,all_raw,15,0.0068926136172786645,0.019287513494062658,4,3,1
+evaluation,stop,baseline_admitted,14,0.006804183659517182,0.019504312538423774,4,3,1
+evaluation,target,all_raw,24,0.023942868726307465,0.009235169882774563,24,23,22
+evaluation,target,baseline_admitted,22,0.024113351622136237,0.009947976938337544,22,22,21
+historical,stop,all_raw,47,0.008351024415256258,0.01910016977928708,16,6,2
+historical,stop,baseline_admitted,44,0.008396291428407365,0.019052101644220054,15,6,2
+historical,target,all_raw,57,0.02370370370370356,0.006963373704946707,55,53,49
+historical,target,baseline_admitted,53,0.02370370370370356,0.007071366755568187,51,49,46

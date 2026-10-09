@@ -1,0 +1,16 @@
+{
+  "status": "pass",
+  "input_hashes": 6,
+  "feature_hashes": 9,
+  "raw_signals": 143,
+  "independent_scalar_paths": 286,
+  "baseline_raw_reconciled_rows": 286,
+  "baseline_admitted_reconciled_rows": 266,
+  "independent_admission_replays": 8,
+  "ledger_rows": 532,
+  "paired_rows": 286,
+  "decomposition_checks": 4,
+  "sources_checked": 74,
+  "cost_and_causality_checks": "pass",
+  "scores_2026": false
+}

@@ -1,0 +1,13 @@
+{
+  "status": "pass",
+  "unique_signals": 69,
+  "independent_entry_selections": 69,
+  "causal_prefix_checks": 69,
+  "treatment_paths_and_cost_checks": 168,
+  "independent_admission_replays": 24,
+  "baseline_raw_rows_exact": 276,
+  "baseline_admitted_rows_exact": 260,
+  "attribution_checks": 12,
+  "qualified_unique_signals": 42,
+  "ledger_rows": 420
+}

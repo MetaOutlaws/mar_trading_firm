@@ -1,0 +1,15 @@
+{
+  "status": "pass",
+  "reference_raw_rows": 552,
+  "reference_admitted_rows": 520,
+  "unique_signals": 69,
+  "unique_admitted_per_scenario": 65,
+  "raw_cost_rows": 1104,
+  "ledger_rows": 1040,
+  "independent_cash_cost_checks": 552,
+  "admission_replays": 48,
+  "unchanged_paths": true,
+  "unchanged_nonstop_rows": true,
+  "no_new_tokens": true,
+  "no_runtime_changes": true
+}

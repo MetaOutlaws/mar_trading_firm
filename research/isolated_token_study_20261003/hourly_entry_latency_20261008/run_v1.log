@@ -1,0 +1,28 @@
+DELAY_PATHS_AND_COSTS_VERIFIED BTCUSDT
+DELAY_PATHS_AND_COSTS_VERIFIED ETHUSDT
+DELAY_PATHS_AND_COSTS_VERIFIED SOLUSDT
+ delay_minutes            partition  stress  n     mean  stop_count  target_count  boundary_count
+             0           historical       1 41 0.003529          18            23               0
+             0           historical       2 41 0.000702          20            21               0
+             0           evaluation       1 15 0.014097           3            12               0
+             0           evaluation       2 15 0.010412           4            11               0
+             0 reserved_replication       1  9 0.018015           1             8               0
+             0 reserved_replication       2  9 0.017240           1             8               0
+             1           historical       1 41 0.002444          19            22               0
+             1           historical       2 41 0.001819          19            22               0
+             1           evaluation       1 15 0.005128           6             9               0
+             1           evaluation       2 15 0.004416           6             9               0
+             1 reserved_replication       1  9 0.012989           2             7               0
+             1 reserved_replication       2  9 0.012216           2             7               0
+             5           historical       1 41 0.004647          17            24               0
+             5           historical       2 41 0.002947          18            23               0
+             5           evaluation       1 15 0.008118           5            10               0
+             5           evaluation       2 15 0.004414           6             9               0
+             5 reserved_replication       1  9 0.012989           2             7               0
+             5 reserved_replication       2  9 0.012216           2             7               0
+            15           historical       1 41 0.004631          17            24               0
+            15           historical       2 41 0.004024          17            24               0
+            15           evaluation       1 15 0.008120           5            10               0
+            15           evaluation       2 15 0.007408           5            10               0
+            15 reserved_replication       1  9 0.012989           2             7               0
+            15 reserved_replication       2  9 0.012216           2             7               0

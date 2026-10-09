@@ -1,0 +1,18 @@
+{
+  "status": "pass",
+  "frozen_output_hashes": 11,
+  "frozen_source_hashes": 68,
+  "input_hashes": 6,
+  "feature_hashes": 9,
+  "original_event_groups": 108,
+  "unique_raw_barrier_checks": 57728,
+  "independent_admission_runs": 48,
+  "prior_compression_ledger_rows": 3736,
+  "pooled_summary_rows": 48,
+  "subgroup_rows": 1116,
+  "annual_rows": 96,
+  "contrast_rows": 24,
+  "ledger_rows": 36488,
+  "costs_and_causality": "pass",
+  "scores_2026": false
+}

@@ -1,0 +1,75 @@
+"""Numerical cash examples and actual pinned runtime method semantics."""
+import ast
+from enum import Enum
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+import numpy as np
+import pandas as pd
+import pytest
+from cost_rule import reconcile_cost,FEE
+RUNTIME=Path(__file__).resolve().parents[3]/'reserved_2026_handover/runtime'
+
+def example(side=1,reason='stop',slip=.001,quote=None,funding=.0003):
+    ep=100*(1+side*slip)
+    q=(ep*(1-side*.027) if reason=='stop' else ep*(1+side*.025)) if quote is None else quote
+    xp=q*(1-side*slip);gross=side*(xp/ep-1);fees=FEE*(1+xp/ep);net=gross-fees-funding
+    return pd.DataFrame([dict(side=side,reason=reason,slippage_per_side=slip,entry_price=ep,quote=q,exit_price=xp,
+        gross_return=gross,fees=fees,funding=funding,net_return=net,quoted_return=side*(q/100-1),
+        slippage_drag=side*(q/100-1)-gross,net_R=net/.02,stop=.02,entry='unchanged',exit='unchanged')])
+
+@pytest.mark.parametrize('side',[1,-1])
+@pytest.mark.parametrize('slip',[0,.0005,.001,.002])
+@pytest.mark.parametrize('funding',[-.0003,.0003])
+def test_stop_cash_notional_example(side,slip,funding):
+    a=example(side,slip=slip,funding=funding);b=reconcile_cost(a);r=b.iloc[0]
+    cash=side*(r.quote-r.entry_price)-FEE*r.entry_price-FEE*r.quote-funding*r.entry_price
+    assert r.exit_price==r.quote
+    assert np.isclose(r.net_return,cash/r.entry_price,atol=1e-13)
+    assert np.isclose(r.fees,FEE*(r.entry_price+r.quote)/r.entry_price)
+    assert r.net_return>=a.net_return.iloc[0]-1e-14
+    assert r.funding==funding and r.entry=='unchanged' and r.exit=='unchanged'
+    pd.testing.assert_frame_equal(a,example(side,slip=slip,funding=funding),check_exact=True)
+
+@pytest.mark.parametrize('side',[1,-1])
+@pytest.mark.parametrize('reason',['target','boundary_mtm'])
+def test_nonstop_exact_identity(side,reason):
+    a=example(side,reason);pd.testing.assert_frame_equal(a,reconcile_cost(a),check_exact=True)
+
+@pytest.mark.parametrize('side',[1,-1])
+def test_gap_quote_is_not_reset_to_nominal_stop(side):
+    a=example(side,quote=95 if side==1 else 105);b=reconcile_cost(a)
+    assert b.exit_price.iloc[0]==(95 if side==1 else 105)
+    assert b.gross_return.iloc[0]<-.04
+
+def extracted(path,name,ns):
+    tree=ast.parse(path.read_text());node=next(x for x in ast.walk(tree) if isinstance(x,ast.FunctionDef) and x.name==name)
+    mod=ast.Module(body=[ast.ImportFrom(module='__future__',names=[ast.alias(name='annotations')],level=0),node],type_ignores=[])
+    exec(compile(ast.fix_missing_locations(mod),str(path),'exec'),ns)
+    return ns[name]
+
+@pytest.mark.parametrize('side',['LONG','SHORT'])
+def test_actual_runtime_contract_and_paper_quote_methods(side):
+    calls=[]
+    class Reason(str,Enum):STOP_LOSS='stop_loss'
+    class Costs:
+        def exit_price(self,q,s):calls.append(('slip',q,s));return q*(.999 if s=='LONG' else 1.001)
+        def fee_for(self,n):calls.append(('fee',n));return .00055*n
+    cost=Costs();ns=dict(ExitReason=Reason)
+    fill=extracted(RUNTIME/'core/execution/contract.py','exit_fill_price',ns)
+    assert fill(cost,95,side,'stop_loss')==95 and calls==[]
+    assert fill(cost,103,side,'take_profit')==103*(.999 if side=='LONG' else 1.001)
+    broker=SimpleNamespace(_positions={'X':SimpleNamespace(quantity=2,side=side,entry_price=100)},
+        costs_for=lambda symbol:cost,get_price=lambda symbol:95,
+        _quote_close=lambda *args:args)
+    method=extracted(RUNTIME/'core/execution/paper.py','quote_mark_close',{})
+    calls.clear();q=method(broker,'X',95,98)
+    assert q==('X',2,95,.00055*190,98) and calls==[('fee',190)]
+    market=extracted(RUNTIME/'core/execution/paper.py','quote_market_close',{})
+    calls.clear();q=market(broker,'X')
+    assert q[2]==95*(.999 if side=='LONG' else 1.001) and calls[0][0]=='slip'
+
+@pytest.mark.parametrize('col,value',[('side',0),('reason','unknown'),('entry_price',0),('quote',-1),('slippage_per_side',-.01)])
+def test_reject_invalid(col,value):
+    a=example();a[col]=value
+    with pytest.raises(ValueError):reconcile_cost(a)

@@ -1,0 +1,25 @@
+INDEPENDENT_RSI_AND_STATE_VERIFIED BTCUSDT 61
+INDEPENDENT_RSI_AND_STATE_VERIFIED ETHUSDT 48
+INDEPENDENT_RSI_AND_STATE_VERIFIED SOLUSDT 34
+ADMISSIONS_REPLAYED approved_none
+ADMISSIONS_REPLAYED approved_always
+ADMISSIONS_REPLAYED approved_directional
+ADMISSIONS_REPLAYED approved_loweff
+                 arm  partition  stress  n     mean  stop_count  target_count
+       approved_none historical       1 41 0.006229          15            26
+       approved_none historical       2 41 0.005003          15            26
+       approved_none evaluation       1 15 0.013400           3            12
+       approved_none evaluation       2 15 0.011993           3            12
+     approved_always historical       1 38 0.006133          14            24
+     approved_always historical       2 38 0.004914          14            24
+     approved_always evaluation       1 15 0.013400           3            12
+     approved_always evaluation       2 15 0.011993           3            12
+approved_directional historical       1 38 0.006133          14            24
+approved_directional historical       2 38 0.004914          14            24
+approved_directional evaluation       1 15 0.013400           3            12
+approved_directional evaluation       2 15 0.011993           3            12
+     approved_loweff historical       1 41 0.006229          15            26
+     approved_loweff historical       2 41 0.005003          15            26
+     approved_loweff evaluation       1 15 0.013400           3            12
+     approved_loweff evaluation       2 15 0.011993           3            12
+{"always_cost1": false, "always_cost2": false, "directional_cost1": false, "directional_cost2": false, "loweff_cost1": false, "loweff_cost2": false}

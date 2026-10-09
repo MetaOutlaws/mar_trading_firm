@@ -1,0 +1,12 @@
+{
+  "status": "pass",
+  "input_hashes": 6,
+  "feature_hashes": 9,
+  "raw_signals": 143,
+  "independent_barrier_checks": 715,
+  "independent_admission_replays": 20,
+  "baseline_reconciled_rows": 266,
+  "ledger_rows": 1330,
+  "costs_causality": "pass",
+  "scores_2026": false
+}

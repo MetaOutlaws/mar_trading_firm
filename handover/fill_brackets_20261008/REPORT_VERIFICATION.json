@@ -1,0 +1,10 @@
+{
+  "status": "pass",
+  "report_rows_checked": 198,
+  "bootstrap_intervals_independently_rebuilt": 48,
+  "unique_admitted_trades": 65,
+  "overlapping_scenario_rows": 260,
+  "attribution_checks": 6,
+  "all_frozen_hashes_verified": true,
+  "prior_results_preserved": true
+}

@@ -1,0 +1,8 @@
+{
+  "positive_point_replication_both_costs": true,
+  "both_block_interval_lower_bounds_positive_both_costs": false,
+  "independent_edge_established": false,
+  "holdout_untouched": false,
+  "automatic_deployment": false,
+  "leverage_qualified": false
+}
