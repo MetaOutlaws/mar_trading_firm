@@ -1,7 +1,7 @@
 # Fixed follow-through after H-RETEST-EXPANSION-01
 
-Recorded 9 October 2026 while the frozen 2022–2025 comparison was running,
-before its return tables were opened. This operational sequence implements the
+Recorded 9 October 2026 before reviewing the frozen 2022–2025 return tables.
+The scorer had completed 12 seconds earlier; its returns had not been opened. This operational sequence implements the
 owner's request to avoid selecting the next study from attractive findings.
 It leaves the original experiment protocols and paper approval unchanged.
 
