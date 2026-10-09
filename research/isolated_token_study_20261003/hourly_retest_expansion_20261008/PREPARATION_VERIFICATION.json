@@ -1,12 +1,12 @@
 {
   "status": "pass",
   "experiment_id": "H-RETEST-EXPANSION-01",
-  "verified_at": "2026-10-09T01:20:06Z",
+  "verified_at": "2026-10-09T02:09:08Z",
   "outcome_blind": true,
   "additional_token_outcomes_scored": false,
   "scores_2026": false,
   "production_changes": false,
-  "synthetic_tests_passed": 8,
+  "synthetic_tests_passed": 12,
   "checks": [
     "safe manifest paths",
     "collector hashes and frozen membership",
@@ -15,7 +15,11 @@
     "minute-grid, OHLC and funding audit",
     "adapter partition and closed-2026 boundary",
     "audited membership ingestion",
-    "reference-symbol exclusion"
+    "reference-symbol exclusion",
+    "audited-input mutation rejection",
+    "closed-2026 signal-inventory rejection",
+    "runner source-hash mutation detection",
+    "freeze roundtrip and post-freeze mutation rejection"
   ],
   "reference_parity": {
     "signals": 69,
@@ -36,13 +40,16 @@
   },
   "source_hashes": {
     "PROTOCOL.md": "f4e33286207ab92f77708b24f499cb462ee2b32e5de37a744d260babcf2c3cc6",
-    "TODO.md": "e8bfca406aace21c0615dda7d731d40772b7e6bcc7f43fe173f7247a220a5f09",
-    "PREPARATION_STATUS.md": "82645032813bf5e23d4667216ff8425070592150c652bb442f44dd75a522162b",
+    "TODO.md": "ba9e8d07185fd73bad1e5e3fbec081d20c66f1092a2dfaba30067da888822593",
+    "PREPARATION_STATUS.md": "5291d31df67344015cbaeb3d4c12a97b7bb0f6ac71fc150cf97bff62f27baea5",
     "data_gate.py": "e6bc33a8da40da8693f7a8e246a1f2a57596b90778f330587110eab7a1faed7f",
     "run_state.py": "23aa11ae9c9a5c353c2cdb53c6db76bfe264424c8eee39f9b95a8eac34936a2b",
     "test_preparation.py": "e4e15ad9f02f4c7b757340bdac34c50511389e6f03095caf052a7c6684820456",
     "adapter.py": "0dc1b98ce1c64d1d066cb66498387a51db8b2ac78e857acdfa987c2a212629b6",
     "test_adapter.py": "beac7e88095094fd48be016db346b0d7e8e42a6c130404c1f1cd1719eab051c7",
-    "reference_parity_v1/VERIFICATION.json": "0c437d53cac2f45e9f4d4e011f7314b94008d38440e81b3334e4e91825bd8531"
+    "reference_parity_v1/VERIFICATION.json": "0c437d53cac2f45e9f4d4e011f7314b94008d38440e81b3334e4e91825bd8531",
+    "freeze_gate.py": "0a3a01a9f1c17b70a988e2a559be605ab63291a258191f2da6b2111f17be7c1a",
+    "test_freeze_gate.py": "5d1ee3a53eb111e732be6b38628a1f0ca12c2cee641cdcf5259c47ba20708674",
+    "PRIOR_USE_AUDIT.md": "f3a5db3a1157df8b7a1e3afea387c4e2017636d85098eee8da9c5e39bcf558fc"
   }
 }

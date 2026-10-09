@@ -26,6 +26,12 @@ Updated 9 October 2026 before any additional-token outcome was opened.
   checkpoint: all 69 approved source signals, 276 immediate paths, 168 retest
   paths, 69 causal-prefix checks, 24 independent admission replays and the
   complete 260-row immediate plus 160-row retest ledgers reproduced exactly.
+- Added the immutable freeze gate. Before a run can be claimed it must re-hash
+  the audited cache, membership/catalog, closed-2026 signal inventory,
+  protocol, exact runner, preparation record and reference-parity evidence.
+- Recorded the disclosed possibility that Grok has previously examined this
+  dataset. No Grok outputs have been accessed or used to select or tune this
+  independent comparison.
 
 ## Current blocker
 
@@ -43,8 +49,8 @@ to bind the independent run to.
 1. Audit and hash the accessible collector output with `data_gate.py`.
 2. Run the completed adapter against that audited cache and review the
    outcome-blind signal inventory.
-3. Freeze reviewed runner source, protocol, audited inputs and membership
-   hashes.
+3. Complete the scoring/report runner, review it, then bind its exact hash with
+   `freeze_gate.py` together with the protocol, audited inputs and membership.
 4. Atomically claim and execute one independent H-RETEST-EXPANSION-01 run.
 5. Independently verify every path, cost, admission replay, paired attribution
    and report row before publishing aggregate evidence and private CSV ledgers.
