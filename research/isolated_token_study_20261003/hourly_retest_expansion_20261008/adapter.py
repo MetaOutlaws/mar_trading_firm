@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import expanded_context
 
 
 BEGIN = "2022-01-01"
@@ -115,7 +116,8 @@ def signal_contexts(
     verification = []
     for symbol in symbols:
         candles, funding = replication.load(cache, symbol, END)
-        raw, checks = replication.contexts(
+        raw, checks = expanded_context.contexts(
+            replication,
             candles,
             funding,
             btc,

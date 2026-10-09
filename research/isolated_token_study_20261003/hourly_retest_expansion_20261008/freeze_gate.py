@@ -19,6 +19,7 @@ REQUIRED_SOURCE = [
     "PROTOCOL.md",
     "PRIOR_USE_AUDIT.md",
     "adapter.py",
+    "expanded_context.py",
     "data_gate.py",
     "run_state.py",
     "freeze_gate.py",

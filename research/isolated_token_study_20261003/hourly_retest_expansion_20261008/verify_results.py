@@ -150,6 +150,9 @@ def independent_metrics(frame: pd.DataFrame, original_signals: int) -> dict:
         "marks": int(frame.reason.eq("boundary_mtm").sum()) if len(frame) else 0,
         "net_positive": int((values > 0).sum()),
         "net_win_rate": float((values > 0).mean()) if len(values) else np.nan,
+        "completed_net_win_rate": float((closed.net_return > 0).mean()) if len(closed) else np.nan,
+        "marked_net_return_sum": float(frame.loc[frame.reason == "boundary_mtm", "net_return"].sum()) if len(frame) else 0.,
+        "closed_net_per_original_signal": float(closed.net_return.sum() / original_signals) if original_signals else np.nan,
         "stop_rate_completed": float(frame.reason.eq("stop").sum() / len(closed))
         if len(closed) else np.nan,
         "mean_net_per_admitted_trade": float(values.mean()) if len(values) else np.nan,
@@ -303,6 +306,64 @@ def check_closed_boundary(signals: pd.DataFrame, opportunities: pd.DataFrame,
             raise AssertionError("reserved 2026 outcome boundary was opened")
 
 
+def check_actual_entry_years(ledger, annual):
+    checked = 0
+    for row in annual.itertuples(index=False):
+        view = ledger[(ledger.entry_rule == row.entry_rule) & (ledger.partition == row.partition)
+                      & (ledger.poll_minutes == row.poll_minutes) & (ledger.stress == row.stress)
+                      & (pd.to_datetime(ledger.entry, utc=True).dt.year == row.entry_year)]
+        assert_numeric_row(pd.Series(row._asdict()), independent_metrics(view, 0), "actual entry year")
+        checked += 1
+    if checked != 32:
+        raise AssertionError("actual entry-year inventory incomplete")
+    return checked
+
+
+def check_weekly_intervals(signals, ledger, reported):
+    """Rebuild week totals from source signals and admitted books, then use
+    bootstrap multiplicity weights rather than the scorer's row-sum sampler."""
+    checked = 0
+    for partition, start, end in [("historical", "2022-01-01", "2025-01-01"),
+                                   ("evaluation", "2025-01-01", "2026-01-01")]:
+        weeks = pd.period_range(pd.Timestamp(start).to_period("W-SUN"),
+                  (pd.Timestamp(end)-pd.Timedelta(minutes=1)).to_period("W-SUN"), freq="W-SUN")
+        original = signals[signals.partition == partition].copy()
+        original["week"] = pd.to_datetime(original.signal_time, utc=True).dt.tz_localize(None).dt.to_period("W-SUN")
+        for stress in STRESSES:
+            values = np.zeros((len(weeks), 5))
+            values[:,4] = original.groupby("week").size().reindex(weeks,fill_value=0)
+            for i,arm in enumerate(ARMS):
+                q = ledger[(ledger.partition == partition) & (ledger.stress == stress)
+                           & (ledger.poll_minutes == 1) & (ledger.entry_rule == arm)].copy()
+                q["week"] = pd.to_datetime(q.signal_time,utc=True).dt.tz_localize(None).dt.to_period("W-SUN")
+                values[:,i] = q.groupby("week").net_return.sum().reindex(weeks,fill_value=0)
+                values[:,i+2] = q.groupby("week").size().reindex(weeks,fill_value=0)
+            for seed in (20261007,20261010):
+                for block in (1,4):
+                    n=len(weeks);draws=10000
+                    starts=np.random.default_rng(seed).integers(0,n,(draws,int(np.ceil(n/block))))
+                    idx=((starts[:,:,None]+np.arange(block))%n).reshape(draws,-1)[:,:n]
+                    weights=np.bincount((np.arange(draws)[:,None]*n+idx).ravel(),minlength=draws*n).reshape(draws,n)
+                    sample=weights@values
+                    def ratio(a,b):return np.divide(a,b,out=np.full(draws,np.nan),where=np.abs(b)>1e-15)
+                    im=ratio(sample[:,0],sample[:,2]);rt=ratio(sample[:,1],sample[:,3])
+                    distributions={"immediate_mean_net_per_trade":im,"retest_mean_net_per_trade":rt,
+                       "difference_mean_net_per_trade":rt-im,
+                       "immediate_net_per_original_signal":ratio(sample[:,0],sample[:,4]),
+                       "retest_net_per_original_signal":ratio(sample[:,1],sample[:,4]),
+                       "difference_net_per_original_signal":ratio(sample[:,1]-sample[:,0],sample[:,4]),
+                       "fraction_baseline_net_missed":ratio(sample[:,0]-sample[:,1],sample[:,0])}
+                    for metric,dist in distributions.items():
+                        valid=dist[np.isfinite(dist)]
+                        bounds=np.quantile(valid,[.025,.975]) if len(valid) else [np.nan,np.nan]
+                        row=reported[(reported.partition==partition)&(reported.stress==stress)
+                          &(reported.seed==seed)&(reported.block_weeks==block)&(reported.metric==metric)]
+                        if len(row)!=1 or int(row.iloc[0].draws)!=len(valid) or not np.allclose(row.iloc[0][['low_95','high_95']].astype(float),bounds,rtol=1e-10,atol=1e-12,equal_nan=True):
+                            raise AssertionError(f"independent weekly interval mismatch: {partition} {stress} {seed} {block} {metric}")
+                        checked+=1
+    return checked
+
+
 def verify(cache: Path, signal_dir: Path, reference_root: Path, runner: Path,
            freeze: Path, record: Path, out: Path, report: Path) -> dict:
     frozen = freeze_gate.verify_freeze(cache, signal_dir, runner, freeze)
@@ -352,6 +413,8 @@ def verify(cache: Path, signal_dir: Path, reference_root: Path, runner: Path,
             signals, opportunities, ledger, pooled),
         "token_side_cells_recalculated": check_token_side_cells(signals, ledger, cells, universe),
         "entry_year_cells_recalculated": check_entry_year_cells(signals, ledger, cells),
+        "actual_entry_year_rows_recalculated": check_actual_entry_years(ledger, pd.read_csv(out / "actual_entry_year_results.csv")),
+        "weekly_intervals_recalculated": check_weekly_intervals(signals, ledger, pd.read_csv(out / "bootstrap_intervals.csv")),
         "signal_pairs_recalculated": check_signal_pairs(
             signals, opportunities, ledger, pairs),
         "signals": len(signals),

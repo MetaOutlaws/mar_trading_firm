@@ -33,7 +33,7 @@ Updated 9 October 2026 before any additional-token outcome was opened.
   dataset. No Grok outputs have been accessed or used to select or tune this
   independent comparison.
 
-## Current blocker
+## Previous access blocker — resolved below
 
 The user-supplied Windows-local dataset directory is not mounted or readable
 in this workspace. No replacement dataset, Library upload or
@@ -86,7 +86,7 @@ all manifest and ZIP integrity checks and is durably preserved. Independent
 monthly selection reconstruction passed for all 675 rows and 93 new tokens.
 The strict catalog-boundary attempt and initial funding-endpoint failure are
 preserved. The explicit data-only amendment is in
-`DATA_BOUNDARY_AMENDMENT_20261009.md`; amended audit is in progress.
+`DATA_BOUNDARY_AMENDMENT_20261009.md`; amended audit passed for all 96 symbols (93 additional and three references).
 
 Reference parity was repeated successfully: 69 signals, 444 path/cost rows and
 24 admission replays. The expansion scorer itself separately reproduced all
@@ -95,3 +95,20 @@ replays. The 23 synthetic checks pass, including zero-signal-token reporting,
 completed-trade win accounting, rejection of interior gaps and the terminal
 funding cutoff. These are known-reference and synthetic checks, not new-token
 returns. No independent new-token run has yet been claimed.
+
+## Additional-token adapter correction before outcomes
+
+The original research BTC confirmation helper and runtime paper context binder
+intentionally accept only BTC/ETH/SOL. The first new-token signal-inventory
+attempt stopped at this restriction before scoring a trade. `expanded_context.py`
+now applies the frozen strict BTC-return sign condition in the offline research
+adapter. It uses the runtime symbol-free numerical compression calculator and
+independent Connors/efficiency calculations for parity, without changing an
+approval allowlist or invoking an execution entry point. The corrected path
+exactly reproduced all 69 known reference signals and checked 473,952 eligible
+hour/side combinations. All 24 synthetic checks pass.
+
+The independent report verifier now also reconstructs all paired weekly
+bootstrap intervals using multiplicity weights and checks the actual-entry-year
+rows. Its 112 interval checks passed on the known-reference fixture. New-token
+trade outcomes remain unopened; the signal inventory is in progress.

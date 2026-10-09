@@ -6,6 +6,13 @@ import pandas as pd
 import data_gate as gate
 import run_expansion as runner
 from test_run_expansion import fixture
+from expanded_context import btc_confirmation
+
+def test_additional_token_confirmation_exact_sign():
+    x=np.array([np.nan,-.01,0.,.01])
+    assert btc_confirmation('NEWUSDT',1,x).tolist()==[False,False,False,True]
+    assert btc_confirmation('NEWUSDT',-1,x).tolist()==[False,True,False,False]
+    assert btc_confirmation('BTCUSDT',1,x).tolist()==[False,True,True,True]
 
 def test_observed_edges_never_allow_interior_gap():
     old_begin,old_end=gate.BEGIN,gate.END
@@ -48,5 +55,5 @@ def test_marks_are_not_completed_wins():
     assert np.isclose(q['marked_net_return_sum'],.02)
 
 if __name__=='__main__':
-    for test in [test_observed_edges_never_allow_interior_gap,test_zero_signal_token_stays_in_universe_report,test_marks_are_not_completed_wins]:
+    for test in [test_additional_token_confirmation_exact_sign,test_observed_edges_never_allow_interior_gap,test_zero_signal_token_stays_in_universe_report,test_marks_are_not_completed_wins]:
         test();print('PASS',test.__name__)

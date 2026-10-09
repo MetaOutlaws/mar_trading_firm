@@ -1,12 +1,12 @@
 {
   "status": "pass",
   "experiment_id": "H-RETEST-EXPANSION-01",
-  "verified_at": "2026-10-09T06:31:29.935864+00:00",
+  "verified_at": "2026-10-09T06:40:11.249232+00:00",
   "outcome_blind": true,
   "additional_token_outcomes_scored": false,
   "scores_2026": false,
   "production_changes": false,
-  "synthetic_tests_passed": 23,
+  "synthetic_tests_passed": 24,
   "checks": [
     "safe manifest paths",
     "collector hashes and frozen membership",
@@ -31,7 +31,10 @@
     "observed-hour boundary rejects interior gaps",
     "all eligible tokens reported including zero-signal tokens",
     "completed win rate excludes boundary marks",
-    "reference and runtime source hashes bound in freeze"
+    "reference and runtime source hashes bound in freeze",
+    "independent weekly bootstrap and actual-entry-year verifier",
+    "offline expanded BTC sign including zero and missing return rejection",
+    "expanded context reproduced all 69 reference signals without runtime approval changes"
   ],
   "reference_parity": {
     "signals": 69,
@@ -53,22 +56,23 @@
   "source_hashes": {
     "PROTOCOL.md": "f4e33286207ab92f77708b24f499cb462ee2b32e5de37a744d260babcf2c3cc6",
     "TODO.md": "ba9e8d07185fd73bad1e5e3fbec081d20c66f1092a2dfaba30067da888822593",
-    "PREPARATION_STATUS.md": "ae1b0e1e9de2f6819abe12183bcfda7360e2e975da28f816a36e7426bbc92ea6",
+    "PREPARATION_STATUS.md": "038e7226e5d09023519d2826f45934a95a1677ae9ff791aad16d59cb0b5f7d30",
     "data_gate.py": "931c822ea470bc2dfdc5c17ce566c9df9d8831970477432769537c5e517cf03a",
     "run_state.py": "23aa11ae9c9a5c353c2cdb53c6db76bfe264424c8eee39f9b95a8eac34936a2b",
     "test_preparation.py": "e4e15ad9f02f4c7b757340bdac34c50511389e6f03095caf052a7c6684820456",
-    "adapter.py": "30b63d3f50c0a93bed9f33e841ff774634244b91f07ebfdee6b4d82a655657e5",
+    "adapter.py": "da79642d50428b90a0359af50b671e03303624afb3b88b28e60a0665f0be9798",
     "test_adapter.py": "beac7e88095094fd48be016db346b0d7e8e42a6c130404c1f1cd1719eab051c7",
     "reference_parity_v1/VERIFICATION.json": "0c437d53cac2f45e9f4d4e011f7314b94008d38440e81b3334e4e91825bd8531",
-    "freeze_gate.py": "5e99865d99552e14bdb76ef37f9f7ef1213dba92f0cdc14413c67b1fb63a5ccd",
+    "freeze_gate.py": "09c139b8272bbb92dd48e699970c8598f554cf7c336065dec7192ec51a5ea288",
     "test_freeze_gate.py": "5d1ee3a53eb111e732be6b38628a1f0ca12c2cee641cdcf5259c47ba20708674",
     "PRIOR_USE_AUDIT.md": "f3a5db3a1157df8b7a1e3afea387c4e2017636d85098eee8da9c5e39bcf558fc",
     "run_expansion.py": "0ac14248eded2410c7075a76d59589813f5d26852d92181b8be4a8268f51f677",
     "test_run_expansion.py": "c6e86139596b5f6d6d87fc876ae9b952babc90fd2bf91297d236daa3160d1e01",
-    "verify_results.py": "6bc5b8b548c65da3b667026d7d31c6d84dc830bccf5ddcd477e62f65ba278ac9",
+    "verify_results.py": "96693273908791c62db29aeb4319a413c5cda9df35256a67249066d2a052e224",
     "test_verify_results.py": "1fa43875217f114ca0401349a6472849d80fc6343943e4dbf77646eba38facaf",
     "DATA_BOUNDARY_AMENDMENT_20261009.md": "92faac7dc714c88a0b7f24faa5b803ae5e54f102357a5bcb7f5eccf537b8ecad",
-    "test_review_corrections.py": "eec98104ccb10fa1d6595f6ef3e904b8e74758908e29a3ba8c762f623b4019c6"
+    "test_review_corrections.py": "0b96c83b8df55f7d199477f357d1a105c72123ca37a4122b716ff3370f15e6da",
+    "expanded_context.py": "0d0fe7e526f128c066941ea2adedeba5988b92bd7b1a27653347932f2b423acd"
   },
   "runner_reference_smoke": {
     "status": "pass",
@@ -84,5 +88,12 @@
     "separate_replays": 16,
     "new_token_outcomes_scored": false
   },
-  "supplied_archive_sha256": "c49af11ec116836ccfc5129f1fa92c80c72714adc52bc2556fb919de1ae001eb"
+  "supplied_archive_sha256": "c49af11ec116836ccfc5129f1fa92c80c72714adc52bc2556fb919de1ae001eb",
+  "expanded_context_reference": {
+    "status": "pass",
+    "reference_signals": 69,
+    "new_token_outcomes_scored": false,
+    "production_approval_unchanged": true
+  },
+  "independent_interval_reference_checks": 112
 }
