@@ -1,12 +1,13 @@
 """Path2 findings render only Marcus-sealed rows.
 
-The shipped table is thirty rows, all FAIL. ma_macd_rsi_agree is one cell.
+The shipped table is thirty-two rows, all FAIL. ma_macd_rsi_agree is one cell.
 RSI is a state, not a 70/30 cross. A less-negative net stays FAIL.
 funding_extreme_agree is BTCUSDT 4h with one frozen threshold line.
 london_am_range_break is one BTCUSDT 4h cell. Rates stay decimals.
 prior_utc_day_mid_cross is one BTCUSDT 4h cell. A less-negative net stays FAIL.
 eth_btc_return_agree is one BTCUSDT 4h cell. Rates stay decimals.
 oi_delta_agree is one BTCUSDT 4h cell. Rates stay decimals.
+toptrader_crowd_divergence is one BTCUSDT 4h cell. There is no PF column.
 Where an older cell says none, that metric stays null. An empty cells list
 still renders nothing.
 """
@@ -278,6 +279,33 @@ _OI_SHORT = {
     "same_shell_h18_base_net": "-0.248336",
     "stress_stop_2_net": "-0.202034",
 }
+_TOP_CLOCK = "BTCUSDT 4h"
+_TOP_LABEL = (
+    "dX = ln(X[t]/X[t\u22126]) on Binance USDT-M sum_toptrader_long_short_ratio (TOP) "
+    "and count_long_short_ratio (ACC), each the last 5m snapshot strictly before bar close "
+    "(declared cross-venue proxy). Stale >60m, \u22640 or NaN = missing = no trade. "
+    "Long = dTOP \u2265 +0.05 AND dACC \u2264 \u22120.10. "
+    "Short = dTOP \u2264 \u22120.05 AND dACC \u2265 +0.10. "
+    "No candle leg. 18-bar non-overlap per side."
+)
+_TOP_LONG = {
+    "n": 96,
+    "target_first_count": 28,
+    "target_first_rate": "0.291667",
+    "gross": "-0.045766",
+    "net_after_0_31_rt": "-0.252432",
+    "same_shell_h18_base_net": "-0.212583",
+    "stress_stop_2_net": "-0.238001",
+}
+_TOP_SHORT = {
+    "n": 97,
+    "target_first_count": 28,
+    "target_first_rate": "0.288660",
+    "gross": "-0.001160",
+    "net_after_0_31_rt": "-0.207827",
+    "same_shell_h18_base_net": "-0.248336",
+    "stress_stop_2_net": "-0.054441",
+}
 _ADX_MA25_LONG = {
     "n": 700,
     "target_first_count": 234,
@@ -334,7 +362,7 @@ _ADX_SHORT = {
 }
 
 
-def test_shipped_findings_are_the_thirty_sealed_rows() -> None:
+def test_shipped_findings_are_the_thirty_two_sealed_rows() -> None:
     raw_text = PATH2_FINDINGS_PATH.read_text(encoding="utf-8")
     raw = json.loads(raw_text)
     assert raw["sealed"] is True
@@ -356,8 +384,9 @@ def test_shipped_findings_are_the_thirty_sealed_rows() -> None:
         "prior_utc_day_mid_cross",
         "eth_btc_return_agree",
         "oi_delta_agree",
+        "toptrader_crowd_divergence",
     ]
-    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london, mid, eth, oi = raw["cells"]
+    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london, mid, eth, oi, top = raw["cells"]
     assert macd["clock"] == "4h"
     assert macd["thresholds"]["label"] == "EMA 21 and MACD 12, 26, 9, agreement required"
     assert macd["verdict"] == "FAIL"
@@ -483,6 +512,28 @@ def test_shipped_findings_are_the_thirty_sealed_rows() -> None:
     assert oi.get("green_year_note") in (None, "")
     assert oi["sides"]["long"] == _OI_LONG
     assert oi["sides"]["short"] == _OI_SHORT
+    assert top["id"] == "toptrader_crowd_divergence"
+    assert top["family"] == "toptrader_crowd_divergence"
+    assert top["clock"] == _TOP_CLOCK
+    assert top["thresholds"]["label"] == _TOP_LABEL
+    assert "\u2212" in top["thresholds"]["label"]
+    assert "\u2265" in top["thresholds"]["label"]
+    assert "\u2264" in top["thresholds"]["label"]
+    assert top["verdict"] == "FAIL"
+    assert top.get("green_year_note") in (None, "")
+    assert "pf" not in {k.lower() for k in top["sides"]["long"]}
+    assert top["sides"]["long"] == _TOP_LONG
+    assert top["sides"]["short"] == _TOP_SHORT
+    assert "0.291667" in raw_text
+    assert "0.288660" in raw_text
+    assert "-0.045766" in raw_text
+    assert "-0.252432" in raw_text
+    assert "-0.238001" in raw_text
+    assert "-0.001160" in raw_text
+    assert "-0.207827" in raw_text
+    assert "-0.054441" in raw_text
+    assert "0.686" not in raw_text
+    assert "0.729" not in raw_text
     assert "0.316123" in raw_text
     assert "0.280732" in raw_text
     assert "+0.029848" in raw_text
@@ -548,14 +599,14 @@ def test_shipped_findings_are_the_thirty_sealed_rows() -> None:
     assert "+0.046287" in raw_text
 
 
-def test_shipped_file_loads_thirty_rows_all_fail() -> None:
+def test_shipped_file_loads_thirty_two_rows_all_fail() -> None:
     loaded = load_path2_findings()
     assert loaded["sealed"] is True
     assert loaded["load_error"] is None
     assert loaded["note"] == SEALED_TABLE_NOTE
     labels = [cell["thresholds_label"] for cell in loaded["cells"]]
-    assert labels == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL, _MID_LABEL, _ETH_LABEL, _OI_LABEL]
-    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london, mid, eth, oi = loaded["cells"]
+    assert labels == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL, _MID_LABEL, _ETH_LABEL, _OI_LABEL, _TOP_LABEL]
+    macd, rsi_70, rsi_80, va_70, va_80, adx20, adx25, adx_ma20, adx_ma25, ma_macd, funding, london, mid, eth, oi, top = loaded["cells"]
     assert macd["verdict"] == "FAIL"
     assert macd["green_year_note"] is None
     assert macd["sides"]["long"] == _LONG
@@ -678,6 +729,17 @@ def test_shipped_file_loads_thirty_rows_all_fail() -> None:
     assert oi["sides"]["short"]["target_first_rate"] == "0.280732"
     assert oi["sides"]["long"]["net_after_0_31_rt"] == "-0.176818"
     assert oi["sides"]["short"]["net_after_0_31_rt"] == "-0.283949"
+    assert top["verdict"] == "FAIL"
+    assert top["family"] == "toptrader_crowd_divergence"
+    assert top["clock"] == _TOP_CLOCK
+    assert top["thresholds_label"] == _TOP_LABEL
+    assert top["green_year_note"] is None
+    assert top["sides"]["long"] == _TOP_LONG
+    assert top["sides"]["short"] == _TOP_SHORT
+    assert top["sides"]["long"]["target_first_rate"] == "0.291667"
+    assert top["sides"]["short"]["target_first_rate"] == "0.288660"
+    assert top["sides"]["long"]["net_after_0_31_rt"] == "-0.252432"
+    assert top["sides"]["short"]["net_after_0_31_rt"] == "-0.207827"
 
 
 def test_zero_cells_stay_empty(tmp_path) -> None:
@@ -819,9 +881,9 @@ def test_floor_helper_returns_the_sealed_rows() -> None:
 
     loaded = _safe_path2_findings()
     assert loaded["sealed"] is True
-    assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL, _MID_LABEL, _ETH_LABEL, _OI_LABEL]
-    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL"] * 15
-    assert loaded["cells"][-1]["clock"] == _OI_CLOCK
-    assert loaded["cells"][-1]["family"] == "oi_delta_agree"
-    assert loaded["cells"][-2]["family"] == "eth_btc_return_agree"
+    assert [cell["thresholds_label"] for cell in loaded["cells"]] == _LABELS + [_FUNDING_LABEL, _LONDON_LABEL, _MID_LABEL, _ETH_LABEL, _OI_LABEL, _TOP_LABEL]
+    assert [cell["verdict"] for cell in loaded["cells"]] == ["FAIL"] * 16
+    assert loaded["cells"][-1]["clock"] == _TOP_CLOCK
+    assert loaded["cells"][-1]["family"] == "toptrader_crowd_divergence"
+    assert loaded["cells"][-2]["family"] == "oi_delta_agree"
     assert all(cell["green_year_note"] is None for cell in loaded["cells"])

@@ -436,6 +436,35 @@
           "stress_stop_2_net": "-0.202034"
         }
       }
+    },
+    {
+      "id": "toptrader_crowd_divergence",
+      "family": "toptrader_crowd_divergence",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "dX = ln(X[t]/X[t−6]) on Binance USDT-M sum_toptrader_long_short_ratio (TOP) and count_long_short_ratio (ACC), each the last 5m snapshot strictly before bar close (declared cross-venue proxy). Stale >60m, ≤0 or NaN = missing = no trade. Long = dTOP ≥ +0.05 AND dACC ≤ −0.10. Short = dTOP ≤ −0.05 AND dACC ≥ +0.10. No candle leg. 18-bar non-overlap per side."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 96,
+          "target_first_count": 28,
+          "target_first_rate": "0.291667",
+          "gross": "-0.045766",
+          "net_after_0_31_rt": "-0.252432",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.238001"
+        },
+        "short": {
+          "n": 97,
+          "target_first_count": 28,
+          "target_first_rate": "0.288660",
+          "gross": "-0.001160",
+          "net_after_0_31_rt": "-0.207827",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.054441"
+        }
+      }
     }
   ]
 }
