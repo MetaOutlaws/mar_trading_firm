@@ -7,7 +7,9 @@ open positions have already moved cash and are not inside that net.
 
 This module only reads. It does not update equity snapshots, trades,
 positions, cash balances, or approval files, and it does not insert the
-historical October close.
+historical October close. The live book names both unmatched directions
+(a trade with no journal close, a journal close with no trade) so the
+dashboard banner can say which rows disagree.
 """
 
 from __future__ import annotations
@@ -183,10 +185,20 @@ def live_book_statement(
     positions: list[Any],
     marks: dict[str, float | None],
 ) -> dict[str, Any]:
-    """The dashboard/API book. Does not read equity_snapshot.realised_pnl."""
-    return book_statement(
-        load_journal_events(),
+    """The dashboard/API book. Does not read equity_snapshot.realised_pnl.
+
+    ``reconcile`` lists trade ids that have no journal close and journal
+    closes that have no trade, with the amount on each row. It does not
+    insert or delete either side.
+    """
+    from core.ledger.reconcile import load_mode_trades, reconcile_closes
+
+    events = load_journal_events()
+    book = book_statement(
+        events,
         positions,
         marks,
         trades_net_pnl=_trades_net(mode),
     )
+    book["reconcile"] = reconcile_closes(events, load_mode_trades(mode))
+    return book
