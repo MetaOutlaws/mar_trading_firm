@@ -648,6 +648,134 @@ canvas { width: 100%; height: 84px; display: block; }
 }
 .blocker.blocking { border-color: rgba(255,106,92,.4); color: var(--bad); }
 .blocker.waiting { border-color: rgba(240,180,41,.4); color: var(--warn); }
+/* Research tab scan. Five open sections, then the collapsed catalog. */
+.research-stack { display: grid; gap: 12px; }
+.research-toc {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.research-toc button {
+  appearance: none;
+  text-align: left;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+.research-toc button:hover { border-color: var(--line-strong); }
+.research-toc button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.research-toc .n {
+  display: block;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.research-toc .l { display: block; font-weight: 600; font-size: 13px; }
+.research-section { scroll-margin-top: 8px; }
+.research-kicker {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.research-title {
+  font-family: "Instrument Serif", Georgia, serif;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 0 0 10px;
+  max-width: 62ch;
+}
+.research-label {
+  margin: 14px 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.shell-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+.shell-cell {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+.shell-cell .k {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.shell-cell .v { margin-top: 4px; font-weight: 600; }
+.rule-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rule-list li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: start;
+  max-width: 82ch;
+}
+.rule-mark {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--warn);
+  font-size: 12px;
+}
+.path-row, .kill-row, .study-row {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+.path-row:last-child, .kill-row:last-child, .study-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.path-row.is-open {
+  margin: 8px 0;
+  padding: 12px;
+  border: 1px solid rgba(62, 224, 162, 0.28);
+  border-radius: 12px;
+  background: rgba(62, 224, 162, 0.05);
+}
+.kill-row { border-left: 3px solid rgba(255, 106, 92, 0.55); padding-left: 12px; }
+code.fam {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  color: var(--paper);
+}
+.path2-steps { list-style: none; margin: 0; padding: 0; }
+.path2-steps li {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.path2-steps li:last-child { border-bottom: 0; }
+.step-n {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  color: var(--muted);
+  font-size: 12px;
+}
+.prose { max-width: 78ch; }
 @media (max-width: 980px) {
   .standup-grid { grid-template-columns: 1fr; }
 }
@@ -661,6 +789,8 @@ canvas { width: 100%; height: 84px; display: block; }
 .menu-btn { display: none; }
 @media (max-width: 980px) {
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .research-toc { grid-template-columns: 1fr 1fr; }
+  .path-row, .kill-row, .study-row { grid-template-columns: 1fr; gap: 6px; }
   .sidebar {
     position: fixed; left: 0; top: 0; z-index: 15;
     transform: translateX(-100%);
@@ -707,6 +837,144 @@ canvas { width: 100%; height: 84px; display: block; }
 </div>
 <div class="modal-back" id="modal"></div>
 <div class="toast" id="toast"></div>
+<!-- Path2 operator bar for the Research tab. Display only.
+     Keep this JSON identical to api/static/path2_research.json. -->
+<script type="application/json" id="path2-research">
+{
+  "as_of": "2026-10-03",
+  "constraints": {
+    "headline": "Paper only. Live OFF. Book 12 approved + 56 paper_override. Option B freeze holds.",
+    "detail": "Not Inbox until PASS. This panel does not approve a family, start a walk, or change the book. Binding 2026-10-03. Census figures are quoted, not recomputed."
+  },
+  "headlines": {
+    "current-bar": "Path2 pass bar. Both sides must clear net expR > 0 after the 0.31% round trip, and sit above the census base.",
+    "open-path": "Path2 selector-only is the only capitalize path. Path1 shell retune is closed. Path3 short-only is no.",
+    "kill-class": "Donchian Job 173 and swing-break Job 153 stay retired. No parallel coding and no new cells on that pierce.",
+    "closed-studies": "Today’s stack failed the fee: BTC census, ETH census, MA crosses, and the 15m golden/death playbook.",
+    "pipeline": "Shumba invents one predicate. Garwe locks it. Munha scores the Path2 bar. Brian inboxes only a PASS."
+  },
+  "current_bar": {
+    "hunt": "Hunt a selector on BTC that enters only when a 2–3% move is more likely than the stop — enough that the book is green after the 0.31% round-trip fee.",
+    "shell": [
+      {"k": "Clock", "v": "BTC 4h"},
+      {"k": "Target", "v": "M = 3%"},
+      {"k": "Stop", "v": "S = 1.5%"},
+      {"k": "Horizon", "v": "24h (6 bars)"},
+      {"k": "Fee", "v": "0.31% round trip"},
+      {"k": "Same bar", "v": "Target and stop = full stop"}
+    ],
+    "rules": [
+      "BOTH long and short must have net expR > 0 after 0.31% RT.",
+      "Each side must sit above the unconditional census base for this shell (~−0.211 long / ~−0.234 short at 4h, H=24, M=3, S=1.5).",
+      "A book that is only less negative than −0.211 / −0.234 fails.",
+      "A positive long or short slice does not save a negative both-sides book.",
+      "No side-cut to save a thin green slice. Do not drop M. Do not widen S.",
+      "Thin n is a note, not an automatic fail, and it is not a pass.",
+      "Not Inbox until PASS."
+    ],
+    "scale_label": "Full-stop scale",
+    "scale": "If every miss is a full stop, net expR > 0 needs a target share above (S+0.31)/(M+S) = 1.81/4.5 = 40.2%. Unconditional target-first at the base cell is 21.34% long and 21.22% short, about 1.9× the base rate, not a filter tweak. Timeouts can make a lower share still fail or, if they pay, clear with less. The share is the scale of the lift. The binding test is the net.",
+    "capture": "Unconditional free-bar captures of 2–3% exist (~1-in-3 for 2%, ~1-in-5 for 3% inside 24h on 4h) but are net negative after fees (~−0.21R on the headline 3%/1.5% cells). Leverage does not fix negative expectancy."
+  },
+  "paths": [
+    {
+      "id": "Path1",
+      "status": "CLOSED",
+      "name": "Shell retune — wider stop, smaller target, longer hold",
+      "note": "Cannot clear 0.31% RT on free bars. Not a capitalize path.",
+      "detail": "The least-bad cell is already the wide stop (S=5) and it is still net-negative. Best net in the grid is −0.0531. Holding the best observed gross (+0.0089) fixed, the haircut 0.31/S drops below that gross only if S is larger than 0.31/0.0089, about 35%. That is not a trading shell, and a wider stop would not keep that gross. No shell retune is pre-registered."
+    },
+    {
+      "id": "Path2",
+      "status": "OPEN",
+      "name": "Selector-only",
+      "note": "Only capitalize path. A selector, not a capture.",
+      "detail": "Trend-pullback is a class label, not a family. Munha is not specifying the geometry. Shumba brings one independent mechanism, or brings nothing. Desk shell for the bar stays BTC 4h, both sides, M=3, S=1.5, 0.31% round trip. Entry and hold are whatever the brief locks."
+    },
+    {
+      "id": "Path3",
+      "status": "NO",
+      "name": "Short-only",
+      "note": "Not a candidate, and not a side cut.",
+      "detail": "Same both-sides net test and the same 40.2% full-stop scale. The short side is gross-negative in every census cell. Best short gross expR is −0.0003. If the joint book cannot clear net expR > 0, do not bring it to a lock."
+    }
+  ],
+  "kill_class": {
+    "lead": "Same geometry as retired walks. No parallel coding and no cells.",
+    "items": [
+      {
+        "job": "173",
+        "name": "donchian_n_fail_reversion",
+        "detail": "Pierce a prior N-bar high or low, then close back inside."
+      },
+      {
+        "job": "153",
+        "name": "swing_break_fail_reversion",
+        "detail": "Swing-break failure. Same retired geometry."
+      },
+      {
+        "job": "",
+        "tag": "bolt",
+        "name": "failed-breakout bolts",
+        "detail": "Range pierce-and-close, and volume_dryup_range_fail on that pierce."
+      },
+      {
+        "job": "",
+        "tag": "overlay",
+        "name": "MA golden/death and SMA50/200",
+        "detail": "Classic overlays already FAIL after fees (2026-10-03)."
+      }
+    ],
+    "chair": "Munha chair: no entry rules for failed-breakout. The pass bar above stays if a genuinely different predicate appears."
+  },
+  "closed_studies": {
+    "lead": "Closed today. Not Inbox. None of these start a walk.",
+    "items": [
+      {
+        "name": "BTC movement census",
+        "status": "FAIL",
+        "detail": "No cell has net expR > 0 after the 0.31% round trip. No year split and no bull/bear split does either."
+      },
+      {
+        "name": "ETH census",
+        "status": "STOP",
+        "detail": "Stopped. No SOL."
+      },
+      {
+        "name": "MA cross selectors",
+        "status": "FAIL",
+        "detail": "1h, 4h, and 1d. Classic golden/death and SMA50/200 overlays fail after fees."
+      },
+      {
+        "name": "Operator GC/death playbook 15m",
+        "status": "FAIL",
+        "detail": "Chair FAIL. n=608, net −0.062."
+      }
+    ],
+    "base_caption": "Census base cell for the bar — 4h, H=24h (6 bars), M=3, S=1.5. Quoted, not recomputed.",
+    "base_rows": [
+      {"side": "long", "n": "3557", "target_first": "759 (21.34%)", "gross": "−0.0039", "net": "−0.2106"},
+      {"side": "short", "n": "3596", "target_first": "763 (21.22%)", "gross": "−0.0277", "net": "−0.2344"}
+    ],
+    "notes": [
+      "Best net in the grid: −0.0531. Cell: 1h, H=24h, M=5, S=5, long, n=2347, gross +0.0089.",
+      "Largest gross expR cited for n≥30: +0.0242 on the coarse daily cell M=5, S=1.5, long, n=1899. That cell still nets −0.1825.",
+      "All 25 gross-positive cells with n≥30 are long. No short cell is gross-positive. Best short gross expR is −0.0003.",
+      "Haircut is 0.31/S: 0.2067 R at S=1.5, 0.1033 R at S=3, 0.062 R at S=5."
+    ]
+  },
+  "pipeline": {
+    "steps": [
+      {"who": "Shumba", "does": "Invents one independent delete-predicate."},
+      {"who": "Garwe", "does": "LOCK."},
+      {"who": "Munha", "does": "Scores it against this Path2 bar."},
+      {"who": "Brian", "does": "Inbox YES only on PASS."},
+      {"who": "Then", "does": "Code and walk."}
+    ],
+    "not": "Not Inbox. No walk from this panel. No new family. No re-LOCK of traded_close_hole, void_origin_break, or hour_zone_leave. Protect 12+56. Live off. Option B."
+  }
+}
+</script>
 <script>
 const API = localStorage.getItem("firmApiBase") || "";
 const RESET_PHRASE = "I HAVE INVESTIGATED THE CAUSE";
@@ -731,7 +999,7 @@ const KICKERS = {
   positions: "Open book — mark, open P&L, stop, and target",
   strategies: "Research-approved (live gate) vs operator paper vetoes vs rejects",
   inbox: "Proposals that need a human, plus open escalations",
-  research: "Ranked next tests (clock/side follow-ups), then finished family verdicts",
+  research: "Path2 bar, open path, kill class, closed studies, then the pipeline",
   sentiment: "Luke CT snapshot — L1 display only; no trade calls",
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
@@ -1709,6 +1977,156 @@ function renderInbox() {
   </div>`;
 }
 
+// Operator scan on the Research tab. Display only: this does not score a
+// sleeve, post Inbox, start a walk, or touch the 12+56 book. Order is fixed.
+const PATH2_SCAN = [
+  ["current-bar", "Current bar"],
+  ["open-path", "Open path"],
+  ["kill-class", "Kill class"],
+  ["closed-studies", "Closed studies"],
+  ["pipeline", "Pipeline"],
+];
+let path2Cache;
+function path2Doc() {
+  if (path2Cache !== undefined) return path2Cache;
+  const el = document.getElementById("path2-research");
+  if (!el) {
+    path2Cache = null;
+    return null;
+  }
+  try {
+    path2Cache = JSON.parse(el.textContent);
+  } catch (_) {
+    path2Cache = null;
+  }
+  return path2Cache;
+}
+function path2StatusClass(status) {
+  const s = String(status || "").toUpperCase();
+  if (s === "OPEN") return "ok";
+  if (s === "CLOSED" || s === "FAIL" || s === "NO" || s === "STOP") return "bad";
+  return "warn";
+}
+function scrollResearch(id) {
+  // Keep the view hash on #research. A real anchor would kick the desk back to Overview.
+  const el = document.getElementById(id);
+  const view = document.getElementById("view");
+  if (!el || !view) return;
+  const top = el.getBoundingClientRect().top - view.getBoundingClientRect().top + view.scrollTop - 12;
+  view.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+}
+function path2Section(id, indexLabel, title, body) {
+  return `<section class="card research-section" id="research-${id}">
+    <div class="research-kicker">${esc(indexLabel)}</div>
+    <div class="research-title" role="heading" aria-level="2">${esc(title)}</div>
+    ${body}
+  </section>`;
+}
+function path2CurrentBar(doc) {
+  const bar = doc.current_bar || {};
+  const shell = (bar.shell || []).map(cell => `<div class="shell-cell"><div class="k">${esc(cell.k)}</div><div class="v">${esc(cell.v)}</div></div>`).join("");
+  const rules = (bar.rules || []).map(rule => `<li><span class="rule-mark">–</span><span>${esc(rule)}</span></li>`).join("");
+  return `<p class="prose">${esc(bar.hunt || "")}</p>
+    <div class="shell-row">${shell}</div>
+    <div class="research-label">Pass</div>
+    <ul class="rule-list">${rules}</ul>
+    <div class="research-label">${esc(bar.scale_label || "Scale")}</div>
+    <p class="prose">${esc(bar.scale || "")}</p>
+    <p class="prose muted">${esc(bar.capture || "")}</p>`;
+}
+function path2OpenPath(doc) {
+  const rows = (doc.paths || []).map(p => `<article class="path-row${String(p.status).toUpperCase() === "OPEN" ? " is-open" : ""}">
+      <div><span class="badge ${path2StatusClass(p.status)}">${esc(p.status)}</span></div>
+      <div>
+        <div><strong>${esc(p.id)}</strong> ${esc(p.name || "")}</div>
+        <div class="muted">${esc(p.note || "")}</div>
+        ${p.detail ? `<div class="prose" style="margin-top:6px">${esc(p.detail)}</div>` : ""}
+      </div>
+    </article>`).join("");
+  return rows;
+}
+function path2KillClass(doc) {
+  const kill = doc.kill_class || {};
+  const rows = (kill.items || []).map(item => {
+    const tag = item.job ? `Job ${item.job}` : (item.tag || "class");
+    return `<article class="kill-row">
+      <div><span class="badge bad">${esc(tag)}</span></div>
+      <div>
+        <code class="fam">${esc(item.name || "")}</code>
+        <div class="muted prose">${esc(item.detail || "")}</div>
+      </div>
+    </article>`;
+  }).join("");
+  return `<p class="prose muted">${esc(kill.lead || "")}</p>
+    ${rows}
+    <p class="prose" style="margin-top:12px">${esc(kill.chair || "")}</p>`;
+}
+function path2ClosedStudies(doc) {
+  const block = doc.closed_studies || {};
+  const rows = (block.items || []).map(item => `<article class="study-row">
+      <div><span class="badge ${path2StatusClass(item.status)}">${esc(item.status)}</span></div>
+      <div>
+        <strong>${esc(item.name || "")}</strong>
+        <div class="muted prose">${esc(item.detail || "")}</div>
+      </div>
+    </article>`).join("");
+  const base = (block.base_rows || []).map(r => `<tr>
+      <td>${esc(r.side)}</td>
+      <td class="num">${esc(r.n)}</td>
+      <td class="num">${esc(r.target_first)}</td>
+      <td class="num">${esc(r.gross)}</td>
+      <td class="num">${esc(r.net)}</td>
+    </tr>`).join("");
+  const notes = (block.notes || []).map(n => `<li>${esc(n)}</li>`).join("");
+  return `<p class="prose muted">${esc(block.lead || "")}</p>
+    ${rows}
+    <div class="research-label">Census base</div>
+    <p class="prose muted">${esc(block.base_caption || "")}</p>
+    <table>
+      <thead><tr><th>Side</th><th>n</th><th>Target-first</th><th>Gross expR</th><th>Net expR</th></tr></thead>
+      <tbody>${base}</tbody>
+    </table>
+    <ul class="plain">${notes}</ul>`;
+}
+function path2Pipeline(doc) {
+  const pipe = doc.pipeline || {};
+  const steps = (pipe.steps || []).map((step, i) => `<li>
+      <span class="step-n">${String(i + 1).padStart(2, "0")}</span>
+      <div><strong>${esc(step.who || "")}</strong><div class="muted">${esc(step.does || "")}</div></div>
+    </li>`).join("");
+  return `<ol class="path2-steps">${steps}</ol>
+    <p class="prose" style="margin-top:12px">${esc(pipe.not || "")}</p>`;
+}
+function path2Panel() {
+  const doc = path2Doc();
+  if (!doc) {
+    return `<div class="card">${empty("Path2 bar did not load", "The research binding on this page is missing or is not valid JSON.")}</div>`;
+  }
+  const bodies = {
+    "current-bar": path2CurrentBar(doc),
+    "open-path": path2OpenPath(doc),
+    "kill-class": path2KillClass(doc),
+    "closed-studies": path2ClosedStudies(doc),
+    "pipeline": path2Pipeline(doc),
+  };
+  const c = doc.constraints || {};
+  const banner = `<div class="banner warn">
+      <strong>${esc(c.headline || "Paper only. Live OFF.")}</strong>
+      <div class="muted" style="margin-top:6px">${esc(c.detail || "")}</div>
+    </div>`;
+  const toc = `<nav class="research-toc" aria-label="Research scan">${PATH2_SCAN.map(([id, label], i) =>
+    `<button type="button" onclick="scrollResearch('research-${id}')"><span class="n">${String(i + 1).padStart(2, "0")}</span><span class="l">${esc(label)}</span></button>`
+  ).join("")}</nav>`;
+  const headlines = doc.headlines || {};
+  const sections = PATH2_SCAN.map(([id, label], i) => path2Section(
+    id,
+    String(i + 1).padStart(2, "0") + "  ·  " + label,
+    headlines[id] || label,
+    bodies[id] || ""
+  )).join("");
+  return `<div class="research-stack">${banner}${toc}${sections}</div>`;
+}
+
 function renderResearch() {
   const plan = state.floor.research_plan || {};
   const nextTests = plan.next_tests || [];
@@ -1845,8 +2263,19 @@ function renderResearch() {
         </div>
         ${pagerHtml("hypotheses", hypSliced, "hypotheses")}
       </div>`
-    : `<div class="card">${empty("No hypotheses yet", "The quant researcher writes here after a cycle. The catalog above is the plan it must follow.")}</div>`;
-  return pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
+    : `<div class="card">${empty("No hypotheses yet", "The quant researcher writes here after a cycle. A proposal still has to clear the Path2 bar before Inbox.")}</div>`;
+  // Existing queue stays available, rolled up so the Path2 scan is what an operator sees first.
+  // Approve buttons are unchanged. They do not score the bar and they do not start from this panel's copy.
+  const catalogBody = `<div class="banner warn" style="margin-bottom:12px">
+      <strong>Operator rule: not Inbox until a Path2 PASS.</strong>
+      <div class="muted" style="margin-top:6px">Approve buttons below are the same coding handoff as before. They do not score this bar. Do not send a selector through them until Munha has passed it.</div>
+    </div>`
+    + pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
+  return path2Panel() + collapsibleCard("researchCatalog", "Catalog and walk-forward queue", catalogBody, {
+    defaultCollapsed: true,
+    summary: "To code, novel briefs, next tests, family verdicts, backlog, hypotheses, and the walk-forward strip. Expand to approve a brief.",
+    meta: `<span class="badge">queue</span>`,
+  });
 }
 
 function sentimentDesk() {
