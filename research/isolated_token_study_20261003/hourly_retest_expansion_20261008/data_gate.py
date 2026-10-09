@@ -144,7 +144,7 @@ def expected_bounds(item: dict) -> tuple[pd.Timestamp, pd.Timestamp]:
     return begin, min(END, delivery)
 
 
-def audit_symbol(source: Path, out: Path, symbol: str, item: dict) -> tuple[dict, dict[str, str]]:
+def audit_symbol(source: Path, out: Path, symbol: str, item: dict, observed_hours: bool = False) -> tuple[dict, dict[str, str]]:
     pages = sorted((source / "minutes" / symbol).glob("*.csv.gz"))
     if not pages:
         raise ValueError(f"missing minute history: {symbol}")
@@ -169,6 +169,24 @@ def audit_symbol(source: Path, out: Path, symbol: str, item: dict) -> tuple[dict
     wanted = pd.date_range(begin, end, freq="min", inclusive="left")
     missing = wanted.difference(candles.index)
     extra = candles.index.difference(wanted)
+    original_missing = len(missing)
+    trimmed_leading = trimmed_trailing = 0
+    if observed_hours:
+        if candles.empty or len(extra):
+            raise ValueError(f"empty or out-of-catalog observed history: {symbol}")
+        inside = pd.date_range(candles.index.min(), candles.index.max(), freq="min")
+        if len(inside.difference(candles.index)):
+            raise ValueError(f"interior minute gap may not be trimmed: {symbol}")
+        begin = candles.index.min().ceil("h")
+        end = (candles.index.max() + pd.Timedelta(minutes=1)).floor("h")
+        trimmed_leading = int((candles.index < begin).sum())
+        trimmed_trailing = int((candles.index >= end).sum())
+        candles = candles[(candles.index >= begin) & (candles.index < end)].copy()
+        wanted = pd.date_range(begin, end, freq="min", inclusive="left")
+        missing = wanted.difference(candles.index)
+        extra = candles.index.difference(wanted)
+        if candles.empty:
+            raise ValueError(f"no complete observed hours: {symbol}")
     if len(missing) or len(extra):
         raise ValueError(
             f"minute coverage mismatch {symbol}: missing={len(missing)} extra={len(extra)}"
@@ -184,6 +202,16 @@ def audit_symbol(source: Path, out: Path, symbol: str, item: dict) -> tuple[dict
         raise ValueError(f"unexpected funding schema: {symbol}")
     if not funding.index.is_unique or not np.isfinite(funding.funding_rate).all():
         raise ValueError(f"invalid funding history: {symbol}")
+    terminal_funding_minutes_trimmed = 0
+    if observed_hours and len(funding):
+        # Stop before the next unverified settlement; never invent a zero rate.
+        funded_end = (funding.index.max() + pd.Timedelta(hours=8)).floor("h")
+        if funded_end < end:
+            terminal_funding_minutes_trimmed = int((candles.index >= funded_end).sum())
+            candles = candles[candles.index < funded_end].copy()
+            end = funded_end
+            if candles.empty:
+                raise ValueError(f"no observed hours within funding coverage: {symbol}")
     if len(funding) < 2 or funding.index.min() > begin + pd.Timedelta(hours=8):
         raise ValueError(f"funding starts too late: {symbol}")
     if funding.index.max() < end - pd.Timedelta(hours=8) or funding.index.max() > END:
@@ -206,6 +234,11 @@ def audit_symbol(source: Path, out: Path, symbol: str, item: dict) -> tuple[dict
         "first_minute": str(candles.index.min()),
         "last_minute": str(candles.index.max()),
         "missing_minutes": 0,
+        "catalog_boundary_missing_minutes": original_missing,
+        "leading_partial_minutes_trimmed": trimmed_leading,
+        "trailing_partial_minutes_trimmed": trimmed_trailing,
+        "terminal_funding_minutes_trimmed": terminal_funding_minutes_trimmed,
+        "boundary_policy": "complete_observed_hours_amendment_20261009" if observed_hours else "strict_catalog",
         "funding_events": len(funding),
         "max_funding_gap_hours": max_gap.total_seconds() / 3600,
         "scores_2026": False,
@@ -213,7 +246,7 @@ def audit_symbol(source: Path, out: Path, symbol: str, item: dict) -> tuple[dict
     return coverage, hashes
 
 
-def run(source: Path, out: Path) -> None:
+def run(source: Path, out: Path, observed_hours: bool = False) -> None:
     source = source.resolve()
     if not source.is_dir():
         raise ValueError(f"collector directory is not accessible: {source}")
@@ -233,7 +266,7 @@ def run(source: Path, out: Path) -> None:
         coverage: list[dict] = []
         output_hashes: dict[str, str] = {}
         for symbol in symbols:
-            row, hashes = audit_symbol(source, out, symbol, records[symbol])
+            row, hashes = audit_symbol(source, out, symbol, records[symbol], observed_hours)
             coverage.append(row)
             output_hashes.update(hashes)
             print("AUDITED", symbol, flush=True)
@@ -255,6 +288,7 @@ def run(source: Path, out: Path) -> None:
             "classification_history_verified": False,
             "scores_2026": False,
             "outcomes_scored": False,
+            "boundary_policy": "complete_observed_hours_amendment_20261009" if observed_hours else "strict_catalog",
             "note": "Execution coverage passed; independent universe/funding/classification provenance remains provisional.",
         }
         write_json(out / "audit.json", result)
@@ -276,5 +310,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--observed-hours", action="store_true", help="Apply published data-only observed-hour boundary amendment; reject every interior gap.")
     args = parser.parse_args()
-    run(args.input, args.out)
+    run(args.input, args.out, args.observed_hours)

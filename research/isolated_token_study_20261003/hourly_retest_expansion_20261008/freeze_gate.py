@@ -21,6 +21,9 @@ REQUIRED_SOURCE = [
     "adapter.py",
     "data_gate.py",
     "run_state.py",
+    "freeze_gate.py",
+    "verify_results.py",
+    "DATA_BOUNDARY_AMENDMENT_20261009.md",
 ]
 
 
@@ -119,6 +122,8 @@ def build_freeze(
     runner: Path,
     output: Path,
     protocol_commit: str,
+    reference_root: Path | None = None,
+    runtime_root: Path | None = None,
 ) -> dict:
     if len(protocol_commit) != 40:
         raise ValueError("a full public protocol/source commit SHA is required")
@@ -174,6 +179,14 @@ def build_freeze(
             "pyarrow": pa.__version__,
         },
     }
+    for label, root in [("reference", reference_root), ("runtime", runtime_root)]:
+        if root is not None:
+            root = root.resolve()
+            hashes = {str(p.relative_to(root)): sha256(p) for p in sorted(root.rglob("*.py"))}
+            if not hashes:
+                raise ValueError(f"no {label} sources to freeze")
+            value[f"{label}_root"] = str(root)
+            value[f"{label}_sources"] = hashes
     write_json(output, value)
     verify_freeze(cache, signal_dir, runner, output)
     return value
@@ -206,6 +219,12 @@ def verify_freeze(cache: Path, signal_dir: Path, runner: Path, freeze_path: Path
         raise ValueError("dataset manifest hash mismatch")
     if freeze.get("runner_sha256") != sha256(runner):
         raise ValueError("runner hash mismatch")
+    for label in ("reference", "runtime"):
+        if f"{label}_sources" in freeze:
+            root = Path(freeze[f"{label}_root"])
+            observed = {str(p.relative_to(root)): sha256(p) for p in sorted(root.rglob("*.py"))}
+            if observed != freeze[f"{label}_sources"]:
+                raise ValueError(f"frozen {label} source mismatch")
     return freeze
 
 
@@ -217,12 +236,15 @@ if __name__ == "__main__":
     parser.add_argument("--runner", type=Path, required=True)
     parser.add_argument("--freeze", type=Path, required=True)
     parser.add_argument("--protocol-commit")
+    parser.add_argument("--reference-root", type=Path)
+    parser.add_argument("--runtime-root", type=Path)
     args = parser.parse_args()
     if args.command == "build":
         if not args.protocol_commit:
             parser.error("--protocol-commit is required for build")
         result = build_freeze(
-            args.cache, args.signal_dir, args.runner, args.freeze, args.protocol_commit
+            args.cache, args.signal_dir, args.runner, args.freeze, args.protocol_commit,
+            args.reference_root, args.runtime_root
         )
     else:
         result = verify_freeze(args.cache, args.signal_dir, args.runner, args.freeze)

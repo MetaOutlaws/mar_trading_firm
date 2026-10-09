@@ -78,3 +78,20 @@ portfolio admission replays, recalculates every admitted cash return and both
 return denominators, checks every token/side cell and original-signal pair, and
 writes a hash-bound independent verification report. Synthetic mutation,
 denominator, zero-fill and closed-2026 tests pass. No run was claimed.
+
+## Data received and pre-outcome review — 9 October 2026
+
+The data-access blocker above is resolved. The supplied 5.51 GB archive passed
+all manifest and ZIP integrity checks and is durably preserved. Independent
+monthly selection reconstruction passed for all 675 rows and 93 new tokens.
+The strict catalog-boundary attempt and initial funding-endpoint failure are
+preserved. The explicit data-only amendment is in
+`DATA_BOUNDARY_AMENDMENT_20261009.md`; amended audit is in progress.
+
+Reference parity was repeated successfully: 69 signals, 444 path/cost rows and
+24 admission replays. The expansion scorer itself separately reproduced all
+100 SOL reference opportunity rows for 2022-2025, with 16 independent book
+replays. The 23 synthetic checks pass, including zero-signal-token reporting,
+completed-trade win accounting, rejection of interior gaps and the terminal
+funding cutoff. These are known-reference and synthetic checks, not new-token
+returns. No independent new-token run has yet been claimed.

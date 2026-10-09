@@ -176,6 +176,9 @@ def metric_values(frame: pd.DataFrame, original_signals: int) -> dict:
         "marks": int((frame.reason == "boundary_mtm").sum()) if len(frame) else 0,
         "net_positive": positives,
         "net_win_rate": positives / len(frame) if len(frame) else np.nan,
+        "completed_net_win_rate": float((closed.net_return > 0).mean()) if len(closed) else np.nan,
+        "marked_net_return_sum": float(frame.loc[frame.reason == "boundary_mtm", "net_return"].sum()) if len(frame) else 0.,
+        "closed_net_per_original_signal": float(closed.net_return.sum() / original_signals) if original_signals else np.nan,
         "stop_rate_completed": ((frame.reason == "stop").sum() / len(closed)
                                 if len(closed) else np.nan),
         "mean_net_per_admitted_trade": float(values.mean()) if len(values) else np.nan,
@@ -189,9 +192,9 @@ def metric_values(frame: pd.DataFrame, original_signals: int) -> dict:
 
 
 def summary_tables(signals: pd.DataFrame, opportunities: pd.DataFrame,
-                   ledger: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+                   ledger: pd.DataFrame, universe=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     pooled, cells = [], []
-    symbols = sorted(signals.symbol.unique())
+    symbols = sorted(universe if universe is not None else signals.symbol.unique())
     for arm in ARMS:
         for poll in POLLS:
             for partition in PERIODS:
@@ -218,13 +221,13 @@ def summary_tables(signals: pd.DataFrame, opportunities: pd.DataFrame,
                             cells.append(meta | {"symbol": symbol, "side": side,
                                                  "original_signals": len(original)}
                                          | metric_values(cell, len(original)))
-                    yearly = base_signals.assign(entry_year=pd.to_datetime(
+                    yearly = base_signals.assign(signal_year=pd.to_datetime(
                         base_signals.signal_time, utc=True).dt.year)
-                    for year in sorted(yearly.entry_year.unique()):
-                        original = yearly[yearly.entry_year == year]
+                    for year in range(int(PERIODS[partition][0][:4]), int(PERIODS[partition][1][:4])):
+                        original = yearly[yearly.signal_year == year]
                         cell = view[pd.to_datetime(view.signal_time, utc=True).dt.year == year]
                         cells.append(meta | {"symbol": "ALL", "side": 0,
-                                             "entry_year": int(year),
+                                             "signal_year": int(year),
                                              "original_signals": len(original)}
                                      | metric_values(cell, len(original)))
     return pd.DataFrame(pooled), pd.DataFrame(cells)
@@ -352,6 +355,8 @@ def bootstrap_intervals(pairs: pd.DataFrame, draws: int = 10_000) -> pd.DataFram
                     "retest_mean_net_per_trade": rt,
                     "difference_mean_net_per_trade": rt - im,
                     "difference_net_per_original_signal": per_signal,
+                    "immediate_net_per_original_signal": np.divide(sample[:, 0], sample[:, 4], out=np.full(draws, np.nan), where=sample[:, 4] > 0),
+                    "retest_net_per_original_signal": np.divide(sample[:, 1], sample[:, 4], out=np.full(draws, np.nan), where=sample[:, 4] > 0),
                     "fraction_baseline_net_missed": fraction_missed,
                 }.items():
                     valid = distribution[np.isfinite(distribution)]
@@ -465,6 +470,10 @@ def run(cache: Path, signal_dir: Path, reference_root: Path, freeze: Path,
         record: Path, out: Path) -> None:
     runner = Path(__file__).resolve()
     frozen = freeze_gate.verify_freeze(cache, signal_dir, runner, freeze)
+    if not frozen.get("reference_sources") or not frozen.get("runtime_sources"):
+        raise ValueError("production comparison requires frozen reference and runtime sources")
+    if Path(frozen["reference_root"]).resolve() != reference_root.resolve():
+        raise ValueError("requested reference root differs from frozen source root")
     run_state.claim(record, frozen["dataset_manifest_sha256"], frozen["runner_sha256"])
     try:
         run_state.transition(record, "claimed", "preflight",
@@ -476,6 +485,7 @@ def run(cache: Path, signal_dir: Path, reference_root: Path, freeze: Path,
                 "2026-01-01", tz="UTC"):
             raise AssertionError("reserved 2026 signal entered scorer")
         audit = json.loads((cache / "audit.json").read_text())
+        universe = sorted(audit["new_token_symbols"])
         out.mkdir(parents=True, exist_ok=False)
         run_state.transition(record, "preflight", "frozen",
                              symbols=sorted(signals.symbol.unique()), signals=len(signals))
@@ -483,7 +493,7 @@ def run(cache: Path, signal_dir: Path, reference_root: Path, freeze: Path,
         opportunities, plans, counters = build_paths(cache, signals, reference_root)
         _, retest = adapter.load_stack(reference_root)
         ledger, rejections, replay_count = replay_books(retest, opportunities)
-        pooled, cells = summary_tables(signals, opportunities, ledger)
+        pooled, cells = summary_tables(signals, opportunities, ledger, universe)
         pairs = pair_signals(opportunities, ledger, plans)
         comparisons = comparison_tables(pairs)
         intervals = bootstrap_intervals(pairs)
@@ -496,6 +506,20 @@ def run(cache: Path, signal_dir: Path, reference_root: Path, freeze: Path,
         opportunities.to_csv(out / "all_opportunities.csv", index=False)
         ledger.to_parquet(out / "pooled_ledger.parquet", index=False)
         ledger.to_csv(out / "individual_trades.csv", index=False)
+        annual = []
+        for arm in ARMS:
+            arm_ledger = ledger[ledger.entry_rule == arm]
+            arm_ledger.to_csv(out / f"portfolio_{arm}.csv", index=False)
+            for partition, (begin, end) in PERIODS.items():
+                for poll in POLLS:
+                    for stress in STRESSES:
+                        view = arm_ledger[(arm_ledger.partition == partition) & (arm_ledger.poll_minutes == poll) & (arm_ledger.stress == stress)]
+                        for year in range(int(begin[:4]), int(end[:4])):
+                            q = view[pd.to_datetime(view.entry, utc=True).dt.year == year]
+                            annual.append(dict(entry_rule=arm, partition=partition, poll_minutes=poll, stress=stress, entry_year=year, **metric_values(q, 0)))
+        pd.DataFrame(annual).to_csv(out / "actual_entry_year_results.csv", index=False)
+        concentration = ledger.groupby(["entry_rule", "partition", "poll_minutes", "stress", "symbol"]).agg(admitted=("net_return", "size"), net_return_sum=("net_return", "sum"), positive_return_sum=("net_return", lambda x: x[x > 0].sum())).reset_index()
+        concentration.to_csv(out / "token_contributions.csv", index=False)
         rejections.to_csv(out / "rejections.csv", index=False)
         pooled.to_csv(out / "pooled_results.csv", index=False)
         cells.to_csv(out / "token_side_cells.csv", index=False)
@@ -509,7 +533,7 @@ def run(cache: Path, signal_dir: Path, reference_root: Path, freeze: Path,
         run_state.transition(record, "running", "verifying",
                              path_and_cost_checks=counters["paths_and_cost_checks"],
                              independent_admission_replays=replay_count)
-        verification = verify_outputs(out, len(signals), sorted(signals.symbol.unique()))
+        verification = verify_outputs(out, len(signals), universe)
         verification.update(counters)
         verification["independent_admission_replays"] = replay_count
         write_json(out / "VERIFICATION.json", verification)

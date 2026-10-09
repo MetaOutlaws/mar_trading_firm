@@ -203,8 +203,8 @@ def check_denominators(signals: pd.DataFrame, opportunities: pd.DataFrame,
 
 
 def check_token_side_cells(signals: pd.DataFrame, ledger: pd.DataFrame,
-                           cells: pd.DataFrame) -> int:
-    symbols = sorted(signals.symbol.unique())
+                           cells: pd.DataFrame, universe=None) -> int:
+    symbols = sorted(universe if universe is not None else signals.symbol.unique())
     checked = 0
     token_cells = cells[cells.symbol != "ALL"]
     for arm in ARMS:
@@ -261,7 +261,7 @@ def check_entry_year_cells(signals: pd.DataFrame, ledger: pd.DataFrame,
                                           & (annual.poll_minutes == poll)
                                           & (annual.partition == partition)
                                           & (annual.stress == stress)
-                                          & (annual.entry_year == year)]
+                                          & (annual.signal_year == year)]
                         if len(observed) != 1:
                             raise AssertionError("entry-year cell missing or duplicated")
                         expected = {"original_signals": len(original)}
@@ -331,6 +331,7 @@ def verify(cache: Path, signal_dir: Path, reference_root: Path, runner: Path,
     pooled = pd.read_csv(out / "pooled_results.csv")
     cells = pd.read_csv(out / "token_side_cells.csv")
     pairs = pd.read_csv(out / "signal_pairs.csv")
+    universe = json.loads((cache / "audit.json").read_text())["new_token_symbols"]
     check_closed_boundary(signals, opportunities, ledger)
     if opportunities.duplicated(PAIR + ["entry_rule"]).any():
         raise AssertionError("duplicate opportunity key")
@@ -349,7 +350,7 @@ def verify(cache: Path, signal_dir: Path, reference_root: Path, runner: Path,
             retest, opportunities, ledger, rejections),
         "pooled_denominator_rows_recalculated": check_denominators(
             signals, opportunities, ledger, pooled),
-        "token_side_cells_recalculated": check_token_side_cells(signals, ledger, cells),
+        "token_side_cells_recalculated": check_token_side_cells(signals, ledger, cells, universe),
         "entry_year_cells_recalculated": check_entry_year_cells(signals, ledger, cells),
         "signal_pairs_recalculated": check_signal_pairs(
             signals, opportunities, ledger, pairs),

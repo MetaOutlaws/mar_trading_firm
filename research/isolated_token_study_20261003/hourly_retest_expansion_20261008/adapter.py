@@ -130,10 +130,19 @@ def signal_contexts(
         raw["partition"] = partition_of(raw.index, False)
         raw["signal_i"] = raw.entry_i.astype(int)
         raw["signal_time"] = raw.entry
+        raw["tf"] = 60
+        raw["stop"] = 0.02
+        raw["target"] = 0.025
+        # Data gate requires complete BTC candles. Still check exact alignment,
+        # rather than relying on the predecessor feature builder's forward fill.
+        exact_btc = btc.btc24.reindex(raw.index).to_numpy()
+        if not np.allclose(raw.btc24, exact_btc, rtol=0, atol=0, equal_nan=True):
+            raise AssertionError("BTC context was not an exact completed-hour match")
         if (raw.index >= pd.Timestamp(END, tz="UTC")).any():
             raise AssertionError("reserved 2026 context escaped the adapter boundary")
         all_contexts.append(raw)
         verification.append({"symbol": symbol, **checks})
+        print("CONTEXTS_VERIFIED", symbol, len(raw), int(raw.passes_approved.sum()), flush=True)
     contexts = pd.concat(all_contexts).sort_values(["entry", "symbol", "side"])
     selected = contexts[contexts.passes_approved].copy()
     out.mkdir(parents=True, exist_ok=False)
