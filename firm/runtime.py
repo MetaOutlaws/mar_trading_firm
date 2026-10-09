@@ -302,6 +302,16 @@ class Agent(ABC):
                 agent=self.name, status=RunStatus.SKIPPED, run_id=run_id, error=str(exc)
             )
         except LlmError as exc:
+            # Billing is a provider pause, not a failed strategy. Record a
+            # skip (so the floor does not look like a fresh success) and alarm
+            # once. Do not enter the timeout retry path.
+            if _is_billing_llm_error(str(exc)):
+                logger.warning("%s billing-degraded: %s", self.name, exc)
+                memory.finish_run(run_id, RunStatus.SKIPPED, error=str(exc)[:1_000])
+                _flag_billing(self.name, str(exc))
+                return AgentResult(
+                    agent=self.name, status=RunStatus.SKIPPED, run_id=run_id, error=str(exc)
+                )
             if "No API key" in str(exc) or "cooling down" in str(exc):
                 logger.warning("%s skipped: %s", self.name, exc)
                 memory.finish_run(run_id, RunStatus.SKIPPED, error=str(exc))
@@ -382,7 +392,7 @@ class Agent(ABC):
                 last_error = ""
         job = EMPLOYEE_MANDATES.get(self.name) or {}
         spec_mandate = job.get("mandate", "")
-        return {
+        card = {
             **activity,
             "last_error": last_error,
             "role": self.role,
@@ -400,7 +410,20 @@ class Agent(ABC):
             "kpi": job.get("kpi") or "",
             "trust": record.summary() if record else None,
             "spend_today_usd": round(memory.spend_today(self.name), 5),
+            "billing_degraded": False,
         }
+        # A paused seat must not look like a healthy worker. The DB row stays
+        # a skip; the floor status is degraded until this seat's own success.
+        if seat is not None:
+            from firm.llm import billing_heartbeat, seat_shows_billing_degraded
+
+            if seat_shows_billing_degraded(self.name, seat.provider):
+                note = billing_heartbeat()["note"]
+                card["status"] = "degraded"
+                card["billing_degraded"] = True
+                card["billing_note"] = note
+                card["last_error"] = note
+        return card
 
 
 class DeterministicAgent(Agent):
@@ -433,6 +456,22 @@ class DeterministicAgent(Agent):
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _is_billing_llm_error(error: str) -> bool:
+    from firm.llm import is_billing_failure_text
+
+    return is_billing_failure_text(error)
+
+
+def _flag_billing(agent: str, error: str) -> None:
+    """Alarm that the seat is paused for billing, not a strategy fault."""
+    try:
+        from firm.accountability import notify_billing_failure
+
+        notify_billing_failure(agent, error)
+    except Exception:
+        logger.exception("Could not alarm billing failure for %s", agent)
 
 
 def _flag_failure(agent: str, error: str) -> None:

@@ -48,7 +48,10 @@ class OpsEngineer(Agent):
             "diagnosis. Escalate only when something needs a human right now: a "
             "tripped kill switch, a dead data feed, hung agent runs, or a live "
             "LLM timeout (gemini call failed / timed out). A single timeout is "
-            "enough — do not wait for three. Ignore rows marked historical_noise. "
+            "enough — do not wait for three. A billing pause (HTTP 402 / payment "
+            "required / prepaid credits depleted) is not a strategy fault and "
+            "not a timeout: LLM seats are paused, paper fills and exits continue, "
+            "and you must not ask for a different model. Ignore rows marked historical_noise. "
             "Missing DeepSeek or OpenAI keys are not failures — those providers "
             "are retired and employees use Gemini. A missing xAI key is fine: "
             "Sentiment reads Luke's last_sentiment.json. Do not escalate a patched "
@@ -112,6 +115,16 @@ class OpsEngineer(Agent):
                     if hung
                     else "none"
                 ),
+            }
+        )
+        from firm.llm import billing_heartbeat
+
+        heartbeat = billing_heartbeat()
+        checks.append(
+            {
+                "name": "llm_billing",
+                "ok": not heartbeat.get("degraded"),
+                "detail": heartbeat,
             }
         )
         live_timeouts = live_llm_failures()

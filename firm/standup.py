@@ -216,7 +216,17 @@ def build_standup() -> dict[str, Any]:
         blockers.append({"level": "blocking", "text": "Gemini key missing — employees will skip."})
         needs_you.append("Set GEMINI_API_KEY in .env and restart the API.")
     else:
-        happening.append("Gemini seats are configured for cheap/standard/strong employees.")
+        from firm.llm import billing_heartbeat
+
+        beat = billing_heartbeat()
+        if beat.get("degraded"):
+            blockers.append({"level": "blocking", "text": beat["note"]})
+            needs_you.append(
+                "Fund Gemini credits in the provider console. This process will "
+                "not pay or swap models. Paper keeps scanning and managing exits."
+            )
+        else:
+            happening.append("Gemini seats are configured for cheap/standard/strong employees.")
 
     if not xai_ok:
         try:

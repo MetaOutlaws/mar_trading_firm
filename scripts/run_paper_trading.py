@@ -173,6 +173,38 @@ def main() -> int:
         release_pidfile(PAPER_PID_PATH)
 
 
+def execute_paper_cycle(engine, orchestrator):  # noqa: ANN001
+    """Scan, fill, and supervise exits before any LLM seat runs.
+
+    A provider billing pause (HTTP 402) lives in the orchestrator. It must
+    not skip ``engine.run_cycle`` — that is where paper orders and stop
+    checks happen — and an employee exception must not stop the clock.
+    """
+    from firm.research_jobs import advance_pipeline
+
+    # Gemini seats can take minutes. Scan first so last_cycle.json stays
+    # fresh and the duty board does not call a live paper clock stuck.
+    advance_pipeline()
+    report = engine.run_cycle()
+    logger.info("%s", report)
+    if orchestrator is not None:
+        try:
+            orchestrator.run_due()
+            orchestrator.advice_for_engine().apply_to(engine)
+        except Exception:
+            logger.exception("Employee cycle failed; trading continues.")
+        finally:
+            # Billing and timeouts must not skip the next coded family
+            # until the following 15-minute sleep.
+            try:
+                from firm.continuity import fill_walk_forward_slots
+
+                fill_walk_forward_slots(source="paper_cycle")
+            except Exception:
+                logger.exception("Paper cycle could not refill walk-forward slots")
+    return report
+
+
 def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
     """Inner loop, always unwrapped by the pid-file finally."""
     if settings.trading_mode is TradingMode.LIVE:
@@ -232,29 +264,9 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
             logger.info("--- cycle %d at %s ---", cycle, datetime.now(timezone.utc).isoformat())
 
             try:
-                from firm.research_jobs import advance_pipeline
-
-                # Scan first. Gemini seats (GM, Advisor, Auditor) can take
-                # minutes; they must not block the 15-minute paper clock or
-                # last_cycle.json stays stale and the duty board lies.
-                advance_pipeline()
-                report = engine.run_cycle()
-                logger.info("%s", report)
-                if orchestrator is not None:
-                    try:
-                        orchestrator.run_due()
-                        orchestrator.advice_for_engine().apply_to(engine)
-                    except Exception:
-                        logger.exception("Employee cycle failed; trading continues.")
-                    finally:
-                        # Gemini timeouts must not skip the next coded family until
-                        # the following 15-minute sleep.
-                        try:
-                            from firm.continuity import fill_walk_forward_slots
-
-                            fill_walk_forward_slots(source="paper_cycle")
-                        except Exception:
-                            logger.exception("Paper cycle could not refill walk-forward slots")
+                # Scan and fills first. A Gemini billing pause must not skip
+                # orders or the exit supervision inside run_cycle.
+                report = execute_paper_cycle(engine, orchestrator)
                 if report.halted:
                     open_n = _open_count(engine)
                     if may_break_on_halt(halted=True, open_count=open_n):

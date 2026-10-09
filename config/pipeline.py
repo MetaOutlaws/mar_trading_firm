@@ -86,6 +86,7 @@ EVENT_OWNERS: dict[str, tuple[str, int]] = {
     "on_standby_depth_low": ("sleeve_engineer", 15 * 60),
     "on_catalog_depth_low": ("quant_researcher", 15 * 60),
     "on_llm_timeout": ("ops_engineer", 15 * 60),
+    "on_llm_billing": ("ops_engineer", 15 * 60),
 }
 
 
