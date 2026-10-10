@@ -13,11 +13,12 @@ in ``core.execution.f111_paper``.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from core.strategy.base import SignalSide
 from core.strategy.f111_config import STRATEGY_ID, load_f111_config
-from core.strategy.f111_semantics import gate_decision, gate_mask
+from core.strategy.f111_semantics import gate_decision, gate_mask, signed_extension
 from core.strategy.hourly_compression_btc_connors_loweff_v1 import (
     HourlyCompressionBtcConnorsLoweffV1Strategy,
 )
@@ -52,6 +53,9 @@ class MarF111R12ExtensionLatefloorV1Strategy(HourlyCompressionBtcConnorsLoweffV1
         missing = [name for name in required if name not in out.columns]
         if missing:
             raise ValueError(f"F111 parent frame is missing {missing}")
+        out["extension_atr"] = _extension_where_inputs_exist(
+            out, candles, int(self.params.side.sign)
+        )
         passed = gate_mask(
             out["compression"].to_numpy(dtype=float),
             out["extension_atr"].to_numpy(dtype=float),
@@ -104,6 +108,31 @@ class MarF111R12ExtensionLatefloorV1Strategy(HourlyCompressionBtcConnorsLoweffV1
         # The engine would place a market order from a non-None return. The
         # retest has not happened yet, so there is nothing to send.
         return None
+
+
+def _extension_where_inputs_exist(
+    out: pd.DataFrame, candles: pd.DataFrame, side: int
+) -> pd.Series:
+    """Keep a finite extension. Fill a null from close, boundary, and prior ATR.
+
+    The parent formula already covers both sides. A branch that leaves the
+    column null after an earlier rejection still has those inputs on the row.
+    """
+    extension = pd.to_numeric(out["extension_atr"], errors="coerce")
+    if "entry_boundary" not in out.columns:
+        return extension
+    boundary = pd.to_numeric(out["entry_boundary"], errors="coerce").reindex(extension.index)
+    prior = pd.to_numeric(out["prior_atr"], errors="coerce").reindex(extension.index)
+    close = pd.to_numeric(candles["close"], errors="coerce").reindex(extension.index)
+    recomputed = pd.Series(
+        [
+            signed_extension(side, float(c), float(b), float(a))
+            for c, b, a in zip(close.to_numpy(), boundary.to_numpy(), prior.to_numpy(), strict=True)
+        ],
+        index=extension.index,
+        dtype=float,
+    )
+    return extension.where(np.isfinite(extension), recomputed)
 
 
 def rejection_for_parent_row(row: pd.Series, close: float) -> str:
