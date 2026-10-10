@@ -228,6 +228,17 @@ def _key_for(settings: Any, provider: Provider) -> str:
     return settings.deepseek_api_key
 
 
+def llm_seats_enabled(settings: Any | None = None) -> bool:
+    """Whether paper-cycle Gemini/xAI seats may call a model.
+
+    Default is on, matching a box that has not set the flag. ``False`` means
+    ``LLM_SEATS_ENABLED=false``: no seat call and no HTTP client. The engine's
+    regime gate does not read this; it still uses the Soko trend file.
+    """
+    settings = settings or get_settings()
+    return bool(settings.llm_seats_enabled)
+
+
 def provider_status(
     settings: Any | None = None,
     catalogue: dict[ModelTier, ModelSpec] | None = None,
@@ -236,6 +247,7 @@ def provider_status(
     settings = settings or get_settings()
     catalogue = catalogue or dict(DEFAULT_CATALOGUE)
     return {
+        "llm_seats_enabled": llm_seats_enabled(settings),
         "providers": {
             "openai": _key_status(settings.openai_api_key),
             "gemini": _key_status(settings.gemini_api_key),
@@ -388,7 +400,12 @@ class LlmRouter:
         self.settings = get_settings()
         self.catalogue = catalogue or self._catalogue_from_env()
         self.budget = budget or BudgetGuard()
-        self._client = httpx.Client(timeout=timeout)
+        self._timeout = timeout
+        # Disabled seats must not open a socket. The client is created only
+        # when seats are on, and only then on the first real call path.
+        self._client: httpx.Client | None = None
+        if llm_seats_enabled(self.settings):
+            self._client = httpx.Client(timeout=timeout)
 
     @staticmethod
     def _catalogue_from_env() -> dict[ModelTier, ModelSpec]:
@@ -427,7 +444,20 @@ class LlmRouter:
         return remapped
 
     def close(self) -> None:
-        self._client.close()
+        client = self._client
+        self._client = None
+        if client is not None:
+            client.close()
+
+    def _http(self) -> httpx.Client:
+        """Client for one seat call. A disabled flag never constructs one."""
+        if not llm_seats_enabled():
+            raise LlmError(
+                "LLM seats disabled (LLM_SEATS_ENABLED=false). No HTTP call."
+            )
+        if self._client is None:
+            self._client = httpx.Client(timeout=self._timeout)
+        return self._client
 
     def __enter__(self) -> "LlmRouter":
         return self
@@ -456,6 +486,13 @@ class LlmRouter:
         `/v1/models` can succeed on an account with a valid key and $0 credit.
         Employees use chat completions, so that is what we probe — one token.
         """
+        if not llm_seats_enabled():
+            return {
+                "ok": False,
+                "provider": provider.value,
+                "disabled": True,
+                "detail": "LLM seats disabled (LLM_SEATS_ENABLED=false). No HTTP call.",
+            }
         api_key = self.api_key_for(provider)
         if not api_key:
             return {"ok": False, "provider": provider.value, "detail": "no API key in .env"}
@@ -471,7 +508,7 @@ class LlmRouter:
         if provider is Provider.GEMINI and "lite" not in model:
             payload["reasoning_effort"] = "none"
         try:
-            response = self._client.post(
+            response = self._http().post(
                 PROVIDER_ENDPOINTS[provider],
                 headers={
                     "Authorization": f"Bearer {api_key}",
@@ -536,6 +573,10 @@ class LlmRouter:
             BudgetExhausted: the budget blocks this call.
             LlmError: no credentials, transport failure, or unparseable output.
         """
+        if not llm_seats_enabled():
+            raise LlmError(
+                "LLM seats disabled (LLM_SEATS_ENABLED=false). No HTTP call."
+            )
         effective_tier = self.budget.resolve(agent, tier)
         spec = self.catalogue[effective_tier]
 
@@ -650,7 +691,7 @@ class LlmRouter:
         # 3–5 minute hang and is what froze the duty board on Gemini outages.
         for attempt in range(2):
             try:
-                response = self._client.post(
+                response = self._http().post(
                     PROVIDER_ENDPOINTS[spec.provider],
                     headers={
                         "Authorization": f"Bearer {self.api_key_for(spec.provider)}",

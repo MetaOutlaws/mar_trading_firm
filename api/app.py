@@ -217,10 +217,16 @@ def llm_status() -> dict[str, Any]:
 
     snapshot = provider_status(catalogue=LlmRouter._catalogue_from_env())
     snapshot["budget"] = BudgetGuard().snapshot()
-    snapshot["catalogue_note"] = (
-        "Cheap, standard, and strong seats use Gemini. "
-        "Sentiment reads Luke's data/last_sentiment.json; xAI search is optional."
-    )
+    if snapshot.get("llm_seats_enabled") is False:
+        snapshot["catalogue_note"] = (
+            "LLM employee seats are disabled (LLM_SEATS_ENABLED=false). "
+            "No Gemini or xAI call. Regime gating still reads the Soko trend file."
+        )
+    else:
+        snapshot["catalogue_note"] = (
+            "Cheap, standard, and strong seats use Gemini. "
+            "Sentiment reads Luke's data/last_sentiment.json; xAI search is optional."
+        )
     return snapshot
 
 
@@ -430,8 +436,15 @@ def _live_book_counts() -> tuple[int, int]:
 
 def _quiet_reasons(cycle: dict[str, Any] | None, employee_llm_ok: bool, xai_ok: bool) -> list[str]:
     """Operator-facing explanation of an empty blotter. Not a trading signal."""
+    from firm.llm import llm_seats_enabled
+
     reasons: list[str] = []
-    if not employee_llm_ok:
+    if not llm_seats_enabled():
+        reasons.append(
+            "LLM employee seats are disabled (LLM_SEATS_ENABLED=false). "
+            "No Gemini or xAI call."
+        )
+    elif not employee_llm_ok:
         reasons.append(
             "No key for cheap/standard/strong seats (Gemini). Employees will skip LLM calls."
         )

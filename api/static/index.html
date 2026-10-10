@@ -1181,7 +1181,7 @@ function renderOverview() {
       ${kpi("Drawdown", eq.drawdown_pct != null ? pct(eq.drawdown_pct) : "—", "peak " + money(eq.peak_equity))}
       ${kpi("Inbox", String((state.floor.inbox || []).length), (state.floor.escalations || []).length + " escalations")}
       ${kpi("Walk-forward", String((cont.running || 0)), (cont.standby_depth || 0) + " standby · " + (cont.dropped_event_count || 0) + " dropped events", (cont.open_invariant_violations || 0) ? "bad" : "ok")}
-      ${kpi("Gemini", ((state.llm.providers || {}).gemini || {}).configured ? "ready" : "missing", "cheap/standard/strong seats", ((state.llm.providers || {}).gemini || {}).configured ? "ok" : "bad")}
+      ${kpi("Gemini", (state.llm.llm_seats_enabled === false || state.floor.llm_seats_enabled === false) ? "disabled" : (((state.llm.providers || {}).gemini || {}).configured ? "ready" : "missing"), (state.llm.llm_seats_enabled === false || state.floor.llm_seats_enabled === false) ? "LLM_SEATS_ENABLED=false" : "cheap/standard/strong seats", (state.llm.llm_seats_enabled === false || state.floor.llm_seats_enabled === false) ? "" : (((state.llm.providers || {}).gemini || {}).configured ? "ok" : "bad"))}
     </section>
     ${bookCard()}
     <section class="grid-2">
@@ -1263,7 +1263,7 @@ function dutyCard() {
         <span class="badge ${d.on_track ? "ok" : "bad"}">${d.on_track ? "on track" : "slipping"}</span>
       </div>
       <div class="muted">${esc(d.goal || "")}</div>
-      <div class="muted">${esc(d.target || "")}</div>
+      <div class="muted">${d.last_status === "disabled" ? "disabled" : esc(d.target || "")}</div>
     </div>`).join("");
   const meta = slipping
     ? `<span class="badge bad">${slipping} slipping</span><span class="badge ok">${onTrack} on track</span>`
@@ -1524,16 +1524,17 @@ function prettyTask(row) {
 function empCard(e) {
   const t = e.trust || {};
   const status = (e.status || "never_run").toLowerCase();
-  const badge = status.includes("error") || status.includes("fail") ? "bad" : status === "ok" || status === "completed" || status === "success" ? "ok" : "l1";
+  const seatsOff = e.llm_seats_enabled === false || status === "disabled";
+  const badge = seatsOff ? "l1" : status.includes("error") || status.includes("fail") ? "bad" : status === "ok" || status === "completed" || status === "success" ? "ok" : "l1";
   const seat = e.model ? `${e.provider || ""} ${e.model}` : (e.tier || "");
-  const configured = e.tier === "deterministic" || e.llm_configured !== false;
+  const configured = seatsOff || e.tier === "deterministic" || e.llm_configured !== false;
   return `<article class="card emp">
     <div class="emp-top">
       <div>
         <div class="role">${esc(e.role || e.agent)}</div>
         <div class="muted">${esc(e.agent || "")} · ${esc(e.cadence || "")} · ${esc(seat)}</div>
       </div>
-      <div class="badge ${badge}">${esc(t.level_label || "L1 Advisor")}</div>
+      <div class="badge ${badge}">${seatsOff ? "disabled" : esc(t.level_label || "L1 Advisor")}</div>
     </div>
     <div class="task">${esc(prettyTask(e))}</div>
     ${e.does ? `<div style="margin-top:8px"><strong>Responsible for</strong><div class="muted">${esc(e.does)}</div></div>` : ""}
@@ -1542,7 +1543,7 @@ function empCard(e) {
     ${e.goal ? `<div class="muted">Goal: ${esc(e.goal)}</div>` : ""}
     ${e.target ? `<div class="muted">Target: ${esc(e.target)}</div>` : ""}
     <div class="muted">${esc(e.last_reasoning || "No reasoning logged yet.")}</div>
-    ${e.last_error && !isStaleKeyError(e.last_error) ? `<div class="bad">${esc(String(e.last_error).slice(0, 180))}</div>` : ""}
+    ${!seatsOff && e.last_error && !isStaleKeyError(e.last_error) ? `<div class="bad">${esc(String(e.last_error).slice(0, 180))}</div>` : ""}
     ${configured ? "" : `<div class="warn">No API key for this seat — employee will skip.</div>`}
     <div class="meta-row">
       <span>Hit ${esc(t.hit_rate_pct ?? 0)}%</span>
@@ -1559,9 +1560,11 @@ function isStaleKeyError(msg) {
 }
 
 function activityRow(a) {
-  const err = isStaleKeyError(a.error) ? "" : (a.error || "");
+  const seatsOff = state.floor && state.floor.llm_seats_enabled === false;
+  const shown = seatsOff ? "disabled" : (a.status || "");
+  const err = seatsOff || isStaleKeyError(a.error) ? "" : (a.error || "");
   return `<div class="feed-item">
-    <div><strong>${esc(a.role || a.agent)}</strong> <span class="badge">${esc(a.status)}</span> <span class="muted">${esc(rel(a.started_at))}</span></div>
+    <div><strong>${esc(a.role || a.agent)}</strong> <span class="badge">${esc(shown)}</span> <span class="muted">${esc(rel(a.started_at))}</span></div>
     <div>${esc((a.reasoning || prettyTask(a) || "").slice(0, 180))}</div>
     ${err ? `<div class="bad">${esc(err)}</div>` : ""}
   </div>`;
@@ -2118,13 +2121,15 @@ function renderHealth() {
   const gemini = providers.gemini || {};
   const xai = providers.xai || {};
   const ping = state.llmPing;
+  const seatsOff = llm.llm_seats_enabled === false;
+  const pingClass = ping && ping.disabled ? "muted" : ping && ping.ok ? "ok" : "bad";
   return `
-    <div class="banner ${gemini.configured ? "ok" : "bad"}">
-      <strong>${gemini.configured ? "Gemini key is loaded" : "Gemini key is missing"}</strong>
+    <div class="banner ${seatsOff ? "" : gemini.configured ? "ok" : "bad"}">
+      <strong>${seatsOff ? "LLM seats disabled" : gemini.configured ? "Gemini key is loaded" : "Gemini key is missing"}</strong>
       <div class="muted" style="margin-top:6px">${esc(llm.catalogue_note || "Cheap, standard, and strong employees use Gemini.")}</div>
     </div>
     <section class="kpis">
-      ${kpi("Gemini", gemini.configured ? (gemini.prefix || "set") : "missing", gemini.configured ? "cheap / standard / strong" : "employees will skip", gemini.configured ? "ok" : "bad")}
+      ${kpi("Gemini", seatsOff ? "disabled" : gemini.configured ? (gemini.prefix || "set") : "missing", seatsOff ? "LLM_SEATS_ENABLED=false" : gemini.configured ? "cheap / standard / strong" : "employees will skip", seatsOff ? "" : gemini.configured ? "ok" : "bad")}
       ${kpi("xAI / Grok", xai.configured ? "set" : "missing", "optional CT fallback", xai.configured ? "ok" : "warn")}
       ${kpi("Last scan", cycle ? String(cycle.symbols_scanned || 0) : "—", cycle ? (cycle.signals_found || 0) + " signals · " + (cycle.orders_placed || 0) + " orders" : "paper has not written a cycle")}
       ${kpi("Budget", money((llm.budget || {}).spent_usd || 0, 4), "of " + money((llm.budget || {}).budget_usd || 0) + " · " + ((llm.budget || {}).posture || "—"))}
@@ -2138,12 +2143,12 @@ function renderHealth() {
             <td>${esc(t.tier)}</td>
             <td>${esc(t.provider)}</td>
             <td class="num">${esc(t.model)}</td>
-            <td class="${t.configured ? "ok" : "bad"}">${t.configured ? "ready" : "missing"}</td>
+            <td class="${seatsOff ? "muted" : t.configured ? "ok" : "bad"}">${seatsOff ? "disabled" : t.configured ? "ready" : "missing"}</td>
           </tr>`).join("")}</tbody>
         </table>
         <div class="toolbar" style="margin-top:14px">
           <button class="btn accent" onclick="pingGemini()">Test Gemini key</button>
-          ${ping ? `<span class="${ping.ok ? "ok" : "bad"}">${esc(ping.ok ? (ping.detail || "ok") : (ping.detail || "failed"))}</span>` : `<span class="muted">Sends a 1-token ping. Needs the API token saved under Controls.</span>`}
+          ${ping ? `<span class="${pingClass}">${esc(ping.disabled ? "disabled" : ping.ok ? (ping.detail || "ok") : (ping.detail || "failed"))}</span>` : `<span class="muted">Sends a 1-token ping. Needs the API token saved under Controls.</span>`}
         </div>
       </div>
       <div class="card">

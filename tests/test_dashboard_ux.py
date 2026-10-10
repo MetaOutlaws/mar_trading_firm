@@ -55,6 +55,8 @@ def test_desk_header_f111_panel_and_live_book_are_wired():
     assert "pending_retests" in html
     assert "closed_by_reason" in html
     assert "bar close" in html
+    assert "llm_seats_enabled === false" in html
+    assert "LLM seats disabled" in html
 
 
 def test_hardcoded_status_notes_are_gone():

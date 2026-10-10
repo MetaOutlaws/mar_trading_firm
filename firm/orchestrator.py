@@ -224,6 +224,14 @@ class Orchestrator:
     def run_due(self, now: datetime | None = None) -> list[AgentResult]:
         """Run every employee that is due. Failures stay isolated."""
         now = now or datetime.now(timezone.utc)
+        from firm.llm import llm_seats_enabled
+
+        if not llm_seats_enabled():
+            logger.info(
+                "LLM seats disabled (LLM_SEATS_ENABLED=false). "
+                "No Gemini or xAI call this cycle. "
+                "Regime gating still reads the Soko trend file."
+            )
         memory.expire_stale_proposals()
         try:
             from firm.continuity import fill_walk_forward_slots
@@ -292,6 +300,8 @@ class Orchestrator:
 
     def floor_snapshot(self) -> dict[str, Any]:
         """Everything the Employee Floor dashboard needs in one payload."""
+        from firm.llm import llm_seats_enabled
+
         advice = self.advice_for_engine()
         return {
             "employees": [e.status_card() for e in self.employees],
@@ -309,6 +319,7 @@ class Orchestrator:
             "standup": _safe_standup(),
             "positioning": _safe_positioning(),
             "budget": self.router.budget.snapshot(),
+            "llm_seats_enabled": llm_seats_enabled(),
             "advice": {
                 "vetoes": advice.vetoes,
                 "size_multipliers": advice.size_multipliers,

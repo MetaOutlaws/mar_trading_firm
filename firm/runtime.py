@@ -257,6 +257,15 @@ class Agent(ABC):
         propagating: one broken employee must not stop the firm's schedule. The
         orchestrator decides what to do about repeated failures.
         """
+        # Operator switch. Checked before the router so a disabled seat never
+        # builds an HTTP client, even when a Gemini key is still in the env.
+        if self.tier is not None and not _llm_seats_enabled():
+            error = "disabled: LLM_SEATS_ENABLED=false"
+            logger.info("%s skipped: %s", self.name, error)
+            return AgentResult(
+                agent=self.name, status=RunStatus.SKIPPED, error=error
+            )
+
         if self.tier and not self.router.is_configured(self.tier):
             spec = self.router.catalogue.get(self.tier)
             provider = spec.provider.value if spec else "llm"
@@ -371,9 +380,20 @@ class Agent(ABC):
 
         record = trust.get(self.name)
         activity = memory.agent_activity(self.name)
+        seats_on = _llm_seats_enabled()
+        # Catalogue lookup does not open a socket. A disabled seat still
+        # names its model so the card can say "disabled" rather than "failed".
         seat = self.router.catalogue.get(self.tier) if self.tier else None
         configured = self.router.is_configured(self.tier) if self.tier else True
         last_error = activity.get("last_error") or ""
+        if self.tier is not None and not seats_on:
+            activity = dict(activity)
+            activity["status"] = "disabled"
+            activity["last_error"] = ""
+            activity["last_reasoning"] = (
+                "LLM seats disabled (LLM_SEATS_ENABLED=false). No Gemini or xAI call."
+            )
+            last_error = ""
         # Old DeepSeek/OpenAI skip rows stay in SQLite. Do not paint them on a
         # seat that now has a working Gemini (or other) key.
         if configured and seat and last_error:
@@ -391,6 +411,7 @@ class Agent(ABC):
             "provider": seat.provider.value if seat else None,
             "model": seat.model if seat else None,
             "llm_configured": configured,
+            "llm_seats_enabled": seats_on if self.tier is not None else True,
             "prompt_version": self.prompt_version,
             "mandate": self.mandate or spec_mandate,
             "does": job.get("does") or "",
@@ -433,6 +454,13 @@ class DeterministicAgent(Agent):
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _llm_seats_enabled() -> bool:
+    """Local import so a desk card does not pull the router in at module load."""
+    from firm.llm import llm_seats_enabled
+
+    return llm_seats_enabled()
 
 
 def _flag_failure(agent: str, error: str) -> None:
