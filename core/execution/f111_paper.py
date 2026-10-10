@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -1141,6 +1142,11 @@ class F111Runtime:
                     continue
                 last = signals.iloc[-1]
                 parent_reason = str(last.get("f111_rejection_reason") or "")
+                # extension_atr is signed: negative when price has not broken
+                # the prior-20 boundary. That is the usual SHORT reading and
+                # the usual LONG reading. It is not a price, so a >0 check
+                # would record it as missing.
+                extension = last.get("extension_atr")
                 self.observe_signal(
                     symbol=symbol,
                     side=side.value,
@@ -1149,12 +1155,12 @@ class F111Runtime:
                     prior_atr=float(last["prior_atr"]) if _finite_price(last.get("prior_atr")) else float("nan"),
                     close=float(frame["close"].iloc[-1]),
                     compression=float(last["compression"]) if _finite_price(last.get("compression")) else float("nan"),
-                    extension_atr=float(last["extension_atr"]) if _finite_price(last.get("extension_atr")) else float("nan"),
+                    extension_atr=float(extension) if _is_finite(extension) else float("nan"),
                     base_passed=parent_reason != "base_signal_blocked",
                     observed_at=now,
                     features={
                         "compression": None if not _finite_price(last.get("compression")) else float(last["compression"]),
-                        "extension_atr": None if not _finite_price(last.get("extension_atr")) else float(last["extension_atr"]),
+                        "extension_atr": None if not _is_finite(extension) else float(extension),
                         "f111_rejection_reason": parent_reason,
                     },
                     feature_asof={"hourly_bar_open": str(bar_open), "signal_close": _iso(t0)},
@@ -1259,11 +1265,21 @@ def _funding_for_open(runtime: F111Runtime, symbol: str, now: datetime) -> tuple
 
 
 def _finite_price(value: float | None) -> bool:
+    """A usable price or positive ratio. Zero and negatives are not prices."""
     try:
         number = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return False
     return number > 0 and number == number and number != float("inf")
+
+
+def _is_finite(value: float | None) -> bool:
+    """A finite feature, including zero and negatives. Not a price check."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(number)
 
 
 def _sector(symbol: str) -> str:

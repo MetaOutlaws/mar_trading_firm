@@ -925,6 +925,82 @@ def test_stale_signal_is_not_backfilled(tmp_path):
     assert runtime.pending == []
 
 
+def test_live_shaped_hourly_frame_keeps_signed_extension_for_long_and_short(tmp_path):
+    """The SGP1 hourly frame, including the still-forming bar Bybit appends.
+
+    extension_atr is negative when price has not broken the prior-20 boundary.
+    That is every normal SHORT and most LONGs. The live reader must keep the
+    sign. A price check (> 0) records those sleeves as missing_feature.
+    """
+    from dataclasses import replace
+
+    from core.data.ohlcv import CANONICAL_COLUMNS, closed_candles
+    from core.strategy.base import SignalSide
+    from core.strategy.mar_f111_r12_extension_latefloor_v1 import (
+        MarF111R12ExtensionLatefloorV1Strategy,
+    )
+
+    bars = MarF111R12ExtensionLatefloorV1Strategy.min_bars + 1
+    index = pd.date_range("2024-01-01", periods=bars, freq="h", tz="UTC", name="timestamp")
+    frame = pd.DataFrame(
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.0,
+            "volume": 10.0,
+            "turnover": 1000.0,
+        },
+        index=index,
+    )
+    frame = frame[CANONICAL_COLUMNS].astype("float64")
+    # Ten seconds into the last Bybit bar. closed_candles drops that bar.
+    now = index[-1].to_pydatetime() + timedelta(seconds=10)
+
+    class _LiveHourly:
+        def fetch_latest(self, symbol: str, timeframe: str, bars: int = 860) -> pd.DataFrame:
+            assert symbol == "BTCUSDT"
+            assert timeframe == "1h"
+            assert bars == 860
+            return frame
+
+    runtime = _runtime(tmp_path)
+    runtime.registry["BTCUSDT"] = _available("BTCUSDT")
+    runtime._consume_hourly(_LiveHourly(), now)
+
+    closed = closed_candles(frame, "1h", now=now)
+    assert list(closed.columns) == CANONICAL_COLUMNS
+    assert closed.index.name == "timestamp"
+    assert len(closed) == MarF111R12ExtensionLatefloorV1Strategy.min_bars
+    expected: dict[str, float] = {}
+    boundaries: dict[str, float] = {}
+    for side in (SignalSide.LONG, SignalSide.SHORT):
+        rule = MarF111R12ExtensionLatefloorV1Strategy(
+            replace(MarF111R12ExtensionLatefloorV1Strategy().params, side=side)
+        )
+        signals = rule.generate_signals(rule.prepare_market_context("BTCUSDT", closed, None))
+        extension = float(signals["extension_atr"].iloc[-1])
+        assert extension < 0
+        expected[side.value] = extension
+        boundaries[side.value] = float(signals["entry_boundary"].iloc[-1])
+
+    logged = [
+        row
+        for row in runtime.events
+        if row.get("symbol") == "BTCUSDT" and row.get("side") in {"LONG", "SHORT"}
+    ]
+    assert {row["side"] for row in logged} == {"LONG", "SHORT"}
+    for row in logged:
+        got = row["feature_values"]["extension_atr"]
+        assert got == pytest.approx(expected[row["side"]])
+        assert got < 0
+        assert row["rejection_reason"] != "missing_feature"
+        assert row["feature_values"]["compression"] == pytest.approx(1.0)
+        assert row["feature_values"]["boundary"] == pytest.approx(boundaries[row["side"]])
+        assert row["feature_values"]["close"] == pytest.approx(100.0)
+        assert row["feature_values"]["prior_atr"] > 0
+
+
 def test_saved_path_parity_is_unverified_without_the_private_archive():
     config, _digest = load_f111_config()
     assert config["saved_path_parity"] == "UNVERIFIED"
