@@ -676,13 +676,43 @@ class PaperBroker(Broker):
         return True
 
     def close_position(self, symbol: str) -> OrderResult:
+        """Close at market using the exact held quantity.
+
+        ``place_market_order`` rounds every new request down to the step.
+        Re-rounding a size that is already on the grid drops one step
+        (32.9 at 0.1 becomes 32.8) and leaves a residual that blocks the next
+        entry. Target exits come through here. Stops use ``close_at_fill``,
+        which already closes the held quantity.
+        """
         position = self._positions.get(symbol)
         if position is None:
             return OrderResult(success=False, symbol=symbol, error="no open position")
-        price = self.get_price(symbol) or position.entry_price
-        return self.place_market_order(
-            symbol, position.side, position.quantity, expected_price=price, reduce_only=True
-        )
+        price = self.get_price(symbol)
+        if price is None:
+            return OrderResult(
+                success=False,
+                symbol=symbol,
+                side=position.side,
+                requested_quantity=position.quantity,
+                error="no market price available",
+            )
+        quantity = position.quantity
+        instrument = self.get_instrument(symbol)
+        tradable, why_not = instrument.is_tradable(quantity, price)
+        if not tradable:
+            return OrderResult(
+                success=False,
+                symbol=symbol,
+                side=position.side,
+                requested_quantity=quantity,
+                expected_price=price,
+                error=why_not,
+            )
+        costs = self.costs_for(symbol)
+        fill_price = costs.exit_price(price, position.side)
+        fee = costs.fee_for(quantity * fill_price)
+        self.accrue_funding()
+        return self._apply_close(symbol, quantity, fill_price, fee, price)
 
     def close_at_fill(
         self, symbol: str, fill_price: float, expected_price: float
