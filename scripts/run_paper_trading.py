@@ -57,6 +57,26 @@ def _handle_shutdown(signum, _frame) -> None:  # noqa: ANN001
     logger.warning("Signal %s received; finishing the current cycle then stopping.", signum)
 
 
+def _hot_poll(engine) -> None:  # noqa: ANN001
+    """F111 and the paper book (any bar clock). No seat and no model call.
+
+    One pass failing must not skip the other, and neither may stop exit
+    supervision. The 900s cycle still owns the pipeline and the seats.
+    """
+    try:
+        from core.execution.f111_paper import run_attached_minute_step
+
+        run_attached_minute_step(engine)
+    except Exception:
+        logger.exception("F111 minute step failed")
+    try:
+        from core.execution.paper_bar_eval import poll_paper_book
+
+        poll_paper_book(engine)
+    except Exception:
+        logger.exception("Paper bar poll failed; exit supervision continues")
+
+
 def _open_count(engine) -> int:  # noqa: ANN001
     """Open exposure the runner must keep supervising. Fail closed."""
     try:
@@ -98,13 +118,14 @@ def wait_for_next_cycle(
                 engine.supervise_exits()
         except Exception:
             logger.exception("Paper exit poll failed; will retry")
-        # F111 minute decisions sit on this poll so they are not inside the
-        # agent/LLM call. on_poll is optional; the production loop passes it.
+        # F111 and the paper book (15m, 1h, 4h, any known clock) sit on this
+        # poll so they are not inside the agent/LLM call. on_poll is optional;
+        # the production loop passes it.
         if on_poll is not None:
             try:
                 on_poll()
             except Exception:
-                logger.exception("F111 poll failed; exit supervision continues")
+                logger.exception("Paper hot poll failed; exit supervision continues")
 
 
 def parse_args() -> argparse.Namespace:
@@ -239,22 +260,16 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
             logger.info("")
             logger.info("--- cycle %d at %s ---", cycle, datetime.now(timezone.utc).isoformat())
 
-            def _f111_poll() -> None:
-                # No LLM import. A failure must not stop exit supervision.
-                from core.execution.f111_paper import run_attached_minute_step
-
-                run_attached_minute_step(engine)
-
             try:
                 from firm.research_jobs import advance_pipeline
 
-                # F111 runs before the agent seats so a slow model call cannot
-                # be the thing that decides the minute. Late polls still record
-                # poll_latency and refuse a missed open.
+                # F111 and the paper book run before the agent seats so a slow
+                # model call cannot be the thing that decides the bar. The
+                # same poll runs every 15s during the wait.
                 try:
-                    _f111_poll()
+                    _hot_poll(engine)
                 except Exception:
-                    logger.exception("F111 minute step failed before the cycle")
+                    logger.exception("Paper hot poll failed before the cycle")
                 # Scan first. Gemini seats (GM, Advisor, Auditor) can take
                 # minutes; they must not block the 15-minute paper clock or
                 # last_cycle.json stays stale and the duty board lies.
@@ -299,7 +314,7 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
                 logger.info("Reached the requested %d cycles; stopping.", args.cycles)
                 break
 
-            wait_for_next_cycle(engine, args.interval, on_poll=_f111_poll)
+            wait_for_next_cycle(engine, args.interval, on_poll=lambda: _hot_poll(engine))
     finally:
         if orchestrator is not None:
             orchestrator.close()

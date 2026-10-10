@@ -1079,8 +1079,29 @@ class TradingEngine:
         report.crowding_skips = 0
         report.crowding_size_cuts = 0
 
+        # Imported here so paper_bar_eval can import this module at load time.
+        from core.execution.paper_bar_eval import cycle_paper_bar
+
         for entry in self.plan.entries:
             report.symbols_scanned += 1
+            # Paper sleeves on a known bar clock (15m, 1h, 4h, and any other
+            # timeframe in the approval key) are evaluated on the 15s poll.
+            # If that poll already stored this bar, do not run the strategy
+            # again. A bar still inside the latency window and not yet stored
+            # is evaluated here, once, through the same cursor.
+            fast = cycle_paper_bar(self, entry, equity=equity, marks=marks)
+            if fast.handled:
+                if fast.error:
+                    report.errors.append(fast.error)
+                if fast.price is not None:
+                    marks[entry.symbol] = fast.price
+                if fast.signal is not None:
+                    report.signals_found += 1
+                    if fast.ordered:
+                        report.orders_placed += 1
+                    elif fast.rejection:
+                        report.rejections.append((fast.signal.symbol, fast.rejection))
+                continue
             sitout = paper_regime_sitout_reason(entry)
             if sitout:
                 report.rejections.append((entry.symbol, sitout))
@@ -1126,6 +1147,18 @@ class TradingEngine:
         `generate_signals` the backtester uses. That is the structural reason
         live behaviour matches simulated behaviour.
         """
+        signal, price, _reason, _bar_open = self._evaluate_detail(entry)
+        return signal, price
+
+    def _evaluate_detail(
+        self, entry: PlanEntry
+    ) -> tuple[Signal | None, float | None, str, datetime | None]:
+        """``_evaluate`` plus the closed-bar open and a no-signal reason.
+
+        The signal itself is still ``latest_signal``. The reason is only for
+        the paper bar log. Callers that only need the signal keep using
+        ``_evaluate``.
+        """
         strategy = entry.strategy
         candles = self._data.fetch_latest(
             entry.symbol, entry.timeframe, bars=strategy.min_bars + 50
@@ -1137,7 +1170,7 @@ class TradingEngine:
         now = _now()
         closed = closed_candles(candles, entry.timeframe, now=now)
         if closed.empty:
-            return None, float(candles["close"].iloc[-1])
+            return None, float(candles["close"].iloc[-1]), "forming_bar", None
 
         # Stale candles mean the feed is broken; acting on them is worse than
         # not trading. Age is measured on the last *closed* bar so a forming
@@ -1154,7 +1187,7 @@ class TradingEngine:
         close_at = bar_open + step
         latest_price = float(candles["close"].iloc[-1])
         if now > close_at + MAX_CANDLE_LATENCY:
-            return None, latest_price
+            return None, latest_price, "outside_latency_window", bar_open
 
         if getattr(strategy, "requires_btc_confirmation", False):
             if entry.timeframe != "1h":
@@ -1167,7 +1200,13 @@ class TradingEngine:
             )
             closed = strategy.prepare_market_context(entry.symbol, closed, btc_closed)
 
-        return strategy.latest_signal(entry.symbol, closed), latest_price
+        signal = strategy.latest_signal(entry.symbol, closed)
+        if signal is None:
+            raw = getattr(strategy, "_last_eval_reason", None)
+            reason = raw.strip() if isinstance(raw, str) and raw.strip() else "no_signal"
+        else:
+            reason = signal.reason or "signal"
+        return signal, latest_price, reason, bar_open
 
     def _refresh_crowding(self) -> None:
         """Pull Bybit OI / funding / long-short for the paper book. Fail open."""

@@ -149,14 +149,19 @@ class Strategy(ABC):
         behaviour is identical to simulated behaviour by construction.
         """
         if len(candles) < self.min_bars:
+            # Diagnostic only. The returned Signal is unchanged.
+            self._last_eval_reason = "insufficient history"
             return None
 
         signals = self.generate_signals(candles)
         if signals.empty:
+            self._last_eval_reason = "no_signal"
             return None
 
         last = signals.iloc[-1]
         if int(last["signal"]) == 0:
+            text = str(last["reason"] or "").strip()
+            self._last_eval_reason = text or "no_signal"
             return None
 
         # Everything that is not a required column is an indicator reading worth
@@ -167,13 +172,15 @@ class Strategy(ABC):
             if column not in SIGNAL_COLUMNS and pd.notna(last[column])
         }
 
+        reason = str(last["reason"])
+        self._last_eval_reason = reason.strip() or "signal"
         return Signal(
             symbol=symbol,
             side=SignalSide(last["side"]),
             timestamp=signals.index[-1],
             price=float(candles["close"].iloc[-1]),
             score=float(last["score"]),
-            reason=str(last["reason"]),
+            reason=reason,
             strategy=self.name,
             take_profit_pct=self.params.take_profit_pct,
             stop_loss_pct=self.params.stop_loss_pct,
