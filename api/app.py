@@ -194,8 +194,16 @@ def sentiment() -> dict[str, Any]:
 
 
 @app.get("/api/regime")
-def regime() -> dict[str, Any] | None:
-    return memory.latest_regime()
+def regime() -> dict[str, Any]:
+    """Soko trend file the paper engine gates on, plus the old LLM row.
+
+    The label is ``data/last_soko_trend.json`` (the #106 job). A missing or
+    stale file does not fall back to the Oct LLM snapshot. That snapshot is
+    ``legacy_llm`` only. This does not change ``read_live_soko_trend``.
+    """
+    from api.desk_status import desk_regime
+
+    return desk_regime()
 
 
 @app.get("/api/positioning")
@@ -261,8 +269,11 @@ def last_cycle() -> dict[str, Any]:
         if t.get("tier") in ("cheap", "standard", "strong")
     )
     xai_ok = bool((snapshot.get("providers") or {}).get("xai", {}).get("configured"))
+    from api.desk_status import cycle_scan_counts
+
     return {
         "cycle": cycle,
+        "scan_counts": cycle_scan_counts(cycle if isinstance(cycle, dict) else None),
         "quiet_reasons": _quiet_reasons(cycle, employee_ok, xai_ok),
     }
 
@@ -540,21 +551,21 @@ def _quiet_reasons(cycle: dict[str, Any] | None, employee_llm_ok: bool, xai_ok: 
     errors = cycle.get("errors") or []
     if errors:
         reasons.append("Last cycle had evaluation errors: " + "; ".join(str(e) for e in errors[:3]))
-    approved_n = sum(1 for e in plan if e.get("approved") is True)
-    paper_n = sum(1 for e in plan if e.get("paper_override") is True)
-    if approved_n:
-        reasons.append(
-            f"{approved_n} research-approved pair(s) are on the paper book. "
-            "Live still needs the go-live gates."
-        )
-    else:
+    # Plan rows are the scan, not the book. Sit-outs are absent from ``plan``,
+    # so "50 vetoes scanned" used to hide the six regime-gated overrides.
+    from api.desk_status import cycle_scan_counts
+
+    counts = cycle_scan_counts(cycle)
+    reasons.append(
+        f"Book overrides {counts['book_overrides']}. "
+        f"Sitting out (regime) {counts['sitting_out_regime']}. "
+        f"Active {counts['active']}."
+    )
+    if counts["active_approved"]:
+        reasons.append("Live still needs the go-live gates.")
+    elif not counts["book_approved"]:
         reasons.append(
             "No pair is research-approved. Paper is gathering evidence; live stays locked."
-        )
-    if paper_n:
-        reasons.append(
-            f"{paper_n} operator paper veto(es) are also being scanned. "
-            "They are not live-approved."
         )
     return reasons
 

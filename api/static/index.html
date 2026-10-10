@@ -751,7 +751,7 @@ const KICKERS = {
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
 };
-let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, f111: {} };
+let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, f111: {}, regime: {} };
 let lastError = "";
 
 function viewName() {
@@ -1146,17 +1146,20 @@ function renderOverview() {
   const eq = risk.equity || (state.equity || []).at(-1) || {};
   const golive = state.golive || {};
   const advice = (state.floor.advice || {});
-  const regime = state.floor.regime;
   const killed = !!(risk.kill_switch && risk.kill_switch.tripped);
   const ready = !!golive.ready;
   const strat = state.strategies || {};
   const approvedN = Number(strat.approved_count || 0);
   const paperN = Number(strat.paper_override_count || 0);
+  const scan = (state.cycle || {}).scan_counts;
+  const scanLine = (state.cycle || {}).cycle && scan
+    ? ` Book overrides ${scan.book_overrides}. Sitting out (regime) ${scan.sitting_out_regime}. Active ${scan.active}.`
+    : "";
   const bannerClass = killed ? "bad" : ready ? "ok" : "warn";
   const bannerTitle = killed ? "Kill switch is tripped. No new risk." : (golive.verdict || "STAY IN PAPER");
   const bannerBody = killed
     ? (risk.kill_switch.detail || "Trading is halted until a human resets with the investigation phrase.")
-    : `${approvedN} research-approved (live still gated). ${paperN} on paper by operator veto.`;
+    : `${approvedN} research-approved (live still gated). ${paperN} on paper by operator veto.${scanLine}`;
   const positions = risk.open_positions || [];
   const book = risk.book || {};
   const equityShown = book.equity != null ? book.equity : eq.equity;
@@ -1192,7 +1195,7 @@ function renderOverview() {
       </div>
       <div class="card">
         <h2>Regime &amp; advice</h2>
-        ${regime ? `<div><strong>${esc(regime.regime || "regime")}</strong> <span class="muted">${esc(regime.volatility_bucket || "")} · ${esc(regime.btc_trend || "")}</span><div class="muted">${esc((regime.reasoning || "").slice(0, 220))}</div>${regimeMetricsLine(regime.metrics || {})}</div>` : empty("No regime yet", "The regime analyst has not posted a reading.")}
+        ${regimeHeadline()}
         ${advice.sit_out ? `<div class="warn" style="margin-top:10px">Employees asked the book to sit out this cycle.</div>` : ""}
         ${Object.keys(advice.vetoes || {}).length ? `<div class="bad" style="margin-top:6px">Vetoes: ${esc(Object.entries(advice.vetoes).map(([s, a]) => s + " (" + a + ")").join(", "))}</div>` : ""}
         ${Object.keys(advice.size_multipliers || {}).length ? `<div class="muted" style="margin-top:6px">Size cuts: ${esc(Object.entries(advice.size_multipliers).map(([s, m]) => s + " ×" + m).join(", "))}</div>` : ""}
@@ -1214,6 +1217,20 @@ function renderOverview() {
     ${paperOverrideCard()}
     ${state.rejections.length ? `<div class="card"><h2>Recent rejections</h2>${rejectionList(state.rejections.slice(0, 6))}</div>` : ""}
   `;
+}
+
+function regimeHeadline() {
+  // File the engine gates on. The Oct LLM snapshot is legacy_llm, not the label.
+  const live = state.regime || {};
+  const asOf = live.as_of ? ("as of " + stamp(live.as_of) + " · " + ageLabel(live.age_seconds)) : "no as_of";
+  const headline = live.label
+    ? `<div><strong>${esc(live.label)}</strong> <span class="muted">${esc(live.source || "file")} · ${esc(asOf)}</span></div>`
+    : empty("No Soko trend file", "The engine reads data/last_soko_trend.json. An old LLM record is not the live regime.");
+  const legacy = live.legacy_llm;
+  const legacyLine = legacy && legacy.regime
+    ? `<div class="muted" style="margin-top:8px">Legacy LLM record: ${esc(legacy.regime)} · ${esc(when(legacy.recorded_at))}</div>`
+    : "";
+  return headline + legacyLine;
 }
 
 function kpi(label, value, hint, klass = "") {
@@ -2273,11 +2290,16 @@ function paperOverrideCard() {
 }
 
 function cycleScanPlanCard(cycle) {
+  const counts = (state.cycle || {}).scan_counts || null;
   const plan = (cycle && cycle.plan) || [];
-  if (!plan.length) return "";
+  if (!plan.length && !(cycle && counts)) return "";
+  const summary = counts
+    ? `Book overrides ${counts.book_overrides}. Sitting out (regime) ${counts.sitting_out_regime}. Active ${counts.active}${counts.soko_trend ? " · soko " + counts.soko_trend : ""}.`
+    : "";
   return `<div class="card">
     <h2>Last paper scan plan</h2>
-    <div class="muted" style="margin-bottom:8px">What the paper clock actually scanned. Operator vetoes show as paper, not approved.</div>
+    ${summary ? `<div style="margin-bottom:8px"><strong>${esc(summary)}</strong></div>` : ""}
+    <div class="muted" style="margin-bottom:8px">What the paper clock actually scanned. Operator vetoes show as paper, not approved. Regime sit-outs are not in this table.</div>
     <table class="table-fixed">
       <colgroup><col style="width:40%"/><col style="width:28%"/><col style="width:14%"/><col style="width:18%"/></colgroup>
       <thead><tr><th>Strategy</th><th>Pair</th><th>TF</th><th>Book</th></tr></thead>
@@ -2508,7 +2530,7 @@ let lastRenderFp = "";
 function viewFingerprint(name) {
   const floor = state.floor || {};
   const slices = {
-    overview: { eq: state.equity, risk: state.risk, standup: floor.standup, pipeline: floor.pipeline, inboxN: (floor.inbox || []).length, golive: state.golive, paperN: (state.strategies || {}).paper_override_count, approvedN: (state.strategies || {}).approved_count },
+    overview: { eq: state.equity, risk: state.risk, standup: floor.standup, pipeline: floor.pipeline, inboxN: (floor.inbox || []).length, golive: state.golive, paperN: (state.strategies || {}).paper_override_count, approvedN: (state.strategies || {}).approved_count, regime: state.regime, scan: (state.cycle || {}).scan_counts },
     health: { cycle: state.cycle, llm: state.llm, risk: state.risk },
     f111: { f111: state.f111 },
     floor: { employees: floor.employees, activity: floor.activity, org: floor.org },
@@ -2704,7 +2726,7 @@ async function wakeFloor() {
 async function load(manual) {
   try {
     await ensureLocalToken();
-    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111] = await Promise.all([
+    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime] = await Promise.all([
       get("/api/floor"),
       get("/api/risk"),
       get("/api/trades?limit=100"),
@@ -2716,8 +2738,9 @@ async function load(manual) {
       get("/api/cycle"),
       get("/api/desk"),
       get("/api/f111"),
+      get("/api/regime"),
     ]);
-    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, llmPing: state.llmPing };
+    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime: regime || {}, llmPing: state.llmPing };
     lastError = "";
     render({ keepScroll: true, force: !!manual });
   } catch (err) {

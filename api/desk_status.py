@@ -415,6 +415,115 @@ def desk_header(
     }
 
 
+# Shown on /api/cycle next to the three labeled counts. Display only.
+_SCAN_COUNT_NOTE = (
+    "Active is the last paper scan (plan entries; regime sit-outs are already "
+    "removed). Book overrides are paper_override rows in the live approvals "
+    "file. Sitting out (regime) is every regime_sitouts row on that cycle. "
+    "Sitting-out overrides are the sit-out rows whose book record has "
+    "paper_override true. When every other override became a plan row, "
+    "active overrides equal book overrides minus sitting-out overrides "
+    "(reconciles is true). An unregistered sleeve or a duplicate plan identity "
+    "is in neither list, so reconciles is false. Approved sit-outs reduce "
+    "the approved half of Active, not the override half."
+)
+
+
+def cycle_scan_counts(
+    cycle: dict[str, Any] | None,
+    book: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Label the last scan against the live book. Does not change the plan.
+
+    ``build_plan`` (paper) appends a ``paper_override`` row to ``plan.entries``
+    only when ``paper_record_sitout_reason`` returns None. Sit-outs go to
+    ``regime_sitouts`` and are absent from the persisted ``plan``. A desk that
+    counts ``plan`` therefore shows fewer overrides than the book. With six
+    regime-gated override sit-outs, active overrides are book overrides minus
+    those six (56 and 6 produce active 50) when nothing else dropped out.
+    """
+    from config.universe import Universe
+
+    approvals: dict[str, Any] = {}
+    if book is None:
+        try:
+            book = read_live_approval_book()
+        except Exception:
+            book = {}
+    if isinstance(book, dict):
+        raw = book.get("approvals")
+        if isinstance(raw, dict):
+            approvals = raw
+    try:
+        universe = Universe(approvals=approvals)
+        book_approved = len(universe.approved_records)
+        book_overrides = len(universe.paper_override_records)
+    except Exception:
+        book_approved = 0
+        book_overrides = 0
+
+    plan: list[dict[str, Any]] = []
+    sitouts: list[dict[str, Any]] = []
+    soko: str | None = None
+    if isinstance(cycle, dict):
+        plan = [row for row in (cycle.get("plan") or []) if isinstance(row, dict)]
+        sitouts = [
+            row for row in (cycle.get("regime_sitouts") or []) if isinstance(row, dict)
+        ]
+        raw_trend = cycle.get("soko_trend")
+        if isinstance(raw_trend, str) and raw_trend.strip():
+            soko = raw_trend.strip()
+
+    # ``approved`` on a persisted plan row is pair-level (any approved sleeve
+    # on that symbol+side). Count a row in only one half of "12+50".
+    active_approved = sum(1 for row in plan if row.get("approved") is True)
+    active_overrides = sum(
+        1
+        for row in plan
+        if row.get("paper_override") is True and row.get("approved") is not True
+    )
+    sitting_out_overrides = 0
+    for row in sitouts:
+        key = row.get("key")
+        record = approvals.get(key) if isinstance(key, str) else None
+        if isinstance(record, dict) and record.get("paper_override") is True:
+            sitting_out_overrides += 1
+
+    return {
+        "book_approved": book_approved,
+        "book_overrides": book_overrides,
+        "sitting_out_regime": len(sitouts),
+        "sitting_out_overrides": sitting_out_overrides,
+        "active_approved": active_approved,
+        "active_overrides": active_overrides,
+        "active": f"{active_approved}+{active_overrides}",
+        "soko_trend": soko,
+        "reconciles": active_overrides + sitting_out_overrides == book_overrides,
+        "note": _SCAN_COUNT_NOTE,
+    }
+
+
+def desk_regime(path: Path | None = None, *, now: datetime | None = None) -> dict[str, Any]:
+    """Live regime for the desk: the Soko file the engine gates on.
+
+    ``read_live_soko_trend`` falls back to the regime-analyst snapshot when
+    the file is missing or stale. This display does not. A dark file stays
+    dark, and the old LLM row is only ``legacy_llm``. Employee prompts still
+    call ``latest_regime()`` themselves.
+    """
+    payload = soko_display(path, now=now)
+    legacy: dict[str, Any] | None = None
+    try:
+        from firm.memory import latest_regime
+
+        snap = latest_regime()
+        legacy = snap if isinstance(snap, dict) else None
+    except Exception:
+        legacy = None
+    payload["legacy_llm"] = legacy
+    return payload
+
+
 def _latest_registry_block(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Last contiguous registry census in the telemetry file.
 
