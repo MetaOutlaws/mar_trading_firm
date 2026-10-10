@@ -815,7 +815,7 @@ def _bar_close_iso(entry: PlanEntry, bar_open: datetime) -> str:
 def _remember_cycle_book_note(notes: list[dict[str, Any]], entry: PlanEntry, bar_open: datetime, fast: Any) -> None:
     """One book-bar note from the cycle path. Does not trade."""
     try:
-        from core.execution.paper_bar_eval import sleeve_key
+        from core.execution.paper_bar_eval import sleeve_key, sleeve_note_fields
         from firm.scan_inbox import remember_scan_note
 
         rejection = ""
@@ -823,13 +823,16 @@ def _remember_cycle_book_note(notes: list[dict[str, Any]], entry: PlanEntry, bar
             rejection = str(getattr(fast, "rejection", "") or "")
             if getattr(fast, "signal", None) is None and not rejection:
                 rejection = str(getattr(fast, "reason", "") or "") or "no_signal"
+        fired = getattr(fast, "signal", None) is not None
         remember_scan_note(
             notes,
             sleeve_id=sleeve_key(entry),
             bar_time=_bar_close_iso(entry, bar_open),
-            signal=getattr(fast, "signal", None) is not None,
+            signal=fired,
             ordered=bool(getattr(fast, "ordered", False)),
             rejection=rejection,
+            gates_passed=fired or bool(getattr(fast, "ordered", False)),
+            **sleeve_note_fields(entry),
         )
     except Exception:
         logger.exception("Cycle scan note failed; the evaluation stands")
@@ -855,7 +858,7 @@ def _remember_sitout_note(notes: list[dict[str, Any]], entry: PlanEntry, sitout:
 
 def _remember_flat_note(notes: list[dict[str, Any]], entry: PlanEntry, bar_open: datetime, reason: str) -> None:
     try:
-        from core.execution.paper_bar_eval import sleeve_key
+        from core.execution.paper_bar_eval import sleeve_key, sleeve_note_fields
         from firm.scan_inbox import remember_scan_note
 
         remember_scan_note(
@@ -865,6 +868,8 @@ def _remember_flat_note(notes: list[dict[str, Any]], entry: PlanEntry, bar_open:
             signal=False,
             ordered=False,
             rejection=reason or "no_signal",
+            gates_passed=False,
+            **sleeve_note_fields(entry),
         )
     except Exception:
         logger.exception("Flat scan note failed; the evaluation stands")
@@ -881,7 +886,7 @@ def _remember_order_note(
 ) -> None:
     """A known bar joins the book diary. Anything else is the 900s cycle diary."""
     try:
-        from core.execution.paper_bar_eval import is_known_timeframe, sleeve_key
+        from core.execution.paper_bar_eval import is_known_timeframe, sleeve_key, sleeve_note_fields
         from firm.scan_inbox import remember_scan_note
 
         target = book_notes if bar_open is not None and is_known_timeframe(entry.timeframe) else cycle_notes
@@ -893,6 +898,8 @@ def _remember_order_note(
             signal=True,
             ordered=ordered,
             rejection=rejection,
+            gates_passed=True,
+            **sleeve_note_fields(entry),
         )
     except Exception:
         logger.exception("Order scan note failed; the evaluation stands")

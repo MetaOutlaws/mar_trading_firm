@@ -147,6 +147,15 @@ def inbox() -> list[dict[str, Any]]:
     return memory.pending_proposals()
 
 
+@app.get("/api/near-misses")
+def near_misses(limit: int = 100) -> dict[str, Any]:
+    """24-hour near-miss diary. Read-only; it does not score a sleeve."""
+    from firm.near_miss_log import read_near_misses
+
+    cap = min(max(int(limit), 1), 500)
+    return read_near_misses(limit=cap)
+
+
 @app.get("/api/escalations")
 def escalations() -> list[dict[str, Any]]:
     return memory.open_escalations()

@@ -4,6 +4,10 @@ import pandas as pd
 from core.strategy.hourly_compression_connors_v1 import HourlyCompressionConnorsV1Strategy
 
 
+# Alts must trade with BTC's 24h sign. Zero is not a pass. BTC itself skips this.
+BTC24_DIRECTION_MIN_EXCLUSIVE = 0.0
+
+
 class HourlyCompressionBtcConnorsV1Strategy(HourlyCompressionConnorsV1Strategy):
     name = 'hourly_compression_btc_connors_v1'
     requires_btc_confirmation = True
@@ -39,7 +43,9 @@ class HourlyCompressionBtcConnorsV1Strategy(HourlyCompressionConnorsV1Strategy):
         out = super().generate_signals(candles)
         r = candles.btc24.to_numpy(float)
         # BTC's existing own-token predicate remains unchanged, including zero.
-        passes = np.ones(len(r), dtype=bool) if symbol == 'BTCUSDT' else np.isfinite(r) & (self.params.side.sign*r > 0)
+        passes = np.ones(len(r), dtype=bool) if symbol == 'BTCUSDT' else np.isfinite(r) & (
+            self.params.side.sign * r > BTC24_DIRECTION_MIN_EXCLUSIVE
+        )
         blocked = (out.signal != 0) & ~passes
         blank = self.empty_signals(candles)
         for col in ['signal', 'side', 'score', 'reason']:

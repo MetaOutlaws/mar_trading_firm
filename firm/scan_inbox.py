@@ -25,10 +25,13 @@ import math
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from core.strategy.f111_semantics import (
-    COMPRESSION_MIN_EXCLUSIVE,
-    EXTENSION_MAX_INCLUSIVE,
-    HIGH_VOL_MIN_INCLUSIVE,
+from core.strategy.f111_config import STRATEGY_ID as F111_STRATEGY_ID
+from core.strategy.gate_distance import (
+    NEAREST_CARD,
+    closest_failure,
+    f111_checklist,
+    normalize_hook,
+    rank_misses,
 )
 from firm.memory_models import ProposalKind, ProposalStatus
 
@@ -161,6 +164,7 @@ def bucket_reason(reason: Any, row: dict[str, Any] | None = None) -> str:
             "already holding",
             "duplicate open",
             "existing position",
+            "position_already_open",
             "no pyramiding",
         )
     ):
@@ -204,79 +208,21 @@ def _decision_row(row: dict[str, Any]) -> bool:
     return bool(row.get("symbol"))
 
 
-def near_misses_from_rows(rows: list[dict[str, Any]], limit: int = 3) -> list[dict[str, Any]]:
-    """Closest rejects to a numeric gate, where the row actually carries one.
+# Signals that cleared the strategy gates and then stopped for a reason the
+# operator can act on. The exact text is kept; this set is only the flag.
+_ACTIONABLE_BUCKETS = frozenset(
+    {"risk cap", "existing position", "regime sit-out", "latency/stale bar"}
+)
 
-    Extension must be <= 1 prior ATR, compression must be above 0.50, and
-    prior ATR / close must be at least 0.01. A pass is not a near miss.
-    Rows without those numbers are skipped.
+
+def near_misses_from_rows(rows: list[dict[str, Any]], limit: int = NEAREST_CARD) -> list[dict[str, Any]]:
+    """Closest rejects, ranked by gap / threshold, where the row has the number.
+
+    A pass is not a near miss. A rejection with no measured distance is
+    omitted here and still counted by reason.
     """
-    found: list[dict[str, Any]] = []
-    for row in rows:
-        if not _decision_row(row):
-            continue
-        reason = bucket_reason(row.get("rejection_reason"), row)
-        features = _features(row)
-        symbol = str(row.get("symbol") or "")
-        side = str(row.get("side") or "")
-        if reason == "extension_gate":
-            value = _finite(features.get("extension_atr"))
-            if value is None or value <= EXTENSION_MAX_INCLUSIVE:
-                continue
-            gap = value - EXTENSION_MAX_INCLUSIVE
-            found.append(
-                _miss(symbol, side, reason, "extension_atr", value, EXTENSION_MAX_INCLUSIVE, gap)
-            )
-        elif reason == "compression_gate":
-            value = _finite(features.get("compression"))
-            if value is None or value > COMPRESSION_MIN_EXCLUSIVE:
-                continue
-            gap = COMPRESSION_MIN_EXCLUSIVE - value
-            found.append(
-                _miss(
-                    symbol,
-                    side,
-                    reason,
-                    "compression",
-                    value,
-                    COMPRESSION_MIN_EXCLUSIVE,
-                    gap,
-                )
-            )
-        elif reason == "high_vol_filter":
-            prior = _finite(features.get("prior_atr"))
-            close = _finite(features.get("close"))
-            if prior is None or close is None or close <= 0:
-                continue
-            value = prior / close
-            if value >= HIGH_VOL_MIN_INCLUSIVE:
-                continue
-            gap = HIGH_VOL_MIN_INCLUSIVE - value
-            found.append(
-                _miss(symbol, side, reason, "prior_atr/close", value, HIGH_VOL_MIN_INCLUSIVE, gap)
-            )
-    found.sort(key=lambda item: (item["gap"], item["symbol"], item["side"], item["metric"]))
-    return found[:limit]
-
-
-def _miss(
-    symbol: str,
-    side: str,
-    reason: str,
-    metric: str,
-    value: float,
-    threshold: float,
-    gap: float,
-) -> dict[str, Any]:
-    return {
-        "symbol": symbol,
-        "side": side,
-        "reason": reason,
-        "metric": metric,
-        "value": round(value, 6),
-        "threshold": threshold,
-        "gap": round(gap, 6),
-    }
+    card = assemble_scan_card(rows, strategy=F111_STRATEGY_ID)
+    return rank_misses(card["near_misses"], limit=limit)
 
 
 def _count_reason(counts: dict[str, int], reason: Any, row: dict[str, Any] | None = None) -> None:
@@ -286,75 +232,212 @@ def _count_reason(counts: dict[str, int], reason: Any, row: dict[str, Any] | Non
     counts[name] = counts.get(name, 0) + 1
 
 
+def _identity_from_note(note: dict[str, Any]) -> tuple[str, str, str]:
+    """Symbol, side, and strategy. Book ids are ``symbol|timeframe|side|name``."""
+    symbol = str(note.get("symbol") or "")
+    side = str(note.get("side") or "")
+    strategy = str(note.get("strategy") or "")
+    parts = [part for part in str(note.get("sleeve_id") or "").split("|") if part]
+    if len(parts) >= 4:
+        symbol = symbol or parts[0]
+        side = side or parts[2]
+        strategy = strategy or parts[3]
+    elif parts:
+        symbol = symbol or parts[0]
+    return symbol, side, strategy
+
+
+def _miss_view(
+    reading: dict[str, Any],
+    *,
+    symbol: str,
+    side: str,
+    strategy: str,
+    reason: str,
+) -> dict[str, Any]:
+    """Card row: who missed, which gate, and the distance in that gate's units."""
+    condition = str(reading.get("condition") or reading.get("metric") or reading.get("gate") or "")
+    return {
+        "symbol": symbol,
+        "side": side,
+        "strategy": strategy,
+        "gate": str(reading.get("gate") or condition),
+        "condition": condition,
+        "reason": reason,
+        "metric": str(reading.get("metric") or condition),
+        "value": reading.get("value"),
+        "threshold": reading.get("threshold"),
+        "gap": reading.get("gap"),
+        "normalized": reading.get("normalized"),
+        "units": str(reading.get("units") or ""),
+    }
+
+
+def _f111_sleeve(row: dict[str, Any], index: int) -> dict[str, Any]:
+    """One F111 decision row, with distances that do not call ``gate_decision``."""
+    symbol = str(row.get("symbol") or "")
+    side = str(row.get("side") or "")
+    signal_id = str(row.get("source_signal_id") or "")
+    sleeve_id = signal_id or f"{symbol}|{side}|{index}"
+    has_fill = row.get("simulated_fill") not in (None, "")
+    has_pending = bool(row.get("pending_retest_created_at"))
+    exact = str(row.get("rejection_reason") or "").strip()
+    if exact.lower() in {"none", "null"}:
+        exact = ""
+    reason = bucket_reason(exact, row)
+    gates_passed = row.get("gate_decision") is True
+    passed_clean = gates_passed and not reason
+    features = _features(row)
+    base_blocked = reason == "base_signal_blocked" or str(features.get("f111_rejection_reason") or "") == "base_signal_blocked"
+    # A later block (risk, occupancy, stale) can sit on a row whose parent
+    # reason was cleared. Only force the base gate when that is the rejection.
+    if reason and reason != "base_signal_blocked":
+        base_blocked = str(features.get("f111_rejection_reason") or "") == "base_signal_blocked" and not gates_passed
+    checklist = f111_checklist(features, side=side, base_blocked=base_blocked and not gates_passed)
+    return _annotate_sleeve(
+        sleeve_id=sleeve_id,
+        symbol=symbol,
+        side=side,
+        strategy=str(row.get("strategy") or F111_STRATEGY_ID),
+        signal=bool(has_pending or (passed_clean and not has_fill)),
+        ordered=bool(has_fill),
+        pending=bool(has_pending),
+        rejection="" if (passed_clean or has_fill or has_pending) else reason,
+        exact_reason=exact,
+        gates_passed=gates_passed,
+        checklist=checklist,
+        full_checklist=True,
+        stale=reason == "latency/stale bar" or bool(row.get("missing_candle_or_quote")),
+        unavailable=reason == "unavailable instrument" or bool(row.get("instrument_unavailable")),
+    )
+
+
+def _book_sleeve(note: dict[str, Any]) -> dict[str, Any]:
+    symbol, side, strategy = _identity_from_note(note)
+    ordered = bool(note.get("ordered"))
+    exact = "" if ordered else str(note.get("rejection") or "").strip()
+    reason = "" if ordered else bucket_reason(exact)
+    signal = bool(note.get("signal"))
+    gates_passed = bool(note.get("gates_passed")) or signal or ordered
+    readings, full = normalize_hook(note.get("diagnostics"))
+    if not readings and isinstance(note.get("near_miss"), dict):
+        readings = [note["near_miss"]]
+        full = False
+    return _annotate_sleeve(
+        sleeve_id=str(note.get("sleeve_id") or ""),
+        symbol=symbol,
+        side=side,
+        strategy=strategy,
+        signal=signal,
+        ordered=ordered,
+        pending=bool(note.get("pending")),
+        rejection=reason,
+        exact_reason=exact,
+        gates_passed=gates_passed,
+        checklist=readings,
+        full_checklist=full,
+        stale=reason == "latency/stale bar",
+        unavailable=reason == "unavailable instrument",
+    )
+
+
+def _annotate_sleeve(
+    *,
+    sleeve_id: str,
+    symbol: str,
+    side: str,
+    strategy: str,
+    signal: bool,
+    ordered: bool,
+    pending: bool,
+    rejection: str,
+    exact_reason: str,
+    gates_passed: bool,
+    checklist: list[dict[str, Any]],
+    full_checklist: bool,
+    stale: bool,
+    unavailable: bool,
+) -> dict[str, Any]:
+    """Attach the closest miss, the all-but-one flag, and an actionable block."""
+    failed = [row for row in checklist if isinstance(row, dict) and row.get("passed") is False]
+    scored = [row for row in checklist if isinstance(row, dict) and row.get("passed") is not None]
+    closest = closest_failure(failed)
+    # The rejecting gate, when we measured it. Otherwise the closest failure
+    # the hook could name. No number means the card keeps the reason only.
+    named = None
+    if rejection:
+        named = next((row for row in failed if str(row.get("gate") or "") == rejection), None)
+        if named is None:
+            named = next((row for row in failed if str(row.get("condition") or "") == rejection), None)
+    chosen = named if named is not None and _finite(named.get("normalized")) is not None else closest
+    miss = None
+    if chosen is not None and not ordered and not signal:
+        miss = _miss_view(chosen, symbol=symbol, side=side, strategy=strategy, reason=rejection or str(chosen.get("gate") or ""))
+    all_but_one = None
+    if full_checklist and not ordered and not gates_passed and len(scored) >= 2 and len(failed) == 1:
+        shown = miss or _miss_view(
+            failed[0],
+            symbol=symbol,
+            side=side,
+            strategy=strategy,
+            reason=rejection or str(failed[0].get("gate") or ""),
+        )
+        all_but_one = shown
+    blocked = None
+    if gates_passed and not ordered and rejection in _ACTIONABLE_BUCKETS:
+        blocked = {
+            "symbol": symbol,
+            "side": side,
+            "strategy": strategy,
+            "reason": exact_reason or rejection,
+            "bucket": rejection,
+            "actionable": True,
+        }
+    return {
+        "sleeve_id": sleeve_id,
+        "symbol": symbol,
+        "side": side,
+        "strategy": strategy,
+        "signal": signal,
+        "ordered": ordered,
+        "pending": pending,
+        "rejection": rejection,
+        "exact_reason": exact_reason,
+        "gates_passed": gates_passed,
+        "near_miss": miss,
+        "all_but_one": all_but_one,
+        "blocked_after_gates": blocked,
+        "stale_bar": stale,
+        "unavailable_instrument": unavailable,
+    }
+
+
+def assemble_scan_card(rows: list[dict[str, Any]], *, strategy: str = "") -> dict[str, Any]:
+    """Card fields from F111 telemetry rows. Pure: no database and no gate call."""
+    sleeve_rows = [
+        _f111_sleeve(row, index)
+        for index, row in enumerate(rows)
+        if _decision_row(row)
+    ]
+    if strategy:
+        for row in sleeve_rows:
+            row["strategy"] = row.get("strategy") or strategy
+    return _tally_sleeve_rows(sleeve_rows, book_sleeves=0, f111_sleeves=len(sleeve_rows))
+
+
 def summarise_f111_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Reason counts, signals, and near misses from one hourly telemetry slice.
+    """Reason counts, distances, and the all-but-one list from one hourly slice.
 
     Pure: no database and no exchange. Registry census rows are ignored.
     """
-    all_misses = near_misses_from_rows(rows, limit=max(len(rows), 1))
-    miss_by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
-    for item in all_misses:
-        miss_by_key[(item["symbol"], item["side"], item["reason"])] = item
-    counts: dict[str, int] = {}
-    signals = 0
-    entries = 0
-    pending_opened = 0
-    sleeve_rows: list[dict[str, Any]] = []
-    for index, row in enumerate(rows):
-        if not _decision_row(row):
-            continue
-        symbol = str(row.get("symbol") or "")
-        side = str(row.get("side") or "")
-        signal_id = str(row.get("source_signal_id") or "")
-        sleeve_id = signal_id or f"{symbol}|{side}|{index}"
-        # A fill row carries simulated_fill. A gate pass that only arms a
-        # retest carries pending_retest_created_at and no fill.
-        has_fill = row.get("simulated_fill") not in (None, "")
-        has_pending = bool(row.get("pending_retest_created_at"))
-        reason = bucket_reason(row.get("rejection_reason"), row)
-        passed = row.get("gate_decision") is True and not reason
-        if has_fill:
-            entries += 1
-        if has_pending:
-            pending_opened += 1
-            signals += 1
-        elif passed and not has_fill:
-            signals += 1
-        rejection = "" if (passed or has_fill or has_pending) else reason
-        if rejection:
-            counts[rejection] = counts.get(rejection, 0) + 1
-        miss = miss_by_key.get((symbol, side, reason))
-        sleeve_rows.append(
-            {
-                "sleeve_id": sleeve_id,
-                "signal": bool(has_pending or (passed and not has_fill)),
-                "ordered": bool(has_fill),
-                "pending": bool(has_pending),
-                "rejection": rejection or (reason if not passed else ""),
-                "near_miss": miss,
-            }
-        )
-    top = sorted(
-        (item for item in (row.get("near_miss") for row in sleeve_rows) if item),
-        key=lambda item: (item["gap"], item["symbol"], item["side"], item["metric"]),
-    )[:3]
-    return {
-        "f111_sleeves": len(sleeve_rows),
-        "book_sleeves": 0,
-        "signals": signals,
-        "entries_opened": entries,
-        "pending_retests_opened": pending_opened,
-        "rejection_counts": counts,
-        "near_misses": top,
-        "sleeve_ids": [row["sleeve_id"] for row in sleeve_rows],
-        "sleeve_rows": sleeve_rows,
-    }
+    return assemble_scan_card(list(rows or []), strategy=F111_STRATEGY_ID)
 
 
 def summarise_sleeve_notes(notes: list[dict[str, Any]]) -> dict[str, Any]:
     """Counts for one book or cycle pass, from the notes the evaluator kept.
 
     ``sleeve_id`` dedupes a sleeve that the next 15s poll sees again.
+    A strategy that returned no diagnostic falls back to the reason text.
     """
     by_id: dict[str, dict[str, Any]] = {}
     for note in notes:
@@ -363,13 +446,7 @@ def summarise_sleeve_notes(notes: list[dict[str, Any]]) -> dict[str, Any]:
         sleeve_id = str(note.get("sleeve_id") or "")
         if not sleeve_id:
             continue
-        by_id[sleeve_id] = {
-            "sleeve_id": sleeve_id,
-            "signal": bool(note.get("signal")),
-            "ordered": bool(note.get("ordered")),
-            "rejection": bucket_reason(note.get("rejection")) if not note.get("ordered") else "",
-            "near_miss": note.get("near_miss") if isinstance(note.get("near_miss"), dict) else None,
-        }
+        by_id[sleeve_id] = _book_sleeve(note)
     return _tally_sleeve_rows(list(by_id.values()), book_sleeves=len(by_id), f111_sleeves=0)
 
 
@@ -385,6 +462,10 @@ def _tally_sleeve_rows(
     entries = 0
     pending_opened = 0
     misses: list[dict[str, Any]] = []
+    all_but_one: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
+    stale: list[str] = []
+    unavailable: list[str] = []
     for row in sleeve_rows:
         if row.get("signal"):
             signals += 1
@@ -396,15 +477,36 @@ def _tally_sleeve_rows(
         if rejection and not row.get("ordered"):
             counts[rejection] = counts.get(rejection, 0) + 1
         miss = row.get("near_miss")
-        if isinstance(miss, dict) and _finite(miss.get("gap")) is not None:
+        if isinstance(miss, dict) and _finite(miss.get("normalized")) is not None:
             misses.append(miss)
-    misses.sort(key=lambda item: (item.get("gap", 0), item.get("symbol", ""), item.get("side", "")))
+        one = row.get("all_but_one")
+        if isinstance(one, dict):
+            all_but_one.append(one)
+        block = row.get("blocked_after_gates")
+        if isinstance(block, dict):
+            blocked.append(block)
+        label = " ".join(part for part in (str(row.get("symbol") or ""), str(row.get("side") or "")) if part).strip()
+        if row.get("stale_bar"):
+            stale.append(label or str(row.get("sleeve_id") or ""))
+        if row.get("unavailable_instrument"):
+            unavailable.append(label or str(row.get("sleeve_id") or ""))
+    ranked = rank_misses(misses, limit=NEAREST_CARD)
+    all_but_one.sort(key=lambda item: (str(item.get("symbol") or ""), str(item.get("side") or "")))
+    blocked.sort(key=lambda item: (str(item.get("symbol") or ""), str(item.get("bucket") or "")))
     return {
         "signals": signals,
         "entries_opened": entries,
         "pending_retests_opened": pending_opened,
         "rejection_counts": counts,
-        "near_misses": misses[:3],
+        "near_misses": ranked,
+        "all_but_one": {"count": len(all_but_one), "sleeves": all_but_one},
+        "blocked_after_gates": blocked,
+        "freshness": {
+            "stale_bar": len(stale),
+            "unavailable_instrument": len(unavailable),
+            "stale_symbols": stale[:10],
+            "unavailable_symbols": unavailable[:10],
+        },
         "sleeve_ids": [str(row.get("sleeve_id") or "") for row in sleeve_rows],
         "sleeve_rows": sleeve_rows,
         "book_sleeves": book_sleeves,
@@ -421,10 +523,51 @@ def _ordered_counts(counts: dict[str, int]) -> list[tuple[str, int]]:
 
 
 def _format_near_miss(item: dict[str, Any]) -> str:
+    who = f"{item.get('symbol') or '—'} {item.get('side') or ''}".strip()
+    strategy = str(item.get("strategy") or "").strip()
+    gate = str(item.get("condition") or item.get("gate") or item.get("metric") or "")
+    head = f"{who} {strategy} {gate}".strip()
     return (
-        f"{item.get('symbol') or '—'} {item.get('side') or ''}".strip()
-        + f" {item.get('metric')} {item.get('value')} vs {item.get('threshold')}"
-        + f" (gap {item.get('gap')})"
+        f"{head} value {item.get('value')} vs {item.get('threshold')}"
+        + f" (gap {item.get('gap')}, {item.get('normalized')} of the threshold)"
+    )
+
+
+def _format_all_but_one(card: dict[str, Any] | None) -> str:
+    if not isinstance(card, dict) or not card.get("count"):
+        return "Passed all but one gate: none."
+    sleeves = card.get("sleeves") if isinstance(card.get("sleeves"), list) else []
+    shown = []
+    for item in sleeves[:10]:
+        if not isinstance(item, dict):
+            continue
+        who = f"{item.get('symbol') or '—'} {item.get('side') or ''}".strip()
+        gate = item.get("condition") or item.get("gate") or ""
+        shown.append(f"{who} {gate}".strip())
+    extra = ""
+    if len(sleeves) > 10:
+        extra = f" (+{len(sleeves) - 10} more)"
+    body = "; ".join(shown) if shown else "listed on the row"
+    return f"Passed all but one gate: {int(card['count'])}. {body}{extra}."
+
+
+def _format_blocked(rows: list[dict[str, Any]] | None) -> str:
+    if not rows:
+        return "Passed the gates, then blocked: none."
+    parts = []
+    for item in rows[:10]:
+        who = f"{item.get('symbol') or '—'} {item.get('side') or ''}".strip()
+        parts.append(f"{who} {item.get('bucket')}: {item.get('reason')} (actionable)")
+    extra = f" (+{len(rows) - 10} more)" if len(rows) > 10 else ""
+    return "Passed the gates, then blocked: " + "; ".join(parts) + extra + "."
+
+
+def _format_freshness(freshness: dict[str, Any] | None) -> str:
+    if not isinstance(freshness, dict):
+        return "Freshness: stale bar 0, unavailable instrument 0."
+    return (
+        f"Freshness: stale bar {int(freshness.get('stale_bar') or 0)}, "
+        f"unavailable instrument {int(freshness.get('unavailable_instrument') or 0)}."
     )
 
 
@@ -451,6 +594,9 @@ def format_summary_text(
     near_misses: list[dict[str, Any]],
     soko: dict[str, Any] | None,
     pending_opened: int | None = None,
+    all_but_one: dict[str, Any] | None = None,
+    blocked_after_gates: list[dict[str, Any]] | None = None,
+    freshness: dict[str, Any] | None = None,
 ) -> str:
     """Plain-language body. The Inbox preview shows the first lines."""
     utc, gst = _clock_labels(scan_time)
@@ -472,9 +618,14 @@ def format_summary_text(
     else:
         lines.append("Rejections: none.")
     if near_misses:
-        lines.append("Near misses: " + "; ".join(_format_near_miss(item) for item in near_misses) + ".")
+        lines.append(
+            "Nearest misses: " + "; ".join(_format_near_miss(item) for item in near_misses) + "."
+        )
     else:
-        lines.append("Near misses: none.")
+        lines.append("Nearest misses: none with a measured distance.")
+    lines.append(_format_all_but_one(all_but_one))
+    lines.append(_format_blocked(blocked_after_gates))
+    lines.append(_format_freshness(freshness))
     lines.append(_format_soko(soko))
     return "\n".join(lines)
 
@@ -614,6 +765,14 @@ def _blank_scan_payload(
         "pending_retests_opened": int(summary.get("pending_retests_opened") or 0),
         "rejection_counts": dict(summary.get("rejection_counts") or {}),
         "near_misses": list(summary.get("near_misses") or []),
+        "all_but_one": summary.get("all_but_one") or {"count": 0, "sleeves": []},
+        "blocked_after_gates": list(summary.get("blocked_after_gates") or []),
+        "freshness": summary.get("freshness") or {
+            "stale_bar": 0,
+            "unavailable_instrument": 0,
+            "stale_symbols": [],
+            "unavailable_symbols": [],
+        },
         "sleeve_ids": list(summary.get("sleeve_ids") or []),
         "sleeve_rows": list(summary.get("sleeve_rows") or []),
         "soko": soko,
@@ -661,8 +820,46 @@ def _same_body(payload: dict[str, Any], rebuilt: dict[str, Any]) -> bool:
         "rejection_counts",
         "sleeve_ids",
         "near_misses",
+        "all_but_one",
+        "blocked_after_gates",
+        "freshness",
     )
     return all(payload.get(field) == rebuilt.get(field) for field in fields)
+
+
+def _summary_text(
+    scan_type: str,
+    scan_time: datetime,
+    bar_time: datetime,
+    summary: dict[str, Any],
+    pending_retests: int,
+    soko: dict[str, Any] | None,
+) -> str:
+    shown = soko if isinstance(soko, dict) else None
+    return format_summary_text(
+        scan_type=scan_type,
+        scan_time=scan_time,
+        bar_time=bar_time,
+        f111_sleeves=int(summary.get("f111_sleeves") or 0),
+        book_sleeves=int(summary.get("book_sleeves") or 0),
+        signals=int(summary.get("signals") or 0),
+        entries_opened=int(summary.get("entries_opened") or 0),
+        pending_retests=int(pending_retests),
+        rejection_counts=dict(summary.get("rejection_counts") or {}),
+        near_misses=list(summary.get("near_misses") or []),
+        soko=shown,
+        pending_opened=int(summary.get("pending_retests_opened") or 0),
+        all_but_one=summary.get("all_but_one") if isinstance(summary.get("all_but_one"), dict) else None,
+        blocked_after_gates=list(summary.get("blocked_after_gates") or []),
+        freshness=summary.get("freshness") if isinstance(summary.get("freshness"), dict) else None,
+    )
+
+
+def _record_near_misses(scan_type: str, bar_time: datetime, now: datetime, misses: list[dict[str, Any]]) -> None:
+    """24h log. A failure is logged inside the writer and does not escape."""
+    from firm.near_miss_log import append_near_misses
+
+    append_near_misses(misses, scan_type=scan_type, bar_time=bar_time, now=now)
 
 
 def publish_scan_summary(
@@ -699,20 +896,7 @@ def publish_scan_summary(
     )
     summary = dict(summary)
     summary["pending_retests"] = retests
-    text = format_summary_text(
-        scan_type=scan_type,
-        scan_time=scan_time,
-        bar_time=bar,
-        f111_sleeves=int(summary.get("f111_sleeves") or 0),
-        book_sleeves=int(summary.get("book_sleeves") or 0),
-        signals=int(summary.get("signals") or 0),
-        entries_opened=int(summary.get("entries_opened") or 0),
-        pending_retests=retests,
-        rejection_counts=dict(summary.get("rejection_counts") or {}),
-        near_misses=list(summary.get("near_misses") or []),
-        soko=soko,
-        pending_opened=int(summary.get("pending_retests_opened") or 0),
-    )
+    text = _summary_text(scan_type, scan_time, bar, summary, retests, soko)
     payload = _blank_scan_payload(
         scan_type=scan_type,
         bar_time=bar,
@@ -724,6 +908,7 @@ def publish_scan_summary(
     )
     key = payload["dedupe_key"]
     hour = payload["hour"]
+    _record_near_misses(scan_type, bar, scan_time, list(payload.get("near_misses") or []))
 
     with session_scope() as session:
         rows = session.scalars(
@@ -741,19 +926,13 @@ def publish_scan_summary(
             body = dict(match.payload or {})
             if body.get("dedupe_key") == key:
                 merged = _merge_sleeve_summary(dict(body), payload)
-                merged["summary"] = format_summary_text(
-                    scan_type=str(merged.get("scan_type") or scan_type),
-                    scan_time=scan_time,
-                    bar_time=bar,
-                    f111_sleeves=int(merged.get("f111_sleeves") or 0),
-                    book_sleeves=int(merged.get("book_sleeves") or 0),
-                    signals=int(merged.get("signals") or 0),
-                    entries_opened=int(merged.get("entries_opened") or 0),
-                    pending_retests=int(merged.get("pending_retests") or 0),
-                    rejection_counts=dict(merged.get("rejection_counts") or {}),
-                    near_misses=list(merged.get("near_misses") or []),
-                    soko=soko or merged.get("soko"),
-                    pending_opened=int(merged.get("pending_retests_opened") or 0),
+                merged["summary"] = _summary_text(
+                    str(merged.get("scan_type") or scan_type),
+                    scan_time,
+                    bar,
+                    merged,
+                    int(merged.get("pending_retests") or 0),
+                    soko if isinstance(soko, dict) else merged.get("soko"),
                 )
                 merged["soko"] = soko or merged.get("soko")
                 if _same_body(body, merged):
@@ -934,8 +1113,12 @@ def flush_scan_notes(
 
 
 def remember_scan_note(notes: list[dict[str, Any]], **fields: Any) -> None:
-    """Append one sleeve note. A bad note is logged and dropped."""
+    """Append one sleeve note. A bad note is logged and dropped.
+
+    ``diagnostics`` is the optional strategy hook. It is not a signal.
+    """
     try:
+        diagnostics = fields.get("diagnostics")
         notes.append(
             {
                 "sleeve_id": str(fields.get("sleeve_id") or ""),
@@ -943,6 +1126,11 @@ def remember_scan_note(notes: list[dict[str, Any]], **fields: Any) -> None:
                 "signal": bool(fields.get("signal")),
                 "ordered": bool(fields.get("ordered")),
                 "rejection": str(fields.get("rejection") or ""),
+                "symbol": str(fields.get("symbol") or ""),
+                "side": str(fields.get("side") or ""),
+                "strategy": str(fields.get("strategy") or ""),
+                "gates_passed": bool(fields.get("gates_passed")),
+                "diagnostics": diagnostics if isinstance(diagnostics, list) else None,
             }
         )
     except Exception:

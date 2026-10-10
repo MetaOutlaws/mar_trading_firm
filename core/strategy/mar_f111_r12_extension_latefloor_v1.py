@@ -102,6 +102,7 @@ class MarF111R12ExtensionLatefloorV1Strategy(HourlyCompressionBtcConnorsLoweffV1
         """No hourly-close order. Live and testnet are refused."""
         from core.strategy.f111_config import assert_f111_paper_only
 
+        self._last_gate_diagnostics = None
         assert_f111_paper_only()
         if symbol not in self.symbols:
             raise ValueError(f"{symbol} is not one of the 96 F111 symbols")

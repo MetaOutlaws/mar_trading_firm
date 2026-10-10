@@ -350,15 +350,24 @@ def test_reason_counts_and_near_misses_from_sample_telemetry() -> None:
         "existing position": 1,
         "risk cap": 1,
     }
+    # Ranked by gap / threshold, not by the raw gap. BTC's 0.80 compression
+    # misses the base cap of 0.70. XRP is the same extension gate as SOL, further away.
     misses = summary["near_misses"]
-    assert [item["symbol"] for item in misses] == ["ETHUSDT", "ADAUSDT", "SOLUSDT"]
-    assert misses[0]["metric"] == "prior_atr/close"
-    assert misses[0]["gap"] == pytest.approx(0.001)
-    assert misses[1]["metric"] == "compression"
-    assert misses[1]["gap"] == pytest.approx(0.01)
-    assert misses[2]["metric"] == "extension_atr"
-    assert misses[2]["value"] == pytest.approx(1.02)
-    assert all(item["symbol"] != "XRPUSDT" for item in misses)
+    assert [item["symbol"] for item in misses] == [
+        "ADAUSDT",
+        "SOLUSDT",
+        "ETHUSDT",
+        "BTCUSDT",
+        "XRPUSDT",
+    ]
+    assert misses[0]["metric"] == "compression"
+    assert misses[0]["gap"] == pytest.approx(0.01)
+    assert misses[1]["metric"] == "extension_atr"
+    assert misses[1]["value"] == pytest.approx(1.02)
+    assert misses[2]["metric"] == "prior_atr/close"
+    assert misses[2]["gap"] == pytest.approx(0.001)
+    assert misses[3]["condition"] == "base_compression"
+    assert misses[4]["symbol"] == "XRPUSDT"
 
 
 def test_book_summary_failure_does_not_change_the_poll(tmp_path, monkeypatch, firm_db) -> None:

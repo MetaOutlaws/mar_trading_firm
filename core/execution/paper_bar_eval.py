@@ -680,6 +680,23 @@ def _note_rejection(outcome: PaperBarOutcome) -> str:
     return outcome.reason or "no_signal"
 
 
+def sleeve_note_fields(entry: Any) -> dict[str, Any]:
+    """Identity plus the last read-only diagnostic, if this bar just ran the hook.
+
+    Sit-out notes must not call this. The strategy may still hold the previous
+    bar's reading, and a sit-out has not evaluated this bar.
+    """
+    strategy = getattr(entry, "strategy", None)
+    side = entry.side.value if hasattr(entry.side, "value") else str(getattr(entry, "side", "") or "")
+    diagnostics = getattr(strategy, "_last_gate_diagnostics", None)
+    return {
+        "symbol": str(getattr(entry, "symbol", "") or ""),
+        "side": side,
+        "strategy": str(getattr(strategy, "name", "") or ""),
+        "diagnostics": diagnostics if isinstance(diagnostics, list) else None,
+    }
+
+
 def _remember_book_note(
     notes: list[dict[str, Any]],
     entry: Any,
@@ -699,6 +716,8 @@ def _remember_book_note(
             signal=signal,
             ordered=ordered,
             rejection=rejection,
+            gates_passed=signal or ordered,
+            **sleeve_note_fields(entry),
         )
     except Exception:
         logger.exception("Book scan note failed; the evaluation stands")

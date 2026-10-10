@@ -11,6 +11,15 @@ import pandas as pd
 
 from core.strategy.base import SignalSide, Strategy, StrategyParams
 
+# Frozen entry bounds. The signal mask and the read-only distance card both
+# read these names, so a diagnostic cannot drift from the predicate.
+COMPRESSION_MAX_INCLUSIVE = 0.7
+RANGE_EXPANSION_MIN_INCLUSIVE = 1.5
+VOLUME_RATIO_MIN_INCLUSIVE = 1.5
+CLOSE_LOCATION_LONG_MIN_INCLUSIVE = 0.75
+CLOSE_LOCATION_SHORT_MAX_INCLUSIVE = 0.25
+BREAKOUT_LOOKBACK = 20
+
 
 @dataclass(frozen=True)
 class HourlyCompressionV1Params(StrategyParams):
@@ -61,12 +70,19 @@ class HourlyCompressionV1Strategy(Strategy):
         location = (candles.close-candles.low)/(candles.high-candles.low).replace(0, np.nan)
         r24 = candles.close.pct_change(24, fill_method=None)
         side = self.params.side.sign
-        mask = ((compression <= .7) & (tr >= 1.5*prior_atr) & (volume_ratio >= 1.5)
-                & (side*(candles.close-candles.open) > 0) & (side*r24 >= 0))
+        prior_high = candles.high.shift(1).rolling(BREAKOUT_LOOKBACK).max()
+        prior_low = candles.low.shift(1).rolling(BREAKOUT_LOOKBACK).min()
+        mask = (
+            (compression <= COMPRESSION_MAX_INCLUSIVE)
+            & (tr >= RANGE_EXPANSION_MIN_INCLUSIVE * prior_atr)
+            & (volume_ratio >= VOLUME_RATIO_MIN_INCLUSIVE)
+            & (side * (candles.close - candles.open) > 0)
+            & (side * r24 >= 0)
+        )
         if side == 1:
-            mask &= (candles.close > candles.high.shift(1).rolling(20).max()) & (location >= .75)
+            mask &= (candles.close > prior_high) & (location >= CLOSE_LOCATION_LONG_MIN_INCLUSIVE)
         else:
-            mask &= (candles.close < candles.low.shift(1).rolling(20).min()) & (location <= .25)
+            mask &= (candles.close < prior_low) & (location <= CLOSE_LOCATION_SHORT_MAX_INCLUSIVE)
         mask.iloc[:self.min_bars-1] = False
         out.loc[mask, "signal"] = side
         out.loc[mask, "side"] = self.params.side.value
@@ -76,6 +92,27 @@ class HourlyCompressionV1Strategy(Strategy):
                             "close_location": location, "prior_atr": prior_atr, "r24": r24}.items():
             out[name] = value
         return out
+
+    def gate_diagnostics(self, candles, signals):
+        """Read-only distances for the last bar. Does not write the signal frame."""
+        from core.strategy.gate_distance import base_signal_subs
+
+        if signals is None or len(signals) == 0 or len(candles) == 0:
+            return None
+        last = signals.iloc[-1]
+        row = {column: last[column] for column in signals.columns}
+        row["open"] = candles["open"].iloc[-1]
+        row["close"] = candles["close"].iloc[-1]
+        row["side"] = self.params.side.value
+        # true range is an input to the mask. It is not a signal column.
+        if len(candles) >= 2:
+            high = float(candles["high"].iloc[-1])
+            low = float(candles["low"].iloc[-1])
+            prev = float(candles["close"].iloc[-2])
+            row["true_range"] = max(high - low, abs(high - prev), abs(low - prev))
+        # Sub-conditions this strategy actually ANDs together. F111's own
+        # three gates are scored from telemetry, not from this hook.
+        return base_signal_subs(row, side=self.params.side.value)
 
     def latest_signal(self, symbol, candles):
         # Defense in depth: this owner approval grants paper use only.
