@@ -217,10 +217,16 @@ def llm_status() -> dict[str, Any]:
 
     snapshot = provider_status(catalogue=LlmRouter._catalogue_from_env())
     snapshot["budget"] = BudgetGuard().snapshot()
-    snapshot["catalogue_note"] = (
-        "Cheap, standard, and strong seats use Gemini. "
-        "Sentiment reads Luke's data/last_sentiment.json; xAI search is optional."
-    )
+    if snapshot.get("llm_seats_enabled") is False:
+        snapshot["catalogue_note"] = (
+            "LLM employee seats are disabled (LLM_SEATS_ENABLED=false). "
+            "No Gemini or xAI call. Regime gating still reads the Soko trend file."
+        )
+    else:
+        snapshot["catalogue_note"] = (
+            "Cheap, standard, and strong seats use Gemini. "
+            "Sentiment reads Luke's data/last_sentiment.json; xAI search is optional."
+        )
     return snapshot
 
 
@@ -261,6 +267,28 @@ def last_cycle() -> dict[str, Any]:
     }
 
 
+@app.get("/api/desk")
+def desk_status() -> dict[str, Any]:
+    """Header clocks: deployed sha, last cycle, Soko label, bar-close evals.
+
+    Read-only. Does not start a cycle or change a sit-out.
+    """
+    from api.desk_status import desk_header
+
+    return desk_header()
+
+
+@app.get("/api/f111")
+def f111_status() -> dict[str, Any]:
+    """F111 census, gate reasons, and open retest/protection counts.
+
+    Read-only. Does not scan, place an order, or write telemetry.
+    """
+    from api.desk_status import f111_status as build_f111_status
+
+    return build_f111_status()
+
+
 def _strategy_name_from_record(record: dict[str, Any]) -> str:
     """Name the sleeve that produced this verdict. Old files omitted the field."""
     named = str(record.get("strategy") or "").strip()
@@ -284,12 +312,19 @@ def _strategy_name_from_record(record: dict[str, Any]) -> str:
 
 @app.get("/api/strategies")
 def strategies() -> dict[str, Any]:
-    """Research verdicts for every tested pair, plus registered strategy names."""
-    from config.universe import APPROVALS_PATH, get_universe, parse_approval_key
-    from core.strategy.registry import list_strategies
+    """Research verdicts from the live mounted book, not a cached snapshot.
 
-    get_universe.cache_clear()
-    universe = get_universe()
+    ``get_universe`` is process-cached. This endpoint opens
+    ``config/approved_strategies.json`` (symlink followed) on every call,
+    which is the file the paper engine scans. A dated snapshot beside it
+    is not read.
+    """
+    from config.universe import Universe, parse_approval_key
+    from core.strategy.registry import list_strategies
+    from api.desk_status import read_live_approval_book
+
+    book = read_live_approval_book()
+    universe = Universe(approvals=book["approvals"])
     pairs: list[dict[str, Any]] = []
     for key, record in sorted(universe.approvals.items()):
         parsed = parse_approval_key(key)
@@ -326,20 +361,17 @@ def strategies() -> dict[str, Any]:
                 "validated_at": record.get("validated_at"),
             }
         )
-    verdict = ""
-    generated_at = ""
-    if APPROVALS_PATH.exists():
-        try:
-            raw = json.loads(APPROVALS_PATH.read_text(encoding="utf-8"))
-            verdict = str(raw.get("_verdict") or "")
-            generated_at = str(raw.get("_generated_at") or "")
-        except (json.JSONDecodeError, OSError, TypeError):
-            verdict = ""
-            generated_at = ""
     paper_overrides = [p for p in pairs if p.get("paper_override") and not p.get("approved")]
     return {
-        "verdict": verdict,
-        "generated_at": generated_at,
+        "verdict": book["verdict"],
+        "generated_at": book["generated_at"],
+        # Filesystem mtime of the mounted book. ``generated_at`` is the
+        # walk-forward stamp inside the JSON and can sit on an old date
+        # after later operator edits. The panel must not treat that stamp
+        # as proof the book is a snapshot.
+        "source_path": book["source_path"],
+        "source_mtime": book["source_mtime"],
+        "source_error": book["error"],
         "registered": list_strategies(),
         "approved_count": len(universe.approved_records),
         "paper_override_count": len(paper_overrides),
@@ -379,10 +411,40 @@ def strategies() -> dict[str, Any]:
     }
 
 
+def _live_book_counts() -> tuple[int, int]:
+    """Approved sleeves and paper-only overrides on the mounted book.
+
+    Display only. A read failure reports zeros rather than a hardcoded pair
+    count from an old snapshot.
+    """
+    try:
+        from config.universe import Universe
+        from api.desk_status import read_live_approval_book
+
+        book = read_live_approval_book()
+        universe = Universe(approvals=book["approvals"])
+    except Exception:
+        logger.exception("Could not read the live approval book for the desk note")
+        return 0, 0
+    paper_n = sum(
+        1
+        for _key, record in universe.paper_override_records
+        if record.get("approved") is not True
+    )
+    return len(universe.approved_records), paper_n
+
+
 def _quiet_reasons(cycle: dict[str, Any] | None, employee_llm_ok: bool, xai_ok: bool) -> list[str]:
     """Operator-facing explanation of an empty blotter. Not a trading signal."""
+    from firm.llm import llm_seats_enabled
+
     reasons: list[str] = []
-    if not employee_llm_ok:
+    if not llm_seats_enabled():
+        reasons.append(
+            "LLM employee seats are disabled (LLM_SEATS_ENABLED=false). "
+            "No Gemini or xAI call."
+        )
+    elif not employee_llm_ok:
         reasons.append(
             "No key for cheap/standard/strong seats (Gemini). Employees will skip LLM calls."
         )
@@ -411,9 +473,22 @@ def _quiet_reasons(cycle: dict[str, Any] | None, employee_llm_ok: bool, xai_ok: 
         reasons.append(
             "The paper clock has not completed a cycle yet, so there is no scan to explain."
         )
-        reasons.append(
-            "No strategy is research-approved. That locks live trading; paper may still scan."
-        )
+        approved_n, paper_n = _live_book_counts()
+        if approved_n:
+            reasons.append(
+                f"{approved_n} research-approved sleeve(s) are on the live book. "
+                "Live still needs the go-live gates."
+            )
+        else:
+            reasons.append(
+                "No strategy is research-approved on the live book. "
+                "That locks live trading; paper may still scan."
+            )
+        if paper_n:
+            reasons.append(
+                f"{paper_n} operator paper override(s) are on the live book. "
+                "They are not live-approved."
+            )
         return reasons
     if cycle.get("halted"):
         reasons.append(f"Last cycle halted: {cycle.get('halt_reason') or 'unknown reason'}.")
@@ -421,10 +496,23 @@ def _quiet_reasons(cycle: dict[str, Any] | None, employee_llm_ok: bool, xai_ok: 
     signals = int(cycle.get("signals_found") or 0)
     orders = int(cycle.get("orders_placed") or 0)
     rejections = int(cycle.get("rejections") or 0)
+    plan = [e for e in (cycle.get("plan") or []) if isinstance(e, dict)]
     if scanned and signals == 0:
+        plan_names = sorted(
+            {
+                str(entry.get("strategy"))
+                for entry in plan
+                if isinstance(entry, dict) and entry.get("strategy")
+            }
+        )
+        if plan_names:
+            shown = ", ".join(plan_names[:6])
+            extra = f" (+{len(plan_names) - 6} more)" if len(plan_names) > 6 else ""
+            sleeve_bit = f" Sleeves on that scan: {shown}{extra}."
+        else:
+            sleeve_bit = ""
         reasons.append(
-            f"Last cycle scanned {scanned} pairs and found 0 signals — RSI + golden-cross "
-            "did not fire, which is expected for a rejected sleeve."
+            f"Last cycle scanned {scanned} pairs and found 0 signals.{sleeve_bit}"
         )
     elif signals and orders == 0:
         reasons.append(
@@ -452,7 +540,6 @@ def _quiet_reasons(cycle: dict[str, Any] | None, employee_llm_ok: bool, xai_ok: 
     errors = cycle.get("errors") or []
     if errors:
         reasons.append("Last cycle had evaluation errors: " + "; ".join(str(e) for e in errors[:3]))
-    plan = [e for e in (cycle.get("plan") or []) if isinstance(e, dict)]
     approved_n = sum(1 for e in plan if e.get("approved") is True)
     paper_n = sum(1 for e in plan if e.get("paper_override") is True)
     if approved_n:
@@ -789,6 +876,13 @@ def decide(
         "family": family,
         "handed_to_cursor": handed_to_cursor,
     }
+
+
+@app.post("/api/escalations/ack-stale")
+def ack_stale(_: None = Depends(require_token_or_loopback)) -> dict[str, Any]:
+    """Expire every escalation past its timeout. Does not edit one row by title."""
+    result = memory.acknowledge_stale_escalations()
+    return {"ok": True, **result}
 
 
 @app.post("/api/escalations/{escalation_id}/ack")

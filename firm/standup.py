@@ -212,7 +212,14 @@ def build_standup() -> dict[str, Any]:
         blockers.append({"level": "blocking", "text": "Kill switch is tripped. No new risk."})
         needs_you.append("Investigate, then reset with the exact acknowledgement phrase.")
 
-    if not gemini_ok:
+    from firm.llm import llm_seats_enabled
+
+    if not llm_seats_enabled():
+        happening.append(
+            "LLM employee seats are disabled (LLM_SEATS_ENABLED=false). "
+            "No Gemini or xAI call. Regime gating still reads the Soko trend file."
+        )
+    elif not gemini_ok:
         blockers.append({"level": "blocking", "text": "Gemini key missing — employees will skip."})
         needs_you.append("Set GEMINI_API_KEY in .env and restart the API.")
     else:

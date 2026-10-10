@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     gemini_api_key: str = ""
     llm_monthly_budget_usd: float = Field(default=200.0, gt=0)
+    #: Paper-cycle Gemini/xAI employee seats (strategy advisor, sleeve
+    #: engineer, quant, regime analyst, and every other LLM seat). Default
+    #: true: seats run as today. ``LLM_SEATS_ENABLED=false`` skips those
+    #: calls and does not open an HTTP client. Regime gating still reads
+    #: ``data/last_soko_trend.json``. Restart the paper loop and the API.
+    llm_seats_enabled: bool = True
 
     # ---- Historical data ----------------------------------------------------
     gcp_project_id: str = "crypto-bot-472419"

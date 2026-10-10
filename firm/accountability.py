@@ -388,8 +388,12 @@ def accountability_snapshot() -> dict[str, Any]:
                 }
             )
 
+    from firm.llm import llm_seats_enabled
+
+    seats_on = llm_seats_enabled()
     last_quant = next(iter(memory.recent_runs(agent="quant_researcher", limit=1)), None)
-    if last_quant and str(last_quant.get("status") or "") == "failed":
+    # A disabled seat is an operator choice, not a live Gemini failure.
+    if seats_on and last_quant and str(last_quant.get("status") or "") == "failed":
         error = str(last_quant.get("error") or "")
         age = _age(last_quant.get("started_at"))
         if is_transient_llm_error(error) and not research_gate and not running:
@@ -463,11 +467,21 @@ def accountability_snapshot() -> dict[str, Any]:
             )
 
     slip_owners = {s["owner"] for s in slips}
-    llm_failures = live_llm_failures()
+    llm_failures = live_llm_failures() if seats_on else []
 
     duties = []
     for name, spec in EMPLOYEE_MANDATES.items():
         activity = memory.agent_activity(name)
+        if not seats_on:
+            last_status = "disabled"
+            last_error = ""
+        else:
+            last_status = activity.get("status") or "never_run"
+            last_error = (
+                ""
+                if is_resolved_noise(str(activity.get("last_error") or ""))
+                else (activity.get("last_error") or "")
+            )
         duties.append(
             {
                 "id": name,
@@ -476,13 +490,9 @@ def accountability_snapshot() -> dict[str, Any]:
                 "target": spec.get("target") or "",
                 "kpi": spec.get("kpi") or "",
                 "on_track": name not in slip_owners,
-                "last_status": activity.get("status") or "never_run",
+                "last_status": last_status,
                 "last_run_at": activity.get("last_run_at"),
-                "last_error": (
-                    ""
-                    if is_resolved_noise(str(activity.get("last_error") or ""))
-                    else (activity.get("last_error") or "")
-                ),
+                "last_error": last_error,
             }
         )
 

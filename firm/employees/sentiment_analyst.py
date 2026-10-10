@@ -99,6 +99,14 @@ class SentimentAnalyst(Agent):
 
     def run(self) -> AgentResult:
         """Skip xAI when Luke's snapshot is fresh, or when no search key exists."""
+        from firm.llm import llm_seats_enabled
+
+        if not llm_seats_enabled():
+            error = "disabled: LLM_SEATS_ENABLED=false"
+            logger.info("%s skipped: %s", self.name, error)
+            return AgentResult(
+                agent=self.name, status=RunStatus.SKIPPED, error=error
+            )
         blob = load_last_sentiment()
         if snapshot_is_fresh(blob):
             error = (

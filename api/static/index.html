@@ -128,6 +128,18 @@ a { color: inherit; }
 .page-title { font-family: "Instrument Serif", Georgia, serif; font-size: 26px; margin: 0; letter-spacing: -0.02em; }
 .page-kicker { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .top-actions { display: flex; align-items: center; gap: 10px; }
+.deskbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding: 8px 28px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.deskbar strong { color: var(--ink); font-weight: 500; }
 .btn {
   border: 1px solid var(--line-strong);
   background: var(--surface);
@@ -668,7 +680,7 @@ canvas { width: 100%; height: 84px; display: block; }
   }
   .sidebar.open { transform: none; }
   .menu-btn { display: inline-flex; }
-  .topbar, #viewInner { padding-left: 16px; padding-right: 16px; }
+  .topbar, .deskbar, #viewInner { padding-left: 16px; padding-right: 16px; }
   .status-row { grid-template-columns: 1fr; }
 }
 </style>
@@ -702,6 +714,7 @@ canvas { width: 100%; height: 84px; display: block; }
         <button class="btn danger" onclick="openKill()">Halt</button>
       </div>
     </header>
+    <div class="deskbar" id="deskbar"></div>
     <main class="content" id="view"><div id="viewInner"></div></main>
   </div>
 </div>
@@ -713,6 +726,7 @@ const RESET_PHRASE = "I HAVE INVESTIGATED THE CAUSE";
 const VIEWS = [
   ["overview", "Overview"],
   ["health", "Health"],
+  ["f111", "F111"],
   ["floor", "Floor"],
   ["blotter", "Blotter"],
   ["positions", "Positions"],
@@ -726,6 +740,7 @@ const VIEWS = [
 const KICKERS = {
   overview: "Daily standup — where we are, what needs you, what is next",
   health: "Keys, last cycle, and why the blotter is quiet",
+  f111: "F111 paper scan — 192 sleeves, census, and gate reasons. Display only.",
   floor: "Ten employees, trust ladder, and current work",
   blotter: "Closed round trips with costs and attribution",
   positions: "Open book — mark, open P&L, stop, and target",
@@ -736,7 +751,7 @@ const KICKERS = {
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
 };
-let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {} };
+let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, f111: {} };
 let lastError = "";
 
 function viewName() {
@@ -780,6 +795,38 @@ function when(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return esc(iso);
   return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function ageLabel(seconds) {
+  if (seconds == null || Number.isNaN(Number(seconds))) return "—";
+  const s = Math.max(0, Math.floor(Number(seconds)));
+  if (s < 90) return s + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h " + Math.floor((s % 3600) / 60) + "m";
+  return Math.floor(s / 86400) + "d " + Math.floor((s % 86400) / 3600) + "h";
+}
+function renderDeskbar() {
+  const el = document.getElementById("deskbar");
+  if (!el) return;
+  const d = state.desk || {};
+  const git = d.git || {};
+  const cycle = d.cycle || {};
+  const soko = d.soko || {};
+  const bars = d.bar_close || {};
+  const barBits = ["15m", "1h", "4h"].map(tf => {
+    const row = bars[tf];
+    if (!row || !row.evaluated_at) return tf + " —";
+    return tf + " " + stamp(row.evaluated_at) + " · " + ageLabel(row.age_seconds);
+  }).join("  ·  ");
+  const cycleWhen = cycle.started_at ? stamp(cycle.started_at) : "—";
+  const cycleAge = cycle.age_seconds != null ? ageLabel(cycle.age_seconds) + " old" : "no cycle";
+  const sokoLabel = soko.label || "—";
+  const sokoWhen = soko.as_of ? ("as of " + stamp(soko.as_of) + " · " + ageLabel(soko.age_seconds)) : "no as_of";
+  el.innerHTML = `
+    <span title="${esc(git.sha || "")}">sha <strong class="num">${esc(git.short || "—")}</strong></span>
+    <span>cycle <strong>${esc(cycleWhen)}</strong> <span class="muted">${esc(cycleAge)}</span></span>
+    <span>soko <strong>${esc(sokoLabel)}</strong> <span class="muted">${esc(sokoWhen)}</span></span>
+    <span>bar close <strong class="num">${esc(barBits)}</strong></span>
+  `;
 }
 function rel(iso) {
   if (!iso) return "never";
@@ -1134,7 +1181,7 @@ function renderOverview() {
       ${kpi("Drawdown", eq.drawdown_pct != null ? pct(eq.drawdown_pct) : "—", "peak " + money(eq.peak_equity))}
       ${kpi("Inbox", String((state.floor.inbox || []).length), (state.floor.escalations || []).length + " escalations")}
       ${kpi("Walk-forward", String((cont.running || 0)), (cont.standby_depth || 0) + " standby · " + (cont.dropped_event_count || 0) + " dropped events", (cont.open_invariant_violations || 0) ? "bad" : "ok")}
-      ${kpi("Gemini", ((state.llm.providers || {}).gemini || {}).configured ? "ready" : "missing", "cheap/standard/strong seats", ((state.llm.providers || {}).gemini || {}).configured ? "ok" : "bad")}
+      ${kpi("Gemini", (state.llm.llm_seats_enabled === false || state.floor.llm_seats_enabled === false) ? "disabled" : (((state.llm.providers || {}).gemini || {}).configured ? "ready" : "missing"), (state.llm.llm_seats_enabled === false || state.floor.llm_seats_enabled === false) ? "LLM_SEATS_ENABLED=false" : "cheap/standard/strong seats", (state.llm.llm_seats_enabled === false || state.floor.llm_seats_enabled === false) ? "" : (((state.llm.providers || {}).gemini || {}).configured ? "ok" : "bad"))}
     </section>
     ${bookCard()}
     <section class="grid-2">
@@ -1216,7 +1263,7 @@ function dutyCard() {
         <span class="badge ${d.on_track ? "ok" : "bad"}">${d.on_track ? "on track" : "slipping"}</span>
       </div>
       <div class="muted">${esc(d.goal || "")}</div>
-      <div class="muted">${esc(d.target || "")}</div>
+      <div class="muted">${d.last_status === "disabled" ? "disabled" : esc(d.target || "")}</div>
     </div>`).join("");
   const meta = slipping
     ? `<span class="badge bad">${slipping} slipping</span><span class="badge ok">${onTrack} on track</span>`
@@ -1477,16 +1524,17 @@ function prettyTask(row) {
 function empCard(e) {
   const t = e.trust || {};
   const status = (e.status || "never_run").toLowerCase();
-  const badge = status.includes("error") || status.includes("fail") ? "bad" : status === "ok" || status === "completed" || status === "success" ? "ok" : "l1";
+  const seatsOff = e.llm_seats_enabled === false || status === "disabled";
+  const badge = seatsOff ? "l1" : status.includes("error") || status.includes("fail") ? "bad" : status === "ok" || status === "completed" || status === "success" ? "ok" : "l1";
   const seat = e.model ? `${e.provider || ""} ${e.model}` : (e.tier || "");
-  const configured = e.tier === "deterministic" || e.llm_configured !== false;
+  const configured = seatsOff || e.tier === "deterministic" || e.llm_configured !== false;
   return `<article class="card emp">
     <div class="emp-top">
       <div>
         <div class="role">${esc(e.role || e.agent)}</div>
         <div class="muted">${esc(e.agent || "")} · ${esc(e.cadence || "")} · ${esc(seat)}</div>
       </div>
-      <div class="badge ${badge}">${esc(t.level_label || "L1 Advisor")}</div>
+      <div class="badge ${badge}">${seatsOff ? "disabled" : esc(t.level_label || "L1 Advisor")}</div>
     </div>
     <div class="task">${esc(prettyTask(e))}</div>
     ${e.does ? `<div style="margin-top:8px"><strong>Responsible for</strong><div class="muted">${esc(e.does)}</div></div>` : ""}
@@ -1495,7 +1543,7 @@ function empCard(e) {
     ${e.goal ? `<div class="muted">Goal: ${esc(e.goal)}</div>` : ""}
     ${e.target ? `<div class="muted">Target: ${esc(e.target)}</div>` : ""}
     <div class="muted">${esc(e.last_reasoning || "No reasoning logged yet.")}</div>
-    ${e.last_error && !isStaleKeyError(e.last_error) ? `<div class="bad">${esc(String(e.last_error).slice(0, 180))}</div>` : ""}
+    ${!seatsOff && e.last_error && !isStaleKeyError(e.last_error) ? `<div class="bad">${esc(String(e.last_error).slice(0, 180))}</div>` : ""}
     ${configured ? "" : `<div class="warn">No API key for this seat — employee will skip.</div>`}
     <div class="meta-row">
       <span>Hit ${esc(t.hit_rate_pct ?? 0)}%</span>
@@ -1512,9 +1560,11 @@ function isStaleKeyError(msg) {
 }
 
 function activityRow(a) {
-  const err = isStaleKeyError(a.error) ? "" : (a.error || "");
+  const seatsOff = state.floor && state.floor.llm_seats_enabled === false;
+  const shown = seatsOff ? "disabled" : (a.status || "");
+  const err = seatsOff || isStaleKeyError(a.error) ? "" : (a.error || "");
   return `<div class="feed-item">
-    <div><strong>${esc(a.role || a.agent)}</strong> <span class="badge">${esc(a.status)}</span> <span class="muted">${esc(rel(a.started_at))}</span></div>
+    <div><strong>${esc(a.role || a.agent)}</strong> <span class="badge">${esc(shown)}</span> <span class="muted">${esc(rel(a.started_at))}</span></div>
     <div>${esc((a.reasoning || prettyTask(a) || "").slice(0, 180))}</div>
     ${err ? `<div class="bad">${esc(err)}</div>` : ""}
   </div>`;
@@ -1677,7 +1727,10 @@ function renderInbox() {
       })()}
     </div>
     <div class="card">
-      <h2>Escalations</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 style="margin:0">Escalations</h2>
+        <button class="btn" onclick="ackStale()">Ack stale</button>
+      </div>
       <div class="toolbar filters">
         <select class="field" id="escalSev" onchange="onFilterChange()">
           <option value="all" ${escalSev === "all" ? "selected" : ""}>All status</option>
@@ -1806,7 +1859,7 @@ function renderResearch() {
   const backlogSliced = pageSlice("backlog", backlog);
   const backlogTable = backlog.length ? `<div class="card">
       <h2>Ranked backlog — queue, do not spray</h2>
-      <p class="muted">These are the next families most likely to survive our gates given RSI and Donchian. Quant may propose one. None trade until coded and walk-forwarded.</p>
+      <p class="muted">Ranked catalog leftovers. Quant may propose one. None trade until coded and walk-forwarded.</p>
       <table data-page-list="backlog">
         <thead><tr><th>#</th><th>Family</th><th>Clock</th><th>Why this next</th><th>Needs</th></tr></thead>
         <tbody>${backlogSliced.items.map(b => `<tr>
@@ -2015,6 +2068,50 @@ function renderSentiment() {
   return staleBanner + narrativeCard + heat + `<section class="grid-2">${trendCard}${infCard}</section>`;
 }
 
+function reasonRows(counts) {
+  const entries = Object.entries(counts || {});
+  if (!entries.length) return `<div class="muted">None in this window.</div>`;
+  return `<table><thead><tr><th>Reason</th><th>Count</th></tr></thead><tbody>${
+    entries.map(([reason, count]) => `<tr><td>${esc(reason)}</td><td class="num">${esc(count)}</td></tr>`).join("")
+  }</tbody></table>`;
+}
+function renderF111() {
+  const f = state.f111 || {};
+  const reg = f.registry || {};
+  const rej = f.rejections || {};
+  const hour = rej.latest_hour || {};
+  const day = rej.last_24h || {};
+  const closed = reg.closed_by_reason || {};
+  return `
+    <div class="banner ${reg.evaluated === f.expected_sleeves ? "ok" : "warn"}">
+      <strong>${esc(f.expected_sleeves ?? "—")} sleeves</strong>
+      <div class="muted" style="margin-top:6px">Latest census evaluated ${esc(reg.evaluated ?? 0)}. Available ${esc(reg.available ?? 0)} · closed ${esc(reg.closed ?? 0)}. Display only — this panel does not scan or order.</div>
+    </div>
+    <section class="kpis">
+      ${kpi("Available", String(reg.available ?? "—"), "trading on the latest census")}
+      ${kpi("Closed", String(reg.closed ?? "—"), "unavailable, with a reason")}
+      ${kpi("Last bar close", f.last_bar_close_evaluation ? stamp(f.last_bar_close_evaluation) : "—", f.last_bar_close_evaluation ? rel(f.last_bar_close_evaluation) : "no gate row yet")}
+      ${kpi("Pending retests", String(f.pending_retests ?? "—"), "watching or scheduled")}
+      ${kpi("Protection", String(f.protection ?? "—"), "open floors")}
+    </section>
+    <section class="grid-2">
+      <div class="card">
+        <h2>Closed sleeves by reason</h2>
+        <p class="muted">Latest registry census. Closed means the instrument was unavailable (exchange Closed, missing, mismatch, or unreachable) — not a closed trade.</p>
+        ${reasonRows(closed)}
+      </div>
+      <div class="card">
+        <h2>Gate rejections</h2>
+        <p class="muted">Latest hour${hour.hour_start ? " starting " + esc(stamp(hour.hour_start)) : ""} · ${esc(hour.rows ?? 0)} rows. Last 24h · ${esc(day.rows ?? 0)} rows.</p>
+        <h2 style="margin-top:12px">Latest hour</h2>
+        ${reasonRows(hour.by_reason)}
+        <h2 style="margin-top:12px">Last 24h</h2>
+        ${reasonRows(day.by_reason)}
+      </div>
+    </section>
+    <div class="muted">Telemetry ${esc(f.telemetry_path || "—")} · state ${esc(f.state_path || "—")}${f.state_error && f.state_error !== "missing" ? " · state " + esc(f.state_error) : ""}</div>
+  `;
+}
 function renderHealth() {
   const llm = state.llm || {};
   const providers = llm.providers || {};
@@ -2024,13 +2121,15 @@ function renderHealth() {
   const gemini = providers.gemini || {};
   const xai = providers.xai || {};
   const ping = state.llmPing;
+  const seatsOff = llm.llm_seats_enabled === false;
+  const pingClass = ping && ping.disabled ? "muted" : ping && ping.ok ? "ok" : "bad";
   return `
-    <div class="banner ${gemini.configured ? "ok" : "bad"}">
-      <strong>${gemini.configured ? "Gemini key is loaded" : "Gemini key is missing"}</strong>
+    <div class="banner ${seatsOff ? "" : gemini.configured ? "ok" : "bad"}">
+      <strong>${seatsOff ? "LLM seats disabled" : gemini.configured ? "Gemini key is loaded" : "Gemini key is missing"}</strong>
       <div class="muted" style="margin-top:6px">${esc(llm.catalogue_note || "Cheap, standard, and strong employees use Gemini.")}</div>
     </div>
     <section class="kpis">
-      ${kpi("Gemini", gemini.configured ? (gemini.prefix || "set") : "missing", gemini.configured ? "cheap / standard / strong" : "employees will skip", gemini.configured ? "ok" : "bad")}
+      ${kpi("Gemini", seatsOff ? "disabled" : gemini.configured ? (gemini.prefix || "set") : "missing", seatsOff ? "LLM_SEATS_ENABLED=false" : gemini.configured ? "cheap / standard / strong" : "employees will skip", seatsOff ? "" : gemini.configured ? "ok" : "bad")}
       ${kpi("xAI / Grok", xai.configured ? "set" : "missing", "optional CT fallback", xai.configured ? "ok" : "warn")}
       ${kpi("Last scan", cycle ? String(cycle.symbols_scanned || 0) : "—", cycle ? (cycle.signals_found || 0) + " signals · " + (cycle.orders_placed || 0) + " orders" : "paper has not written a cycle")}
       ${kpi("Budget", money((llm.budget || {}).spent_usd || 0, 4), "of " + money((llm.budget || {}).budget_usd || 0) + " · " + ((llm.budget || {}).posture || "—"))}
@@ -2044,12 +2143,12 @@ function renderHealth() {
             <td>${esc(t.tier)}</td>
             <td>${esc(t.provider)}</td>
             <td class="num">${esc(t.model)}</td>
-            <td class="${t.configured ? "ok" : "bad"}">${t.configured ? "ready" : "missing"}</td>
+            <td class="${seatsOff ? "muted" : t.configured ? "ok" : "bad"}">${seatsOff ? "disabled" : t.configured ? "ready" : "missing"}</td>
           </tr>`).join("")}</tbody>
         </table>
         <div class="toolbar" style="margin-top:14px">
           <button class="btn accent" onclick="pingGemini()">Test Gemini key</button>
-          ${ping ? `<span class="${ping.ok ? "ok" : "bad"}">${esc(ping.ok ? (ping.detail || "ok") : (ping.detail || "failed"))}</span>` : `<span class="muted">Sends a 1-token ping. Needs the API token saved under Controls.</span>`}
+          ${ping ? `<span class="${pingClass}">${esc(ping.disabled ? "disabled" : ping.ok ? (ping.detail || "ok") : (ping.detail || "failed"))}</span>` : `<span class="muted">Sends a 1-token ping. Needs the API token saved under Controls.</span>`}
         </div>
       </div>
       <div class="card">
@@ -2256,8 +2355,9 @@ function renderStrategies() {
   }
   return `
     <div class="banner ${approved ? "ok" : "warn"}">
-      <strong>${approved} research-approved (live gate) · ${paperN} on paper (operator veto)</strong>
-      <div class="muted" style="margin-top:6px">${esc(s.verdict || "")}${s.generated_at ? " · file " + stamp(s.generated_at) : ""}</div>
+      <strong>${esc(s.approved_count ?? approved)} research-approved (live gate) · ${esc(s.paper_override_count ?? paperN)} on paper (operator veto)</strong>
+      <div class="muted" style="margin-top:6px">Live book ${esc(s.source_path || "config/approved_strategies.json")}${s.source_mtime ? " · updated " + stamp(s.source_mtime) : ""}${s.generated_at ? " · walk-forward stamp " + stamp(s.generated_at) : ""}</div>
+      <div class="muted" style="margin-top:6px">${esc(s.verdict || "")}</div>
       <div class="muted" style="margin-top:6px">${esc(s.note || "")}</div>
     </div>
     ${integrityCard()}
@@ -2312,7 +2412,7 @@ function renderStrategies() {
       <div class="feed">
         <div class="feed-item"><strong>When</strong> — when this pair's walk-forward wrote the verdict. A grey bar groups pairs from the same run (same family, timeframe, and minute) so three symbols are not three tests.</div>
         <div class="feed-item"><strong>Strategy</strong> — which coded sleeve was walk-forwarded. Each data row is one family + pair + side + timeframe.</div>
-        <div class="feed-item"><strong>OOS trades</strong> — ${esc(legend.oos_trades || "Closed simulated round-trips on data the optimiser did not see.")} For BNBUSDT LONG that is 478 simulated rsi_trend trades, not live fills.</div>
+        <div class="feed-item"><strong>OOS trades</strong> — ${esc(legend.oos_trades || "Closed simulated round-trips on data the optimiser did not see.")} Each row is that sleeve's simulated round-trips, not live fills.</div>
         <div class="feed-item"><strong>Verdict</strong> — ${esc(legend.verdict || "Approved only if every gate passes. Green PF and expectancy are not enough.")} The Why column lists every gate that failed.</div>
         <div class="feed-item"><strong>Win / PF / Expectancy</strong> — ${esc(legend.win || "Win rate of those OOS trades.")} PF ${esc(legend.pf || "gross wins over gross losses.")} Expectancy ${esc(legend.expectancy || "average net % per trade.")} A green expectancy can still fail if the 95% confidence interval includes zero, or if random entries do as well (p >= 0.05).</div>
         <div class="feed-item"><strong>Max DD</strong> — ${esc(legend.dd || "Maximum drawdown: the worst peak-to-trough drop in simulated equity, in percent.")}</div>
@@ -2410,6 +2510,7 @@ function viewFingerprint(name) {
   const slices = {
     overview: { eq: state.equity, risk: state.risk, standup: floor.standup, pipeline: floor.pipeline, inboxN: (floor.inbox || []).length, golive: state.golive, paperN: (state.strategies || {}).paper_override_count, approvedN: (state.strategies || {}).approved_count },
     health: { cycle: state.cycle, llm: state.llm, risk: state.risk },
+    f111: { f111: state.f111 },
     floor: { employees: floor.employees, activity: floor.activity, org: floor.org },
     blotter: { trades: state.trades, rejections: state.rejections },
     positions: { pos: (state.risk || {}).open_positions, eq: state.equity },
@@ -2425,6 +2526,7 @@ function viewFingerprint(name) {
 function render(opts) {
   const keepScroll = !opts || opts.keepScroll !== false;
   const force = !!(opts && opts.force);
+  renderDeskbar();
   const name = viewName();
   document.getElementById("pageTitle").textContent = (VIEWS.find(([id]) => id === name) || [])[1] || "Overview";
   document.getElementById("pageKicker").textContent = KICKERS[name] || "";
@@ -2443,6 +2545,7 @@ function render(opts) {
   const renderers = {
     overview: renderOverview,
     health: renderHealth,
+    f111: renderF111,
     floor: renderFloor,
     blotter: renderBlotter,
     positions: renderPositions,
@@ -2551,6 +2654,14 @@ async function codeFamily(family) {
     await load(true);
   } catch (err) { toast(String(err.message || err)); }
 }
+async function ackStale() {
+  try {
+    const result = await post("/api/escalations/ack-stale", {});
+    const n = Number(result.expired || 0);
+    toast(n ? ("Acked " + n + " stale escalation" + (n === 1 ? "" : "s")) : "No stale escalations");
+    await load(true);
+  } catch (err) { toast(String(err.message || err)); }
+}
 async function ack(id) {
   try {
     await post("/api/escalations/" + id + "/ack", {});
@@ -2593,7 +2704,7 @@ async function wakeFloor() {
 async function load(manual) {
   try {
     await ensureLocalToken();
-    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle] = await Promise.all([
+    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111] = await Promise.all([
       get("/api/floor"),
       get("/api/risk"),
       get("/api/trades?limit=100"),
@@ -2603,8 +2714,10 @@ async function load(manual) {
       get("/api/llm"),
       get("/api/strategies"),
       get("/api/cycle"),
+      get("/api/desk"),
+      get("/api/f111"),
     ]);
-    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, llmPing: state.llmPing };
+    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, llmPing: state.llmPing };
     lastError = "";
     render({ keepScroll: true, force: !!manual });
   } catch (err) {

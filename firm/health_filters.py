@@ -140,15 +140,30 @@ def llm_seat_briefing() -> dict[str, Any]:
             optional.append(entry)
         else:
             active.append(entry)
+    from firm.llm import llm_seats_enabled
+
+    enabled = llm_seats_enabled()
     employee_ok = all(seat.get("configured") for seat in active)
-    return {
-        "employee_seats_ok": employee_ok,
-        "active_employee_seats": active,
-        "optional_seats": optional,
-        "retired_providers": list(RETIRED_PROVIDERS),
-        "note": (
+    if not enabled:
+        for entry in active + optional:
+            entry["state"] = "disabled"
+        note = (
+            "LLM employee seats are disabled (LLM_SEATS_ENABLED=false). "
+            "That is an operator switch, not a failed Gemini call. "
+            "No HTTP client is opened."
+        )
+    else:
+        note = (
             "Cheap, standard, and strong seats use Gemini. DeepSeek and "
             "OpenAI are retired leftovers. Do not report a missing DeepSeek "
             "key as operational degradation."
-        ),
+        )
+    return {
+        "llm_seats_enabled": enabled,
+        # A deliberate off switch is not an outage. Ops must not escalate it.
+        "employee_seats_ok": True if not enabled else employee_ok,
+        "active_employee_seats": active,
+        "optional_seats": optional,
+        "retired_providers": list(RETIRED_PROVIDERS),
+        "note": note,
     }
