@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
+from decimal import Decimal
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -61,8 +62,11 @@ class Instrument:
         """
         if self.qty_step <= 0:
             return quantity
-        steps = math.floor(quantity / self.qty_step)
-        return steps * self.qty_step
+        # 32.9 / 0.1 is 328.999... in binary and would floor to 32.8. The
+        # epsilon keeps a quantity that is already on the step from dropping
+        # one increment. Decimal puts the product back on the step grid.
+        steps = math.floor(quantity / self.qty_step + 1e-9)
+        return float(Decimal(steps) * Decimal(str(self.qty_step)))
 
     def is_tradable(self, quantity: float, price: float) -> tuple[bool, str]:
         """Whether an order meets the exchange's minimums."""

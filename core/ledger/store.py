@@ -111,6 +111,20 @@ class Ledger:
             )
             return position.id
 
+    def update_open_stop(self, position_id: int, stop_loss: float) -> bool:
+        """Record the stop that is effective now.
+
+        F111 calls this only after its monotone floor has tightened. The target
+        is left alone. This does not close the position and does not change
+        which strategy opened it.
+        """
+        with session_scope() as session:
+            position = session.get(Position, position_id)
+            if position is None or position.status != PositionStatus.OPEN.value:
+                return False
+            position.stop_loss_price = float(stop_loss)
+            return True
+
     def close_position(
         self,
         position_id: int,

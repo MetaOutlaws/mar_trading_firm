@@ -65,6 +65,67 @@ def test_quantity_rounds_down_never_up():
     assert instrument.round_quantity(1.9999) == pytest.approx(1.999)
 
 
+def test_quantity_on_the_step_does_not_floor_to_the_previous_increment():
+    """32.9 / 0.1 is 328.999... in binary. That must stay 32.9, not 32.8."""
+    instrument = Instrument("SANDUSDT", qty_step=0.1, min_qty=0.1, min_notional=5.0)
+    assert instrument.round_quantity(32.9) == 32.9
+    assert instrument.round_quantity(32.89) == pytest.approx(32.8)
+
+
+def test_target_exit_closes_exact_step_quantity(prices):
+    """A target exit must flatten 32.9 at step 0.1, not leave a 0.1 stub."""
+    prices["SANDUSDT"] = 1.0
+    broker = PaperBroker(
+        starting_equity=10_000.0,
+        costs=FRICTIONLESS,
+        data_source=StubDataSource(prices),
+    )
+    broker._instruments["SANDUSDT"] = Instrument(
+        "SANDUSDT", tick_size=0.0001, qty_step=0.1, min_qty=0.1, min_notional=5.0
+    )
+    opened = broker.place_market_order("SANDUSDT", "LONG", 32.9, expected_price=1.0)
+    assert opened.success
+    assert opened.filled_quantity == 32.9
+    broker.set_stops("SANDUSDT", take_profit=1.1, stop_loss=0.5)
+    prices["SANDUSDT"] = 1.2
+    triggered = broker.check_stops()
+    assert len(triggered) == 1
+    assert triggered[0][1] == "take_profit"
+    assert triggered[0][2].success
+    assert triggered[0][2].filled_quantity == 32.9
+    assert broker.get_positions() == []
+
+
+def test_full_close_leaves_no_residual_across_step_and_quantity_combos():
+    """A full close never keeps a positive leftover of the held size."""
+    steps = (0.1, 0.01, 0.001, 0.0001, 0.2, 0.25, 0.5, 1.0, 10.0)
+    quantities = (0.3, 1.0, 1.1, 1.9999, 7.7, 10.3, 32.9, 100.1, 999.9)
+    for step in steps:
+        instrument = Instrument(
+            "TESTUSDT", tick_size=0.0001, qty_step=step, min_qty=step, min_notional=0.0
+        )
+        for raw in quantities:
+            held_target = instrument.round_quantity(raw)
+            if held_target + 1e-12 < step:
+                continue
+            prices = {"TESTUSDT": 2.0}
+            broker = PaperBroker(
+                starting_equity=1_000_000.0,
+                costs=FRICTIONLESS,
+                data_source=StubDataSource(prices),
+            )
+            broker._instruments["TESTUSDT"] = instrument
+            opened = broker.place_market_order("TESTUSDT", "LONG", raw, expected_price=2.0)
+            assert opened.success, (step, raw, opened.error)
+            held = broker.get_positions()[0].quantity
+            assert held == pytest.approx(held_target)
+            closed = broker.close_position("TESTUSDT")
+            assert closed.success, (step, raw, closed.error)
+            residual = held - closed.filled_quantity
+            assert residual <= 1e-12, (step, raw, held, closed.filled_quantity, residual)
+            assert broker.get_positions() == []
+
+
 def test_price_rounds_to_tick():
     instrument = Instrument("BTCUSDT", tick_size=0.5)
     assert instrument.round_price(100.7) == pytest.approx(100.5)

@@ -73,6 +73,7 @@ def wait_for_next_cycle(
     shutdown=None,  # noqa: ANN001
     sleep=time.sleep,  # noqa: ANN001
     poll_seconds: int = PAPER_EXIT_POLL_SECONDS,
+    on_poll=None,  # noqa: ANN001
 ) -> None:
     """Sleep until the next scan, polling paper stops on a tight cadence.
 
@@ -97,6 +98,13 @@ def wait_for_next_cycle(
                 engine.supervise_exits()
         except Exception:
             logger.exception("Paper exit poll failed; will retry")
+        # F111 minute decisions sit on this poll so they are not inside the
+        # agent/LLM call. on_poll is optional; the production loop passes it.
+        if on_poll is not None:
+            try:
+                on_poll()
+            except Exception:
+                logger.exception("F111 poll failed; exit supervision continues")
 
 
 def parse_args() -> argparse.Namespace:
@@ -231,9 +239,22 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
             logger.info("")
             logger.info("--- cycle %d at %s ---", cycle, datetime.now(timezone.utc).isoformat())
 
+            def _f111_poll() -> None:
+                # No LLM import. A failure must not stop exit supervision.
+                from core.execution.f111_paper import run_attached_minute_step
+
+                run_attached_minute_step(engine)
+
             try:
                 from firm.research_jobs import advance_pipeline
 
+                # F111 runs before the agent seats so a slow model call cannot
+                # be the thing that decides the minute. Late polls still record
+                # poll_latency and refuse a missed open.
+                try:
+                    _f111_poll()
+                except Exception:
+                    logger.exception("F111 minute step failed before the cycle")
                 # Scan first. Gemini seats (GM, Advisor, Auditor) can take
                 # minutes; they must not block the 15-minute paper clock or
                 # last_cycle.json stays stale and the duty board lies.
@@ -278,7 +299,7 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
                 logger.info("Reached the requested %d cycles; stopping.", args.cycles)
                 break
 
-            wait_for_next_cycle(engine, args.interval)
+            wait_for_next_cycle(engine, args.interval, on_poll=_f111_poll)
     finally:
         if orchestrator is not None:
             orchestrator.close()
