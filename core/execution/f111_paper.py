@@ -51,11 +51,27 @@ from core.strategy.f111_semantics import (
     gate_decision,
     new_protection_state,
     research_exit_price,
+    signed_extension,
     step_protection,
     update_touch,
 )
 
 logger = logging.getLogger(__name__)
+
+# A registry census row is not an hourly signal, so it has no source_signal_id.
+# gate=False still needs a string. None used to be logged as False because the
+# line did `rejection_reason or gate_decision`.
+NO_SIGNAL_REASON = "no_signal"
+# Parent names that must survive a null extension. missing_feature is not one
+# of them: it means the feature was actually absent.
+_KEPT_PARENT_REASONS = frozenset(
+    {
+        "high_vol_filter",
+        "compression_gate",
+        "extension_gate",
+        "base_signal_blocked",
+    }
+)
 
 _REASON_NAME = {
     REASON_INITIAL_STOP: "initial_stop",
@@ -211,21 +227,46 @@ class F111Runtime:
         os.replace(temporary, self.state_path)
 
     def _emit(self, row: dict[str, Any]) -> dict[str, Any]:
+        # Repair before the log and the JSONL write so both carry the string.
+        if row.get("gate_decision") is False and not _reason_text(row.get("rejection_reason")):
+            row["rejection_reason"] = NO_SIGNAL_REASON
         self.events.append(row)
-        reason = row.get("rejection_reason") or row.get("gate_decision")
-        logger.info(
-            "F111 %s %s %s gate=%s reason=%s",
-            row.get("symbol"),
-            row.get("side"),
-            row.get("source_signal_id"),
-            row.get("gate_decision"),
-            reason,
-        )
+        if row.get("deploy_marker"):
+            logger.info(
+                "F111 deploy_marker=%s configuration_sha256=%s strategy_version=%s run_id=%s",
+                row.get("deploy_marker"),
+                row.get("configuration_sha256"),
+                row.get("strategy_version"),
+                row.get("run_id"),
+            )
+        else:
+            # Print rejection_reason itself. Do not substitute gate_decision:
+            # that bool is what turned a missing reason into reason=False.
+            logger.info(
+                "F111 %s %s %s gate=%s reason=%s",
+                row.get("symbol"),
+                row.get("side"),
+                row.get("source_signal_id"),
+                row.get("gate_decision"),
+                row.get("rejection_reason"),
+            )
         if self.telemetry_path is not None:
             self.telemetry_path.parent.mkdir(parents=True, exist_ok=True)
             with self.telemetry_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(row, default=str) + "\n")
         return row
+
+    def note_restart(self) -> dict[str, Any]:
+        """Write a restart boundary into telemetry.
+
+        The verify script uses this row, or a new ``run_id``, as the start of
+        the current deploy when it scopes the missing_feature share.
+        """
+        row = _blank_event(self.config_sha, self.run_id)
+        row["deploy_marker"] = "restart"
+        row["gate_decision"] = None
+        row["rejection_reason"] = "restart"
+        return self._emit(row)
 
     def entries_allowed(self) -> bool:
         return scan_enabled(self.config, self.disable_flag)
@@ -260,7 +301,11 @@ class F111Runtime:
                         "cohort": cohort_of(symbol, self.config),
                         "sector": _sector(symbol),
                         "gate_decision": False,
-                        "rejection_reason": None if not unavailable else status.reason,
+                        # Available sleeves have no hourly signal on this census
+                        # row. The reason is still a string, and the JSONL stores
+                        # that string. source_signal_id stays unset: this is not
+                        # a signal.
+                        "rejection_reason": NO_SIGNAL_REASON if not unavailable else status.reason,
                         "instrument_unavailable": unavailable,
                         "feature_values": {
                             "availability": status.availability,
@@ -309,6 +354,14 @@ class F111Runtime:
         assert_f111_paper_only()
         t0 = _as_utc(t0)
         observed = _as_utc(observed_at or self.clock())
+        features = dict(features or {})
+        sign = 1 if side == "LONG" else -1 if side == "SHORT" else 0
+        if _finite_number(extension_atr) is None:
+            filled = signed_extension(sign, close, boundary, prior_atr)
+            if _finite_number(filled) is not None:
+                extension_atr = float(filled)
+        if _finite_number(extension_atr) is not None:
+            features["extension_atr"] = float(extension_atr)
         passed, gate_reason = gate_decision(
             compression=compression,
             extension_atr=extension_atr,
@@ -319,6 +372,12 @@ class F111Runtime:
             gate_reason = "base_signal_blocked"
             passed = False
         elif not base_passed:
+            passed = False
+        # A null extension is optional once an earlier gate, or the parent
+        # signal, already named the rejection. Do not replace that name.
+        parent_reason = str(features.get("f111_rejection_reason") or "")
+        if gate_reason == "missing_feature" and parent_reason in _KEPT_PARENT_REASONS:
+            gate_reason = parent_reason
             passed = False
         row = self._signal_row(
             symbol=symbol,
@@ -1142,20 +1201,35 @@ class F111Runtime:
                     continue
                 last = signals.iloc[-1]
                 parent_reason = str(last.get("f111_rejection_reason") or "")
+                close_px = float(frame["close"].iloc[-1])
+                boundary_px = (
+                    float(last["entry_boundary"])
+                    if _finite_price(last.get("entry_boundary"))
+                    else float("nan")
+                )
+                atr_px = float(last["prior_atr"]) if _finite_price(last.get("prior_atr")) else float("nan")
+                # Sign and zero stay. _finite_price would drop a non-positive
+                # extension or compression and the gate would say missing_feature.
+                extension = _finite_or_nan(last.get("extension_atr"))
+                if _finite_number(extension) is None:
+                    extension = signed_extension(int(side.sign), close_px, boundary_px, atr_px)
+                extension_feature = _finite_or_none(last.get("extension_atr"))
+                if extension_feature is None and _finite_number(extension) is not None:
+                    extension_feature = float(extension)
                 self.observe_signal(
                     symbol=symbol,
                     side=side.value,
                     t0=t0,
-                    boundary=float(last["entry_boundary"]) if _finite_price(last.get("entry_boundary")) else float("nan"),
-                    prior_atr=float(last["prior_atr"]) if _finite_price(last.get("prior_atr")) else float("nan"),
-                    close=float(frame["close"].iloc[-1]),
+                    boundary=boundary_px,
+                    prior_atr=atr_px,
+                    close=close_px,
                     compression=_finite_or_nan(last.get("compression")),
-                    extension_atr=_finite_or_nan(last.get("extension_atr")),
+                    extension_atr=float(extension) if _finite_number(extension) is not None else float("nan"),
                     base_passed=parent_reason != "base_signal_blocked",
                     observed_at=now,
                     features={
                         "compression": _finite_or_none(last.get("compression")),
-                        "extension_atr": _finite_or_none(last.get("extension_atr")),
+                        "extension_atr": extension_feature,
                         "f111_rejection_reason": parent_reason,
                     },
                     feature_asof={"hourly_bar_open": str(bar_open), "signal_close": _iso(t0)},
@@ -1295,6 +1369,62 @@ def _finite_or_none(value: float | None) -> float | None:
 MISSING_FEATURE_SHARE_LIMIT = 0.05
 
 
+def _reason_text(value: Any) -> str | None:
+    """A non-empty rejection string. Bools and None are not reasons."""
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def _marker_matches_deploy(row: dict[str, Any], *, configuration_sha256: str, strategy_version: str) -> bool:
+    """True when a deploy marker belongs to this config or this code version."""
+    marker = row.get("deploy_marker")
+    if not isinstance(marker, str) or not marker:
+        return False
+    sha = row.get("configuration_sha256")
+    version = row.get("strategy_version")
+    if sha == configuration_sha256 or version == strategy_version:
+        return True
+    # A boundary that names neither still splits history from the rows after it.
+    return sha is None and version is None
+
+
+def rows_since_latest_deploy(
+    rows: list[dict[str, Any]],
+    *,
+    configuration_sha256: str,
+    strategy_version: str,
+) -> list[dict[str, Any]]:
+    """Rows since the latest activation or restart of the current deploy.
+
+    The cut is the later of the last matching deploy marker and the first row
+    of the latest ``run_id``. A marker matches the current
+    ``configuration_sha256`` or the current code version. Rows before the cut
+    stay in the all-history share only.
+    """
+    marker_at: int | None = None
+    for index, row in enumerate(rows):
+        if _marker_matches_deploy(
+            row,
+            configuration_sha256=configuration_sha256,
+            strategy_version=strategy_version,
+        ):
+            marker_at = index
+    run_at: int | None = None
+    last_run: str | None = None
+    for index, row in enumerate(rows):
+        run_id = row.get("run_id")
+        if not isinstance(run_id, str) or not run_id:
+            continue
+        if run_id != last_run:
+            last_run = run_id
+            run_at = index
+    cuts = [index for index in (marker_at, run_at) if index is not None]
+    if not cuts:
+        return list(rows)
+    return list(rows[max(cuts) :])
+
+
 def missing_feature_share(rows: list[dict[str, Any]]) -> float | None:
     """Fraction of input-complete rows rejected as ``missing_feature``.
 
@@ -1399,6 +1529,7 @@ def attached_runtime(engine: Any) -> F111Runtime:
             telemetry_path=TELEMETRY_PATH,
         )
         runtime.restore()
+        runtime.note_restart()
         _ATTACHED = runtime
         return runtime
     _ATTACHED.broker = engine.broker

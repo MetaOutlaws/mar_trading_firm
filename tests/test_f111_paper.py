@@ -7,6 +7,7 @@ the bottom states that explicitly when the archive is absent.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -44,6 +45,7 @@ from core.strategy.f111_semantics import (
     new_protection_state,
     plan_retest,
     research_net,
+    signed_extension,
     simulate_policy331,
     simulate_reference_floor,
     step_protection,
@@ -163,6 +165,100 @@ def test_gate_equality_edges():
     assert gate_decision(compression=float("nan"), extension_atr=0.2, prior_atr=1.0, close=100.0)[1] == (
         "missing_feature"
     )
+    # A null extension must not hide a gate that does not use it.
+    assert gate_decision(
+        compression=0.5, extension_atr=float("nan"), prior_atr=3.19e-05, close=0.00339
+    )[1] == "high_vol_filter"
+    assert gate_decision(
+        compression=0.4, extension_atr=float("nan"), prior_atr=1.0, close=100.0
+    )[1] == "compression_gate"
+
+
+def test_signed_extension_is_computed_for_both_sides_when_inputs_exist():
+    """14:00Z shape: close, boundary and prior ATR exist, so extension exists."""
+    # 1000BONKUSDT LONG. close is under the prior-20 high, so extension is negative.
+    long_ext = signed_extension(1, 0.00339, 0.003448, 3.19e-05)
+    assert long_ext == pytest.approx((0.00339 - 0.003448) / 3.19e-05)
+    assert long_ext < 0
+    # SHORT uses the prior-20 low. Price above that low is also a negative extension.
+    short_ext = signed_extension(-1, 0.00339, 0.00330, 3.19e-05)
+    assert short_ext == pytest.approx(-1 * (0.00339 - 0.00330) / 3.19e-05)
+    assert short_ext < 0
+    assert signed_extension(1, 0.00339, float("nan"), 3.19e-05) != signed_extension(
+        1, 0.00339, float("nan"), 3.19e-05
+    )
+
+
+def test_null_extension_does_not_mask_the_real_rejection(tmp_path):
+    """A null extension used to replace the parent reason with missing_feature."""
+    runtime = _runtime(tmp_path)
+    bonk = runtime.observe_signal(
+        symbol="1000BONKUSDT",
+        side="LONG",
+        t0=T0,
+        boundary=0.003448,
+        prior_atr=3.19e-05,
+        close=0.00339,
+        compression=0.5,
+        extension_atr=float("nan"),
+        base_passed=True,
+        observed_at=T0,
+        features={"f111_rejection_reason": "high_vol_filter", "extension_atr": None},
+    )
+    assert bonk["rejection_reason"] == "high_vol_filter"
+    assert bonk["feature_values"]["extension_atr"] == pytest.approx(
+        signed_extension(1, 0.00339, 0.003448, 3.19e-05)
+    )
+    assert bonk["gate_decision"] is False
+
+    short = runtime.observe_signal(
+        symbol="1000BONKUSDT",
+        side="SHORT",
+        t0=T0 + timedelta(hours=1),
+        boundary=99.0,
+        prior_atr=2.0,
+        close=100.0,
+        compression=0.4,
+        extension_atr=float("nan"),
+        base_passed=True,
+        observed_at=T0 + timedelta(hours=1),
+        features={"f111_rejection_reason": "compression_gate", "extension_atr": None},
+    )
+    assert short["rejection_reason"] == "compression_gate"
+    assert short["feature_values"]["extension_atr"] == pytest.approx(signed_extension(-1, 100.0, 99.0, 2.0))
+    assert short["feature_values"]["extension_atr"] < 0
+
+    blocked = runtime.observe_signal(
+        symbol="ADAUSDT",
+        side="LONG",
+        t0=T0 + timedelta(hours=2),
+        boundary=float("nan"),
+        prior_atr=2.0,
+        close=100.0,
+        compression=0.6,
+        extension_atr=float("nan"),
+        base_passed=False,
+        observed_at=T0 + timedelta(hours=2),
+        features={"f111_rejection_reason": "base_signal_blocked", "extension_atr": None},
+    )
+    assert blocked["rejection_reason"] == "base_signal_blocked"
+    assert blocked["feature_values"]["extension_atr"] is None
+
+    extension_gate = runtime.observe_signal(
+        symbol="CFXUSDT",
+        side="LONG",
+        t0=T0 + timedelta(hours=3),
+        boundary=1.0,
+        prior_atr=1.0,
+        close=3.48,
+        compression=0.6,
+        extension_atr=2.48,
+        base_passed=True,
+        observed_at=T0 + timedelta(hours=3),
+        features={"f111_rejection_reason": "extension_gate"},
+    )
+    assert extension_gate["rejection_reason"] == "extension_gate"
+    assert extension_gate["feature_values"]["extension_atr"] == pytest.approx(2.48)
 
 
 def test_retest_fixtures_match_the_reference_planner():
@@ -682,6 +778,44 @@ def test_strategy_preserves_the_parent_and_adds_f111_gates(monkeypatch):
     assert rule.latest_signal("BTCUSDT", candles) is None
 
 
+def test_null_parent_extension_is_filled_for_long_and_short(monkeypatch):
+    """A parent branch can leave extension_atr null after it already rejected the row."""
+    from dataclasses import replace
+
+    from core.strategy.base import SignalSide
+    from core.strategy.hourly_compression_btc_connors_loweff_v1 import (
+        HourlyCompressionBtcConnorsLoweffV1Strategy,
+    )
+    from core.strategy.mar_f111_r12_extension_latefloor_v1 import (
+        MarF111R12ExtensionLatefloorV1Strategy,
+    )
+
+    index = pd.date_range("2024-06-01", periods=4, freq="h", tz="UTC")
+    candles = pd.DataFrame(
+        {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 1.0},
+        index=index,
+    )
+
+    def parent(self, frame):
+        out = self.empty_signals(frame)
+        out["compression"] = 0.6
+        out["prior_atr"] = 2.0
+        out["extension_atr"] = np.nan
+        out["entry_boundary"] = 101.0 if self.params.side.sign == 1 else 99.0
+        return out
+
+    monkeypatch.setattr(HourlyCompressionBtcConnorsLoweffV1Strategy, "generate_signals", parent)
+    for side, sign in ((SignalSide.LONG, 1), (SignalSide.SHORT, -1)):
+        rule = MarF111R12ExtensionLatefloorV1Strategy(
+            replace(MarF111R12ExtensionLatefloorV1Strategy().params, side=side)
+        )
+        out = rule.generate_signals(candles)
+        expected = signed_extension(sign, 100.0, 101.0 if sign == 1 else 99.0, 2.0)
+        assert expected < 0
+        assert float(out["extension_atr"].iloc[-1]) == pytest.approx(expected)
+        assert out["f111_rejection_reason"].iloc[-1] == "base_signal_blocked"
+
+
 def test_paper_only_enforcement(monkeypatch):
     monkeypatch.setenv("TRADING_MODE", "testnet")
     get_settings.cache_clear()
@@ -1026,12 +1160,219 @@ def test_verify_scan_fails_when_missing_feature_hides_present_inputs(tmp_path, m
             "sleeves_expected": 192,
             "orders_placed": 0,
             "transport_failures": 0,
+            "configuration_sha256": "deployed-sha",
+            "strategy_version": "f111-paper-v1",
             "rows": [{"feature_values": {"evaluated": True}} for _ in range(192)],
         },
     )
     assert main(["--telemetry", str(telemetry)]) == 1
     telemetry.write_text("".join(json.dumps(item) + "\n" for item in healthy), encoding="utf-8")
     assert main(["--telemetry", str(telemetry)]) == 0
+
+
+def test_available_census_rows_store_and_log_a_string_reason(tmp_path, caplog):
+    """The 158 available sleeves are gate=False census rows, not signals.
+
+    Telemetry rejection_reason was None, and the log printed that as False
+    because it used ``rejection_reason or gate_decision``. source_signal_id
+    stays unset: a registry row is not an hourly signal.
+    """
+    config, _digest = load_f111_config()
+    unavailable_names = set(list(config["universe"])[:17])
+    registry = []
+    for symbol in config["universe"]:
+        if symbol in unavailable_names:
+            registry.append(InstrumentStatus(symbol, UNAVAILABLE, reason="not listed on Bybit linear"))
+        else:
+            registry.append(_available(symbol))
+    runtime = _runtime(tmp_path)
+    with caplog.at_level(logging.INFO, logger="core.execution.f111_paper"):
+        rows = runtime.sleeve_rows(registry)
+    available = [row for row in rows if not row["instrument_unavailable"]]
+    assert len(available) == 158
+    for row in rows:
+        assert row["gate_decision"] is False
+        assert isinstance(row["rejection_reason"], str) and row["rejection_reason"]
+        assert row["source_signal_id"] is None
+    assert {row["rejection_reason"] for row in available} == {"no_signal"}
+    unavailable = [row for row in rows if row["instrument_unavailable"]]
+    assert {row["rejection_reason"] for row in unavailable} == {"not listed on Bybit linear"}
+    parsed = [
+        json.loads(line)
+        for line in (tmp_path / "f111_telemetry.jsonl").read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    fresh_available = [row for row in parsed if row.get("instrument_unavailable") is False]
+    assert len(fresh_available) == 158
+    assert all(row["rejection_reason"] == "no_signal" for row in fresh_available)
+    assert "reason=False" not in caplog.text
+    assert "reason=None" not in caplog.text
+    assert caplog.text.count("gate=False reason=no_signal") == 158
+
+
+def test_emit_fills_a_string_reason_when_gate_false_reason_is_missing(tmp_path, caplog):
+    runtime = _runtime(tmp_path)
+    with caplog.at_level(logging.INFO, logger="core.execution.f111_paper"):
+        emitted = runtime._emit(
+            {
+                "symbol": "BTCUSDT",
+                "side": "LONG",
+                "source_signal_id": None,
+                "gate_decision": False,
+                "rejection_reason": None,
+            }
+        )
+    assert emitted["rejection_reason"] == "no_signal"
+    assert "F111 BTCUSDT LONG None gate=False reason=no_signal" in caplog.text
+    assert "reason=False" not in caplog.text
+    saved = json.loads((tmp_path / "f111_telemetry.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert saved["rejection_reason"] == "no_signal"
+
+
+def test_verify_scan_scopes_missing_feature_to_the_latest_restart(tmp_path, monkeypatch, capsys):
+    """Pre-restart missing_feature rows stay in the all-history share only."""
+    from core.execution.f111_paper import rows_since_latest_deploy
+    from scripts.verify_f111_paper_scan import main
+
+    def signal(reason: str, run_id: str) -> dict:
+        return {
+            "rejection_reason": reason,
+            "run_id": run_id,
+            "configuration_sha256": "deployed-sha",
+            "strategy_version": "f111-paper-v1",
+            "feature_values": {"prior_atr": 3.19e-05, "boundary": 0.003448},
+        }
+
+    old = [signal("missing_feature", "before-restart") for _ in range(155)]
+    old += [signal("high_vol_filter", "before-restart") for _ in range(3)]
+    current = [signal("high_vol_filter", "after-restart") for _ in range(158)]
+    scoped = rows_since_latest_deploy(
+        old + current,
+        configuration_sha256="deployed-sha",
+        strategy_version="f111-paper-v1",
+    )
+    assert scoped
+    assert {row["run_id"] for row in scoped} == {"after-restart"}
+
+    marker = {
+        "deploy_marker": "restart",
+        "configuration_sha256": "deployed-sha",
+        "strategy_version": "f111-paper-v1",
+        "run_id": "after-restart",
+        "rejection_reason": "restart",
+    }
+    marked = rows_since_latest_deploy(
+        old + [marker] + current,
+        configuration_sha256="deployed-sha",
+        strategy_version="f111-paper-v1",
+    )
+    assert marked[0]["deploy_marker"] == "restart"
+    assert all(row.get("run_id") == "after-restart" for row in marked)
+    # A later run_id still wins when an older marker names the same config.
+    later = rows_since_latest_deploy(
+        old + [marker] + [signal("high_vol_filter", "second-restart")],
+        configuration_sha256="deployed-sha",
+        strategy_version="f111-paper-v1",
+    )
+    assert [row["run_id"] for row in later] == ["second-restart"]
+
+    telemetry = tmp_path / "f111_telemetry.jsonl"
+    telemetry.write_text("".join(json.dumps(item) + "\n" for item in old + current), encoding="utf-8")
+    monkeypatch.setattr(
+        "scripts.verify_f111_paper_scan.fresh_scan",
+        lambda: {
+            "sleeves_evaluated": 192,
+            "sleeves_expected": 192,
+            "orders_placed": 0,
+            "transport_failures": 0,
+            "configuration_sha256": "deployed-sha",
+            "strategy_version": "f111-paper-v1",
+            "rows": [{"feature_values": {"evaluated": True}} for _ in range(192)],
+        },
+    )
+    assert main(["--telemetry", str(telemetry)]) == 0
+    passed = capsys.readouterr().out
+    assert "all-history=" in passed
+    assert "since-latest-restart=0.0%" in passed
+    assert "all-history=0.0%" not in passed
+
+    still_broken = [signal("missing_feature", "after-restart") for _ in range(155)]
+    still_broken += [signal("high_vol_filter", "after-restart") for _ in range(3)]
+    telemetry.write_text(
+        "".join(json.dumps(item) + "\n" for item in old[:10] + still_broken),
+        encoding="utf-8",
+    )
+    assert main(["--telemetry", str(telemetry)]) == 1
+    failed = capsys.readouterr().out
+    assert "since-latest-restart=" in failed
+    assert "since-latest-restart=0.0%" not in failed
+
+
+def test_live_shaped_hourly_frame_keeps_signed_extension_for_long_and_short(tmp_path):
+    """The SGP1 hourly frame, including the still-forming bar Bybit appends.
+
+    extension_atr is negative when price has not broken the prior-20 boundary.
+    The landed scan wrapper keeps that sign for LONG and SHORT.
+    """
+    from dataclasses import replace
+
+    from core.data.ohlcv import CANONICAL_COLUMNS, closed_candles
+    from core.strategy.base import SignalSide
+    from core.strategy.mar_f111_r12_extension_latefloor_v1 import (
+        MarF111R12ExtensionLatefloorV1Strategy,
+    )
+
+    bars = MarF111R12ExtensionLatefloorV1Strategy.min_bars + 1
+    index = pd.date_range("2024-01-01", periods=bars, freq="h", tz="UTC", name="timestamp")
+    frame = pd.DataFrame(
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.0,
+            "volume": 10.0,
+            "turnover": 1000.0,
+        },
+        index=index,
+    )
+    frame = frame[CANONICAL_COLUMNS].astype("float64")
+    now = index[-1].to_pydatetime() + timedelta(seconds=10)
+
+    class _LiveHourly:
+        def fetch_latest(self, symbol: str, timeframe: str, bars: int = 860) -> pd.DataFrame:
+            assert symbol == "BTCUSDT"
+            assert timeframe == "1h"
+            assert bars == 860
+            return frame
+
+    runtime = _runtime(tmp_path)
+    runtime.registry["BTCUSDT"] = _available("BTCUSDT")
+    runtime._consume_hourly(_LiveHourly(), now)
+
+    closed = closed_candles(frame, "1h", now=now)
+    assert len(closed) == MarF111R12ExtensionLatefloorV1Strategy.min_bars
+    expected: dict[str, float] = {}
+    for side in (SignalSide.LONG, SignalSide.SHORT):
+        rule = MarF111R12ExtensionLatefloorV1Strategy(
+            replace(MarF111R12ExtensionLatefloorV1Strategy().params, side=side)
+        )
+        signals = rule.generate_signals(rule.prepare_market_context("BTCUSDT", closed, None))
+        extension = float(signals["extension_atr"].iloc[-1])
+        assert extension < 0
+        expected[side.value] = extension
+
+    logged = [
+        row
+        for row in runtime.events
+        if row.get("symbol") == "BTCUSDT" and row.get("side") in {"LONG", "SHORT"}
+    ]
+    assert {row["side"] for row in logged} == {"LONG", "SHORT"}
+    for row in logged:
+        got = row["feature_values"]["extension_atr"]
+        assert got == pytest.approx(expected[row["side"]])
+        assert got < 0
+        assert row["rejection_reason"] != "missing_feature"
+        assert isinstance(row["rejection_reason"], str) and row["rejection_reason"]
 
 
 def test_saved_path_parity_is_unverified_without_the_private_archive():

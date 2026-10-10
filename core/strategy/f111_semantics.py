@@ -60,19 +60,35 @@ def gate_decision(
     0.50, extension must be <= 1 prior ATR, and prior ATR / close must be
     >= 0.01. A missing feature is a rejection, not a pass.
     """
-    if not all(_finite(v) for v in (compression, extension_atr, prior_atr, close)):
+    # Extension is signed and is not required to name an earlier gate. A null
+    # extension must not hide high-vol or compression, which do not use it.
+    if not _finite(prior_atr) or not _finite(close) or close <= 0 or prior_atr <= 0:
         return False, "missing_feature"
-    if close <= 0 or prior_atr <= 0:
-        return False, "missing_feature"
-    # Collected so a row that fails two gates still names the first one, and
-    # tests can probe each edge on its own.
     if prior_atr / close < high_vol_min:
         return False, "high_vol_filter"
+    if not _finite(compression):
+        return False, "missing_feature"
     if not compression > compression_min_exclusive:
         return False, "compression_gate"
+    if not _finite(extension_atr):
+        return False, "missing_feature"
     if extension_atr > extension_max:
         return False, "extension_gate"
     return True, ""
+
+
+def signed_extension(side: int, close: float, boundary: float, prior_atr: float) -> float:
+    """``s * (close - boundary) / prior_atr`` when those inputs exist.
+
+    Both sides use this. A long below the prior-20 high and a short above the
+    prior-20 low are negative. That value is a feature, not a missing one.
+    Zero or non-finite prior ATR cannot form an extension.
+    """
+    if side not in (1, -1):
+        return float("nan")
+    if not all(_finite(v) for v in (close, boundary, prior_atr)) or prior_atr <= 0:
+        return float("nan")
+    return side * (close - boundary) / prior_atr
 
 
 def gate_mask(
