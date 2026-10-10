@@ -925,6 +925,115 @@ def test_stale_signal_is_not_backfilled(tmp_path):
     assert runtime.pending == []
 
 
+def test_scan_hourly_keeps_extension_at_minus_half_zero_and_plus_0_4(tmp_path, monkeypatch):
+    """The hourly scan wrapper, not a hand-built gate call.
+
+    Extension -0.5 and 0 are inside the 20-bar range and pass the <= 1 ATR
+    rule. The old >0 price check turned both into missing_feature for LONG
+    and SHORT. +0.4 is the control that already survived.
+    """
+    from core.strategy.mar_f111_r12_extension_latefloor_v1 import (
+        MarF111R12ExtensionLatefloorV1Strategy,
+    )
+
+    bars = MarF111R12ExtensionLatefloorV1Strategy.min_bars
+    index = pd.date_range("2024-01-01", periods=bars, freq="h", tz="UTC", name="timestamp")
+    frame = pd.DataFrame(
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.0,
+            "volume": 10.0,
+            "turnover": 1000.0,
+        },
+        index=index,
+    )
+    now = index[-1].to_pydatetime() + timedelta(hours=1, seconds=10)
+
+    class _Hourly:
+        def fetch_latest(self, symbol: str, timeframe: str, bars: int = 860) -> pd.DataFrame:
+            assert symbol == "BTCUSDT" and timeframe == "1h" and bars == 860
+            return frame
+
+    held = {"extension": 0.4, "compression": 0.6}
+
+    def fake_signals(self, candles):
+        out = self.empty_signals(candles)
+        out["compression"] = held["compression"]
+        out["extension_atr"] = held["extension"]
+        out["prior_atr"] = 2.0
+        out["entry_boundary"] = 100.0
+        out["signal"] = self.params.side.sign
+        out["f111_rejection_reason"] = ""
+        return out
+
+    monkeypatch.setattr(
+        MarF111R12ExtensionLatefloorV1Strategy,
+        "generate_signals",
+        fake_signals,
+    )
+    for extension in (-0.5, 0.0, 0.4):
+        held["extension"] = extension
+        held["compression"] = 0.6
+        runtime = _runtime(tmp_path / f"ext-{extension}")
+        runtime.registry["BTCUSDT"] = _available("BTCUSDT")
+        runtime._consume_hourly(_Hourly(), now)
+        logged = [row for row in runtime.events if row.get("side") in {"LONG", "SHORT"}]
+        assert {row["side"] for row in logged} == {"LONG", "SHORT"}
+        for row in logged:
+            assert row["feature_values"]["extension_atr"] == pytest.approx(extension)
+            assert row["rejection_reason"] != "missing_feature"
+            assert row["gate_decision"] is True
+            assert row["feature_values"]["prior_atr"] == pytest.approx(2.0)
+            assert row["feature_values"]["boundary"] == pytest.approx(100.0)
+
+    held["extension"] = 0.4
+    held["compression"] = 0.0
+    runtime = _runtime(tmp_path / "compression-zero")
+    runtime.registry["BTCUSDT"] = _available("BTCUSDT")
+    runtime._consume_hourly(_Hourly(), now)
+    for row in runtime.events:
+        if row.get("side") not in {"LONG", "SHORT"}:
+            continue
+        assert row["feature_values"]["compression"] == pytest.approx(0.0)
+        assert row["feature_values"]["extension_atr"] == pytest.approx(0.4)
+        assert row["rejection_reason"] == "compression_gate"
+
+
+def test_verify_scan_fails_when_missing_feature_hides_present_inputs(tmp_path, monkeypatch):
+    from core.execution.f111_paper import MISSING_FEATURE_SHARE_LIMIT, missing_feature_share
+    from scripts.verify_f111_paper_scan import main
+
+    def row(reason: str) -> dict:
+        return {
+            "rejection_reason": reason,
+            "feature_values": {"prior_atr": 3.19e-05, "boundary": 0.003448, "extension_atr": None},
+        }
+
+    broken = [row("missing_feature") for _ in range(155)] + [row("high_vol_filter") for _ in range(3)]
+    assert missing_feature_share(broken) == pytest.approx(155 / 158)
+    assert missing_feature_share(broken) > MISSING_FEATURE_SHARE_LIMIT
+    healthy = [row("high_vol_filter") for _ in range(158)]
+    assert missing_feature_share(healthy) == 0
+
+    telemetry = tmp_path / "f111_telemetry.jsonl"
+    telemetry.write_text("".join(json.dumps(item) + "\n" for item in broken), encoding="utf-8")
+    monkeypatch.setattr(
+        "scripts.verify_f111_paper_scan.fresh_scan",
+        lambda: {
+            "sleeves_evaluated": 192,
+            "sleeves_expected": 192,
+            "orders_placed": 0,
+            "transport_failures": 0,
+            "rows": [{"feature_values": {"evaluated": True}} for _ in range(192)],
+        },
+    )
+    assert main(["--telemetry", str(telemetry)]) == 1
+    telemetry.write_text("".join(json.dumps(item) + "\n" for item in healthy), encoding="utf-8")
+    assert main(["--telemetry", str(telemetry)]) == 0
+
+
 def test_saved_path_parity_is_unverified_without_the_private_archive():
     config, _digest = load_f111_config()
     assert config["saved_path_parity"] == "UNVERIFIED"

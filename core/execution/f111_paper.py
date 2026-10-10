@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -1148,13 +1149,13 @@ class F111Runtime:
                     boundary=float(last["entry_boundary"]) if _finite_price(last.get("entry_boundary")) else float("nan"),
                     prior_atr=float(last["prior_atr"]) if _finite_price(last.get("prior_atr")) else float("nan"),
                     close=float(frame["close"].iloc[-1]),
-                    compression=float(last["compression"]) if _finite_price(last.get("compression")) else float("nan"),
-                    extension_atr=float(last["extension_atr"]) if _finite_price(last.get("extension_atr")) else float("nan"),
+                    compression=_finite_or_nan(last.get("compression")),
+                    extension_atr=_finite_or_nan(last.get("extension_atr")),
                     base_passed=parent_reason != "base_signal_blocked",
                     observed_at=now,
                     features={
-                        "compression": None if not _finite_price(last.get("compression")) else float(last["compression"]),
-                        "extension_atr": None if not _finite_price(last.get("extension_atr")) else float(last["extension_atr"]),
+                        "compression": _finite_or_none(last.get("compression")),
+                        "extension_atr": _finite_or_none(last.get("extension_atr")),
                         "f111_rejection_reason": parent_reason,
                     },
                     feature_asof={"hourly_bar_open": str(bar_open), "signal_close": _iso(t0)},
@@ -1259,11 +1260,64 @@ def _funding_for_open(runtime: F111Runtime, symbol: str, now: datetime) -> tuple
 
 
 def _finite_price(value: float | None) -> bool:
+    """A usable price. Zero and negatives are not prices."""
     try:
         number = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return False
-    return number > 0 and number == number and number != float("inf")
+    return number > 0 and math.isfinite(number)
+
+
+def _finite_number(value: float | None) -> float | None:
+    """Finite feature value. Zero and negatives are kept. Prices use ``_finite_price``."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return number
+
+
+def _finite_or_nan(value: float | None) -> float:
+    """Finite feature, or NaN when it is missing. Sign is allowed."""
+    number = _finite_number(value)
+    return float("nan") if number is None else number
+
+
+def _finite_or_none(value: float | None) -> float | None:
+    """Finite feature for telemetry, or None when it is missing. Sign is allowed."""
+    return _finite_number(value)
+
+
+# Share of rows that already have prior ATR and boundary. Above this, a
+# missing_feature stamp means the scan wrapper dropped a real feature.
+MISSING_FEATURE_SHARE_LIMIT = 0.05
+
+
+def missing_feature_share(rows: list[dict[str, Any]]) -> float | None:
+    """Fraction of input-complete rows rejected as ``missing_feature``.
+
+    A row counts only when prior ATR and boundary are present. Instrument-only
+    scan rows, which have neither, are ignored. ``None`` means there were no
+    such rows.
+    """
+    eligible = 0
+    missing = 0
+    for row in rows:
+        features = row.get("feature_values") or {}
+        prior = features.get("prior_atr")
+        if prior is None:
+            prior = row.get("original_ATR")
+        boundary = features.get("boundary")
+        if not _finite_price(prior) or not _finite_price(boundary):
+            continue
+        eligible += 1
+        if row.get("rejection_reason") == "missing_feature":
+            missing += 1
+    if eligible == 0:
+        return None
+    return missing / eligible
 
 
 def _sector(symbol: str) -> str:
