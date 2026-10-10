@@ -530,6 +530,14 @@ def _clock_already_rejected(family: str, symbol: str, side: SignalSide, timefram
 
 def _entry_from_record(name: str, record: dict, symbol: str, side: SignalSide) -> PlanEntry | None:
     """Build a plan row from one approvals-file record."""
+    # F111's entry is a minute retest owned by core.execution.f111_paper.
+    # Putting it on this plan would fill the hourly close immediately, and a
+    # live approved row would select it. Paper and live plans both refuse it.
+    if name == "mar_f111_r12_extension_latefloor_v1":
+        logger.error(
+            "mar_f111_r12_extension_latefloor_v1 is paper-only and is not an engine plan sleeve"
+        )
+        return None
     universe = get_universe()
     params = universe.params_for(symbol, side.value)
     try:
