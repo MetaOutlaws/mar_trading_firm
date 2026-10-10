@@ -36,6 +36,10 @@ data/paper_cash.json.tmp
 # Last evaluated 1h/4h bar per paper sleeve. Runtime cursor, not source.
 data/paper_bar_eval_state.json
 data/paper_bar_eval_state.json.tmp
+# Deployed commit stamp for the dashboard. The image has no .git.
+# See docs/runbooks/desk_deployed_sha.md.
+/GIT_SHA
+data/DEPLOYED_SHA
 logs/*.log
 logs/*.log.*
 logs/archive/

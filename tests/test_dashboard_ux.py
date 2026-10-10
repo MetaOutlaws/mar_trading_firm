@@ -57,6 +57,13 @@ def test_desk_header_f111_panel_and_live_book_are_wired():
     assert "bar close" in html
     assert "llm_seats_enabled === false" in html
     assert "LLM seats disabled" in html
+    assert "Book overrides" in html
+    assert "Sitting out (regime)" in html
+    assert "Active ${scan.active}" in html
+    assert "Active ${counts.active}" in html
+    assert "Legacy LLM record" in html
+    assert "legacy_llm" in html
+    assert 'get("/api/regime")' in html
 
 
 def test_hardcoded_status_notes_are_gone():
