@@ -1,0 +1,43 @@
+# Host-only unit. Do not add this to a compose file or a container.
+# The process is read-only public market data. It must not run as root.
+#
+# Restart=on-failure resumes an unfinished campaign after a crash.
+# A clean exit (planned end, or SAMPLER_DONE already present) stays stopped.
+# Do not add --hours here: an explicit duration would slide the end forward
+# on every reboot. The first start records start+168h in sampler_run.json.
+
+[Unit]
+Description=Read-only Bybit sampler for XRPUSDT and AVAXUSDT linear perps
+Documentation=file:/opt/cost-sampler/RUNBOOK.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=costsampler
+Group=costsampler
+WorkingDirectory=/data/research/cost_sampler_xrp_avax
+ExecStart=/usr/bin/python3 -u /opt/cost-sampler/xrp_avax_cost_sampler.py --out /data/research/cost_sampler_xrp_avax --max-bytes 2147483648
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=30
+Nice=19
+MemoryMax=256M
+LimitNOFILE=256
+UMask=0027
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/data/research/cost_sampler_xrp_avax
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cost-sampler-xrp-avax
+
+[Install]
+WantedBy=multi-user.target
