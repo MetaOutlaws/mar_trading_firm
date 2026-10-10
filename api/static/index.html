@@ -395,6 +395,10 @@ tr.job-group:hover td { background: var(--surface-2); }
   white-space: nowrap;
 }
 .tag.missing { color: var(--warn); border-color: rgba(240,180,41,.32); }
+.table-scroll { overflow-x: auto; }
+.findings-table { min-width: 1280px; font-size: 12px; }
+.findings-table th { letter-spacing: 0.04em; }
+.finding-note { color: var(--muted); font-style: italic; }
 /* Fixed-width table so many columns fit without a horizontal scrollbar */
 .table-fixed { table-layout: fixed; }
 .table-fixed td, .table-fixed th {
@@ -731,7 +735,7 @@ const KICKERS = {
   positions: "Open book — mark, open P&L, stop, and target",
   strategies: "Research-approved (live gate) vs operator paper vetoes vs rejects",
   inbox: "Proposals that need a human, plus open escalations",
-  research: "Ranked next tests (clock/side follow-ups), then finished family verdicts",
+  research: "Path2 findings table (empty until a sealed table), then ranked next tests",
   sentiment: "Luke CT snapshot — L1 display only; no trade calls",
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
@@ -842,6 +846,8 @@ const PAGE_SIZES = {
   hypotheses: 10,
   positions: 10,
   nextTests: 5,
+  // One scored cell is two rows. 16 cells keeps the sealed table on one page.
+  findings: 16,
 };
 function pageSize(id) {
   return PAGE_SIZES[id] || 10;
@@ -851,7 +857,7 @@ const VIEW_PAGE_KEYS = {
   strategies: ["strat", "integrity"],
   blotter: ["blotter", "rejects"],
   inbox: ["inbox", "escal"],
-  research: ["jobs", "backlog", "hypotheses", "nextTests"],
+  research: ["jobs", "backlog", "hypotheses", "nextTests", "findings"],
   positions: ["positions"],
   floor: ["activity", "jobs"],
 };
@@ -1709,6 +1715,121 @@ function renderInbox() {
   </div>`;
 }
 
+// Path2 findings columns, in operator order. The last column is a note:
+// a green year must not be read as PASS or FAIL.
+const PATH2_FINDING_HEADERS = [
+  "Family",
+  "Clock",
+  "Side",
+  "Frozen thresholds",
+  "n",
+  "Target-first count",
+  "Target-first rate",
+  "Gross",
+  "Net after 0.31% round trip",
+  "Same-shell H=18 base net",
+  "Stress stop 2% net",
+  "PASS or FAIL",
+  "Green year note",
+];
+
+// Show a sealed scalar as written. Null, blank, and non-scalars are missing.
+// This does not compute a rate or fill a zero.
+function findingShown(value) {
+  if (value == null || value === "") return null;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null;
+    return String(value);
+  }
+  if (typeof value === "string") {
+    const text = value.trim();
+    return text || null;
+  }
+  return null;
+}
+function findingSlot(value) {
+  const text = findingShown(value);
+  if (text == null) return `<span class="tag missing">missing</span>`;
+  return esc(text);
+}
+// Verdict is only the sealed PASS or FAIL token. Nets and green-year notes
+// are not inputs here, so they cannot flip the badge.
+function findingVerdict(value) {
+  if (value === "PASS") return `<span class="badge ok">PASS</span>`;
+  if (value === "FAIL") return `<span class="badge bad">FAIL</span>`;
+  return `<span class="tag missing">missing</span>`;
+}
+function findingNote(value) {
+  const text = findingShown(value);
+  if (text == null) return `<span class="tag missing">missing</span>`;
+  return `<span class="finding-note">${esc(text)}</span>`;
+}
+function findingMetricCells(side) {
+  const row = side || {};
+  return ["n", "target_first_count", "target_first_rate", "gross", "net_after_0_31_rt", "same_shell_h18_base_net", "stress_stop_2_net"]
+    .map((key) => `<td class="num">${findingSlot(row[key])}</td>`)
+    .join("");
+}
+// One scored cell draws two body rows so long and short both stay visible.
+function findingCellRows(cell) {
+  const sides = (cell && cell.sides) || {};
+  return ["long", "short"].map((side, index) => {
+    const lead = index === 0
+      ? `<td rowspan="2">${findingSlot(cell.family)}</td><td rowspan="2">${findingSlot(cell.clock)}</td>`
+      : "";
+    const thresholds = index === 0
+      ? `<td rowspan="2">${findingSlot(cell.thresholds_label)}</td>`
+      : "";
+    const tail = index === 0
+      ? `<td rowspan="2">${findingVerdict(cell.verdict)}</td><td rowspan="2">${findingNote(cell.green_year_note)}</td>`
+      : "";
+    return `<tr>
+      ${lead}
+      <td>${esc(side)}</td>
+      ${thresholds}
+      ${findingMetricCells(sides[side])}
+      ${tail}
+    </tr>`;
+  }).join("");
+}
+function renderPath2Findings() {
+  const pack = (state.floor && state.floor.path2_findings) || {};
+  const cells = Array.isArray(pack.cells) ? pack.cells : [];
+  const note = pack.note || "Rows are added only from a Marcus-sealed table, not from briefs.";
+  const sealed = pack.sealed === true;
+  const headers = PATH2_FINDING_HEADERS.map((label, index) => {
+    if (index === PATH2_FINDING_HEADERS.length - 1) {
+      return `<th title="Note only. This does not set PASS or FAIL.">${label}</th>`;
+    }
+    return `<th>${label}</th>`;
+  }).join("");
+  const sliced = pageSlice("findings", cells);
+  const body = cells.length
+    ? sliced.items.map(findingCellRows).join("")
+    : `<tr><td colspan="${PATH2_FINDING_HEADERS.length}">${
+        pack.load_error
+          ? empty("Findings file did not load", String(pack.load_error))
+          : empty(
+              "No sealed cells",
+              "This findings table has zero rows. A cell is added only from a Marcus-sealed table, not from a brief. PASS and FAIL stay blank until that table says so."
+            )
+      }</td></tr>`;
+  const sealBadge = sealed
+    ? `<span class="badge">sealed table</span>`
+    : `<span class="badge warn">not sealed</span>`;
+  return `<div class="card" id="path2-findings">
+      <h2>Path2 findings ${sealBadge}</h2>
+      <p class="muted">${esc(note)} One row is one scored cell: long and short both stay on it. A blank marked missing was not in the table. A green year is a note and does not change PASS or FAIL.</p>
+      <div class="table-scroll">
+        <table class="findings-table" data-page-list="findings">
+          <thead><tr>${headers}</tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      ${pagerHtml("findings", sliced, "cells")}
+    </div>`;
+}
+
 function renderResearch() {
   const plan = state.floor.research_plan || {};
   const nextTests = plan.next_tests || [];
@@ -1846,7 +1967,7 @@ function renderResearch() {
         ${pagerHtml("hypotheses", hypSliced, "hypotheses")}
       </div>`
     : `<div class="card">${empty("No hypotheses yet", "The quant researcher writes here after a cycle. The catalog above is the plan it must follow.")}</div>`;
-  return pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
+  return renderPath2Findings() + pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
 }
 
 function sentimentDesk() {
@@ -2415,7 +2536,7 @@ function viewFingerprint(name) {
     positions: { pos: (state.risk || {}).open_positions, eq: state.equity },
     strategies: { strategies: state.strategies, integrity: floor.integrity },
     inbox: { inbox: floor.inbox, escalations: floor.escalations },
-    research: { pipeline: floor.pipeline, research: floor.research, plan: floor.research_plan },
+    research: { pipeline: floor.pipeline, research: floor.research, plan: floor.research_plan, path2: floor.path2_findings },
     sentiment: { sentiment: floor.sentiment, regime: floor.regime },
     gates: { golive: state.golive },
     controls: { llm: state.llm, budget: floor.budget },

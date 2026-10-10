@@ -1,0 +1,470 @@
+{
+  "note": "Rows are added only from a Marcus-sealed table, not from briefs.",
+  "sealed": true,
+  "cells": [
+    {
+      "id": "macd_ma_agree-4h",
+      "family": "macd_ma_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "EMA 21 and MACD 12, 26, 9, agreement required"
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 533,
+          "target_first_count": 166,
+          "target_first_rate": "31.1%",
+          "gross": "+0.009634",
+          "net_after_0_31_rt": "-0.197033",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.178630"
+        },
+        "short": {
+          "n": 484,
+          "target_first_count": 150,
+          "target_first_rate": "31.0%",
+          "gross": "+0.025144",
+          "net_after_0_31_rt": "-0.181523",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.095669"
+        }
+      }
+    },
+    {
+      "id": "ma_rsi_agree-4h-70-30",
+      "family": "ma_rsi_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "EMA 21, RSI 14, cell 70/30"
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 1,
+          "target_first_count": 1,
+          "target_first_rate": "100%",
+          "gross": "+2.000",
+          "net_after_0_31_rt": "+1.793333",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "+1.345"
+        },
+        "short": {
+          "n": 3,
+          "target_first_count": 2,
+          "target_first_rate": "66.7%",
+          "gross": "+1.000",
+          "net_after_0_31_rt": "+0.793333",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "+0.511667"
+        }
+      }
+    },
+    {
+      "id": "ma_rsi_agree-4h-80-20",
+      "family": "ma_rsi_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "EMA 21, RSI 14, cell 80/20"
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 0,
+          "target_first_count": 0,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": null
+        },
+        "short": {
+          "n": 0,
+          "target_first_count": 0,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": null
+        }
+      }
+    },
+    {
+      "id": "va_rsi_agree-4h-70-30",
+      "family": "va_rsi_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "6 bars, 70% volume at the close, RSI 14, pair 70/30"
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 127,
+          "target_first_count": 33,
+          "target_first_rate": "26.0%",
+          "gross": "-0.130728",
+          "net_after_0_31_rt": "-0.337395",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.274343"
+        },
+        "short": {
+          "n": 133,
+          "target_first_count": 41,
+          "target_first_rate": "30.8%",
+          "gross": "+0.008648",
+          "net_after_0_31_rt": "-0.198018",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.219031"
+        }
+      }
+    },
+    {
+      "id": "va_rsi_agree-4h-80-20",
+      "family": "va_rsi_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "6 bars, 70% volume at the close, RSI 14, pair 80/20"
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 20,
+          "target_first_count": 8,
+          "target_first_rate": "40.0%",
+          "gross": "+0.252953",
+          "net_after_0_31_rt": "+0.046287",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "+0.045730"
+        },
+        "short": {
+          "n": 40,
+          "target_first_count": 13,
+          "target_first_rate": "32.5%",
+          "gross": "-0.025000",
+          "net_after_0_31_rt": "-0.231667",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.246742"
+        }
+      }
+    },
+    {
+      "id": "adx_rsi_agree-4h-70-30-floor-20",
+      "family": "adx_rsi_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "Wilder 14, ADX floor 20 as a state, DI direction as a state, RSI 70/30. Both legs required."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 0,
+          "target_first_count": 0,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": null
+        },
+        "short": {
+          "n": 1,
+          "target_first_count": 1,
+          "target_first_rate": "100%",
+          "gross": "+2.000000",
+          "net_after_0_31_rt": "+1.793333",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "+1.345000"
+        }
+      }
+    },
+    {
+      "id": "adx_rsi_agree-4h-70-30-floor-25",
+      "family": "adx_rsi_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "Wilder 14, ADX floor 25 as a state, DI direction as a state, RSI 70/30."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 0,
+          "target_first_count": 0,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": null
+        },
+        "short": {
+          "n": 1,
+          "target_first_count": 1,
+          "target_first_rate": "100%",
+          "gross": "+2.000000",
+          "net_after_0_31_rt": "+1.793333",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "+1.345000"
+        }
+      }
+    },
+    {
+      "id": "adx_ma_agree-4h-floor-20",
+      "family": "adx_ma_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "Wilder 14, ADX floor 20 as a state, DI direction as a state, close versus EMA 21. Both legs required."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 944,
+          "target_first_count": 310,
+          "target_first_rate": "32.8%",
+          "gross": "+0.040455",
+          "net_after_0_31_rt": "-0.166212",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.108236"
+        },
+        "short": {
+          "n": 1231,
+          "target_first_count": 389,
+          "target_first_rate": "31.6%",
+          "gross": "-0.017631",
+          "net_after_0_31_rt": "-0.224298",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.153372"
+        }
+      }
+    },
+    {
+      "id": "adx_ma_agree-4h-floor-25",
+      "family": "adx_ma_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "Wilder 14, ADX floor 25 as a state, DI direction as a state, close versus EMA 21. Both legs required."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 700,
+          "target_first_count": 234,
+          "target_first_rate": "33.4%",
+          "gross": "+0.048085",
+          "net_after_0_31_rt": "-0.158581",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.065004"
+        },
+        "short": {
+          "n": 976,
+          "target_first_count": 313,
+          "target_first_rate": "32.1%",
+          "gross": "+0.001735",
+          "net_after_0_31_rt": "-0.204931",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.150666"
+        }
+      }
+    },
+    {
+      "id": "ma_macd_rsi_agree-4h",
+      "family": "ma_macd_rsi_agree",
+      "clock": "4h",
+      "thresholds": {
+        "label": "EMA 21, MACD 12/26/9, RSI 14 as a state at or above 30 for long and at or below 70 for short. All three required. Note that RSI at the prior bar was not read."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 1162,
+          "target_first_count": 375,
+          "target_first_rate": "32.3%",
+          "gross": "+0.024716",
+          "net_after_0_31_rt": "-0.181951",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.126355"
+        },
+        "short": {
+          "n": 1267,
+          "target_first_count": 397,
+          "target_first_rate": "31.3%",
+          "gross": "-0.006383",
+          "net_after_0_31_rt": "-0.213050",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.153812"
+        }
+      }
+    },
+    {
+      "id": "funding_extreme_agree",
+      "family": "funding_extreme_agree",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "0.0005 inclusive, which is 1/2000, five times the 0.01% eight-hour baseline. Frozen before any count. Long: the latest funding print known at the bar close is >= +0.0005 and that bar closes above its open. Short: the print is <= -0.0005 and that bar closes below its open. Either piece alone is no trade. Not a fade."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 180,
+          "target_first_count": 55,
+          "target_first_rate": "0.305556",
+          "gross": "-0.083333",
+          "net_after_0_31_rt": "-0.290000",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.208048"
+        },
+        "short": {
+          "n": 20,
+          "target_first_count": 2,
+          "target_first_rate": "0.100000",
+          "gross": "-0.700000",
+          "net_after_0_31_rt": "-0.906667",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.713824"
+        }
+      }
+    },
+    {
+      "id": "london_am_range_break",
+      "family": "london_am_range_break",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "prior completed 07:00–11:00 UTC box from 1h bars opening 07/08/09/10; min range (H-L)/mid >= 0.004; long = close cross up through high; short = cross down through low; close back inside is no trade."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 862,
+          "target_first_count": 274,
+          "target_first_rate": "0.317865",
+          "gross": "+0.033733",
+          "net_after_0_31_rt": "-0.172933",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.138613"
+        },
+        "short": {
+          "n": 855,
+          "target_first_count": 263,
+          "target_first_rate": "0.307602",
+          "gross": "-0.000012",
+          "net_after_0_31_rt": "-0.206679",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.128235"
+        }
+      }
+    },
+    {
+      "id": "prior_utc_day_mid_cross",
+      "family": "prior_utc_day_mid_cross",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "prior completed UTC day mid=(H+L)/2; min range (H−L)/mid ≥ 0.005; long = first close cross up through mid; short = first close cross down; wick pierce that closes back is no trade."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 682,
+          "target_first_count": 210,
+          "target_first_rate": "0.307918",
+          "gross": "+0.007469",
+          "net_after_0_31_rt": "-0.199198",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.194115"
+        },
+        "short": {
+          "n": 677,
+          "target_first_count": 205,
+          "target_first_rate": "0.302806",
+          "gross": "-0.000931",
+          "net_after_0_31_rt": "-0.207597",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.133446"
+        }
+      }
+    },
+    {
+      "id": "eth_btc_return_agree",
+      "family": "eth_btc_return_agree",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "prior ETH close-to-close (close[t-1]−close[t-2])/close[t-2] at or beyond ±0.003 AND BTC same-bar close through open; either alone no trade."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 1128,
+          "target_first_count": 347,
+          "target_first_rate": "0.307624",
+          "gross": "+0.011404",
+          "net_after_0_31_rt": "-0.195263",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.159413"
+        },
+        "short": {
+          "n": 1111,
+          "target_first_count": 360,
+          "target_first_rate": "0.324032",
+          "gross": "+0.052204",
+          "net_after_0_31_rt": "-0.154463",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.109531"
+        }
+      }
+    },
+    {
+      "id": "oi_delta_agree",
+      "family": "oi_delta_agree",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "Binance USDT-M OI 4h change at or beyond ±0.75%, using the last 5m snapshot strictly before close (declared cross-venue proxy), AND same-bar close through open; either leg alone no trade; OI NaN or 0 counts as missing, no trade."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 1104,
+          "target_first_count": 349,
+          "target_first_rate": "0.316123",
+          "gross": "+0.029848",
+          "net_after_0_31_rt": "-0.176818",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.119969"
+        },
+        "short": {
+          "n": 1147,
+          "target_first_count": 322,
+          "target_first_rate": "0.280732",
+          "gross": "-0.077282",
+          "net_after_0_31_rt": "-0.283949",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.202034"
+        }
+      }
+    },
+    {
+      "id": "toptrader_crowd_divergence",
+      "family": "toptrader_crowd_divergence",
+      "clock": "BTCUSDT 4h",
+      "thresholds": {
+        "label": "dX = ln(X[t]/X[t−6]) on Binance USDT-M sum_toptrader_long_short_ratio (TOP) and count_long_short_ratio (ACC), each the last 5m snapshot strictly before bar close (declared cross-venue proxy). Stale >60m, ≤0 or NaN = missing = no trade. Long = dTOP ≥ +0.05 AND dACC ≤ −0.10. Short = dTOP ≤ −0.05 AND dACC ≥ +0.10. No candle leg. 18-bar non-overlap per side."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": 96,
+          "target_first_count": 28,
+          "target_first_rate": "0.291667",
+          "gross": "-0.045766",
+          "net_after_0_31_rt": "-0.252432",
+          "same_shell_h18_base_net": "-0.212583",
+          "stress_stop_2_net": "-0.238001"
+        },
+        "short": {
+          "n": 97,
+          "target_first_count": 28,
+          "target_first_rate": "0.288660",
+          "gross": "-0.001160",
+          "net_after_0_31_rt": "-0.207827",
+          "same_shell_h18_base_net": "-0.248336",
+          "stress_stop_2_net": "-0.054441"
+        }
+      }
+    }
+  ]
+}

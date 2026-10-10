@@ -107,6 +107,22 @@ def _safe_sentiment() -> dict[str, Any]:
         return empty_desk_payload()
 
 
+def _safe_path2_findings() -> dict[str, Any]:
+    """Research-page findings file. Read only — does not score, seal, or trade."""
+    try:
+        from firm.path2_findings import empty_path2_findings, load_path2_findings
+
+        blob = load_path2_findings()
+        return blob if isinstance(blob, dict) else empty_path2_findings(
+            load_error="findings payload was empty"
+        )
+    except Exception:
+        logger.exception("Path2 findings failed to load")
+        from firm.path2_findings import empty_path2_findings
+
+        return empty_path2_findings(load_error="findings failed to load")
+
+
 #: How often each cadence is allowed to fire. PER_CYCLE is the trading engine's
 #: own interval; the orchestrator treats it as "every time we are asked".
 CADENCE_INTERVALS: dict[Cadence, timedelta] = {
@@ -302,6 +318,7 @@ class Orchestrator:
             "sentiment": _safe_sentiment(),
             "research": memory.research_board(limit=20),
             "research_plan": research_plan(),
+            "path2_findings": _safe_path2_findings(),
             "org": org_snapshot(),
             "pipeline": pipeline_snapshot(),
             "integrity": _safe_integrity(),

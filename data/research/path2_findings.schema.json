@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "path2_findings.schema.json",
+  "title": "Path2 findings table",
+  "description": "Scored cells for the research-page findings tab. Each item in cells is one scored cell and carries both sides (long and short). Rows are added only from a Marcus-sealed table, not from briefs. Leave a metric null when the sealed table does not contain it. verdict is PASS or FAIL only when the sealed table says so. green_year_note is a note and must not be copied into verdict or treated as a pass.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["note", "sealed", "cells"],
+  "properties": {
+    "note": {
+      "type": "string",
+      "description": "Operator note. The shipped file states that rows come only from a Marcus-sealed table, not from briefs."
+    },
+    "sealed": {
+      "type": "boolean",
+      "description": "True when Marcus has sealed the rows in cells. A false file with an empty cells list is the empty state."
+    },
+    "cells": {
+      "type": "array",
+      "description": "One record per scored cell. Append another object here for a later lean. Do not redesign the columns.",
+      "items": { "$ref": "#/$defs/cell" }
+    }
+  },
+  "$defs": {
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "clock", "thresholds", "sides", "verdict"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable id for this cell. Not a score."
+        },
+        "family": { "type": ["string", "null"] },
+        "clock": { "type": ["string", "null"] },
+        "thresholds": { "$ref": "#/$defs/thresholds" },
+        "green_year_note": {
+          "type": ["string", "null"],
+          "description": "Optional note about a green year. Not a verdict. Must not flip PASS or FAIL."
+        },
+        "verdict": {
+          "description": "Cell verdict from the sealed table. Null when the table does not say PASS or FAIL. Do not derive this from green_year_note or from either side's net.",
+          "enum": ["PASS", "FAIL", null]
+        },
+        "sides": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["long", "short"],
+          "description": "Both sides stay on the cell. A side with no figures is an object of nulls, not an omitted side.",
+          "properties": {
+            "long": { "$ref": "#/$defs/side" },
+            "short": { "$ref": "#/$defs/side" }
+          }
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "description": "Frozen thresholds for this cell. Use label for the operator line, or fill the pieces the sealed table actually has. Null pieces are omitted from the line.",
+      "properties": {
+        "label": { "type": ["string", "null"] },
+        "target": { "type": ["string", "number", "null"] },
+        "stop": { "type": ["string", "number", "null"] },
+        "horizon": { "type": ["string", "number", "null"] }
+      },
+      "additionalProperties": { "type": ["string", "number", "null"] }
+    },
+    "metric": { "type": ["string", "number", "null"] },
+    "side": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "n": { "$ref": "#/$defs/metric" },
+        "target_first_count": { "$ref": "#/$defs/metric" },
+        "target_first_rate": { "$ref": "#/$defs/metric" },
+        "gross": { "$ref": "#/$defs/metric" },
+        "net_after_0_31_rt": { "$ref": "#/$defs/metric" },
+        "same_shell_h18_base_net": { "$ref": "#/$defs/metric" },
+        "stress_stop_2_net": { "$ref": "#/$defs/metric" }
+      }
+    }
+  }
+}
