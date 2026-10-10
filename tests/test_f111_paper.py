@@ -44,6 +44,7 @@ from core.strategy.f111_semantics import (
     new_protection_state,
     plan_retest,
     research_net,
+    signed_extension,
     simulate_policy331,
     simulate_reference_floor,
     step_protection,
@@ -163,6 +164,134 @@ def test_gate_equality_edges():
     assert gate_decision(compression=float("nan"), extension_atr=0.2, prior_atr=1.0, close=100.0)[1] == (
         "missing_feature"
     )
+    # A null extension must not hide a gate that does not use it.
+    assert gate_decision(
+        compression=0.5, extension_atr=float("nan"), prior_atr=3.19e-05, close=0.00339
+    )[1] == "high_vol_filter"
+    assert gate_decision(
+        compression=0.4, extension_atr=float("nan"), prior_atr=1.0, close=100.0
+    )[1] == "compression_gate"
+
+
+def test_signed_extension_is_computed_for_both_sides_when_inputs_exist():
+    """14:00Z shape: close, boundary and prior ATR exist, so extension exists."""
+    # 1000BONKUSDT LONG. close is under the prior-20 high, so extension is negative.
+    long_ext = signed_extension(1, 0.00339, 0.003448, 3.19e-05)
+    assert long_ext == pytest.approx((0.00339 - 0.003448) / 3.19e-05)
+    assert long_ext < 0
+    # SHORT uses the prior-20 low. Price above that low is also a negative extension.
+    short_ext = signed_extension(-1, 0.00339, 0.00330, 3.19e-05)
+    assert short_ext == pytest.approx(-1 * (0.00339 - 0.00330) / 3.19e-05)
+    assert short_ext < 0
+    assert signed_extension(1, 0.00339, float("nan"), 3.19e-05) != signed_extension(1, 0.00339, float("nan"), 3.19e-05)
+
+
+def test_null_extension_does_not_mask_the_real_rejection(tmp_path):
+    """SGP1 logged missing_feature on top of an inner reason, with extension the only null."""
+    runtime = _runtime(tmp_path)
+    # 1000BONKUSDT LONG: inner reason high_vol_filter, extension left unset.
+    bonk = runtime.observe_signal(
+        symbol="1000BONKUSDT",
+        side="LONG",
+        t0=T0,
+        boundary=0.003448,
+        prior_atr=3.19e-05,
+        close=0.00339,
+        compression=0.5,
+        extension_atr=float("nan"),
+        base_passed=True,
+        observed_at=T0,
+        features={"f111_rejection_reason": "high_vol_filter", "extension_atr": None},
+    )
+    assert bonk["rejection_reason"] == "high_vol_filter"
+    assert bonk["feature_values"]["extension_atr"] == pytest.approx(
+        signed_extension(1, 0.00339, 0.003448, 3.19e-05)
+    )
+    assert bonk["feature_values"]["compression"] == pytest.approx(0.5)
+    assert bonk["feature_values"]["prior_atr"] == pytest.approx(3.19e-05)
+    assert bonk["feature_values"]["close"] == pytest.approx(0.00339)
+    assert bonk["feature_values"]["boundary"] == pytest.approx(0.003448)
+
+    short = runtime.observe_signal(
+        symbol="1000BONKUSDT",
+        side="SHORT",
+        t0=T0 + timedelta(hours=1),
+        boundary=99.0,
+        prior_atr=2.0,
+        close=100.0,
+        compression=0.4,
+        extension_atr=float("nan"),
+        base_passed=True,
+        observed_at=T0 + timedelta(hours=1),
+        features={"f111_rejection_reason": "compression_gate", "extension_atr": None},
+    )
+    assert short["rejection_reason"] == "compression_gate"
+    assert short["feature_values"]["extension_atr"] == pytest.approx(signed_extension(-1, 100.0, 99.0, 2.0))
+    assert short["feature_values"]["extension_atr"] < 0
+
+    # Inputs cannot form an extension. The parent reason still stands.
+    blocked = runtime.observe_signal(
+        symbol="ADAUSDT",
+        side="LONG",
+        t0=T0 + timedelta(hours=2),
+        boundary=float("nan"),
+        prior_atr=2.0,
+        close=100.0,
+        compression=0.6,
+        extension_atr=float("nan"),
+        base_passed=False,
+        observed_at=T0 + timedelta(hours=2),
+        features={"f111_rejection_reason": "base_signal_blocked", "extension_atr": None},
+    )
+    assert blocked["rejection_reason"] == "base_signal_blocked"
+    assert blocked["feature_values"]["extension_atr"] is None
+
+    # The three sleeves that already had a positive extension keep that reason.
+    extension_gate = runtime.observe_signal(
+        symbol="CFXUSDT",
+        side="LONG",
+        t0=T0 + timedelta(hours=3),
+        boundary=1.0,
+        prior_atr=1.0,
+        close=3.48,
+        compression=0.6,
+        extension_atr=2.48,
+        base_passed=True,
+        observed_at=T0 + timedelta(hours=3),
+        features={"f111_rejection_reason": "extension_gate"},
+    )
+    assert extension_gate["rejection_reason"] == "extension_gate"
+    assert extension_gate["feature_values"]["extension_atr"] == pytest.approx(2.48)
+    high_vol = runtime.observe_signal(
+        symbol="LINKUSDT",
+        side="LONG",
+        t0=T0 + timedelta(hours=4),
+        boundary=1.0,
+        prior_atr=0.005,
+        close=1.0,
+        compression=0.6,
+        extension_atr=0.544,
+        base_passed=True,
+        observed_at=T0 + timedelta(hours=4),
+        features={"f111_rejection_reason": "high_vol_filter"},
+    )
+    assert high_vol["rejection_reason"] == "high_vol_filter"
+    assert high_vol["feature_values"]["extension_atr"] == pytest.approx(0.544)
+    kept = runtime.observe_signal(
+        symbol="NEARUSDT",
+        side="LONG",
+        t0=T0 + timedelta(hours=5),
+        boundary=1.0,
+        prior_atr=2.0,
+        close=100.0,
+        compression=0.6,
+        extension_atr=0.154,
+        base_passed=False,
+        observed_at=T0 + timedelta(hours=5),
+        features={"f111_rejection_reason": "base_signal_blocked"},
+    )
+    assert kept["rejection_reason"] == "base_signal_blocked"
+    assert kept["feature_values"]["extension_atr"] == pytest.approx(0.154)
 
 
 def test_retest_fixtures_match_the_reference_planner():
@@ -682,6 +811,44 @@ def test_strategy_preserves_the_parent_and_adds_f111_gates(monkeypatch):
     assert rule.latest_signal("BTCUSDT", candles) is None
 
 
+def test_null_parent_extension_is_filled_for_long_and_short(monkeypatch):
+    """A parent branch can leave extension_atr null after it already rejected the row."""
+    from dataclasses import replace
+
+    from core.strategy.base import SignalSide
+    from core.strategy.hourly_compression_btc_connors_loweff_v1 import (
+        HourlyCompressionBtcConnorsLoweffV1Strategy,
+    )
+    from core.strategy.mar_f111_r12_extension_latefloor_v1 import (
+        MarF111R12ExtensionLatefloorV1Strategy,
+    )
+
+    index = pd.date_range("2024-06-01", periods=4, freq="h", tz="UTC")
+    candles = pd.DataFrame(
+        {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 1.0},
+        index=index,
+    )
+
+    def parent(self, frame):
+        out = self.empty_signals(frame)
+        out["compression"] = 0.6
+        out["prior_atr"] = 2.0
+        out["extension_atr"] = np.nan
+        out["entry_boundary"] = 101.0 if self.params.side.sign == 1 else 99.0
+        return out
+
+    monkeypatch.setattr(HourlyCompressionBtcConnorsLoweffV1Strategy, "generate_signals", parent)
+    for side, sign in ((SignalSide.LONG, 1), (SignalSide.SHORT, -1)):
+        rule = MarF111R12ExtensionLatefloorV1Strategy(
+            replace(MarF111R12ExtensionLatefloorV1Strategy().params, side=side)
+        )
+        out = rule.generate_signals(candles)
+        expected = signed_extension(sign, 100.0, 101.0 if sign == 1 else 99.0, 2.0)
+        assert expected < 0
+        assert float(out["extension_atr"].iloc[-1]) == pytest.approx(expected)
+        assert out["f111_rejection_reason"].iloc[-1] == "base_signal_blocked"
+
+
 def test_paper_only_enforcement(monkeypatch):
     monkeypatch.setenv("TRADING_MODE", "testnet")
     get_settings.cache_clear()
@@ -923,6 +1090,82 @@ def test_stale_signal_is_not_backfilled(tmp_path):
     event = _pass_signal(runtime, observed_at=T0 + timedelta(minutes=5))
     assert event["rejection_reason"] == "stale_signal_not_backfilled"
     assert runtime.pending == []
+
+
+def test_live_shaped_hourly_frame_keeps_signed_extension_for_long_and_short(tmp_path):
+    """The SGP1 hourly frame, including the still-forming bar Bybit appends.
+
+    extension_atr is negative when price has not broken the prior-20 boundary.
+    That is every normal SHORT and most LONGs. The live reader must keep the
+    sign. A price check (> 0) records those sleeves as missing_feature.
+    """
+    from dataclasses import replace
+
+    from core.data.ohlcv import CANONICAL_COLUMNS, closed_candles
+    from core.strategy.base import SignalSide
+    from core.strategy.mar_f111_r12_extension_latefloor_v1 import (
+        MarF111R12ExtensionLatefloorV1Strategy,
+    )
+
+    bars = MarF111R12ExtensionLatefloorV1Strategy.min_bars + 1
+    index = pd.date_range("2024-01-01", periods=bars, freq="h", tz="UTC", name="timestamp")
+    frame = pd.DataFrame(
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.0,
+            "volume": 10.0,
+            "turnover": 1000.0,
+        },
+        index=index,
+    )
+    frame = frame[CANONICAL_COLUMNS].astype("float64")
+    # Ten seconds into the last Bybit bar. closed_candles drops that bar.
+    now = index[-1].to_pydatetime() + timedelta(seconds=10)
+
+    class _LiveHourly:
+        def fetch_latest(self, symbol: str, timeframe: str, bars: int = 860) -> pd.DataFrame:
+            assert symbol == "BTCUSDT"
+            assert timeframe == "1h"
+            assert bars == 860
+            return frame
+
+    runtime = _runtime(tmp_path)
+    runtime.registry["BTCUSDT"] = _available("BTCUSDT")
+    runtime._consume_hourly(_LiveHourly(), now)
+
+    closed = closed_candles(frame, "1h", now=now)
+    assert list(closed.columns) == CANONICAL_COLUMNS
+    assert closed.index.name == "timestamp"
+    assert len(closed) == MarF111R12ExtensionLatefloorV1Strategy.min_bars
+    expected: dict[str, float] = {}
+    boundaries: dict[str, float] = {}
+    for side in (SignalSide.LONG, SignalSide.SHORT):
+        rule = MarF111R12ExtensionLatefloorV1Strategy(
+            replace(MarF111R12ExtensionLatefloorV1Strategy().params, side=side)
+        )
+        signals = rule.generate_signals(rule.prepare_market_context("BTCUSDT", closed, None))
+        extension = float(signals["extension_atr"].iloc[-1])
+        assert extension < 0
+        expected[side.value] = extension
+        boundaries[side.value] = float(signals["entry_boundary"].iloc[-1])
+
+    logged = [
+        row
+        for row in runtime.events
+        if row.get("symbol") == "BTCUSDT" and row.get("side") in {"LONG", "SHORT"}
+    ]
+    assert {row["side"] for row in logged} == {"LONG", "SHORT"}
+    for row in logged:
+        got = row["feature_values"]["extension_atr"]
+        assert got == pytest.approx(expected[row["side"]])
+        assert got < 0
+        assert row["rejection_reason"] != "missing_feature"
+        assert row["feature_values"]["compression"] == pytest.approx(1.0)
+        assert row["feature_values"]["boundary"] == pytest.approx(boundaries[row["side"]])
+        assert row["feature_values"]["close"] == pytest.approx(100.0)
+        assert row["feature_values"]["prior_atr"] > 0
 
 
 def test_saved_path_parity_is_unverified_without_the_private_archive():

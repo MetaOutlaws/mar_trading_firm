@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -49,6 +50,7 @@ from core.strategy.f111_semantics import (
     floor_move,
     gate_decision,
     new_protection_state,
+    signed_extension,
     research_exit_price,
     step_protection,
     update_touch,
@@ -308,6 +310,14 @@ class F111Runtime:
         assert_f111_paper_only()
         t0 = _as_utc(t0)
         observed = _as_utc(observed_at or self.clock())
+        features = dict(features or {})
+        sign = 1 if side == "LONG" else -1 if side == "SHORT" else 0
+        if not _is_finite(extension_atr):
+            filled = signed_extension(sign, close, boundary, prior_atr)
+            if _is_finite(filled):
+                extension_atr = filled
+        if _is_finite(extension_atr):
+            features["extension_atr"] = float(extension_atr)
         passed, gate_reason = gate_decision(
             compression=compression,
             extension_atr=extension_atr,
@@ -318,6 +328,17 @@ class F111Runtime:
             gate_reason = "base_signal_blocked"
             passed = False
         elif not base_passed:
+            passed = False
+        # A null extension is optional once an earlier gate, or the parent
+        # signal, already named the rejection. Do not replace that name.
+        parent_reason = str(features.get("f111_rejection_reason") or "")
+        if gate_reason == "missing_feature" and parent_reason in {
+            "high_vol_filter",
+            "compression_gate",
+            "extension_gate",
+            "base_signal_blocked",
+        }:
+            gate_reason = parent_reason
             passed = False
         row = self._signal_row(
             symbol=symbol,
@@ -1141,20 +1162,34 @@ class F111Runtime:
                     continue
                 last = signals.iloc[-1]
                 parent_reason = str(last.get("f111_rejection_reason") or "")
+                # extension_atr is signed: negative when price has not broken
+                # the prior-20 boundary. That is the usual SHORT reading and
+                # the usual LONG reading. It is not a price, so a >0 check
+                # would record it as missing.
+                close_px = float(frame["close"].iloc[-1])
+                boundary_px = (
+                    float(last["entry_boundary"])
+                    if _finite_price(last.get("entry_boundary"))
+                    else float("nan")
+                )
+                atr_px = float(last["prior_atr"]) if _finite_price(last.get("prior_atr")) else float("nan")
+                extension = last.get("extension_atr")
+                if not _is_finite(extension):
+                    extension = signed_extension(int(side.sign), close_px, boundary_px, atr_px)
                 self.observe_signal(
                     symbol=symbol,
                     side=side.value,
                     t0=t0,
-                    boundary=float(last["entry_boundary"]) if _finite_price(last.get("entry_boundary")) else float("nan"),
-                    prior_atr=float(last["prior_atr"]) if _finite_price(last.get("prior_atr")) else float("nan"),
-                    close=float(frame["close"].iloc[-1]),
+                    boundary=boundary_px,
+                    prior_atr=atr_px,
+                    close=close_px,
                     compression=float(last["compression"]) if _finite_price(last.get("compression")) else float("nan"),
-                    extension_atr=float(last["extension_atr"]) if _finite_price(last.get("extension_atr")) else float("nan"),
+                    extension_atr=float(extension) if _is_finite(extension) else float("nan"),
                     base_passed=parent_reason != "base_signal_blocked",
                     observed_at=now,
                     features={
                         "compression": None if not _finite_price(last.get("compression")) else float(last["compression"]),
-                        "extension_atr": None if not _finite_price(last.get("extension_atr")) else float(last["extension_atr"]),
+                        "extension_atr": None if not _is_finite(extension) else float(extension),
                         "f111_rejection_reason": parent_reason,
                     },
                     feature_asof={"hourly_bar_open": str(bar_open), "signal_close": _iso(t0)},
@@ -1259,11 +1294,21 @@ def _funding_for_open(runtime: F111Runtime, symbol: str, now: datetime) -> tuple
 
 
 def _finite_price(value: float | None) -> bool:
+    """A usable price or positive ratio. Zero and negatives are not prices."""
     try:
         number = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return False
     return number > 0 and number == number and number != float("inf")
+
+
+def _is_finite(value: float | None) -> bool:
+    """A finite feature, including zero and negatives. Not a price check."""
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(number)
 
 
 def _sector(symbol: str) -> str:
