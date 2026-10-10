@@ -1681,6 +1681,62 @@ function positionsTable(rows, detailed = false, paged = true) {
   </table></div>${paged ? pagerHtml("positions", sliced, "positions") : ""}`;
 }
 
+function fmtGap(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return String(Math.round(n * 1e6) / 1e6);
+}
+
+function scanSummaryHtml(pay) {
+  if (!pay || !pay.scan_summary) return "";
+  const misses = Array.isArray(pay.near_misses) ? pay.near_misses : [];
+  const one = pay.all_but_one || {};
+  const sleeves = Array.isArray(one.sleeves) ? one.sleeves : [];
+  const blocked = Array.isArray(pay.blocked_after_gates) ? pay.blocked_after_gates : [];
+  const fresh = pay.freshness || {};
+  const missLines = misses.length ? misses.map(item =>
+    `<li>${esc(item.symbol || "—")} ${esc(item.side || "")} ${esc(item.strategy || "")} ${esc(item.condition || item.gate || "")}: ${esc(fmtGap(item.value))} vs ${esc(fmtGap(item.threshold))} (gap ${esc(fmtGap(item.gap))})</li>`
+  ).join("") : `<li>No measured distance on this pass.</li>`;
+  const oneLines = sleeves.length ? sleeves.slice(0, 10).map(item =>
+    `<li>${esc(item.symbol || "—")} ${esc(item.side || "")} ${esc(item.condition || item.gate || "")}</li>`
+  ).join("") : `<li>None.</li>`;
+  const blockLines = blocked.length ? blocked.slice(0, 10).map(item =>
+    `<li>${esc(item.symbol || "—")} ${esc(item.side || "")} ${esc(item.bucket || "")}: ${esc(item.reason || "")} — actionable</li>`
+  ).join("") : `<li>None.</li>`;
+  return `<div style="margin-top:8px">
+    <div><strong>Nearest misses</strong></div>
+    <ul>${missLines}</ul>
+    <div><strong>Passed all but one gate</strong> (${esc(String(one.count || 0))})</div>
+    <ul>${oneLines}</ul>
+    <div><strong>Passed the gates, then blocked</strong></div>
+    <ul>${blockLines}</ul>
+    <div class="muted">Freshness: stale bar ${esc(String(fresh.stale_bar || 0))}, unavailable instrument ${esc(String(fresh.unavailable_instrument || 0))}.</div>
+  </div>`;
+}
+
+function nearMissLogHtml() {
+  const log = state.nearMisses || {};
+  const rows = Array.isArray(log.rows) ? log.rows : [];
+  const body = rows.length ? `<table class="table-fixed"><thead><tr>
+      <th>When</th><th>Symbol</th><th>Side</th><th>Strategy</th><th>Gate</th><th>Value</th><th>Threshold</th><th>Gap</th>
+    </tr></thead><tbody>${rows.slice(0, 30).map(item => `<tr>
+      <td>${esc(stamp(item.logged_at))}</td>
+      <td>${esc(item.symbol || "")}</td>
+      <td>${esc(item.side || "")}</td>
+      <td>${esc(item.strategy || "")}</td>
+      <td>${esc(item.condition || item.gate || "")}</td>
+      <td>${esc(fmtGap(item.value))}</td>
+      <td>${esc(fmtGap(item.threshold))}</td>
+      <td>${esc(fmtGap(item.gap))}</td>
+    </tr>`).join("")}</tbody></table>` : `<div class="muted">No near misses in the last 24 hours.</div>`;
+  return `<div class="card" style="margin-top:16px">
+    <h2>Near misses, last 24h</h2>
+    <div class="muted">${esc(String(log.count || 0))} in the rolling log. Read-only. Distances do not change a gate.</div>
+    ${body}
+  </div>`;
+}
+
 function renderInbox() {
   const inbox = state.floor.inbox || [];
   const escals = state.floor.escalations || [];
@@ -1726,7 +1782,8 @@ function renderInbox() {
           const pay = p.payload || {};
           const brief = pay.brief || p.rationale || "";
           const preview = String(brief).replace(/\s+/g, " ").slice(0, 280);
-          return `<div class="feed-item clickable" onclick="this.classList.toggle('open')">
+          const informational = p.kind === "informational" || pay.informational === true || pay.scan_summary === true;
+        return `<div class="feed-item clickable" onclick="this.classList.toggle('open')">
         <div><span class="badge">${esc(pay.novel ? "novel brief" : (p.kind || "proposal"))}</span> <strong>${esc(p.title)}</strong> <span class="muted">${esc(p.agent)}</span></div>
         <div class="stamp" title="${esc(p.created_at || "")}">Logged ${esc(stamp(p.created_at))}${p.expires_at ? " · expires " + esc(when(p.expires_at)) : ""}</div>
         <div>${esc(preview || "Click for the full brief.")}${brief && brief.length > 280 ? "…" : ""}</div>
@@ -1735,13 +1792,16 @@ function renderInbox() {
           ${pay.brief_path ? `<div class="muted" style="margin-top:8px">${esc(pay.brief_path)}</div>` : ""}
           ${pay.instruction ? `<div class="muted" style="margin-top:8px">${esc(pay.instruction)}</div>` : ""}
         </div>
-        <div class="toolbar" style="margin-top:8px" onclick="event.stopPropagation()">
+        ${informational
+          ? `<div class="muted">Informational only. No approve or reject.</div>${scanSummaryHtml(pay)}`
+          : `<div class="toolbar" style="margin-top:8px" onclick="event.stopPropagation()">
           <button class="btn accent" onclick="decide(${p.id}, true)">Approve</button>
           <button class="btn" onclick="decide(${p.id}, false)">Reject</button>
-        </div>
+        </div>`}
       </div>`;
         }).join("")}</div>${pagerHtml("inbox", sliced, "messages")}` : empty(inbox.length ? "No messages match these filters" : "Inbox is clear", inbox.length ? "Clear search or widen the time window." : "Novel coding briefs land here. Approve hands the instruction to Cursor. Tier A tests auto-start from standby.");
       })()}
+      ${nearMissLogHtml()}
     </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
@@ -2537,7 +2597,7 @@ function viewFingerprint(name) {
     blotter: { trades: state.trades, rejections: state.rejections },
     positions: { pos: (state.risk || {}).open_positions, eq: state.equity },
     strategies: { strategies: state.strategies, integrity: floor.integrity },
-    inbox: { inbox: floor.inbox, escalations: floor.escalations },
+    inbox: { inbox: floor.inbox, escalations: floor.escalations, near: (state.nearMisses || {}).count },
     research: { pipeline: floor.pipeline, research: floor.research, plan: floor.research_plan },
     sentiment: { sentiment: floor.sentiment, regime: floor.regime },
     gates: { golive: state.golive },
@@ -2726,7 +2786,7 @@ async function wakeFloor() {
 async function load(manual) {
   try {
     await ensureLocalToken();
-    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime] = await Promise.all([
+    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime, nearMisses] = await Promise.all([
       get("/api/floor"),
       get("/api/risk"),
       get("/api/trades?limit=100"),
@@ -2739,8 +2799,9 @@ async function load(manual) {
       get("/api/desk"),
       get("/api/f111"),
       get("/api/regime"),
+      get("/api/near-misses").catch(() => ({ count: 0, rows: [] })),
     ]);
-    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime: regime || {}, llmPing: state.llmPing };
+    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime: regime || {}, nearMisses, llmPing: state.llmPing };
     lastError = "";
     render({ keepScroll: true, force: !!manual });
   } catch (err) {

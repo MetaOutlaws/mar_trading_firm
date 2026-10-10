@@ -35,10 +35,19 @@ def connors_components(closes):
         streak_rsi2=streak_rsi,rank100=rank,streak=streak,return1=returns),index=closes.index)
 
 
+# Same bounds the gate uses. Diagnostics import these rather than copying 90 and 10.
+CRSI_LONG_MAX_INCLUSIVE = 90
+CRSI_SHORT_MIN_INCLUSIVE = 10
+
+
 def connors_gate(values,side):
     if side not in (-1,1):raise ValueError('LONG or SHORT required')
     x=np.asarray(values,float)
-    return np.isfinite(x)&(x>=0)&(x<=100)&((x<=90) if side==1 else (x>=10))
+    if side == 1:
+        bound = x <= CRSI_LONG_MAX_INCLUSIVE
+    else:
+        bound = x >= CRSI_SHORT_MIN_INCLUSIVE
+    return np.isfinite(x)&(x>=0)&(x<=100)&bound
 
 
 class HourlyCompressionConnorsV1Strategy(HourlyCompressionV1Strategy):

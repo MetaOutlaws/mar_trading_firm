@@ -631,6 +631,15 @@ def on_operator_approved(proposal: dict[str, Any]) -> dict[str, Any]:
     kind = str(proposal.get("kind") or "")
     title = str(proposal.get("title") or "")
 
+    # A per-scan diary row is not a research approve, even if a caller
+    # bypasses the Inbox button and hands the dict here directly.
+    if kind == "informational" or payload.get("informational") or payload.get("scan_summary"):
+        return {
+            "queued": False,
+            "handed_to_cursor": False,
+            "next_step": "Informational scan summary. Nothing is queued.",
+        }
+
     if kind == "strategy" or action == "walk_forward":
         routed = dict(proposal)
         routed["kind"] = "strategy"

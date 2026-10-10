@@ -23,12 +23,15 @@ because they execute the same code path.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 # Columns every strategy must return from `generate_signals`.
 SIGNAL_COLUMNS = ["signal", "side", "score", "reason"]
@@ -141,6 +144,16 @@ class Strategy(ABC):
         frame["reason"] = ""
         return frame
 
+    def gate_diagnostics(self, candles: pd.DataFrame, signals: pd.DataFrame) -> list[dict[str, Any]] | None:
+        """Optional distances for the last bar. The default exposes nothing.
+
+        A subclass may return ``(condition, value, threshold)`` triples, or
+        dicts with those keys plus ``passed``. It must not change ``signal``,
+        ``side``, ``score``, or ``reason``. ``latest_signal`` restores those
+        columns if a hook writes them, and then discards the reading.
+        """
+        return None
+
     def latest_signal(self, symbol: str, candles: pd.DataFrame) -> Signal | None:
         """Evaluate the most recent bar and return a Signal if one fired.
 
@@ -148,6 +161,7 @@ class Strategy(ABC):
         the same method the backtester uses -- and reads the final row, so live
         behaviour is identical to simulated behaviour by construction.
         """
+        self._last_gate_diagnostics = None
         if len(candles) < self.min_bars:
             # Diagnostic only. The returned Signal is unchanged.
             self._last_eval_reason = "insufficient history"
@@ -159,27 +173,33 @@ class Strategy(ABC):
             return None
 
         last = signals.iloc[-1]
-        if int(last["signal"]) == 0:
-            text = str(last["reason"] or "").strip()
-            self._last_eval_reason = text or "no_signal"
-            return None
-
-        # Everything that is not a required column is an indicator reading worth
-        # surfacing for diagnostics.
+        # Snapshot the decision before the diagnostic hook runs. The hook is
+        # not allowed to change what this method returns.
+        signal_value = int(last["signal"])
+        side_value = last["side"]
+        score_value = float(last["score"])
+        reason = str(last["reason"])
         indicators = {
             column: float(last[column])
             for column in signals.columns
             if column not in SIGNAL_COLUMNS and pd.notna(last[column])
         }
+        price = float(candles["close"].iloc[-1])
+        timestamp = signals.index[-1]
+        self._capture_gate_diagnostics(candles, signals)
 
-        reason = str(last["reason"])
+        if signal_value == 0:
+            text = reason.strip()
+            self._last_eval_reason = text or "no_signal"
+            return None
+
         self._last_eval_reason = reason.strip() or "signal"
         return Signal(
             symbol=symbol,
-            side=SignalSide(last["side"]),
-            timestamp=signals.index[-1],
-            price=float(candles["close"].iloc[-1]),
-            score=float(last["score"]),
+            side=SignalSide(side_value),
+            timestamp=timestamp,
+            price=price,
+            score=score_value,
             reason=reason,
             strategy=self.name,
             take_profit_pct=self.params.take_profit_pct,
@@ -187,6 +207,28 @@ class Strategy(ABC):
             max_holding_bars=self.params.max_holding_bars,
             indicators=indicators,
         )
+
+    def _capture_gate_diagnostics(self, candles: pd.DataFrame, signals: pd.DataFrame) -> None:
+        """Run the optional hook, then put the signal columns back if it wrote them."""
+        columns = [name for name in SIGNAL_COLUMNS if name in signals.columns]
+        before = {name: signals[name].copy() for name in columns}
+        try:
+            diag = self.gate_diagnostics(candles, signals)
+        except Exception:
+            logger.exception("Gate diagnostics failed for %s; the signal is unchanged", self.name)
+            diag = None
+        mutated = False
+        for name, series in before.items():
+            if not signals[name].equals(series):
+                mutated = True
+                signals[name] = series
+        if mutated:
+            logger.error(
+                "Gate diagnostics for %s changed signal output; the reading was discarded",
+                self.name,
+            )
+            diag = None
+        self._last_gate_diagnostics = diag if isinstance(diag, list) else None
 
     def validate_candles(self, candles: pd.DataFrame) -> None:
         """Reject malformed input loudly rather than producing quiet nonsense."""

@@ -375,6 +375,10 @@ class PaperBarOutcome:
     error: str | None = None
     #: True only after the cursor for this bar was written.
     evaluated: bool = False
+    #: Closed-bar open and the flat/reject reason. The Inbox diary reads
+    #: these. They do not change whether the bar was traded.
+    bar_open: datetime | None = None
+    reason: str = ""
 
 
 def _flat_reason(strategy: Any, signal: Signal | None) -> str:
@@ -497,6 +501,8 @@ def _evaluate_published(
         ordered=ordered,
         rejection=rejection,
         evaluated=True,
+        bar_open=bar_open,
+        reason=reason,
     )
 
 
@@ -562,14 +568,45 @@ def poll_paper_book(
         return 0
     clock = monotonic or time.monotonic
     deadline = clock() + max(0.0, float(budget_seconds))
-    evaluated = 0
-    refreshed = False
+    notes: list[dict[str, Any]] = []
     try:
         equity = float(engine.broker.get_balance())
     except Exception:
         logger.exception("paper bar poll could not read equity; skipping this poll")
         return 0
     marks: dict[str, float] = {}
+    try:
+        evaluated = _poll_due_sleeves(
+            engine,
+            state=state,
+            clock=clock,
+            deadline=deadline,
+            budget_seconds=budget_seconds,
+            equity=equity,
+            marks=marks,
+            notes=notes,
+        )
+    finally:
+        # The diary is written even when a later sleeve raises. The flush
+        # itself cannot raise, so it does not hide that sleeve's error.
+        _flush_book_notes(notes)
+    return evaluated
+
+
+def _poll_due_sleeves(
+    engine: Any,
+    *,
+    state: BarEvalState,
+    clock: Callable[[], float],
+    deadline: float,
+    budget_seconds: float,
+    equity: float,
+    marks: dict[str, float],
+    notes: list[dict[str, Any]],
+) -> int:
+    """The poll body. Split out so the Inbox flush runs in a finally."""
+    evaluated = 0
+    refreshed = False
     for entry in list(engine.plan.entries):
         if clock() >= deadline:
             logger.info(
@@ -599,6 +636,7 @@ def poll_paper_book(
                     expected.isoformat(),
                     sitout,
                 )
+            _remember_book_note(notes, entry, expected, signal=False, ordered=False, rejection=sitout)
             continue
         if not refreshed:
             # Same overlay the cycle applies. The positioning module caches it.
@@ -615,4 +653,82 @@ def poll_paper_book(
         )
         if outcome.evaluated:
             evaluated += 1
+            _remember_book_note(
+                notes,
+                entry,
+                outcome.bar_open or expected,
+                signal=outcome.signal is not None,
+                ordered=outcome.ordered,
+                rejection=_note_rejection(outcome),
+            )
     return evaluated
+
+
+def _bar_close_iso(entry: Any, bar_open: datetime) -> str:
+    step = TIMEFRAME_DELTAS[normalise_timeframe(entry.timeframe)]
+    return _as_utc(bar_open + step).isoformat()
+
+
+def _note_rejection(outcome: PaperBarOutcome) -> str:
+    """Rejection text for the diary. An order is not a rejection."""
+    if outcome.ordered:
+        return ""
+    if outcome.rejection:
+        return outcome.rejection
+    if outcome.signal is not None:
+        return ""
+    return outcome.reason or "no_signal"
+
+
+def sleeve_note_fields(entry: Any) -> dict[str, Any]:
+    """Identity plus the last read-only diagnostic, if this bar just ran the hook.
+
+    Sit-out notes must not call this. The strategy may still hold the previous
+    bar's reading, and a sit-out has not evaluated this bar.
+    """
+    strategy = getattr(entry, "strategy", None)
+    side = entry.side.value if hasattr(entry.side, "value") else str(getattr(entry, "side", "") or "")
+    diagnostics = getattr(strategy, "_last_gate_diagnostics", None)
+    return {
+        "symbol": str(getattr(entry, "symbol", "") or ""),
+        "side": side,
+        "strategy": str(getattr(strategy, "name", "") or ""),
+        "diagnostics": diagnostics if isinstance(diagnostics, list) else None,
+    }
+
+
+def _remember_book_note(
+    notes: list[dict[str, Any]],
+    entry: Any,
+    bar_open: datetime,
+    *,
+    signal: bool,
+    ordered: bool,
+    rejection: str,
+) -> None:
+    try:
+        from firm.scan_inbox import remember_scan_note
+
+        remember_scan_note(
+            notes,
+            sleeve_id=sleeve_key(entry),
+            bar_time=_bar_close_iso(entry, bar_open),
+            signal=signal,
+            ordered=ordered,
+            rejection=rejection,
+            gates_passed=signal or ordered,
+            **sleeve_note_fields(entry),
+        )
+    except Exception:
+        logger.exception("Book scan note failed; the evaluation stands")
+
+
+def _flush_book_notes(notes: list[dict[str, Any]]) -> None:
+    if not notes:
+        return
+    try:
+        from firm.scan_inbox import publish_book_notes
+
+        publish_book_notes(notes)
+    except Exception:
+        logger.exception("Book scan summary was not written; trading is unchanged")

@@ -1195,12 +1195,16 @@ class F111Runtime:
         )
         from dataclasses import replace
 
+        # Rows emitted by this pass only. The Inbox summary is a diary of
+        # these rows; it is written after the pass and cannot change it.
+        start = len(self.events)
         available = [
             symbol
             for symbol, status in self.registry.items()
             if status.availability == AVAILABLE
         ]
         if not available:
+            _publish_hourly_summary(self, [], now)
             return
         try:
             btc = closed_candles(data.fetch_latest("BTCUSDT", "1h", bars=860), "1h", now=now)
@@ -1261,6 +1265,13 @@ class F111Runtime:
                 extension_feature = _finite_or_none(last.get("extension_atr"))
                 if extension_feature is None and _finite_number(extension) is not None:
                     extension_feature = float(extension)
+                try:
+                    distance_features = _distance_features(last, frame, symbol)
+                except Exception:
+                    logger.exception(
+                        "F111 distance snapshot failed for %s; the signal is unchanged", symbol
+                    )
+                    distance_features = {}
                 self.observe_signal(
                     symbol=symbol,
                     side=side.value,
@@ -1276,9 +1287,11 @@ class F111Runtime:
                         "compression": _finite_or_none(last.get("compression")),
                         "extension_atr": extension_feature,
                         "f111_rejection_reason": parent_reason,
+                        **distance_features,
                     },
                     feature_asof={"hourly_bar_open": str(bar_open), "signal_close": _iso(t0)},
                 )
+        _publish_hourly_summary(self, self.events[start:], now)
 
     def _consume_minutes(self, symbol: str, frame: Any, now: datetime) -> None:
         from core.data.ohlcv import closed_candles
@@ -1618,6 +1631,58 @@ def attached_runtime(engine: Any) -> F111Runtime:
     _ATTACHED.ledger = engine.ledger
     _ATTACHED.engine = engine
     return _ATTACHED
+
+
+def _distance_features(last: Any, frame: Any, symbol: str) -> dict[str, Any]:
+    """Copy inputs the distance card reads. Does not decide the signal.
+
+    Keys already passed to ``observe_signal`` (compression, extension, ATR,
+    close, boundary) are left for that call to set. This only adds the base
+    signal's other inputs, and only when they are finite.
+    """
+    extra: dict[str, Any] = {"is_btc": symbol == "BTCUSDT"}
+    for key in ("volume_ratio", "close_location", "r24", "filter_crsi", "btc24"):
+        number = _finite_or_none(last.get(key))
+        if number is not None:
+            extra[key] = number
+    efficiency = _finite_or_none(last.get("efficiency24_before_signal"))
+    if efficiency is not None:
+        extra["efficiency24"] = efficiency
+    for flag in ("passes_crsi", "passes_btc", "passes_loweff_cap"):
+        value = last.get(flag)
+        if isinstance(value, bool) or type(value).__name__ == "bool_":
+            extra[flag] = bool(value)
+    try:
+        opened = float(frame["open"].iloc[-1])
+    except (TypeError, ValueError, KeyError, IndexError):
+        opened = float("nan")
+    if math.isfinite(opened):
+        extra["open"] = opened
+    if frame is not None and len(frame) >= 2:
+        try:
+            high = float(frame["high"].iloc[-1])
+            low = float(frame["low"].iloc[-1])
+            prev = float(frame["close"].iloc[-2])
+        except (TypeError, ValueError, KeyError, IndexError):
+            high = low = prev = float("nan")
+        if all(math.isfinite(item) for item in (high, low, prev)):
+            extra["true_range"] = max(high - low, abs(high - prev), abs(low - prev))
+    return extra
+
+
+def _publish_hourly_summary(runtime: F111Runtime, rows: list[dict[str, Any]], now: datetime) -> None:
+    """Write the hourly Inbox diary. Never raises into the F111 pass."""
+    try:
+        from firm.scan_inbox import publish_f111_hourly
+
+        watching = sum(
+            1
+            for pending in runtime.pending
+            if pending.get("status") in {"watching", "scheduled"}
+        )
+        publish_f111_hourly(list(rows), now=now, pending_retests=watching)
+    except Exception:
+        logger.exception("F111 scan summary was not written; trading is unchanged")
 
 
 def run_attached_minute_step(engine: Any, *, data: Any = None, now: datetime | None = None) -> None:

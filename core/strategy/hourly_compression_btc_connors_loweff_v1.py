@@ -15,9 +15,18 @@ def prior_efficiency24(closes):
     return (net / path.replace(0, np.nan)).mask(path == 0, 0.)
 
 
+# OR-gate: pass when prior efficiency is at least 0.30, otherwise extension
+# must be within 1 prior ATR. Both bounds are the signal's, not a new filter.
+EFFICIENCY_FLOOR_INCLUSIVE = 0.30
+LOW_EFFICIENCY_EXTENSION_MAX_INCLUSIVE = 1.0
+
+
 def conditional_cap_pass(efficiency, extension):
     valid = np.isfinite(efficiency) & np.isfinite(extension)
-    return valid & ((efficiency >= .30) | (extension <= 1.0))
+    return valid & (
+        (efficiency >= EFFICIENCY_FLOOR_INCLUSIVE)
+        | (extension <= LOW_EFFICIENCY_EXTENSION_MAX_INCLUSIVE)
+    )
 
 
 class HourlyCompressionBtcConnorsLoweffV1Strategy(HourlyCompressionBtcConnorsV1Strategy):
