@@ -264,6 +264,16 @@ def decide_proposal(
             logger.info("Proposal %d already %s.", proposal_id, proposal.status)
             return False
 
+        # Scan summaries are a diary. A click must not approve, reject, or
+        # expire them into a path the pipeline can consume.
+        payload = proposal.payload if isinstance(proposal.payload, dict) else {}
+        if proposal.kind == ProposalKind.INFORMATIONAL.value or payload.get("informational"):
+            logger.info(
+                "Proposal %d is informational; it has no approve or reject.",
+                proposal_id,
+            )
+            return False
+
         if proposal.expires_at and proposal.expires_at < utcnow():
             proposal.status = ProposalStatus.EXPIRED.value
             proposal.decided_by = "expiry"
@@ -399,7 +409,18 @@ def expire_stale_proposals() -> int:
 
 
 def pending_proposals(limit: int = 50) -> list[dict[str, Any]]:
-    """Proposals awaiting a human decision. Powers the decision inbox."""
+    """Proposals awaiting a human decision. Powers the decision inbox.
+
+    Informational scan summaries expire on this read, the same way open
+    escalations expire before they are listed. Other kinds keep the existing
+    ``expire_stale_proposals`` path so a Tier B gate is not closed early.
+    """
+    try:
+        from firm.scan_inbox import expire_and_prune_scan_summaries
+
+        expire_and_prune_scan_summaries()
+    except Exception:
+        logger.exception("Could not prune expired scan summaries")
     with session_scope() as session:
         rows = session.scalars(
             select(Proposal)

@@ -1726,7 +1726,8 @@ function renderInbox() {
           const pay = p.payload || {};
           const brief = pay.brief || p.rationale || "";
           const preview = String(brief).replace(/\s+/g, " ").slice(0, 280);
-          return `<div class="feed-item clickable" onclick="this.classList.toggle('open')">
+          const informational = p.kind === "informational" || pay.informational === true || pay.scan_summary === true;
+        return `<div class="feed-item clickable" onclick="this.classList.toggle('open')">
         <div><span class="badge">${esc(pay.novel ? "novel brief" : (p.kind || "proposal"))}</span> <strong>${esc(p.title)}</strong> <span class="muted">${esc(p.agent)}</span></div>
         <div class="stamp" title="${esc(p.created_at || "")}">Logged ${esc(stamp(p.created_at))}${p.expires_at ? " · expires " + esc(when(p.expires_at)) : ""}</div>
         <div>${esc(preview || "Click for the full brief.")}${brief && brief.length > 280 ? "…" : ""}</div>
@@ -1735,10 +1736,12 @@ function renderInbox() {
           ${pay.brief_path ? `<div class="muted" style="margin-top:8px">${esc(pay.brief_path)}</div>` : ""}
           ${pay.instruction ? `<div class="muted" style="margin-top:8px">${esc(pay.instruction)}</div>` : ""}
         </div>
-        <div class="toolbar" style="margin-top:8px" onclick="event.stopPropagation()">
+        ${informational
+          ? `<div class="muted">Informational only. No approve or reject.</div>`
+          : `<div class="toolbar" style="margin-top:8px" onclick="event.stopPropagation()">
           <button class="btn accent" onclick="decide(${p.id}, true)">Approve</button>
           <button class="btn" onclick="decide(${p.id}, false)">Reject</button>
-        </div>
+        </div>`}
       </div>`;
         }).join("")}</div>${pagerHtml("inbox", sliced, "messages")}` : empty(inbox.length ? "No messages match these filters" : "Inbox is clear", inbox.length ? "Clear search or widen the time window." : "Novel coding briefs land here. Approve hands the instruction to Cursor. Tier A tests auto-start from standby.");
       })()}

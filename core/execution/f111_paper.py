@@ -1195,12 +1195,16 @@ class F111Runtime:
         )
         from dataclasses import replace
 
+        # Rows emitted by this pass only. The Inbox summary is a diary of
+        # these rows; it is written after the pass and cannot change it.
+        start = len(self.events)
         available = [
             symbol
             for symbol, status in self.registry.items()
             if status.availability == AVAILABLE
         ]
         if not available:
+            _publish_hourly_summary(self, [], now)
             return
         try:
             btc = closed_candles(data.fetch_latest("BTCUSDT", "1h", bars=860), "1h", now=now)
@@ -1279,6 +1283,7 @@ class F111Runtime:
                     },
                     feature_asof={"hourly_bar_open": str(bar_open), "signal_close": _iso(t0)},
                 )
+        _publish_hourly_summary(self, self.events[start:], now)
 
     def _consume_minutes(self, symbol: str, frame: Any, now: datetime) -> None:
         from core.data.ohlcv import closed_candles
@@ -1618,6 +1623,21 @@ def attached_runtime(engine: Any) -> F111Runtime:
     _ATTACHED.ledger = engine.ledger
     _ATTACHED.engine = engine
     return _ATTACHED
+
+
+def _publish_hourly_summary(runtime: F111Runtime, rows: list[dict[str, Any]], now: datetime) -> None:
+    """Write the hourly Inbox diary. Never raises into the F111 pass."""
+    try:
+        from firm.scan_inbox import publish_f111_hourly
+
+        watching = sum(
+            1
+            for pending in runtime.pending
+            if pending.get("status") in {"watching", "scheduled"}
+        )
+        publish_f111_hourly(list(rows), now=now, pending_retests=watching)
+    except Exception:
+        logger.exception("F111 scan summary was not written; trading is unchanged")
 
 
 def run_attached_minute_step(engine: Any, *, data: Any = None, now: datetime | None = None) -> None:

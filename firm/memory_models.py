@@ -50,6 +50,9 @@ class ProposalKind(str, Enum):
     ALLOCATION = "allocation"
     RISK = "risk"  # tighten a limit, halt trading
     OPERATIONAL = "operational"
+    # Paper-scan diary. Shown in the Inbox and never approved, rejected, or
+    # queued. Continuity and the research pipeline must not treat it as work.
+    INFORMATIONAL = "informational"
 
 
 class ProposalStatus(str, Enum):

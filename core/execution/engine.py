@@ -807,6 +807,114 @@ def load_last_cycle() -> dict[str, object] | None:
     return data if isinstance(data, dict) else None
 
 
+def _bar_close_iso(entry: PlanEntry, bar_open: datetime) -> str:
+    step = TIMEFRAME_DELTAS[normalise_timeframe(entry.timeframe)]
+    return (_as_utc(bar_open) + step).isoformat()
+
+
+def _remember_cycle_book_note(notes: list[dict[str, Any]], entry: PlanEntry, bar_open: datetime, fast: Any) -> None:
+    """One book-bar note from the cycle path. Does not trade."""
+    try:
+        from core.execution.paper_bar_eval import sleeve_key
+        from firm.scan_inbox import remember_scan_note
+
+        rejection = ""
+        if not getattr(fast, "ordered", False):
+            rejection = str(getattr(fast, "rejection", "") or "")
+            if getattr(fast, "signal", None) is None and not rejection:
+                rejection = str(getattr(fast, "reason", "") or "") or "no_signal"
+        remember_scan_note(
+            notes,
+            sleeve_id=sleeve_key(entry),
+            bar_time=_bar_close_iso(entry, bar_open),
+            signal=getattr(fast, "signal", None) is not None,
+            ordered=bool(getattr(fast, "ordered", False)),
+            rejection=rejection,
+        )
+    except Exception:
+        logger.exception("Cycle scan note failed; the evaluation stands")
+
+
+def _remember_sitout_note(notes: list[dict[str, Any]], entry: PlanEntry, sitout: str) -> None:
+    try:
+        from core.execution.paper_bar_eval import last_closed_bar_open, sleeve_key
+        from firm.scan_inbox import remember_scan_note
+
+        opened = last_closed_bar_open(_now(), entry.timeframe)
+        remember_scan_note(
+            notes,
+            sleeve_id=sleeve_key(entry),
+            bar_time=_bar_close_iso(entry, opened),
+            signal=False,
+            ordered=False,
+            rejection=sitout,
+        )
+    except Exception:
+        logger.exception("Sit-out scan note failed; the evaluation stands")
+
+
+def _remember_flat_note(notes: list[dict[str, Any]], entry: PlanEntry, bar_open: datetime, reason: str) -> None:
+    try:
+        from core.execution.paper_bar_eval import sleeve_key
+        from firm.scan_inbox import remember_scan_note
+
+        remember_scan_note(
+            notes,
+            sleeve_id=sleeve_key(entry),
+            bar_time=_bar_close_iso(entry, bar_open),
+            signal=False,
+            ordered=False,
+            rejection=reason or "no_signal",
+        )
+    except Exception:
+        logger.exception("Flat scan note failed; the evaluation stands")
+
+
+def _remember_order_note(
+    book_notes: list[dict[str, Any]],
+    cycle_notes: list[dict[str, Any]],
+    entry: PlanEntry,
+    bar_open: datetime | None,
+    *,
+    ordered: bool,
+    rejection: str,
+) -> None:
+    """A known bar joins the book diary. Anything else is the 900s cycle diary."""
+    try:
+        from core.execution.paper_bar_eval import is_known_timeframe, sleeve_key
+        from firm.scan_inbox import remember_scan_note
+
+        target = book_notes if bar_open is not None and is_known_timeframe(entry.timeframe) else cycle_notes
+        bar_time = _bar_close_iso(entry, bar_open) if bar_open is not None else _now().replace(microsecond=0).isoformat()
+        remember_scan_note(
+            target,
+            sleeve_id=sleeve_key(entry),
+            bar_time=bar_time,
+            signal=True,
+            ordered=ordered,
+            rejection=rejection,
+        )
+    except Exception:
+        logger.exception("Order scan note failed; the evaluation stands")
+
+
+def _remember_cycle_failure(notes: list[dict[str, Any]], entry: PlanEntry, error: str) -> None:
+    try:
+        from core.execution.paper_bar_eval import sleeve_key
+        from firm.scan_inbox import remember_scan_note
+
+        remember_scan_note(
+            notes,
+            sleeve_id=sleeve_key(entry),
+            bar_time=_now().replace(microsecond=0).isoformat(),
+            signal=False,
+            ordered=False,
+            rejection=error or "evaluation_error",
+        )
+    except Exception:
+        logger.exception("Failure scan note failed; the evaluation stands")
+
+
 class TradingEngine:
     """Runs trading cycles against a broker."""
 
@@ -1080,7 +1188,11 @@ class TradingEngine:
         report.crowding_size_cuts = 0
 
         # Imported here so paper_bar_eval can import this module at load time.
-        from core.execution.paper_bar_eval import cycle_paper_bar
+        from core.execution.paper_bar_eval import cycle_paper_bar, is_known_timeframe
+
+        # Diary notes for the Inbox. They are not read by the risk engine.
+        book_notes: list[dict[str, Any]] = []
+        cycle_notes: list[dict[str, Any]] = []
 
         for entry in self.plan.entries:
             report.symbols_scanned += 1
@@ -1101,22 +1213,31 @@ class TradingEngine:
                         report.orders_placed += 1
                     elif fast.rejection:
                         report.rejections.append((fast.signal.symbol, fast.rejection))
+                if fast.evaluated and fast.bar_open is not None:
+                    _remember_cycle_book_note(book_notes, entry, fast.bar_open, fast)
                 continue
             sitout = paper_regime_sitout_reason(entry)
             if sitout:
                 report.rejections.append((entry.symbol, sitout))
                 logger.info("%s %s %s: %s", entry.strategy.name, entry.symbol, entry.side.value, sitout)
+                if is_known_timeframe(entry.timeframe):
+                    _remember_sitout_note(book_notes, entry, sitout)
                 continue
             try:
-                signal, price = self._evaluate(entry)
+                signal, price, reason, bar_open = self._evaluate_detail(entry)
             except Exception as exc:
                 report.errors.append(f"{entry.key}: {exc}")
                 logger.warning("Signal evaluation failed for %s: %s", entry.key, exc)
+                _remember_cycle_failure(cycle_notes, entry, str(exc))
                 continue
 
             if price:
                 marks[entry.symbol] = price
             if signal is None:
+                # Outside the latency window the cycle is not a bar-close
+                # pass. The poll already wrote that bar, or the bar was missed.
+                if bar_open is not None and reason not in {"outside_latency_window", "forming_bar"}:
+                    _remember_flat_note(book_notes, entry, bar_open, reason)
                 continue
 
             report.signals_found += 1
@@ -1124,8 +1245,24 @@ class TradingEngine:
 
             if decision.is_approved:
                 report.orders_placed += 1
+                _remember_order_note(book_notes, cycle_notes, entry, bar_open, ordered=True, rejection="")
             else:
-                report.rejections.append((signal.symbol, "; ".join(decision.reasons)))
+                rejection = "; ".join(decision.reasons)
+                report.rejections.append((signal.symbol, rejection))
+                _remember_order_note(
+                    book_notes, cycle_notes, entry, bar_open, ordered=False, rejection=rejection
+                )
+
+        # Diary only, and only on the unarmed paper worker. Live and an armed
+        # paper broker do not write these rows. A failure here is logged.
+        try:
+            from core.execution.paper_bar_eval import paper_bar_eval_enabled
+            from firm.scan_inbox import flush_scan_notes
+
+            if paper_bar_eval_enabled(self):
+                flush_scan_notes(book_notes, cycle_notes, now=_now())
+        except Exception:
+            logger.exception("Scan summary was not written; trading is unchanged")
 
         report.crowding_skips = self._crowding_skips
         report.crowding_size_cuts = self._crowding_cuts
