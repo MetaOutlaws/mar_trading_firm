@@ -1084,10 +1084,11 @@ class TradingEngine:
 
         for entry in self.plan.entries:
             report.symbols_scanned += 1
-            # 1h/4h paper sleeves are evaluated on the 15s poll. If that poll
-            # already stored this bar, do not run the strategy again. A bar
-            # that is still inside the latency window and not yet stored is
-            # evaluated here, once, through the same cursor.
+            # Paper sleeves on a known bar clock (15m, 1h, 4h, and any other
+            # timeframe in the approval key) are evaluated on the 15s poll.
+            # If that poll already stored this bar, do not run the strategy
+            # again. A bar still inside the latency window and not yet stored
+            # is evaluated here, once, through the same cursor.
             fast = cycle_paper_bar(self, entry, equity=equity, marks=marks)
             if fast.handled:
                 if fast.error:

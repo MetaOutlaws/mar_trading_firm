@@ -1,7 +1,9 @@
-"""1h and 4h paper sleeves are evaluated once, on the poll after the bar closes.
+"""Paper sleeves are evaluated once, on the poll after the bar closes.
 
-The 900s cycle plus seat time used to walk past MAX_CANDLE_LATENCY and drop
-the close. These tests drive the clock. They do not talk to an exchange.
+15m, 1h, 4h, and any other known clock share that path. On SGP1 a cycle
+runs for about 0.5-1 minute and the next cycle starts about 15.5 minutes
+later, which is past the 15-minute latency window for a 15m close the poll
+missed. These tests drive the clock. They do not talk to an exchange.
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ from core.execution.engine import PlanEntry, TradingEngine, TradingPlan
 from core.execution.paper import PaperBroker
 from core.execution.paper_bar_eval import (
     bar_is_actionable,
+    cycle_paper_bar,
+    is_known_timeframe,
     last_closed_bar_open,
     poll_paper_book,
     sleeve_key,
@@ -150,7 +154,23 @@ def _opens(strategy: RecordingStrategy) -> list[datetime]:
     return [stamp.astimezone(UTC).replace(microsecond=0) for stamp in strategy.seen]
 
 
-def test_close_schedule_matches_the_1h_and_4h_clock() -> None:
+def test_close_schedule_matches_15m_1h_and_4h() -> None:
+    opened_15 = _at(11, 45)
+    assert last_closed_bar_open(_at(12, 0), "15m") == opened_15
+    assert last_closed_bar_open(_at(12, 0), "15min") == opened_15
+    assert last_closed_bar_open(_at(12, 14, 59), "15m") == opened_15
+    assert last_closed_bar_open(_at(12, 15), "15m") == _at(12, 0)
+    assert last_closed_bar_open(_at(11, 59, 59), "15m") == _at(11, 30)
+    assert bar_is_actionable(_at(12, 0), "15m", opened_15)
+    assert bar_is_actionable(_at(12, 15), "15m", opened_15)
+    assert bar_is_actionable(_at(12, 15, 1), "15m", opened_15) is False
+    # 30m is another bar size in the same key family.
+    assert is_known_timeframe("30m")
+    assert is_known_timeframe("15min")
+    assert is_known_timeframe("2d") is False
+    assert last_closed_bar_open(_at(12, 0), "30m") == _at(11, 30)
+    assert last_closed_bar_open(_at(12, 30), "30m") == _at(12, 0)
+
     assert last_closed_bar_open(_at(12, 0), "1h") == _at(11)
     assert last_closed_bar_open(_at(11, 59, 59), "1h") == _at(10)
     assert last_closed_bar_open(_at(12, 0, 1), "4h") == _at(8)
@@ -450,19 +470,38 @@ def test_poll_budget_defers_the_rest_of_the_book(tmp_path, monkeypatch, firm_db)
     assert [_opens(item) for item in sleeves] == [[_at(11)], [_at(11)], [_at(11)]]
 
 
-def test_poll_ignores_15m_live_mode_and_a_tripped_switch(tmp_path, monkeypatch, firm_db) -> None:
+def test_poll_takes_15m_once_and_skips_live_mode_and_a_tripped_switch(
+    tmp_path, monkeypatch, firm_db
+) -> None:
     clock = Clock(_at(12, 5))
-    slow = RecordingStrategy("fifteen")
+    # 12:05 is inside the window for the 15m bar that opened 11:45.
+    slow = RecordingStrategy("rsi_trend")
     engine = _engine(
         tmp_path,
         monkeypatch,
         clock,
         [_entry("BTCUSDT", SignalSide.LONG, slow, "15m")],
     )
-    assert poll_paper_book(engine) == 0
-    assert slow.seen == []
+    assert poll_paper_book(engine) == 1
+    assert _opens(slow) == [_at(11, 45)]
     engine.run_cycle()
-    assert len(slow.seen) == 1
+    poll_paper_book(engine)
+    assert _opens(slow) == [_at(11, 45)]
+
+    odd = RecordingStrategy("not_a_clock")
+    odd_engine = _engine(
+        tmp_path,
+        monkeypatch,
+        clock,
+        [_entry("ETHUSDT", SignalSide.LONG, odd, "2d")],
+    )
+    setattr(odd_engine, "paper_bar_state_path", tmp_path / "unknown_tf.json")
+    assert poll_paper_book(odd_engine) == 0
+    assert odd.seen == []
+    skipped = cycle_paper_bar(
+        odd_engine, odd_engine.plan.entries[0], equity=STARTING, marks={}
+    )
+    assert skipped.handled is False
 
     hourly = RecordingStrategy("armed")
     armed = _engine(
@@ -498,6 +537,93 @@ def test_poll_ignores_15m_live_mode_and_a_tripped_switch(tmp_path, monkeypatch, 
     halted_engine.risk.kill_switch.trip(TripReason.MANUAL, "test", tripped_by="test")
     assert poll_paper_book(halted_engine) == 0
     assert halted.seen == []
+
+
+def test_15m_close_is_taken_once_across_the_sgp1_cycle_gap(
+    tmp_path, monkeypatch, firm_db, caplog
+) -> None:
+    """SGP1: the cycle body is about a minute, and cycles are about 15.5 min apart.
+
+    The 12:00 15m close lands while that body has the poll paused. The first
+    poll after the wait records bar 11:45. The cycle at 12:15 looks at the
+    next bar, so it cannot be the thing that saves 11:45, and it must not
+    run 11:45 again. A 30m sleeve on the same plan uses the same path.
+    """
+    clock = Clock(_at(11, 45))
+    rsi = RecordingStrategy("rsi_trend")
+    donchian = RecordingStrategy("donchian_breakout")
+    neckline = RecordingStrategy("double_top_neckline_break")
+    half_hour = RecordingStrategy("half_hour_book")
+    engine = _engine(
+        tmp_path,
+        monkeypatch,
+        clock,
+        [
+            _entry("BTCUSDT", SignalSide.LONG, rsi, "15m"),
+            _entry("BTCUSDT", SignalSide.LONG, donchian, "15m"),
+            _entry("BTCUSDT", SignalSide.SHORT, neckline, "15m"),
+            _entry("ETHUSDT", SignalSide.LONG, half_hour, "30m"),
+        ],
+    )
+    # 60s body, then the next start 15.5 minutes after the previous start.
+    cycle_starts = (_at(11, 59, 30), _at(12, 15), _at(12, 30, 30), _at(12, 46))
+    body = timedelta(seconds=60)
+    caplog.set_level(logging.INFO, logger="core.execution.paper_bar_eval")
+    feed = engine._data
+
+    moment = _at(11, 45)
+    while moment <= _at(12, 46):
+        clock.when = moment
+        in_body = any(start < moment < start + body for start in cycle_starts)
+        if moment in cycle_starts:
+            poll_paper_book(engine, budget_seconds=30)
+            engine.run_cycle()
+        elif not in_body:
+            poll_paper_book(engine, budget_seconds=30)
+        if moment == _at(12, 0, 30):
+            # 12:00 close was inside the 11:59:30 body. This poll records it.
+            assert _opens(rsi) == [_at(11, 30), _at(11, 45)]
+            assert _opens(half_hour) == [_at(11), _at(11, 30)]
+        moment += timedelta(seconds=15)
+
+    fifteen = [_at(11, 30), _at(11, 45), _at(12), _at(12, 15), _at(12, 30)]
+    assert _opens(rsi) == fifteen
+    assert _opens(donchian) == fifteen
+    assert _opens(neckline) == fifteen
+    assert _opens(half_hour) == [_at(11), _at(11, 30), _at(12)]
+    # One fetch per close. The three BTC 15m sleeves share it.
+    assert feed.calls.count(("BTCUSDT", "15m")) == 5
+    assert feed.calls.count(("ETHUSDT", "30m")) == 3
+    assert last_closed_bar_open(_at(12, 15), "15m") == _at(12)
+    assert bar_is_actionable(_at(12, 15, 1), "15m", _at(11, 45)) is False
+
+    logged = [rec.message for rec in caplog.records if rec.message.startswith("paper bar eval")]
+    gap_line = (
+        "sleeve=BTCUSDT|15m|LONG|rsi_trend bar=2026-10-10T11:45:00+00:00 "
+        "signal=none reason=no_signal source=poll"
+    )
+    assert any(gap_line in line for line in logged)
+    assert len(logged) == 18
+
+    clock.when = _at(12, 20)
+    restarted = RecordingStrategy("rsi_trend")
+    stale = RecordingStrategy("stale_30m")
+    again = _engine(
+        tmp_path,
+        monkeypatch,
+        clock,
+        [
+            _entry("BTCUSDT", SignalSide.LONG, restarted, "15m"),
+            _entry("ETHUSDT", SignalSide.LONG, stale, "30m"),
+        ],
+    )
+    setattr(again, "paper_bar_state_path", tmp_path / "restart_15m.json")
+    # Current 15m bar only. The 30m window for 11:30 already closed at 12:15.
+    assert poll_paper_book(again) == 1
+    assert _opens(restarted) == [_at(12)]
+    assert stale.seen == []
+    again.run_cycle()
+    assert _opens(restarted) == [_at(12)]
 
 
 def test_hot_poll_runs_f111_then_the_paper_book(monkeypatch) -> None:

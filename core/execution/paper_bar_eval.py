@@ -1,10 +1,13 @@
 """Evaluate paper-book sleeves once, on the first poll after the bar closes.
 
-``run_cycle`` is 900s plus pipeline and seat time. ``MAX_CANDLE_LATENCY`` is
-15 minutes, so a 1h or 4h close that is not looked at inside that window is
-dropped and the order never happens. The 15s paper poll already runs exit
-supervision and F111. Approved and paper-override sleeves on the 1h and 4h
-clocks join that poll.
+On SGP1 a cycle runs for about 0.5-1 minute and the next cycle starts about
+15.5 minutes later. ``MAX_CANDLE_LATENCY`` is 15 minutes, so a 15m close that
+lands while the cycle body has the poll paused is already outside the window
+by the next cycle, and the order never happens. The same window drops a 1h
+or 4h close the cycle walks past. The 15s paper poll already runs exit
+supervision and F111. Every paper sleeve whose clock ``normalise_timeframe``
+accepts joins that poll: 15m, 1h, 4h, and any other timeframe in the
+``family:SYMBOL:SIDE:TF`` key.
 
 Rules this module is not allowed to break:
 
@@ -36,9 +39,6 @@ from core.execution.paper import PaperBroker
 from core.strategy.base import Signal
 
 logger = logging.getLogger(__name__)
-
-#: 1h closes at :00. 4h closes at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC.
-PAPER_BAR_TIMEFRAMES = ("1h", "4h")
 
 #: Next to the other paper runtime files (cash, kill switch, F111 state).
 #: On SGP1 this is whatever directory ``data/`` is mounted to.
@@ -78,20 +78,28 @@ def sleeve_key(entry: Any) -> str:
     return f"{entry.symbol}|{entry.timeframe}|{side}|{entry.strategy.name}"
 
 
-def is_fast_timeframe(timeframe: str) -> bool:
-    """True for the clocks this poll owns. Anything else stays on the cycle."""
+def is_known_timeframe(timeframe: str) -> bool:
+    """True when this sleeve clock is a bar size we can align to a close.
+
+    The approval key is ``family:SYMBOL:SIDE:TF``. 15m, 1h, and 4h are on
+    the book; every other label ``normalise_timeframe`` accepts (including
+    legacy spellings such as ``15min``) uses the same once-per-close path.
+    An unknown label returns False and the cycle scan keeps it.
+    """
     try:
-        return normalise_timeframe(timeframe) in PAPER_BAR_TIMEFRAMES
+        normalise_timeframe(timeframe)
     except (TypeError, ValueError):
         return False
+    return True
 
 
 def last_closed_bar_open(now: datetime, timeframe: str) -> datetime:
     """Open time of the most recent fully closed bar.
 
-    A 1h bar that closes at 12:00 opened at 11:00. A 4h bar that closes at
-    12:00 opened at 08:00. One second before the boundary, that bar is still
-    forming and the previous close is the one we mean.
+    A 15m bar that closes at 12:15 opened at 12:00. A 1h bar that closes at
+    12:00 opened at 11:00. A 4h bar that closes at 12:00 opened at 08:00.
+    One second before the boundary, that bar is still forming and the
+    previous close is the one we mean.
     """
     now = _as_utc(now)
     step = TIMEFRAME_DELTAS[normalise_timeframe(timeframe)]
@@ -506,7 +514,7 @@ def cycle_paper_bar(
     to trade it and still reports a dead feed. A due bar is evaluated here
     so a cycle that lands inside the window does the work exactly once.
     """
-    if not paper_bar_eval_enabled(engine) or not is_fast_timeframe(entry.timeframe):
+    if not paper_bar_eval_enabled(engine) or not is_known_timeframe(entry.timeframe):
         return PaperBarOutcome(handled=False)
     if _entries_blocked(engine):
         return PaperBarOutcome(handled=False)
@@ -538,10 +546,12 @@ def poll_paper_book(
     budget_seconds: float = PAPER_POLL_BUDGET_SECONDS,
     monotonic: Callable[[], float] | None = None,
 ) -> int:
-    """Evaluate due 1h/4h paper sleeves. Returns how many bars were newly evaluated.
+    """Evaluate each due paper sleeve once for its latest closed bar.
 
-    No-op unless this process is an unarmed paper broker. Stops when the
-    budget is spent; the next 15s poll continues. Does not call a seat or a model.
+    The clock comes from the sleeve (15m, 1h, 4h, or any other known
+    timeframe). Returns how many bars were newly evaluated. No-op unless
+    this process is an unarmed paper broker. Stops when the budget is spent;
+    the next 15s poll continues. Does not call a seat or a model.
     """
     if not paper_bar_eval_enabled(engine):
         return 0
@@ -567,7 +577,10 @@ def poll_paper_book(
                 budget_seconds,
             )
             break
-        if not is_fast_timeframe(entry.timeframe):
+        # Who is eligible is already decided: ``plan.entries`` is the approved
+        # book plus the paper-override path. Regime sit-out is applied below.
+        # This loop only decides which closed bar is due.
+        if not is_known_timeframe(entry.timeframe):
             continue
         now = _clock()
         expected = last_closed_bar_open(now, entry.timeframe)

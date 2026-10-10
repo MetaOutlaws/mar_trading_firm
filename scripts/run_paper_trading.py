@@ -58,7 +58,7 @@ def _handle_shutdown(signum, _frame) -> None:  # noqa: ANN001
 
 
 def _hot_poll(engine) -> None:  # noqa: ANN001
-    """F111 and the 1h/4h paper book. No seat and no model call.
+    """F111 and the paper book (any bar clock). No seat and no model call.
 
     One pass failing must not skip the other, and neither may stop exit
     supervision. The 900s cycle still owns the pipeline and the seats.
@@ -118,9 +118,9 @@ def wait_for_next_cycle(
                 engine.supervise_exits()
         except Exception:
             logger.exception("Paper exit poll failed; will retry")
-        # F111 and the 1h/4h paper book sit on this poll so they are not
-        # inside the agent/LLM call. on_poll is optional; the production
-        # loop passes it.
+        # F111 and the paper book (15m, 1h, 4h, any known clock) sit on this
+        # poll so they are not inside the agent/LLM call. on_poll is optional;
+        # the production loop passes it.
         if on_poll is not None:
             try:
                 on_poll()
@@ -263,9 +263,9 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
             try:
                 from firm.research_jobs import advance_pipeline
 
-                # F111 and the 1h/4h paper book run before the agent seats so a
-                # slow model call cannot be the thing that decides the bar.
-                # The same poll runs every 15s during the wait.
+                # F111 and the paper book run before the agent seats so a slow
+                # model call cannot be the thing that decides the bar. The
+                # same poll runs every 15s during the wait.
                 try:
                     _hot_poll(engine)
                 except Exception:
