@@ -1,0 +1,16 @@
+[Unit]
+Description=SGP1 Soko regime label (Binance BTCUSDT 4h)
+
+# Host oneshot. Do not add a dependency on the paper container and do not
+# restart it. Paper rereads data/last_soko_trend.json on every cycle.
+# Install notes: docs/runbooks/sgp1_soko_label_job.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/sgp1/sgp1_soko_label_job.py
+Environment=SOKO_TREND_PATH=/data/state/data/last_soko_trend.json
+Environment=SOKO_LABEL_BYBIT_FALLBACK=0
+# Four attempts can each block for 30s, plus 5s+10s+20s of backoff.
+TimeoutStartSec=180
+StandardOutput=journal
+StandardError=journal
