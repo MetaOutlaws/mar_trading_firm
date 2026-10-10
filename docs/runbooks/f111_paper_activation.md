@@ -80,6 +80,15 @@ The dry run prints the keys it would remove. `--apply` writes a sibling
 backup named `approved_strategies.json.before-f111-<timestamp>` and then
 removes those entry rows. It does not add F111 to the book.
 
+The API image has no `.git`, so the dashboard sha stays empty until deploy
+stamps it. See `docs/runbooks/desk_deployed_sha.md`. Short form, from the
+host checkout, then restart the API:
+
+```bash
+git rev-parse HEAD > /app/GIT_SHA
+# or: GIT_SHA=$(git rev-parse HEAD)
+```
+
 ## 4. Verify the 192-sleeve scan
 
 Inside the same paper container, after one loop has started (the existing pid

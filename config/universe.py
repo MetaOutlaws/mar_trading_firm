@@ -345,6 +345,11 @@ def get_universe() -> Universe:
         if entry.get("legacy_claims"):
             universe.legacy_claims[f"{symbol}:{SHORT}"] = entry["legacy_claims"]
 
+    # Both counts are rows in this approvals file only. Approved is
+    # ``approved is True``. Overrides are ``paper_override is True``, including
+    # a row that is also approved. Nothing else is added: not config/sleeves,
+    # not an activation JSON, not an env list, and not the F111 retired-sleeve
+    # tuple. A loweff row still in this file is still in the override count.
     logger.info(
         "Universe loaded: %d monitored symbols, %d LONG params, %d SHORT params, "
         "%d research-approved sleeve(s), %d operator paper override(s).",

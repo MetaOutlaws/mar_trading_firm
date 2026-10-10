@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -153,17 +154,71 @@ def read_live_approval_book(path: Path | None = None) -> dict[str, Any]:
     }
 
 
-def deployed_git_sha(root: Path | None = None) -> dict[str, Any]:
-    """Commit the running tree is on.
+# Env wins, then a stamp file, then ``git rev-parse``. The SGP1 image has no
+# ``.git``, so the last step returns unavailable unless deploy writes one of
+# the earlier two. ``DEPLOYED_GIT_SHA`` and ``GIT_COMMIT`` stay as aliases.
+_SHA_ENV_KEYS = ("GIT_SHA", "APP_GIT_SHA", "DEPLOYED_GIT_SHA", "GIT_COMMIT")
+_SHA_TOKEN = re.compile(r"[0-9a-fA-F]{7,64}")
 
-    ``DEPLOYED_GIT_SHA`` wins when a deploy stamps it. Otherwise ``git
-    rev-parse HEAD`` in the app tree. This does not change what is deployed.
+
+def _sha_token(text: str) -> str | None:
+    """First hex token on its own line. Blank and prose files are not a sha."""
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if _SHA_TOKEN.fullmatch(line):
+            return line
+        return None
+    return None
+
+
+def _sha_files(root: Path) -> list[Path]:
+    """Stamp files, first hit wins.
+
+    ``/app/GIT_SHA`` is the container path. ``data/DEPLOYED_SHA`` is the same
+    idea next to the state files when the app root is not ``/app``.
     """
-    for key in ("DEPLOYED_GIT_SHA", "GIT_COMMIT", "GIT_SHA"):
-        stamped = os.environ.get(key, "").strip()
-        if stamped:
-            return {"sha": stamped, "short": stamped[:12], "source": "env"}
+    ordered = (
+        Path("/app/GIT_SHA"),
+        root / "GIT_SHA",
+        root / "data" / "DEPLOYED_SHA",
+    )
+    seen: set[str] = set()
+    out: list[Path] = []
+    for path in ordered:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(path)
+    return out
+
+
+def _sha_payload(sha: str, source: str, **extra: Any) -> dict[str, Any]:
+    return {"sha": sha, "short": sha[:12], "source": source, **extra}
+
+
+def deployed_git_sha(root: Path | None = None) -> dict[str, Any]:
+    """Commit the running tree is on. Does not change what is deployed.
+
+    Order: ``GIT_SHA`` or ``APP_GIT_SHA`` (then the older env aliases), then
+    ``/app/GIT_SHA`` or ``data/DEPLOYED_SHA``, then ``git rev-parse HEAD``.
+    A container without ``.git`` stays on the env or the file.
+    """
+    for key in _SHA_ENV_KEYS:
+        token = _sha_token(os.environ.get(key, ""))
+        if token:
+            return _sha_payload(token, "env", env=key)
     repo = root or PROJECT_ROOT
+    for path in _sha_files(repo):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        token = _sha_token(text)
+        if token:
+            return _sha_payload(token, "file", path=str(path))
     try:
         sha = subprocess.check_output(
             ["git", "-C", str(repo), "rev-parse", "HEAD"],
@@ -173,9 +228,10 @@ def deployed_git_sha(root: Path | None = None) -> dict[str, Any]:
         ).strip()
     except (OSError, subprocess.SubprocessError):
         return {"sha": None, "short": None, "source": "unavailable"}
-    if not sha:
+    token = _sha_token(sha)
+    if not token:
         return {"sha": None, "short": None, "source": "unavailable"}
-    return {"sha": sha, "short": sha[:12], "source": "git"}
+    return _sha_payload(token, "git")
 
 
 def _soko_label(blob: dict[str, Any]) -> str | None:
