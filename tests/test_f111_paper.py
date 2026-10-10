@@ -1207,7 +1207,11 @@ def test_available_census_rows_store_and_log_a_string_reason(tmp_path, caplog):
     assert all(row["rejection_reason"] == "no_signal" for row in fresh_available)
     assert "reason=False" not in caplog.text
     assert "reason=None" not in caplog.text
-    assert caplog.text.count("gate=False reason=no_signal") == 158
+    assert " gate=" not in caplog.text
+    assert caplog.text.count("status=available") == 158
+    assert caplog.text.count("status=unavailable") == 34
+    for row in available:
+        assert f"F111 registry {row['symbol']} {row['side']} status=available" in caplog.text
 
 
 def test_emit_fills_a_string_reason_when_gate_false_reason_is_missing(tmp_path, caplog):
@@ -1374,6 +1378,83 @@ def test_verify_scan_since_keeps_rows_at_or_after_the_timestamp(tmp_path, monkey
     with pytest.raises(SystemExit) as exc:
         main(["--telemetry", str(telemetry), "--since", "not-a-timestamp"])
     assert exc.value.code == 2
+
+
+def test_hourly_signal_uses_the_closed_bar_not_the_forming_one(tmp_path, monkeypatch):
+    """The newest feed bar is the in-progress hour. The signal bar is the one before it.
+
+    A bar is closed only when its open plus one hour is at or before now.
+    Dropping a single trailing bar is not enough when the bar underneath is
+    still forming too.
+    """
+    from core.strategy.mar_f111_r12_extension_latefloor_v1 import (
+        MarF111R12ExtensionLatefloorV1Strategy,
+    )
+
+    bars = MarF111R12ExtensionLatefloorV1Strategy.min_bars + 2
+    index = pd.date_range("2024-01-01", periods=bars, freq="h", tz="UTC", name="timestamp")
+    close = [100.0] * bars
+    close[-2] = 888.0
+    close[-1] = 999.0
+    frame = pd.DataFrame(
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": close,
+            "volume": 10.0,
+            "turnover": 1000.0,
+        },
+        index=index,
+    )
+    seen: list[float] = []
+
+    def fake_signals(self, candles):
+        seen.append(float(candles["close"].iloc[-1]))
+        out = self.empty_signals(candles)
+        out["compression"] = 0.6
+        out["extension_atr"] = 0.4
+        out["prior_atr"] = 2.0
+        out["entry_boundary"] = 100.0
+        out["signal"] = self.params.side.sign
+        out["f111_rejection_reason"] = ""
+        return out
+
+    monkeypatch.setattr(MarF111R12ExtensionLatefloorV1Strategy, "generate_signals", fake_signals)
+
+    class _Hourly:
+        def fetch_latest(self, symbol: str, timeframe: str, bars: int = 860) -> pd.DataFrame:
+            return frame
+
+    # 30 minutes into the hour that opened at index[-2]. That bar closes at
+    # index[-1], and index[-1] itself closes an hour later. Both are forming.
+    now = index[-2].to_pydatetime() + timedelta(minutes=30)
+    runtime = _runtime(tmp_path)
+    runtime.registry["BTCUSDT"] = _available("BTCUSDT")
+    runtime._consume_hourly(_Hourly(), now)
+    logged = [row for row in runtime.events if row.get("side") in {"LONG", "SHORT"}]
+    assert logged
+    closed_open = index[-3].to_pydatetime()
+    for row in logged:
+        assert row["feature_values"]["close"] == pytest.approx(100.0)
+        assert row["source_signal_time"] == (closed_open + timedelta(hours=1)).isoformat()
+        assert row["feature_values"]["close"] != pytest.approx(888.0)
+        assert row["feature_values"]["close"] != pytest.approx(999.0)
+    assert seen
+    assert set(seen) == {100.0}
+
+    # The newest bar is closed at the exact hour boundary, so its close is the signal.
+    boundary = index[-1].to_pydatetime() + timedelta(hours=1)
+    runtime = _runtime(tmp_path / "exact")
+    runtime.registry["BTCUSDT"] = _available("BTCUSDT")
+    seen.clear()
+    runtime._consume_hourly(_Hourly(), boundary)
+    logged = [row for row in runtime.events if row.get("side") in {"LONG", "SHORT"}]
+    assert logged
+    for row in logged:
+        assert row["feature_values"]["close"] == pytest.approx(999.0)
+        assert row["source_signal_time"] == boundary.isoformat()
+    assert set(seen) == {999.0}
 
 
 def test_live_shaped_hourly_frame_keeps_signed_extension_for_long_and_short(tmp_path):

@@ -90,6 +90,33 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def _bar_open_utc(stamp: Any) -> datetime:
+    """Hourly index label as a UTC bar open. Naive stamps are UTC."""
+    if getattr(stamp, "tzinfo", None) is None:
+        opened = stamp.to_pydatetime().replace(tzinfo=timezone.utc)
+    else:
+        opened = stamp.to_pydatetime().astimezone(timezone.utc)
+    return opened
+
+
+def _drop_unclosed_hourly(frame: Any, now: datetime) -> Any:
+    """Drop every trailing hourly bar that is still forming.
+
+    A bar is closed only when its open plus one hour is at or before ``now``.
+    ``closed_candles`` removes a single trailing bar. Two unclosed bars, or a
+    last bar whose close is still ahead of ``now``, must not become the signal.
+    """
+    if frame is None or len(frame) == 0:
+        return frame
+    moment = _as_utc(now)
+    end = len(frame)
+    while end > 0:
+        if _bar_open_utc(frame.index[end - 1]) + timedelta(hours=1) <= moment:
+            break
+        end -= 1
+    return frame.iloc[:end]
+
+
 def _iso(value: datetime | None) -> str | None:
     if value is None:
         return None
@@ -231,7 +258,18 @@ class F111Runtime:
         if row.get("gate_decision") is False and not _reason_text(row.get("rejection_reason")):
             row["rejection_reason"] = NO_SIGNAL_REASON
         self.events.append(row)
-        if row.get("deploy_marker"):
+        if row.get("record_kind") == "registry":
+            # Census rows are not gate decisions. The old line used
+            # `rejection_reason or gate_decision`, so None or False printed
+            # reason=False for every available sleeve.
+            availability = "unavailable" if row.get("instrument_unavailable") else "available"
+            logger.info(
+                "F111 registry %s %s status=%s",
+                row.get("symbol"),
+                row.get("side"),
+                availability,
+            )
+        elif row.get("deploy_marker"):
             logger.info(
                 "F111 deploy_marker=%s configuration_sha256=%s strategy_version=%s run_id=%s",
                 row.get("deploy_marker"),
@@ -240,8 +278,7 @@ class F111Runtime:
                 row.get("run_id"),
             )
         else:
-            # Print rejection_reason itself. Do not substitute gate_decision:
-            # that bool is what turned a missing reason into reason=False.
+            # Gate rows print the rejection string. Never substitute the bool.
             logger.info(
                 "F111 %s %s %s gate=%s reason=%s",
                 row.get("symbol"),
@@ -300,11 +337,11 @@ class F111Runtime:
                         "side": side,
                         "cohort": cohort_of(symbol, self.config),
                         "sector": _sector(symbol),
+                        "record_kind": "registry",
                         "gate_decision": False,
                         # Available sleeves have no hourly signal on this census
-                        # row. The reason is still a string, and the JSONL stores
-                        # that string. source_signal_id stays unset: this is not
-                        # a signal.
+                        # row. The JSONL still stores a string. source_signal_id
+                        # stays unset: this is not a signal.
                         "rejection_reason": NO_SIGNAL_REASON if not unavailable else status.reason,
                         "instrument_unavailable": unavailable,
                         "feature_values": {
@@ -1167,6 +1204,8 @@ class F111Runtime:
             return
         try:
             btc = closed_candles(data.fetch_latest("BTCUSDT", "1h", bars=860), "1h", now=now)
+            if btc is not None and len(btc):
+                btc = _drop_unclosed_hourly(btc, now)
         except Exception as exc:
             logger.warning("F111 BTC hourly fetch failed: %s", exc)
             btc = None
@@ -1181,14 +1220,20 @@ class F111Runtime:
             if frame is None or len(frame) == 0:
                 self._emit_data_gap(symbol, "no_history")
                 continue
+            # closed_candles drops only the final in-progress bar. Drop every
+            # hourly bar that has not closed: bar open + 1h <= now.
+            frame = _drop_unclosed_hourly(frame, now)
+            if frame is None or len(frame) == 0:
+                self._emit_data_gap(symbol, "hourly bar still forming")
+                continue
             if len(frame) < MarF111R12ExtensionLatefloorV1Strategy.min_bars:
                 self._emit_data_gap(symbol, "insufficient_history")
                 continue
-            bar_open = frame.index[-1]
-            if getattr(bar_open, "tzinfo", None) is None:
-                t0 = bar_open.to_pydatetime().replace(tzinfo=timezone.utc) + timedelta(hours=1)
-            else:
-                t0 = bar_open.to_pydatetime().astimezone(timezone.utc) + timedelta(hours=1)
+            bar_open = _bar_open_utc(frame.index[-1])
+            t0 = bar_open + timedelta(hours=1)
+            if t0 > _as_utc(now):
+                self._emit_data_gap(symbol, "hourly bar still forming")
+                continue
             for side in (SignalSide.LONG, SignalSide.SHORT):
                 rule = MarF111R12ExtensionLatefloorV1Strategy(replace(MarF111R12ExtensionLatefloorV1Strategy().params, side=side))
                 try:
