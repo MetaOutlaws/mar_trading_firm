@@ -474,6 +474,11 @@ def scored_proposals(agent: str, limit: int = 200) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Escalations
 # ---------------------------------------------------------------------------
+# Resolved and expired rows are closed. A later fault with the same title
+# opens a new row instead of waking the old one.
+_CLOSED_ESCALATION = ("resolved", "expired")
+
+
 def escalate_once(
     agent: str,
     title: str,
@@ -485,13 +490,14 @@ def escalate_once(
     """Open an escalation unless the same root cause (or title) is already unresolved.
 
     Recurring faults increment occurrence_count instead of opening N rows.
+    Expired rows are closed: they do not absorb a new occurrence.
     """
     cause = root_cause or title[:120]
     owner = owner_seat or agent
     with session_scope() as session:
         rows = session.scalars(
             select(EscalationRecord)
-            .where(EscalationRecord.lifecycle != "resolved")
+            .where(EscalationRecord.lifecycle.notin_(_CLOSED_ESCALATION))
             .order_by(EscalationRecord.created_at.desc())
             .limit(80)
         )
@@ -554,13 +560,73 @@ def _maybe_promote_escalation(record: EscalationRecord) -> None:
     record.severity_promoted = True
 
 
+def _escalation_age(record: EscalationRecord, moment: datetime) -> timedelta | None:
+    created = record.created_at
+    if created is None:
+        return None
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment - created
+
+
+def expire_stale_escalations(now: datetime | None = None) -> dict[str, Any]:
+    """Expire unresolved escalations that are past ``timeout_hours``.
+
+    Expired rows leave the open inbox. This is the clear path for a stale
+    ticket such as an outdated "Trading is suspended" row: the next desk
+    read or the bulk-ack endpoint runs this function. It does not target a
+    title and it does not edit the database by hand.
+
+    Returns the ids that moved to ``expired`` on this call.
+    """
+    moment = now or utcnow()
+    expired_ids: list[int] = []
+    with session_scope() as session:
+        rows = session.scalars(
+            select(EscalationRecord).where(
+                EscalationRecord.lifecycle.notin_(_CLOSED_ESCALATION)
+            )
+        )
+        for row in rows:
+            age = _escalation_age(row, moment)
+            if age is None:
+                continue
+            hours = float(row.timeout_hours or 24.0)
+            if age < timedelta(hours=hours):
+                continue
+            row.lifecycle = "expired"
+            row.acknowledged = True
+            if row.acknowledged_at is None:
+                row.acknowledged_at = moment
+            row.resolved_at = moment
+            expired_ids.append(int(row.id))
+    return {"expired": len(expired_ids), "ids": expired_ids}
+
+
+def acknowledge_stale_escalations(now: datetime | None = None) -> dict[str, Any]:
+    """Bulk-ack every escalation already past its timeout.
+
+    Ack here means expire: the row is closed and drops off the open list.
+    Same function as the automatic expiry, so a button and a desk refresh
+    cannot disagree about which rows are stale.
+    """
+    return expire_stale_escalations(now)
+
+
 def open_escalations(limit: int = 50) -> list[dict[str, Any]]:
-    """Unresolved escalations (open or acknowledged), newest first."""
+    """Unresolved escalations (open or acknowledged), newest first.
+
+    Rows past their timeout are expired first, so a stale ticket does not
+    stay on the desk until someone edits the table.
+    """
+    expire_stale_escalations()
     promote_stale_escalations()
     with session_scope() as session:
         rows = session.scalars(
             select(EscalationRecord)
-            .where(EscalationRecord.lifecycle != "resolved")
+            .where(EscalationRecord.lifecycle.notin_(_CLOSED_ESCALATION))
             .order_by(EscalationRecord.created_at.desc())
             .limit(limit)
         )
@@ -592,11 +658,16 @@ def _escalation_row(r: EscalationRecord) -> dict[str, Any]:
 
 
 def promote_stale_escalations() -> int:
-    """Dashboard aging: unresolved past timeout becomes critical."""
+    """Dashboard aging: unresolved past timeout becomes critical.
+
+    Expired rows are already closed and are not promoted back onto the desk.
+    """
     n = 0
     with session_scope() as session:
         rows = session.scalars(
-            select(EscalationRecord).where(EscalationRecord.lifecycle != "resolved")
+            select(EscalationRecord).where(
+                EscalationRecord.lifecycle.notin_(_CLOSED_ESCALATION)
+            )
         )
         for row in rows:
             before = row.severity_promoted
@@ -609,7 +680,7 @@ def promote_stale_escalations() -> int:
 def acknowledge_escalation(escalation_id: int) -> bool:
     with session_scope() as session:
         record = session.get(EscalationRecord, escalation_id)
-        if record is None or record.lifecycle == "resolved":
+        if record is None or record.lifecycle in _CLOSED_ESCALATION:
             return False
         record.acknowledged = True
         record.acknowledged_at = utcnow()
@@ -620,7 +691,7 @@ def acknowledge_escalation(escalation_id: int) -> bool:
 def resolve_escalation(escalation_id: int) -> bool:
     with session_scope() as session:
         record = session.get(EscalationRecord, escalation_id)
-        if record is None or record.lifecycle == "resolved":
+        if record is None or record.lifecycle in _CLOSED_ESCALATION:
             return False
         record.acknowledged = True
         if record.acknowledged_at is None:

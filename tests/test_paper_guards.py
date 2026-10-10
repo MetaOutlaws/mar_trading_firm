@@ -296,44 +296,47 @@ def test_paper_plan_keeps_two_families_on_same_symbol_side(monkeypatch) -> None:
     assert ("mama_fama_cross", "BTCUSDT", "SHORT", "4h") not in live_ids
 
 
-def test_approved_count_matches_approved_true_research_keys(monkeypatch) -> None:
+def test_approved_count_matches_approved_true_research_keys(monkeypatch, tmp_path) -> None:
     """API approved_count is every approved=True key, not unique (symbol, side).
 
-    Paper-override-only rows stay out of the count.
+    Paper-override-only rows stay out of the count. The panel reads the
+    mounted book file, not a cached ``get_universe``.
     """
-    from config.universe import parse_approval_key
+    import json
+
+    from config import universe as universe_mod
+    from config.universe import Universe, parse_approval_key
     from api.app import strategies
 
-    universe = Universe(
-        approvals={
-            "week_open_reclaim:XRPUSDT:SHORT:4h": {
-                "approved": True,
-                "timeframe": "4h",
-                "strategy": "week_open_reclaim",
-            },
-            "orb_fail_reversion:XRPUSDT:SHORT:4h": {
-                "approved": True,
-                "timeframe": "4h",
-                "strategy": "orb_fail_reversion",
-            },
-            "double_top_neckline_break:BTCUSDT:SHORT:1h": {
-                "approved": True,
-                "timeframe": "1h",
-                "strategy": "double_top_neckline_break",
-            },
-            "mama_fama_cross:ETHUSDT:SHORT:4h": {
-                "approved": False,
-                "paper_override": True,
-                "timeframe": "4h",
-                "strategy": "mama_fama_cross",
-            },
-        }
-    )
+    approvals = {
+        "week_open_reclaim:XRPUSDT:SHORT:4h": {
+            "approved": True,
+            "timeframe": "4h",
+            "strategy": "week_open_reclaim",
+        },
+        "orb_fail_reversion:XRPUSDT:SHORT:4h": {
+            "approved": True,
+            "timeframe": "4h",
+            "strategy": "orb_fail_reversion",
+        },
+        "double_top_neckline_break:BTCUSDT:SHORT:1h": {
+            "approved": True,
+            "timeframe": "1h",
+            "strategy": "double_top_neckline_break",
+        },
+        "mama_fama_cross:ETHUSDT:SHORT:4h": {
+            "approved": False,
+            "paper_override": True,
+            "timeframe": "4h",
+            "strategy": "mama_fama_cross",
+        },
+    }
+    universe = Universe(approvals=approvals)
+    book = tmp_path / "approved_strategies.json"
+    book.write_text(json.dumps(approvals), encoding="utf-8")
     assert len(universe.approved_records) == 3
     assert len(universe.approved_pairs) == 2
-    fake_get = lambda: universe  # noqa: E731
-    fake_get.cache_clear = lambda: None
-    monkeypatch.setattr("config.universe.get_universe", fake_get)
+    monkeypatch.setattr(universe_mod, "APPROVALS_PATH", book)
     payload = strategies()
     assert payload["approved_count"] == 3
     assert payload["paper_override_count"] == 1
