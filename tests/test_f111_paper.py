@@ -110,7 +110,9 @@ def _pass_signal(runtime: F111Runtime, **overrides):
         side="LONG",
         t0=T0,
         boundary=100.0,
-        prior_atr=1.0,
+        # 1.02 / 101 clears the 0.01 ATR/close gate. A fill near 101 then
+        # puts a later 105 quote between the 1.25R arm and the 4 ATR target.
+        prior_atr=1.02,
         close=101.0,
         compression=0.6,
         extension_atr=0.4,
@@ -318,11 +320,12 @@ def test_opposite_signals_are_not_cancelled_and_same_action_is_rejected(tmp_path
         quote_time=T0 + timedelta(minutes=1),
         observed_at=T0 + timedelta(minutes=1),
     )
-    # Long's action minute is also the short's reclaim minute, so the short
-    # fill would be the following minute. Drive the short onto the same action
-    # by aligning clocks: reject the long fill first, then force the short's
-    # action time to match and step once more.
-    assert any(row["rejection_reason"] == "missing_candle_or_quote" or row["gate_decision"] for row in runtime.events)
+    # The long's action minute is the short's reclaim minute. The short stays
+    # pending for its own next minute. Nothing cancels the other side.
+    assert runtime.pending[1]["status"] == "scheduled"
+    assert runtime.pending[1]["side"] == "SHORT"
+    assert runtime.pending[0]["rejection_reason"] == "paper broker or risk engine not attached"
+    assert all("cancel" not in (row["rejection_reason"] or "") for row in runtime.events)
 
 
 def test_simultaneous_opposite_entries_place_no_order(tmp_path):
@@ -523,7 +526,8 @@ def test_stop_before_target_and_protection_waits_a_minute():
     assert exit_row["reason"] == 4
 
     fresh = new_protection_state(entry_price=100.0, side=1, prior_atr=1.0, quantity=1.0, entry_fee=0.0)
-    armed, no_exit = step_protection(fresh, 104.0, funding_fraction=0.0, fee=RESEARCH_FEE, sample_id="arm")
+    # 103.9 is past the 1.25R arm (103.75) and short of the 4 ATR target (104).
+    armed, no_exit = step_protection(fresh, 103.9, funding_fraction=0.0, fee=RESEARCH_FEE, sample_id="arm")
     assert no_exit is None and armed["armed"] is True
     assert armed["effective_level"] == pytest.approx(-fresh["stop_return"])
     assert armed["decided_level"] > armed["effective_level"]
@@ -826,7 +830,7 @@ def test_retired_hourly_entries_keep_exit_supervision(tmp_path, monkeypatch, fir
     )
     monkeypatch.setattr(engine_mod, "LAST_CYCLE_PATH", tmp_path / "last_cycle.json")
     ledger = Ledger(mode="paper", starting_equity=10_000.0)
-    opened = broker.place_market_order("BTCUSDT", "LONG", 0.01, expected_price=100.0)
+    opened = broker.place_market_order("BTCUSDT", "LONG", 0.1, expected_price=100.0)
     assert opened.success
     broker.set_stops("BTCUSDT", take_profit=110.0, stop_loss=97.0)
     ledger.open_position(
@@ -902,7 +906,7 @@ def test_operator_flag_stops_new_entries_without_closing(tmp_path):
         side="LONG",
         t0=later,
         boundary=100.0,
-        prior_atr=1.0,
+        prior_atr=1.02,
         close=101.0,
         compression=0.6,
         extension_atr=0.2,
