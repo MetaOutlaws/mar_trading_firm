@@ -1,0 +1,13 @@
+[Unit]
+Description=Hourly SGP1 Soko regime label at :05 UTC
+
+[Timer]
+# Desktop label_log runs land at HH:05:0xZ. Keep the same minute, in UTC,
+# so a 4h bar that closed at 00/04/08/12/16/20 is picked up five minutes later.
+OnCalendar=*-*-* *:05:00 UTC
+AccuracySec=1s
+Persistent=true
+Unit=sgp1-soko-label.service
+
+[Install]
+WantedBy=timers.target
