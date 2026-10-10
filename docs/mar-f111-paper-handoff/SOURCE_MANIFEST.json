@@ -1,0 +1,19 @@
+{
+  "status": "handoff_only_not_implemented_or_activated",
+  "source_checkpoint_sha256": "03fbcc49d6d6e97325eb5c6b837e09fdd4a5edaea7dcf1b2fe255c5b89292637",
+  "source_paths": {
+    "references/simulator.py": "mar_protection_surface_20261010/simulator.py",
+    "references/common.py": "mar_protection_surface_20261010/common.py",
+    "references/retest_run_paths.py": "mar_retest_expiry_20261010/run_paths.py",
+    "references/factorial_run.py": "mar_r12_i11_factorial_20261010/run.py"
+  },
+  "files": {
+    "F111_paper_activation_spec.json": "06245de1d7e67ae6cce651eb7090d04774ea6d4f4737d68687155361e7055e4b",
+    "README.md": "e81e3d2a358b12d4599c6f201d0a1a9a7284244dec29bddd1b7440bb32e0b886",
+    "REFERENCE_RULES.md": "8b1fa3c3959754eacb70ece474f9f2399f65715c10a735b8677616207c7e11fb",
+    "references/common.py": "93ea62fcc4e07a16fcefb820e943f378d24b90ae2b5f4a95adfee0aba5f990c2",
+    "references/factorial_run.py": "7470f4c01160135ab56ae3ffcbba91f20066d507cb44c37d2de8e47cca78467b",
+    "references/retest_run_paths.py": "6cf57ae6b124356bf52fbfcdca8ebdefcec920712730f1d93b7783520d2f31c4",
+    "references/simulator.py": "e41ce472b41a49d0dd16239e23f28c834a4095342f01c8a29853b898c68fd9a9"
+  }
+}
