@@ -1,0 +1,12 @@
+source,trade_id,position_id,symbol,side,strategy,open_gst,close_gst,exit_reason,trades_net,journal_status,journal_ref
+trades,1,2,SOLUSDT,SHORT,nr7_fail_reversion,2026-10-04 04:04,2026-10-04 17:38,stop_loss,-20.926618,posted,paper-close:2:SOLUSDT:stop_loss:8.33000000:121.94000000
+trades,2,1,XRPUSDT,SHORT,range_compression_volume_thrust,2026-10-03 00:14,2026-10-05 02:02,stop_loss,-31.650625,posted,paper-close:1:XRPUSDT:stop_loss:679.20000000:1.51670000
+trades,3,4,SOLUSDT,LONG,candle_reject_reversal,2026-10-06 12:09,2026-10-07 06:01,stop_loss,-12.024268,posted,paper-close:4:SOLUSDT:stop_loss:4.12000000:117.82000000
+trades,4,3,XRPUSDT,SHORT,range_compression_volume_thrust,2026-10-05 20:07,2026-10-07 06:01,take_profit,31.662348,posted,paper-close:3:XRPUSDT:take_profit:665.40000000:1.44284140
+trades,5,6,AVAXUSDT,SHORT,range_compression_volume_thrust,2026-10-07 08:10,2026-10-07 20:06,stop_loss,-31.680581,posted,paper-close:6:AVAXUSDT:stop_loss:90.20000000:11.36300000
+trades,6,5,XRPUSDT,SHORT,range_compression_volume_thrust,2026-10-07 08:10,2026-10-07 21:39,take_profit,27.896119,posted,paper-close:5:XRPUSDT:take_profit:679.00000000:1.41821680
+trades,7,7,ETHUSDT,SHORT,signed_range_turnover_trend,2026-10-07 08:10,2026-10-08 19:22,take_profit,48.41658,posted,paper-close:7:ETHUSDT:take_profit:0.38000000:2479.22675000
+trades,8,8,XRPUSDT,SHORT,range_compression_volume_thrust,2026-10-08 20:00,2026-10-09 03:24,stop_loss,-31.059542,posted,paper-close:8:XRPUSDT:stop_loss:742.60000000:1.38630000
+trades,9,10,ETHUSDT,SHORT,signed_range_turnover_trend,2026-10-08 20:00,2026-10-09 03:35,stop_loss,-21.037383,posted,paper-close:10:ETHUSDT:stop_loss:0.41000000:2482.99000000
+trades,10,9,AVAXUSDT,SHORT,range_compression_volume_thrust,2026-10-08 20:00,2026-10-09 06:52,stop_loss,-31.349291,posted,paper-close:9:AVAXUSDT:stop_loss:99.90000000:10.29400000
+journal_only,,,XRPUSDT,SHORT,,,2026-10-02 08:21,,,ORPHAN (no trades row),json close ts 2026-10-02T04:21:44Z net -21.070272

@@ -1561,7 +1561,10 @@ class TradingEngine:
             return 0
 
         # Replay applies the committed payload, not a freshly quoted price.
+        # Stop, target, and expiry all come through here, so the journal
+        # event_id is the same key stored on the trade.
         applied = broker.apply_journal_close(result.payload)
+        _guard_journal_has_close(broker, result.payload, symbol, result.trade_id)
         if not applied.success and symbol in broker._positions:
             logger.error("Paper close %s committed but RAM still shows the position", symbol)
             return 0
@@ -1586,6 +1589,33 @@ class TradingEngine:
             return False
         applied = broker.apply_journal_close(payload)
         return bool(applied.success)
+
+
+def _guard_journal_has_close(
+    broker: PaperBroker,
+    payload: dict,
+    symbol: str,
+    trade_id: int | None,
+) -> None:
+    """Log when a committed paper close is missing from the JSON journal.
+
+    The happy path already writes the event. This does not change cash,
+    the trade, or the return value. A broker with no cash store (replay
+    and some unit tests) has nothing to check.
+    """
+    store = broker._cash_store
+    event_id = str(payload.get("event_id") or "")
+    if store is None or not event_id:
+        return
+    if any(str(event.get("event_id") or "") == event_id for event in store.events()):
+        return
+    logger.error(
+        "Paper close %s trade %s committed but %s has no journal event %s",
+        symbol,
+        trade_id,
+        store.path,
+        event_id,
+    )
 
 
 def build_engine(

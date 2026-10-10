@@ -1173,11 +1173,36 @@ function kpi(label, value, hint, klass = "") {
   return `<article class="kpi"><div class="label">${label}</div><div class="value num ${klass}">${value}</div><div class="hint">${hint || ""}</div></article>`;
 }
 
+function bookReconcileWarning(book) {
+  const rec = book.reconcile;
+  if (!rec) return "";
+  const missing = rec.trades_without_journal_close || [];
+  const orphans = rec.journal_closes_without_trade || [];
+  const lines = [];
+  if (missing.length) {
+    lines.push("Trades with no journal close: " + missing.map(row =>
+      "#" + row.trade_id + " " + (row.symbol || "") + " " + money(row.net_pnl)
+    ).join(", "));
+  }
+  if (orphans.length) {
+    lines.push("Journal closes with no trade: " + orphans.map(row =>
+      (row.ref || "") + " " + (row.symbol || "") + " " + (row.side || "") + " " + money(row.net)
+    ).join(", "));
+  }
+  const totalsDiffer = book.journal_present && book.trades_net_pnl != null && book.closed_realised_pnl != null
+    && Math.abs(Number(book.trades_net_pnl) - Number(book.closed_realised_pnl)) > 0.01;
+  if (!lines.length && totalsDiffer) {
+    lines.push("Closed realised " + money(book.closed_realised_pnl)
+      + " and trades-table net " + money(book.trades_net_pnl)
+      + " differ, and no unmatched trade or journal close was found.");
+  }
+  if (!lines.length) return "";
+  return `<div class="warn" style="margin-top:8px">${lines.map(esc).join("<br>")}</div>`;
+}
+
 function bookCard() {
   const book = (state.risk || {}).book;
   if (!book) return "";
-  const gap = book.journal_present && book.trades_net_pnl != null && book.closed_realised_pnl != null
-    && Math.abs(Number(book.trades_net_pnl) - Number(book.closed_realised_pnl)) > 0.01;
   const fundingHint = "open " + money(book.open_funding, 4) + " · closed " + money(book.closed_funding, 4) + " · positive means paid";
   return `<div class="card" style="margin-bottom:16px">
     <h2>Paper book</h2>
@@ -1191,7 +1216,7 @@ function bookCard() {
       ${kpi("Marked unrealised", money(book.marked_unrealised_pnl), book.marks_complete ? "open marks" : "a mark is missing", pnlClass(book.marked_unrealised_pnl))}
     </section>
     <div class="muted" style="margin-top:8px">Equity ${money(book.equity)} = cash ${money(book.cash)} + marked unrealised ${money(book.marked_unrealised_pnl)}</div>
-    ${gap ? `<div class="warn" style="margin-top:8px">Trades-table net ${money(book.trades_net_pnl)} does not match cash-journal closed realised. Missing closes are not backfilled into cash.</div>` : ""}
+    ${bookReconcileWarning(book)}
   </div>`;
 }
 

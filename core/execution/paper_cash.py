@@ -94,6 +94,11 @@ def replay_events(events: list[dict[str, Any]]) -> PaperCashState:
     ``entry_fee`` + ``funding`` into realised P&L so a *flat* book satisfies
     cash - contributed == realised_pnl.
 
+    A consolidated DESKTOP close is marked ``backfill``. It has no earlier
+    open or funding event, so cash moves by the whole net
+    (``gross - fee - entry_fee - funding``), not by ``gross - fee`` alone.
+    Live closes are not marked and do not subtract funding a second time.
+
     An open book does not. Entry fees and funding still on open positions
     have already moved cash and are not inside closed realised P&L:
 
@@ -136,6 +141,10 @@ def replay_events(events: list[dict[str, Any]]) -> PaperCashState:
             entry_fee = float(event.get("entry_fee") or 0.0)
             funding = float(event.get("funding") or 0.0)
             cash += gross - fee
+            # Live funding and entry fees already left cash. A backfill close
+            # is the only event for that trade, so it carries those too.
+            if event.get("backfill"):
+                cash -= entry_fee + funding
             realised += gross - fee - entry_fee - funding
             fees += fee
             total_funding += funding
