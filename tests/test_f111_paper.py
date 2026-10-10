@@ -1293,7 +1293,8 @@ def test_verify_scan_scopes_missing_feature_to_the_latest_restart(tmp_path, monk
     assert main(["--telemetry", str(telemetry)]) == 0
     passed = capsys.readouterr().out
     assert "all-history=" in passed
-    assert "since-latest-restart=0.0%" in passed
+    assert "scope=latest-restart" in passed
+    assert "scoped=0.0%" in passed
     assert "all-history=0.0%" not in passed
 
     still_broken = [signal("missing_feature", "after-restart") for _ in range(155)]
@@ -1304,8 +1305,75 @@ def test_verify_scan_scopes_missing_feature_to_the_latest_restart(tmp_path, monk
     )
     assert main(["--telemetry", str(telemetry)]) == 1
     failed = capsys.readouterr().out
-    assert "since-latest-restart=" in failed
-    assert "since-latest-restart=0.0%" not in failed
+    assert "scope=latest-restart" in failed
+    assert "scoped=0.0%" not in failed
+
+
+def test_verify_scan_since_keeps_rows_at_or_after_the_timestamp(tmp_path, monkeypatch, capsys):
+    """``--since`` replaces the latest-restart window with an ISO instant."""
+    from core.execution.f111_paper import rows_since_timestamp
+    from scripts.verify_f111_paper_scan import main
+
+    def signal(reason: str, when: str) -> dict:
+        return {
+            "rejection_reason": reason,
+            "run_id": "same-process",
+            "source_signal_time": when,
+            "feature_values": {"prior_atr": 3.19e-05, "boundary": 0.003448},
+        }
+
+    cutoff = "2026-10-10T14:00:00+00:00"
+    before = [signal("missing_feature", "2026-10-10T13:00:00+00:00") for _ in range(155)]
+    at_cutoff = [signal("high_vol_filter", cutoff) for _ in range(10)]
+    after = [signal("compression_gate", "2026-10-10T15:00:00Z") for _ in range(20)]
+    untimed = [
+        {
+            "rejection_reason": "missing_feature",
+            "run_id": "same-process",
+            "feature_values": {"prior_atr": 3.19e-05, "boundary": 0.003448},
+        }
+        for _ in range(40)
+    ]
+    kept = rows_since_timestamp(before + at_cutoff + after + untimed, datetime.fromisoformat(cutoff))
+    assert len(kept) == 30
+    assert all(row["source_signal_time"] >= "2026-10-10T14:00:00" for row in kept)
+
+    telemetry = tmp_path / "f111_telemetry.jsonl"
+    telemetry.write_text(
+        "".join(json.dumps(item) + "\n" for item in before + at_cutoff + after + untimed),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "scripts.verify_f111_paper_scan.fresh_scan",
+        lambda: {
+            "sleeves_evaluated": 192,
+            "sleeves_expected": 192,
+            "orders_placed": 0,
+            "transport_failures": 0,
+            "configuration_sha256": "deployed-sha",
+            "strategy_version": "f111-paper-v1",
+            "rows": [{"feature_values": {"evaluated": True}} for _ in range(192)],
+        },
+    )
+    # Same run_id, so the default window still sees the earlier missing_feature rows.
+    assert main(["--telemetry", str(telemetry)]) == 1
+    assert "scope=latest-restart" in capsys.readouterr().out
+
+    assert main(["--telemetry", str(telemetry), "--since", "2026-10-10T14:00:00Z"]) == 0
+    scoped_out = capsys.readouterr().out
+    assert f"scope={cutoff}" in scoped_out
+    assert "scoped=0.0%" in scoped_out
+    assert "all-history=0.0%" not in scoped_out
+
+    # A naive clock is UTC. One second earlier still includes the 13:00Z rows.
+    assert main(["--telemetry", str(telemetry), "--since", "2026-10-10T13:00:00"]) == 1
+    early = capsys.readouterr().out
+    assert "scope=2026-10-10T13:00:00+00:00" in early
+    assert "scoped=0.0%" not in early
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--telemetry", str(telemetry), "--since", "not-a-timestamp"])
+    assert exc.value.code == 2
 
 
 def test_live_shaped_hourly_frame_keeps_signed_extension_for_long_and_short(tmp_path):

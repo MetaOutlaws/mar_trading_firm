@@ -1389,6 +1389,42 @@ def _marker_matches_deploy(row: dict[str, Any], *, configuration_sha256: str, st
     return sha is None and version is None
 
 
+def row_recorded_time(row: dict[str, Any]) -> datetime | None:
+    """Instant used by ``--since``.
+
+    The first parseable value wins: ``emitted_at``, ``source_signal_time``,
+    ``observed_at``, then ``feature_asof_times.signal_close``. A row with
+    none of those has no recorded time.
+    """
+    for field in ("emitted_at", "source_signal_time", "observed_at"):
+        raw = row.get(field)
+        if isinstance(raw, str):
+            parsed = _parse_time(raw)
+            if parsed is not None:
+                return parsed
+    asof = row.get("feature_asof_times")
+    if not isinstance(asof, dict):
+        asof = row.get("feature_asof")
+    if isinstance(asof, dict):
+        raw = asof.get("signal_close")
+        if isinstance(raw, str):
+            return _parse_time(raw)
+    return None
+
+
+def rows_since_timestamp(rows: list[dict[str, Any]], since: datetime) -> list[dict[str, Any]]:
+    """Rows whose recorded time is at or after ``since``.
+
+    Rows with no recorded time are outside this window. A naive ``since`` is UTC.
+    """
+    cutoff = _as_utc(since)
+    return [
+        row
+        for row in rows
+        if (recorded := row_recorded_time(row)) is not None and recorded >= cutoff
+    ]
+
+
 def rows_since_latest_deploy(
     rows: list[dict[str, Any]],
     *,

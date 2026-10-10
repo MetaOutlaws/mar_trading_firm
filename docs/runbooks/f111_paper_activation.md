@@ -87,7 +87,23 @@ file should still be the same process):
 
 ```bash
 python scripts/verify_f111_paper_scan.py
+python scripts/verify_f111_paper_scan.py --since 2026-10-10T13:00:00Z
 ```
+
+The missing_feature line prints the all-history share and the scoped share.
+Only the scoped share can fail the command, above 5% of rows that already
+have prior ATR and boundary.
+
+The default scope is `latest-restart`: rows since the latest activation or
+restart. That cut is the later of the last deploy marker for the current
+configuration hash or code version, and the first row of the latest run_id.
+It is the current process after the last restart, not the latest hourly bar.
+
+`--since` is an ISO timestamp and replaces that default. A trailing Z, or a
+clock with no offset, means UTC. A row counts when `emitted_at`,
+`source_signal_time`, `observed_at`, or `feature_asof_times.signal_close`
+(the first one that parses) is at or after that instant. A row with none of
+those times is outside the `--since` window.
 
 You want:
 
