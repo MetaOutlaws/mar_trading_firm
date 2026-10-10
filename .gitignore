@@ -33,6 +33,9 @@ data/last_soko_trend.json.tmp
 # Paper cash / event journal (F02). Back up with firm.db; do not commit.
 data/paper_cash.json
 data/paper_cash.json.tmp
+# Last evaluated 1h/4h bar per paper sleeve. Runtime cursor, not source.
+data/paper_bar_eval_state.json
+data/paper_bar_eval_state.json.tmp
 logs/*.log
 logs/*.log.*
 logs/archive/
