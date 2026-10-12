@@ -9,10 +9,19 @@ Schedule (UTC, aligned to the Unix epoch, which is a 4h boundary):
   * from 2 minutes before until 3 minutes after each 4h candle open
     (00/04/08/12/16/20 UTC), one snapshot every 15 seconds instead
 
+Bursts poll the book and recent trades together on that 15 s slot. There is
+no 1-second poll and no websocket.
+
 Each snapshot, per symbol, is three unauthenticated GETs:
   * /v5/market/orderbook?category=linear&symbol=SYM&limit=50
   * /v5/market/recent-trade?category=linear&symbol=SYM&limit=1000
   * /v5/market/tickers?category=linear&symbol=SYM
+
+limit=1000 is the public maximum for linear recent trades. Every poll logs
+TRADES with the oldest and newest print in that page. gap=yes when this
+page starts after the previous poll's newest print, so the tape in between
+was not captured. COVERAGE.md lists those trade-print gaps beside the
+snapshot gaps.
 
 Bybit's public HTTP IP budget is 600 requests per 5 seconds. This job caps
 itself at 10 requests per 5 seconds and spaces calls by at least 250 ms, so a
@@ -120,6 +129,13 @@ ENDPOINTS: tuple[tuple[str, str], ...] = (
 SNAP_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)"
     r"\s+SNAP\s+(?P<kind>\S+)\s+ok=(?P<ok>\d+)/(?P<n>\d+)\s*$"
+)
+# first_ms is the oldest print in the page, last_ms the newest.
+TRADES_RE = re.compile(
+    r"^(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\s+"
+    r"TRADES symbol=(?P<symbol>\S+) n=(?P<n>\d+)"
+    r"(?: first_ms=(?P<first>\d+) last_ms=(?P<last>\d+))?"
+    r" overlap=(?P<overlap>yes|no|na) gap=(?P<gap>yes|no|na)\s*$"
 )
 
 NowFn = Callable[[], float]
@@ -392,6 +408,146 @@ def _count_tag(log_text: str, tag: str) -> int:
     return sum(1 for line in log_text.splitlines() if needle in (" " + line + " "))
 
 
+def _trade_time_ms(row: dict) -> Optional[int]:
+    """Bybit sends `time` as a millisecond string. Unusable rows are skipped."""
+    raw = row.get("time")
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_trade_times(response: object) -> tuple[int, Optional[int], Optional[int]]:
+    """(n, oldest_ms, newest_ms) from a recent-trade envelope.
+
+    n counts prints with a usable timestamp. An error body or an empty page
+    returns (0, None, None) so the caller does not move the overlap cursor.
+    """
+    if not isinstance(response, dict) or response.get("retCode") != 0:
+        return 0, None, None
+    result = response.get("result")
+    rows = result.get("list") if isinstance(result, dict) else None
+    if not isinstance(rows, list):
+        return 0, None, None
+    times = [
+        ms
+        for row in rows
+        if isinstance(row, dict)
+        for ms in (_trade_time_ms(row),)
+        if ms is not None
+    ]
+    if not times:
+        return 0, None, None
+    return len(times), min(times), max(times)
+
+
+def judge_trade_overlap(
+    previous: Optional[tuple[int, int]],
+    n: int,
+    first_ms: Optional[int],
+    last_ms: Optional[int],
+) -> dict:
+    """Compare this page to the previous poll's [oldest, newest] window.
+
+    overlap=yes when this page's oldest print is at or before the previous
+    page's newest print (the pages meet or overlap). gap=yes when this page
+    starts strictly later, so prints in between were in neither response.
+    The first good page, and any empty or failed page, is overlap=na gap=na
+    and must not move the cursor.
+    """
+    overlap = "na"
+    gap = "na"
+    if previous is not None and first_ms is not None and last_ms is not None and n > 0:
+        _prev_oldest, prev_newest = previous
+        if first_ms <= prev_newest:
+            overlap, gap = "yes", "no"
+        else:
+            overlap, gap = "no", "yes"
+    return {
+        "n": n,
+        "first_ms": first_ms,
+        "last_ms": last_ms,
+        "overlap": overlap,
+        "gap": gap,
+        "limit": TRADE_LIMIT,
+    }
+
+
+def format_trades_log(symbol: str, window: dict) -> str:
+    """One sampler.log token line. Coverage parses this with TRADES_RE."""
+    if window.get("first_ms") is None or window.get("last_ms") is None:
+        return "TRADES symbol=%s n=%d overlap=%s gap=%s" % (
+            symbol,
+            int(window.get("n") or 0),
+            window.get("overlap") or "na",
+            window.get("gap") or "na",
+        )
+    return (
+        "TRADES symbol=%s n=%d first_ms=%d last_ms=%d overlap=%s gap=%s"
+        % (
+            symbol,
+            int(window["n"]),
+            int(window["first_ms"]),
+            int(window["last_ms"]),
+            window["overlap"],
+            window["gap"],
+        )
+    )
+
+
+@dataclass
+class _TradePoll:
+    at: datetime
+    symbol: str
+    n: int
+    first_ms: Optional[int]
+    last_ms: Optional[int]
+    overlap: str
+    gap: str
+
+
+def parse_trade_polls(log_text: str) -> list[_TradePoll]:
+    polls: list[_TradePoll] = []
+    for line in log_text.splitlines():
+        match = TRADES_RE.match(line.strip())
+        if match is None:
+            continue
+        first = match.group("first")
+        last = match.group("last")
+        polls.append(
+            _TradePoll(
+                at=parse_utc(match.group("ts")),
+                symbol=match.group("symbol"),
+                n=int(match.group("n")),
+                first_ms=int(first) if first else None,
+                last_ms=int(last) if last else None,
+                overlap=match.group("overlap"),
+                gap=match.group("gap"),
+            )
+        )
+    return polls
+
+
+def last_trade_windows(log_text: str) -> dict[str, tuple[int, int]]:
+    """Last good [oldest, newest] page per symbol, for a resume after restart."""
+    found: dict[str, tuple[int, int]] = {}
+    for poll in parse_trade_polls(log_text):
+        if poll.first_ms is not None and poll.last_ms is not None:
+            found[poll.symbol] = (poll.first_ms, poll.last_ms)
+    return found
+
+
+def _fmt_trade_gap(delta_ms: int) -> str:
+    """Uncovered span between two trade pages. Sub-minute stays in seconds."""
+    if delta_ms < 0:
+        return "-" + _fmt_trade_gap(-delta_ms)
+    if delta_ms < 60_000:
+        return "%d.%03ds" % (delta_ms // 1000, delta_ms % 1000)
+    return _fmt_span(delta_ms / 1000.0)
+
+
 def render_coverage(
     *,
     log_text: str,
@@ -399,11 +555,12 @@ def render_coverage(
     generated: datetime,
     symbols: Sequence[str] = SYMBOLS,
 ) -> str:
-    """COVERAGE.md body: snap totals, gaps over 6 minutes, missed 4h bursts.
+    """COVERAGE.md body: snap totals, snapshot gaps, trade-print gaps, missed bursts.
 
     The window comes from sampler_run.json when the campaign recorded one, so
-    a burst with zero shots still appears as MISSED. The desktop Part-2 note
-    is the shape this report follows (UTC and GST, CAPTURED vs MISSED).
+    a burst with zero shots still appears as MISSED. Snapshot gaps are holes
+    longer than 6 minutes between SNAP lines. Trade-print gaps are recent-trade
+    pages that do not meet the previous page for that symbol.
     """
     snaps = _parse_snaps(log_text)
     start: Optional[datetime] = None
@@ -560,6 +717,56 @@ def render_coverage(
             )
         lines.append("")
         lines.append("Total gap time over 6m threshold: %s." % _fmt_span(total_gap))
+        lines.append("")
+
+    trade_polls = parse_trade_polls(log_text)
+    trade_gaps: list[tuple[_TradePoll, Optional[_TradePoll]]] = []
+    previous_trade: dict[str, _TradePoll] = {}
+    for poll in trade_polls:
+        prior = previous_trade.get(poll.symbol)
+        if poll.gap == "yes":
+            trade_gaps.append((poll, prior))
+        if poll.first_ms is not None and poll.last_ms is not None:
+            previous_trade[poll.symbol] = poll
+    lines.append("## Trade-print gaps")
+    lines.append("")
+    lines.append(
+        "Every poll requests recent public trades at limit=%d (the public maximum). "
+        "first_ms is the oldest print in that page and last_ms the newest. "
+        "A gap is a page whose oldest print is newer than the previous page's "
+        "newest print for the same symbol, so the tape between them was not captured. "
+        "This is separate from the snapshot gaps above."
+        % TRADE_LIMIT
+    )
+    lines.append("")
+    lines.append("Trade-print gap polls: %d" % len(trade_gaps))
+    lines.append("")
+    if not trade_gaps:
+        lines.append("None.")
+        lines.append("")
+    else:
+        lines.append(
+            "| # | Symbol | Poll (UTC) | Prev last ms | This first ms | Uncovered |"
+        )
+        lines.append(
+            "|---|--------|------------|--------------|---------------|-----------|"
+        )
+        for index, (poll, prior) in enumerate(trade_gaps, start=1):
+            prev_last = prior.last_ms if prior is not None else None
+            uncovered = "—"
+            if prev_last is not None and poll.first_ms is not None:
+                uncovered = _fmt_trade_gap(poll.first_ms - prev_last)
+            lines.append(
+                "| %d | %s | %s | %s | %s | %s |"
+                % (
+                    index,
+                    poll.symbol,
+                    _fmt_utc(poll.at),
+                    prev_last if prev_last is not None else "—",
+                    poll.first_ms if poll.first_ms is not None else "—",
+                    uncovered,
+                )
+            )
         lines.append("")
 
     lines.append("## 4h bar-open bursts (00 / 04 / 08 / 12 / 16 / 20 UTC)")
@@ -898,14 +1105,18 @@ class Sampler:
         self.capped = False
         self.out = settings.out
         self._client: Optional[PublicClient] = None
+        # symbol -> (oldest_ms, newest_ms) of the last non-empty trade page.
+        self._prev_trade: dict[str, tuple[int, int]] = {}
+        self._trade_windows_loaded = False
 
     def now(self) -> float:
         return self._now()
 
     def _wait(self, seconds: float) -> None:
-        """Sleep `seconds`, waking at least every 5 s so SIGTERM is not stuck behind a 5 min nap.
+        """Sleep `seconds`, waking at least every 5 s so SIGTERM is not stuck.
 
-        Five-second slices are still idle: the box is not polling Bybit between snaps.
+        The wait does not call Bybit. Market data is requested only on the
+        5 minute grid and on the 15 second burst slots (book and trades together).
         """
         remaining = seconds
         while remaining > 0 and not self._stop:
@@ -962,6 +1173,24 @@ class Sampler:
             % (used, self.settings.max_bytes)
         )
 
+    def _load_trade_windows(self) -> None:
+        """Seed the overlap cursor from sampler.log so a restart still sees gaps."""
+        if self._trade_windows_loaded:
+            return
+        self._trade_windows_loaded = True
+        self._prev_trade.update(last_trade_windows(_read_text(self.out / "sampler.log")))
+
+    def _note_trades(self, symbol: str, trade_call: dict) -> dict:
+        """Log this page's oldest/newest print and whether it meets the last page."""
+        self._load_trade_windows()
+        response = trade_call.get("response") if isinstance(trade_call, dict) else None
+        n, first_ms, last_ms = parse_trade_times(response)
+        window = judge_trade_overlap(self._prev_trade.get(symbol), n, first_ms, last_ms)
+        self.emit(format_trades_log(symbol, window))
+        if first_ms is not None and last_ms is not None:
+            self._prev_trade[symbol] = (first_ms, last_ms)
+        return window
+
     def _count_ok(self, record: dict) -> int:
         ok = 0
         for name, _template in ENDPOINTS:
@@ -994,6 +1223,7 @@ class Sampler:
                 record[name] = client.get(endpoint_path(name, symbol))
             book = (record.get("orderbook") or {}).get("response") or {}
             record["server_time_ms"] = book.get("time") if isinstance(book, dict) else None
+            record["trade_window"] = self._note_trades(symbol, record.get("recent_trade") or {})
             n_ok += self._count_ok(record)
             try:
                 append_jsonl_gz(daily_path(self.out, symbol, taken), record)
@@ -1102,9 +1332,10 @@ class Sampler:
     def _loop(self, end_epoch: float) -> None:
         """Shoot on the 5 min grid, and every 15 s inside a 4h burst window.
 
-        Inside the window only burst shots run. A 5 min deadline that falls
-        in the window is pushed forward by the burst that reaches it, so the
-        two cadences never stack. Outside the window the 5 min grid runs alone.
+        Inside the window only burst shots run. Each shot requests the book
+        and recent trades (limit 1000) together. There is no 1 s trade poll
+        and no stream. A 5 min deadline that falls in the window is pushed
+        forward by the burst that reaches it, so the two cadences never stack.
         """
         start = self.now()
         next_reg = start

@@ -38,10 +38,13 @@ from scripts.xrp_avax_cost_sampler import (
     daily_path,
     endpoint_path,
     format_schedule,
+    format_trades_log,
     in_burst,
     iter_bar_opens,
+    judge_trade_overlap,
     next_burst_start,
     parse_args,
+    parse_trade_times,
     render_coverage,
     upcoming_bar_opens,
     urllib_fetch,
@@ -637,6 +640,159 @@ def test_sha256sums_matches_file_bytes(tmp_path: Path) -> None:
 
 def _log_line(moment: datetime, message: str) -> str:
     return "%s %s" % (moment.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), message)
+
+
+def _trades_body(symbol: str, times: list[int]) -> bytes:
+    return json.dumps(
+        {
+            "retCode": 0,
+            "retMsg": "OK",
+            "result": {
+                "category": "linear",
+                "list": [
+                    {
+                        "execId": str(index),
+                        "symbol": symbol,
+                        "price": "1",
+                        "size": "1",
+                        "side": "Buy",
+                        "time": str(stamp),
+                    }
+                    for index, stamp in enumerate(times)
+                ],
+            },
+            "time": times[-1] if times else 0,
+        }
+    ).encode("utf-8")
+
+
+class ScriptedTrades:
+    """Recent-trade pages per symbol. Other endpoints get an empty success body."""
+
+    def __init__(self, pages: dict[str, list[list[int]]]) -> None:
+        self.pages = {key: list(value) for key, value in pages.items()}
+        self.urls: list[str] = []
+
+    def __call__(self, url: str, timeout: float) -> tuple[int, dict[str, str], bytes]:
+        self.urls.append(url)
+        symbol = "AVAXUSDT" if "AVAXUSDT" in url else "XRPUSDT"
+        if "recent-trade" in url:
+            body = _trades_body(symbol, self.pages[symbol].pop(0))
+        else:
+            body = _ok_body(symbol)
+        return 200, {"X-Bapi-Limit-Status": "50"}, body
+
+
+def test_trade_window_uses_oldest_and_newest_not_list_order() -> None:
+    # Bybit returns newest first. The window is min/max time, not array order.
+    n, first_ms, last_ms = parse_trade_times(
+        {
+            "retCode": 0,
+            "result": {"list": [{"time": "3000"}, {"time": "1000"}, {"time": "2000"}]},
+        }
+    )
+    assert (n, first_ms, last_ms) == (3, 1000, 3000)
+    assert parse_trade_times({"retCode": 10006, "result": {"list": []}}) == (0, None, None)
+    first = judge_trade_overlap(None, 3, 1000, 3000)
+    assert (first["overlap"], first["gap"], first["limit"]) == ("na", "na", 1000)
+    # Touching the previous newest print is still one continuous tape.
+    touching = judge_trade_overlap((1000, 3000), 1, 3000, 4000)
+    assert (touching["overlap"], touching["gap"]) == ("yes", "no")
+    hole = judge_trade_overlap((1000, 3000), 2, 3001, 4000)
+    assert (hole["overlap"], hole["gap"]) == ("no", "yes")
+    # An empty page does not invent a gap and must not be stored as the cursor.
+    empty = judge_trade_overlap((1000, 3000), 0, None, None)
+    assert empty["gap"] == "na"
+    assert "first_ms=" not in format_trades_log("XRPUSDT", empty)
+
+
+def test_snapshot_logs_trade_gaps_and_coverage_lists_them(tmp_path: Path) -> None:
+    clock = Clock(_dt(2026, 10, 10, 5).timestamp())
+    fetch = ScriptedTrades(
+        {
+            # Empty middle page must not hide the hole between 5000 and 8000.
+            "XRPUSDT": [[1000, 5000], [], [8000, 9000]],
+            "AVAXUSDT": [[10, 20], [15, 30], [25, 40]],
+        }
+    )
+    sampler = _sampler(tmp_path, clock, fetch)
+    sampler.out.mkdir(parents=True, exist_ok=True)
+    for _ in range(3):
+        sampler.snapshot("regular5m")
+    log = (tmp_path / "sampler.log").read_text(encoding="utf-8")
+    assert "TRADES symbol=XRPUSDT n=2 first_ms=1000 last_ms=5000 overlap=na gap=na" in log
+    assert "TRADES symbol=XRPUSDT n=0 overlap=na gap=na" in log
+    assert "TRADES symbol=XRPUSDT n=2 first_ms=8000 last_ms=9000 overlap=no gap=yes" in log
+    assert "TRADES symbol=AVAXUSDT n=2 first_ms=15 last_ms=30 overlap=yes gap=no" in log
+    trade_urls = [url for url in fetch.urls if "recent-trade" in url]
+    assert trade_urls
+    assert all("limit=1000" in url for url in trade_urls)
+    rows = _read_gz(tmp_path / "XRPUSDT_20261010.jsonl.gz")
+    assert rows[0]["trade_window"]["gap"] == "na"
+    assert rows[1]["trade_window"]["n"] == 0
+    assert rows[2]["trade_window"]["gap"] == "yes"
+    assert rows[2]["trade_window"]["first_ms"] == 8000
+    assert rows[2]["trade_window"]["last_ms"] == 9000
+    text = render_coverage(
+        log_text=log,
+        run=None,
+        generated=_dt(2026, 10, 10, 6),
+    )
+    assert "## Gaps over 6 minutes" in text
+    assert "## Trade-print gaps" in text
+    assert "Trade-print gap polls: 1" in text
+    assert "| 1 | XRPUSDT | 2026-10-10 05:00:00 | 5000 | 8000 | 3.000s |" in text
+
+
+def test_restart_compares_trades_to_the_last_logged_page(tmp_path: Path) -> None:
+    moment = _dt(2026, 10, 10, 5)
+    (tmp_path / "sampler.log").write_text(
+        _log_line(
+            moment,
+            "TRADES symbol=XRPUSDT n=2 first_ms=1000 last_ms=5000 overlap=na gap=na",
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    clock = Clock((moment + timedelta(minutes=5)).timestamp())
+    fetch = ScriptedTrades({"XRPUSDT": [[9000, 9500]], "AVAXUSDT": [[100, 200]]})
+    sampler = _sampler(tmp_path, clock, fetch)
+    sampler.out.mkdir(parents=True, exist_ok=True)
+    sampler.snapshot("regular5m")
+    log = (tmp_path / "sampler.log").read_text(encoding="utf-8")
+    assert "TRADES symbol=XRPUSDT n=2 first_ms=9000 last_ms=9500 overlap=no gap=yes" in log
+    assert "TRADES symbol=AVAXUSDT n=2 first_ms=100 last_ms=200 overlap=na gap=na" in log
+
+
+def test_burst_polls_book_and_trades_every_15s_not_every_1s(tmp_path: Path) -> None:
+    # Window open through 30 s after it closes. First shot is the burst itself.
+    start = _dt(2026, 10, 10, 3, 58, 0)
+    end = _dt(2026, 10, 10, 4, 3, 30)
+    clock = Clock(start.timestamp())
+    calls: list[tuple[float, str]] = []
+
+    def fetch(url: str, timeout: float) -> tuple[int, dict[str, str], bytes]:
+        calls.append((clock.now(), url))
+        return FakeFetch()(url, timeout)
+
+    sampler = Sampler(
+        _settings(tmp_path, end=end, regular_s=300.0, burst_s=15.0),
+        now=clock.now,
+        sleep=clock.sleep,
+        fetch=fetch,
+        install_signals=False,
+    )
+    assert sampler.run() == 0
+    trades = [(stamp, url) for stamp, url in calls if "recent-trade" in url and "XRPUSDT" in url]
+    books = [(stamp, url) for stamp, url in calls if "orderbook" in url and "XRPUSDT" in url]
+    assert len(trades) == 21
+    assert [stamp for stamp, _url in trades] == [stamp for stamp, _url in books]
+    assert all("limit=1000" in url for _stamp, url in trades)
+    assert all("limit=50" in url for _stamp, url in books)
+    deltas = [right[0] - left[0] for left, right in zip(trades, trades[1:])]
+    assert deltas == [15.0] * 20
+    assert 1.0 not in deltas
+    assert not any("wss://" in url or "stream.bybit" in url for _stamp, url in calls)
 
 
 def test_coverage_lists_missed_bursts_and_gaps_over_six_minutes() -> None:

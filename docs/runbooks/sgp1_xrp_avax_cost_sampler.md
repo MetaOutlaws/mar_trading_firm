@@ -22,10 +22,19 @@ Cadence, UTC:
 - from 2 minutes before until 3 minutes after each 4h candle open
   (00/04/08/12/16/20), one snapshot every 15 seconds
 
+Recent trades are always `limit=1000` (the public maximum). Each poll logs
+`TRADES` with `first_ms` (oldest print in that page) and `last_ms` (newest).
+`gap=yes` means this page starts after the previous poll's newest print, so
+the tape between them was not captured. `COVERAGE.md` lists those trade-print
+gaps separately from snapshot gaps (the sampler asleep for more than 6 minutes).
+
+During a 4h-open burst the book and the trade page are requested together
+every 15 seconds. There is no 1-second poll and no websocket.
+
 The first start plans its own end at **now + 168 hours** and stores that
 instant in `sampler_run.json`. A reboot resumes until that same instant.
-At the planned end it writes `COVERAGE.md` (missed bursts and gaps),
-`SHA256SUMS`, and `SAMPLER_DONE`.
+At the planned end it writes `COVERAGE.md` (missed bursts, snapshot gaps,
+and trade-print gaps), `SHA256SUMS`, and `SAMPLER_DONE`.
 
 Default output directory: `/data/research/cost_sampler_xrp_avax/`.
 
@@ -185,14 +194,19 @@ T+3 min). Then:
 
 ```bash
 grep 'SNAP burst4h' /data/research/cost_sampler_xrp_avax/sampler.log | tail -n 30
+grep 'TRADES symbol=XRPUSDT' /data/research/cost_sampler_xrp_avax/sampler.log | tail -n 30
 ```
 
-Healthy: about 20 lines (15 to 21 is normal; request time eats the last edge),
-`ok=6/6`, timestamps about 15 seconds apart, covering that window. A line in
-the same minute as the bar open is the check. Zero `burst4h` lines for a
-window the process was up through is a miss; it will show as **MISSED** in
-`COVERAGE.md` at the end. Do not restart the paper engine because a burst
-was thin.
+Healthy: about 20 `SNAP burst4h` lines (15 to 21 is normal; request time eats
+the last edge), `ok=6/6`, timestamps about 15 seconds apart, covering that
+window. Each of those shots has a matching `TRADES` line for XRPUSDT and for
+AVAXUSDT (`limit` on the request is 1000; `n` is how many prints came back).
+The trade lines are 15 seconds apart, not 1 second. A `gap=yes` on a burst
+poll means the 1000-print page did not reach the previous page; that shows
+up under **Trade-print gaps** in `COVERAGE.md`. A line in the same minute as
+the bar open is the check. Zero `burst4h` lines for a window the process was
+up through is a miss; it will show as **MISSED** in `COVERAGE.md` at the end.
+Do not restart the paper engine because a burst was thin.
 
 ## Stop
 
