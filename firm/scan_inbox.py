@@ -10,9 +10,14 @@ the path that evaluated the bar). No model call. No PC. The row is a diary:
   slices updates the same row
 * at most four new rows per UTC hour; a further pass is merged into the
   newest row of that hour
-* TTL is two hours. Listing the Inbox expires and deletes them, reusing the
-  #113 pattern (pending → expired, decided by expiry) and then pruning the
-  row so the table does not fill up
+* a card that records an entry, a fill, or an exit has no TTL and stays in
+  the Inbox
+* a no-trade card (signals, rejections, near misses, pending retests only)
+  keeps a two-hour TTL. Listing the Inbox expires and deletes those, reusing
+  the #113 pattern (pending → expired, decided by expiry) and then pruning
+  the row so the table does not fill up
+* every card is also appended, in full, to ``data/scan_summaries.jsonl``
+  (see ``docs/runbooks/scan_summary_log.md``). That file is never pruned
 
 A failure here is logged and swallowed by the caller. It must not change a
 signal, a gate, a risk decision, or the book.
@@ -41,6 +46,9 @@ SCAN_SUMMARY_TTL = timedelta(hours=2)
 HOURLY_CAP = 4
 SCAN_AGENT = "paper_worker"
 GST = timezone(timedelta(hours=4))
+
+# F111 names these on the exit row. An entry fill leaves rejection_reason empty.
+_EXIT_REASONS = frozenset({"initial_stop", "protected_stop", "target"})
 
 # Names the operator asked to see, in that order. Other reasons stay as
 # their own keys so a new gate is not flattened into "other".
@@ -273,6 +281,23 @@ def _miss_view(
     }
 
 
+def _f111_is_exit(row: dict[str, Any]) -> bool:
+    """True when this telemetry row closed a position.
+
+    The exit row also carries ``simulated_fill``. That price is the close,
+    not a new entry, so it must not be counted as one.
+    """
+    reason = str(row.get("rejection_reason") or "").strip()
+    if reason in _EXIT_REASONS:
+        return True
+    assumptions = row.get("fill_assumptions")
+    if isinstance(assumptions, dict) and str(assumptions.get("reason") or "").strip() in _EXIT_REASONS:
+        return True
+    # Present on the exit row even when the fee is zero. An entry fill
+    # records entry_fee and does not record these keys.
+    return "exit_fee" in row or "realised_net_profit" in row
+
+
 def _f111_sleeve(row: dict[str, Any], index: int) -> dict[str, Any]:
     """One F111 decision row, with distances that do not call ``gate_decision``."""
     symbol = str(row.get("symbol") or "")
@@ -280,6 +305,9 @@ def _f111_sleeve(row: dict[str, Any], index: int) -> dict[str, Any]:
     signal_id = str(row.get("source_signal_id") or "")
     sleeve_id = signal_id or f"{symbol}|{side}|{index}"
     has_fill = row.get("simulated_fill") not in (None, "")
+    exited = _f111_is_exit(row)
+    # A simulated fill that is not a close opened the position.
+    filled = bool(has_fill and not exited)
     has_pending = bool(row.get("pending_retest_created_at"))
     exact = str(row.get("rejection_reason") or "").strip()
     if exact.lower() in {"none", "null"}:
@@ -300,7 +328,9 @@ def _f111_sleeve(row: dict[str, Any], index: int) -> dict[str, Any]:
         side=side,
         strategy=str(row.get("strategy") or F111_STRATEGY_ID),
         signal=bool(has_pending or (passed_clean and not has_fill)),
-        ordered=bool(has_fill),
+        ordered=filled,
+        filled=filled,
+        exited=exited,
         pending=bool(has_pending),
         rejection="" if (passed_clean or has_fill or has_pending) else reason,
         exact_reason=exact,
@@ -330,6 +360,8 @@ def _book_sleeve(note: dict[str, Any]) -> dict[str, Any]:
         strategy=strategy,
         signal=signal,
         ordered=ordered,
+        filled=bool(note.get("filled")),
+        exited=bool(note.get("exited")),
         pending=bool(note.get("pending")),
         rejection=reason,
         exact_reason=exact,
@@ -349,6 +381,8 @@ def _annotate_sleeve(
     strategy: str,
     signal: bool,
     ordered: bool,
+    filled: bool,
+    exited: bool,
     pending: bool,
     rejection: str,
     exact_reason: str,
@@ -400,6 +434,8 @@ def _annotate_sleeve(
         "strategy": strategy,
         "signal": signal,
         "ordered": ordered,
+        "filled": filled,
+        "exited": exited,
         "pending": pending,
         "rejection": rejection,
         "exact_reason": exact_reason,
@@ -460,6 +496,8 @@ def _tally_sleeve_rows(
     counts: dict[str, int] = {}
     signals = 0
     entries = 0
+    fills = 0
+    exits = 0
     pending_opened = 0
     misses: list[dict[str, Any]] = []
     all_but_one: list[dict[str, Any]] = []
@@ -471,6 +509,10 @@ def _tally_sleeve_rows(
             signals += 1
         if row.get("ordered"):
             entries += 1
+        if row.get("filled"):
+            fills += 1
+        if row.get("exited"):
+            exits += 1
         if row.get("pending"):
             pending_opened += 1
         rejection = str(row.get("rejection") or "")
@@ -496,6 +538,8 @@ def _tally_sleeve_rows(
     return {
         "signals": signals,
         "entries_opened": entries,
+        "fills": fills,
+        "exits": exits,
         "pending_retests_opened": pending_opened,
         "rejection_counts": counts,
         "near_misses": ranked,
@@ -590,6 +634,8 @@ def format_summary_text(
     signals: int,
     entries_opened: int,
     pending_retests: int,
+    fills: int = 0,
+    exits: int = 0,
     rejection_counts: dict[str, int],
     near_misses: list[dict[str, Any]],
     soko: dict[str, Any] | None,
@@ -607,6 +653,7 @@ def format_summary_text(
         f"Sleeves evaluated: F111 {int(f111_sleeves)}, book {int(book_sleeves)}.",
         (
             f"Signals {int(signals)}, entries opened {int(entries_opened)}, "
+            f"fills {int(fills)}, exits {int(exits)}, "
             f"pending retests {int(pending_retests)}."
         ),
     ]
@@ -687,8 +734,9 @@ def expire_and_prune_scan_summaries(now: datetime | None = None) -> dict[str, in
 
     The status flip matches ``expire_stale_proposals`` / the #113 escalation
     expiry (pending → expired, decided by expiry). The delete is what keeps
-    the Inbox from filling up: a two-hour diary must not accumulate. Other
-    proposal kinds are not touched.
+    the Inbox from filling up: a two-hour no-trade diary must not accumulate.
+    A card with no ``expires_at`` recorded an entry, a fill, or an exit and
+    is left in place. Other proposal kinds are not touched.
     """
     if not _proposals_table_ready():
         return {"expired": 0, "pruned": 0}
@@ -761,6 +809,8 @@ def _blank_scan_payload(
         "book_sleeves": int(summary.get("book_sleeves") or 0),
         "signals": int(summary.get("signals") or 0),
         "entries_opened": int(summary.get("entries_opened") or 0),
+        "fills": int(summary.get("fills") or 0),
+        "exits": int(summary.get("exits") or 0),
         "pending_retests": int(pending_retests),
         "pending_retests_opened": int(summary.get("pending_retests_opened") or 0),
         "rejection_counts": dict(summary.get("rejection_counts") or {}),
@@ -816,6 +866,8 @@ def _same_body(payload: dict[str, Any], rebuilt: dict[str, Any]) -> bool:
         "book_sleeves",
         "signals",
         "entries_opened",
+        "fills",
+        "exits",
         "pending_retests",
         "rejection_counts",
         "sleeve_ids",
@@ -844,6 +896,8 @@ def _summary_text(
         book_sleeves=int(summary.get("book_sleeves") or 0),
         signals=int(summary.get("signals") or 0),
         entries_opened=int(summary.get("entries_opened") or 0),
+        fills=int(summary.get("fills") or 0),
+        exits=int(summary.get("exits") or 0),
         pending_retests=int(pending_retests),
         rejection_counts=dict(summary.get("rejection_counts") or {}),
         near_misses=list(summary.get("near_misses") or []),
@@ -860,6 +914,93 @@ def _record_near_misses(scan_type: str, bar_time: datetime, now: datetime, misse
     from firm.near_miss_log import append_near_misses
 
     append_near_misses(misses, scan_type=scan_type, bar_time=bar_time, now=now)
+
+
+def _section_records_trade(section: dict[str, Any]) -> bool:
+    """True when this card body itself records an entry, a fill, or an exit.
+
+    A pending retest is not a trade. Counts and sleeve flags are both read
+    so an exit-only row still counts when ``entries_opened`` is zero.
+    """
+    if int(section.get("entries_opened") or 0) > 0:
+        return True
+    if int(section.get("fills") or 0) > 0:
+        return True
+    if int(section.get("exits") or 0) > 0:
+        return True
+    rows = section.get("sleeve_rows")
+    if not isinstance(rows, list):
+        return False
+    for row in rows:
+        if isinstance(row, dict) and (row.get("ordered") or row.get("filled") or row.get("exited")):
+            return True
+    return False
+
+
+def summary_is_durable(payload: dict[str, Any]) -> bool:
+    """A card persists when it, or a scan merged into it, recorded a trade.
+
+    The hourly cap folds a later pass into an older row. That host has to
+    drop its TTL too, or the prune would delete the trade with the host.
+    """
+    if not isinstance(payload, dict):
+        return False
+    if _section_records_trade(payload):
+        return True
+    sections = payload.get("merged_scans")
+    if not isinstance(sections, list):
+        return False
+    return any(isinstance(section, dict) and summary_is_durable(section) for section in sections)
+
+
+def _stamp_retention(row: Any, payload: dict[str, Any], scan_time: datetime, *, created: bool) -> None:
+    """No TTL once a trade is on the card. A new no-trade card keeps two hours.
+
+    An update that is still a no-trade does not move the original clock.
+    A card that already has no expiry stays that way.
+    """
+    durable = summary_is_durable(payload)
+    payload["durable"] = durable
+    if durable:
+        row.expires_at = None
+    elif created:
+        row.expires_at = scan_time + SCAN_SUMMARY_TTL
+
+
+def _journal_record(
+    *,
+    action: str,
+    proposal_id: int,
+    payload: dict[str, Any],
+    rationale: str,
+    title: str,
+    scan_time: datetime,
+    expires_at: datetime | None,
+) -> dict[str, Any]:
+    """One append-only line: the Inbox card as it stands after this publish."""
+    when = _iso(expires_at) if isinstance(expires_at, datetime) else None
+    return {
+        "logged_at": _iso(scan_time),
+        "action": action,
+        "proposal_id": int(proposal_id),
+        "durable": bool(payload.get("durable")) if "durable" in payload else summary_is_durable(payload),
+        "expires_at": when,
+        "title": title,
+        "rationale": rationale,
+        "payload": payload,
+    }
+
+
+def _append_permanent_log(record: dict[str, Any] | None) -> None:
+    """Append the card. A failure is logged and does not escape into trading."""
+    if not record:
+        return
+    try:
+        from firm.scan_summary_log import append_scan_summary
+
+        append_scan_summary(record)
+    except Exception:
+        logger.exception("Scan summary log was not written; trading is unchanged")
 
 
 def publish_scan_summary(
@@ -908,8 +1049,13 @@ def publish_scan_summary(
     )
     key = payload["dedupe_key"]
     hour = payload["hour"]
+    # The section flag is this pass alone. The host row is stamped later,
+    # after a merge, so a trade folded in by the hourly cap clears that TTL.
+    payload["durable"] = _section_records_trade(payload)
     _record_near_misses(scan_type, bar, scan_time, list(payload.get("near_misses") or []))
 
+    outcome: dict[str, Any] | None = None
+    logged: dict[str, Any] | None = None
     with session_scope() as session:
         rows = session.scalars(
             select(Proposal)
@@ -936,79 +1082,145 @@ def publish_scan_summary(
                 )
                 merged["soko"] = soko or merged.get("soko")
                 if _same_body(body, merged):
-                    return {"action": "unchanged", "id": int(match.id)}
-                match.payload = merged
-                match.rationale = str(merged["summary"])
-                return {"action": "updated", "id": int(match.id)}
-            # The key lives on a row that absorbed this pass because the hour
-            # was already full. Refresh that merged section only.
-            sections = [dict(item) for item in (body.get("merged_scans") or []) if isinstance(item, dict)]
-            replaced = False
-            for section in sections:
-                if section.get("dedupe_key") == key:
-                    section.update(payload)
-                    section["summary"] = text
-                    replaced = True
-                    break
-            if not replaced:
+                    outcome = {"action": "unchanged", "id": int(match.id)}
+                    logged = _journal_record(
+                        action="unchanged",
+                        proposal_id=int(match.id),
+                        payload=body,
+                        rationale=str(match.rationale or body.get("summary") or ""),
+                        title=str(match.title or ""),
+                        scan_time=scan_time,
+                        expires_at=match.expires_at,
+                    )
+                else:
+                    _stamp_retention(match, merged, scan_time, created=False)
+                    match.payload = merged
+                    match.rationale = str(merged["summary"])
+                    outcome = {"action": "updated", "id": int(match.id)}
+                    logged = _journal_record(
+                        action="updated",
+                        proposal_id=int(match.id),
+                        payload=merged,
+                        rationale=str(match.rationale or ""),
+                        title=str(match.title or ""),
+                        scan_time=scan_time,
+                        expires_at=match.expires_at,
+                    )
+            else:
+                # The key lives on a row that absorbed this pass because the hour
+                # was already full. Refresh that merged section only.
+                sections = [dict(item) for item in (body.get("merged_scans") or []) if isinstance(item, dict)]
+                replaced = False
+                for section in sections:
+                    if section.get("dedupe_key") == key:
+                        section.update(payload)
+                        section["summary"] = text
+                        replaced = True
+                        break
+                if not replaced:
+                    sections.append(payload)
+                body["merged_scans"] = sections
+                body["dedupe_keys"] = _payload_keys(body)
+                if key not in body["dedupe_keys"]:
+                    body["dedupe_keys"].append(key)
+                _stamp_retention(match, body, scan_time, created=False)
+                match.payload = body
+                match.rationale = _rationale_with_merged(str(body.get("summary") or match.rationale or ""), sections)
+                outcome = {"action": "updated", "id": int(match.id)}
+                logged = _journal_record(
+                    action="updated",
+                    proposal_id=int(match.id),
+                    payload=body,
+                    rationale=str(match.rationale or ""),
+                    title=str(match.title or ""),
+                    scan_time=scan_time,
+                    expires_at=match.expires_at,
+                )
+        else:
+            in_hour = []
+            for row in rows:
+                body = row.payload if isinstance(row.payload, dict) else {}
+                if str(body.get("hour") or "") == hour:
+                    in_hour.append(row)
+            if len(in_hour) >= HOURLY_CAP:
+                host = max(in_hour, key=lambda row: (row.created_at or scan_time, int(row.id or 0)))
+                body = dict(host.payload or {})
+                sections = [dict(item) for item in (body.get("merged_scans") or []) if isinstance(item, dict)]
                 sections.append(payload)
-            body["merged_scans"] = sections
-            body["dedupe_keys"] = _payload_keys(body)
-            if key not in body["dedupe_keys"]:
-                body["dedupe_keys"].append(key)
-            match.payload = body
-            match.rationale = _rationale_with_merged(str(body.get("summary") or match.rationale or ""), sections)
-            return {"action": "updated", "id": int(match.id)}
+                keys = _payload_keys(body)
+                if key not in keys:
+                    keys.append(key)
+                body["dedupe_keys"] = keys
+                body["merged_scans"] = sections
+                _stamp_retention(host, body, scan_time, created=False)
+                host.payload = body
+                host.rationale = _rationale_with_merged(str(body.get("summary") or host.rationale or ""), sections)
+                title = str(host.title or "")
+                if "more this hour" not in title:
+                    host.title = f"{title} (+more this hour)"[:200]
+                logger.info("Scan summary merged into %s (hourly cap %s): %s", host.id, HOURLY_CAP, key)
+                outcome = {"action": "merged", "id": int(host.id)}
+                logged = _journal_record(
+                    action="merged",
+                    proposal_id=int(host.id),
+                    payload=body,
+                    rationale=str(host.rationale or ""),
+                    title=str(host.title or ""),
+                    scan_time=scan_time,
+                    expires_at=host.expires_at,
+                )
 
-        in_hour = []
-        for row in rows:
-            body = row.payload if isinstance(row.payload, dict) else {}
-            if str(body.get("hour") or "") == hour:
-                in_hour.append(row)
-        if len(in_hour) >= HOURLY_CAP:
-            host = max(in_hour, key=lambda row: (row.created_at or scan_time, int(row.id or 0)))
-            body = dict(host.payload or {})
-            sections = [dict(item) for item in (body.get("merged_scans") or []) if isinstance(item, dict)]
-            sections.append(payload)
-            keys = _payload_keys(body)
-            if key not in keys:
-                keys.append(key)
-            body["dedupe_keys"] = keys
-            body["merged_scans"] = sections
-            host.payload = body
-            host.rationale = _rationale_with_merged(str(body.get("summary") or host.rationale or ""), sections)
-            title = str(host.title or "")
-            if "more this hour" not in title:
-                host.title = f"{title} (+more this hour)"[:200]
-            logger.info("Scan summary merged into %s (hourly cap %s): %s", host.id, HOURLY_CAP, key)
-            return {"action": "merged", "id": int(host.id)}
-
-    pid = memory.record_proposal(
-        agent=SCAN_AGENT,
-        kind=ProposalKind.INFORMATIONAL,
-        title=_title(scan_type, scan_time),
-        payload=payload,
-        rationale=text,
-        confidence=0.0,
-        ttl=SCAN_SUMMARY_TTL,
-    )
-    with session_scope() as session:
-        row = session.get(Proposal, pid)
-        if row is not None:
-            # Anchor the TTL to the scan clock, not a second later from the
-            # insert helper, so a test clock and the worker clock agree.
-            row.expires_at = scan_time + SCAN_SUMMARY_TTL
-    logger.info(
-        "Scan summary %s %s f111=%s book=%s signals=%s entries=%s retests=%s",
-        scan_type,
-        _iso(bar),
-        payload["f111_sleeves"],
-        payload["book_sleeves"],
-        payload["signals"],
-        payload["entries_opened"],
-        payload["pending_retests"],
-    )
-    return {"action": "inserted", "id": pid}
+    if outcome is None:
+        payload["durable"] = summary_is_durable(payload)
+        pid = memory.record_proposal(
+            agent=SCAN_AGENT,
+            kind=ProposalKind.INFORMATIONAL,
+            title=_title(scan_type, scan_time),
+            payload=payload,
+            rationale=text,
+            confidence=0.0,
+            ttl=None if payload["durable"] else SCAN_SUMMARY_TTL,
+        )
+        expires_at: datetime | None = None
+        title = _title(scan_type, scan_time)
+        with session_scope() as session:
+            row = session.get(Proposal, pid)
+            if row is not None:
+                # Anchor a no-trade TTL to the scan clock, not a second later
+                # from the insert helper, so a test clock and the worker agree.
+                # A trade card is stored with no expiry.
+                _stamp_retention(row, payload, scan_time, created=True)
+                row.payload = payload
+                row.rationale = text
+                expires_at = row.expires_at
+                title = str(row.title or title)
+        outcome = {"action": "inserted", "id": pid}
+        logged = _journal_record(
+            action="inserted",
+            proposal_id=pid,
+            payload=payload,
+            rationale=text,
+            title=title,
+            scan_time=scan_time,
+            expires_at=expires_at,
+        )
+        logger.info(
+            "Scan summary %s %s f111=%s book=%s signals=%s entries=%s fills=%s exits=%s retests=%s durable=%s",
+            scan_type,
+            _iso(bar),
+            payload["f111_sleeves"],
+            payload["book_sleeves"],
+            payload["signals"],
+            payload["entries_opened"],
+            payload["fills"],
+            payload["exits"],
+            payload["pending_retests"],
+            payload["durable"],
+        )
+    # After the Inbox commit. The writer swallows its own errors; this catch
+    # covers a writer that was replaced and raises anyway.
+    _append_permanent_log(logged)
+    return outcome
 
 
 def _rationale_with_merged(primary: str, sections: list[dict[str, Any]]) -> str:
@@ -1131,6 +1343,8 @@ def remember_scan_note(notes: list[dict[str, Any]], **fields: Any) -> None:
                 "strategy": str(fields.get("strategy") or ""),
                 "gates_passed": bool(fields.get("gates_passed")),
                 "diagnostics": diagnostics if isinstance(diagnostics, list) else None,
+                "filled": bool(fields.get("filled")),
+                "exited": bool(fields.get("exited")),
             }
         )
     except Exception:
