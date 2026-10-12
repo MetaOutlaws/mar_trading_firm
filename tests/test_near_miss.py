@@ -355,6 +355,9 @@ def test_near_miss_log_prunes_after_24h_and_stays_bounded(tmp_path: Path) -> Non
 def test_api_returns_the_rolling_log(tmp_path: Path, monkeypatch, firm_db) -> None:
     path = tmp_path / "near_miss_log.jsonl"
     monkeypatch.setattr("firm.near_miss_log.LOG_PATH", path)
+    # The route reads with the wall clock. A frozen October instant ages out
+    # of the 24h window once that day is more than a day behind.
+    logged_at = datetime.now(timezone.utc)
     append_near_misses(
         [
             {
@@ -370,8 +373,8 @@ def test_api_returns_the_rolling_log(tmp_path: Path, monkeypatch, firm_db) -> No
             }
         ],
         scan_type="f111",
-        bar_time=NOW,
-        now=NOW,
+        bar_time=logged_at,
+        now=logged_at,
         path=path,
     )
     from api.app import app

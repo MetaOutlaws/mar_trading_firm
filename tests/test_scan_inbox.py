@@ -6,6 +6,7 @@ approval book. Live stays off.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -448,3 +449,348 @@ def test_f111_summary_failure_does_not_drop_the_hourly_pass(tmp_path, monkeypatc
     assert logged
     assert {row["rejection_reason"] for row in logged} == {"extension_gate"}
     assert "F111 scan summary was not written" in caplog.text
+
+
+def _expires_at(proposal_id: int) -> datetime | None:
+    with session_scope() as session:
+        row = session.get(Proposal, proposal_id)
+        assert row is not None
+        return row.expires_at
+
+
+def test_exit_and_pending_retest_are_not_entries() -> None:
+    """An exit is a close. A pending retest is not a trade."""
+    closed = summarise_f111_rows(
+        [
+            {
+                "symbol": "XRPUSDT",
+                "side": "SHORT",
+                "source_signal_id": "XRPUSDT|SHORT|exit",
+                "gate_decision": True,
+                "rejection_reason": "initial_stop",
+                "simulated_fill": 90.0,
+                "exit_fee": 0.0,
+                "realised_net_profit": -1.0,
+            }
+        ]
+    )
+    assert closed["entries_opened"] == 0
+    assert closed["fills"] == 0
+    assert closed["exits"] == 1
+    assert closed["sleeve_rows"][0]["exited"] is True
+    assert closed["sleeve_rows"][0]["ordered"] is False
+
+    waiting = summarise_f111_rows(
+        [
+            {
+                "symbol": "ADAUSDT",
+                "side": "LONG",
+                "source_signal_id": "ADAUSDT|LONG|retest",
+                "gate_decision": True,
+                "rejection_reason": None,
+                "pending_retest_created_at": "2026-10-10T15:00:00+00:00",
+            }
+        ]
+    )
+    assert waiting["entries_opened"] == 0
+    assert waiting["fills"] == 0
+    assert waiting["exits"] == 0
+    assert waiting["pending_retests_opened"] == 1
+    assert waiting["signals"] == 1
+
+    book_exit = summarise_sleeve_notes(
+        [
+            {
+                "sleeve_id": "BTCUSDT|1h|LONG|sleeve",
+                "bar_time": HOUR.isoformat(),
+                "signal": False,
+                "ordered": False,
+                "exited": True,
+                "rejection": "stop_loss",
+            }
+        ]
+    )
+    assert book_exit["entries_opened"] == 0
+    assert book_exit["exits"] == 1
+
+
+def test_trade_cards_persist_and_no_trade_cards_expire(firm_db) -> None:
+    """Entry, fill, and exit cards have no TTL. A no-trade card still expires."""
+    # Four cards share the first scan hour (the cap). Two more land an hour
+    # later, still inside the no-trade TTL, so publishing them does not prune
+    # the first hour.
+    no_trade = publish_book_notes(
+        [_book("BTCUSDT|1h|LONG|flat", HOUR, "no_signal")],
+        now=HOUR,
+    )[0]
+    entry = publish_book_notes(
+        [_book("ETHUSDT|1h|LONG|entry", HOUR + timedelta(minutes=15), "", signal=True, ordered=True)],
+        now=HOUR,
+    )[0]
+    fill = publish_f111_hourly(
+        [
+            {
+                "symbol": "SOLUSDT",
+                "side": "LONG",
+                "source_signal_id": "SOLUSDT|LONG|fill",
+                "gate_decision": True,
+                "rejection_reason": None,
+                "simulated_fill": 100.0,
+            }
+        ],
+        now=HOUR,
+        bar_time=HOUR + timedelta(minutes=30),
+        pending_retests=0,
+    )
+    closed = publish_f111_hourly(
+        [
+            {
+                "symbol": "XRPUSDT",
+                "side": "SHORT",
+                "source_signal_id": "XRPUSDT|SHORT|exit",
+                "gate_decision": True,
+                "rejection_reason": "protected_stop",
+                "simulated_fill": 90.0,
+                "exit_fee": 0.1,
+                "realised_net_profit": -1.5,
+            }
+        ],
+        now=HOUR,
+        bar_time=HOUR + timedelta(minutes=45),
+        pending_retests=0,
+    )
+    retest_clock = HOUR + timedelta(hours=1)
+    retest = publish_f111_hourly(
+        [
+            {
+                "symbol": "ADAUSDT",
+                "side": "LONG",
+                "source_signal_id": "ADAUSDT|LONG|retest",
+                "gate_decision": True,
+                "rejection_reason": None,
+                "pending_retest_created_at": retest_clock.isoformat(),
+            }
+        ],
+        now=retest_clock,
+        bar_time=retest_clock,
+        pending_retests=1,
+    )
+    # A fill that was not counted as an entry still has to persist.
+    fill_only_bar = retest_clock + timedelta(minutes=15)
+    fill_only = publish_scan_summary(
+        scan_type="book",
+        bar_time=fill_only_bar,
+        summary={
+            "entries_opened": 0,
+            "fills": 1,
+            "exits": 0,
+            "signals": 0,
+            "pending_retests_opened": 0,
+            "rejection_counts": {},
+            "near_misses": [],
+            "sleeve_rows": [
+                {
+                    "sleeve_id": "LTCUSDT|1h|LONG|fill",
+                    "filled": True,
+                    "ordered": False,
+                    "exited": False,
+                }
+            ],
+            "sleeve_ids": ["LTCUSDT|1h|LONG|fill"],
+            "book_sleeves": 1,
+            "f111_sleeves": 0,
+        },
+        now=retest_clock,
+        soko={"label": None, "as_of": None, "age_seconds": None},
+    )
+
+    assert _expires_at(no_trade["id"]) == HOUR + timedelta(hours=2)
+    assert _expires_at(retest["id"]) == retest_clock + timedelta(hours=2)
+    for trade_id in (entry["id"], fill["id"], closed["id"], fill_only["id"]):
+        assert _expires_at(trade_id) is None
+
+    with session_scope() as session:
+        exit_row = session.get(Proposal, closed["id"])
+        assert exit_row.payload["entries_opened"] == 0
+        assert exit_row.payload["exits"] == 1
+        assert exit_row.payload["durable"] is True
+        assert session.get(Proposal, fill["id"]).payload["fills"] == 1
+        assert session.get(Proposal, fill_only["id"]).payload["entries_opened"] == 0
+        assert session.get(Proposal, fill_only["id"]).payload["fills"] == 1
+
+    # Inside the no-trade window nothing is pruned.
+    assert expire_and_prune_scan_summaries(HOUR + timedelta(hours=1, minutes=59)) == {
+        "expired": 0,
+        "pruned": 0,
+    }
+    # Past both no-trade clocks. Trade cards are still pending, with no expiry.
+    later = retest_clock + timedelta(hours=2, seconds=1)
+    assert expire_and_prune_scan_summaries(later) == {"expired": 2, "pruned": 2}
+    with session_scope() as session:
+        assert session.get(Proposal, no_trade["id"]) is None
+        assert session.get(Proposal, retest["id"]) is None
+        for trade_id in (entry["id"], fill["id"], closed["id"], fill_only["id"]):
+            row = session.get(Proposal, trade_id)
+            assert row is not None
+            assert row.status == ProposalStatus.PENDING.value
+            assert row.expires_at is None
+
+    listed = {row["id"] for row in _pending_summaries()}
+    assert {entry["id"], fill["id"], closed["id"], fill_only["id"]} <= listed
+
+    # A no-trade card that later records an entry loses the two-hour clock.
+    grow_bar = HOUR + timedelta(hours=8)
+    grown = publish_book_notes(
+        [_book("BTCUSDT|1h|LONG|grow", grow_bar, "no_signal")],
+        now=grow_bar,
+    )[0]
+    assert _expires_at(grown["id"]) == grow_bar + timedelta(hours=2)
+    updated = publish_book_notes(
+        [_book("BTCUSDT|1h|LONG|grow", grow_bar, "", signal=True, ordered=True)],
+        now=grow_bar + timedelta(minutes=1),
+    )[0]
+    assert updated == {"action": "updated", "id": grown["id"]}
+    assert _expires_at(grown["id"]) is None
+    expire_and_prune_scan_summaries(grow_bar + timedelta(hours=5))
+    with session_scope() as session:
+        assert session.get(Proposal, grown["id"]) is not None
+        assert session.get(Proposal, grown["id"]).expires_at is None
+
+    # The hourly cap folds a trade into a no-trade host. The host must stay.
+    cap_hour = HOUR + timedelta(hours=10)
+    hosts = []
+    for offset in (0, 15, 30, 45):
+        bar = cap_hour + timedelta(minutes=offset)
+        hosts.append(
+            publish_book_notes(
+                [_book(f"BTCUSDT|15m|LONG|cap-{offset}", bar, "no_signal")],
+                now=cap_hour,
+            )[0]
+        )
+    merged = publish_book_notes(
+        [
+            _book(
+                "ETHUSDT|15m|LONG|cap-trade",
+                cap_hour + timedelta(minutes=50),
+                "",
+                signal=True,
+                ordered=True,
+            )
+        ],
+        now=cap_hour,
+    )[0]
+    assert merged["action"] == "merged"
+    assert merged["id"] == hosts[-1]["id"]
+    assert _expires_at(merged["id"]) is None
+    expire_and_prune_scan_summaries(cap_hour + timedelta(hours=2, seconds=1))
+    with session_scope() as session:
+        host = session.get(Proposal, merged["id"])
+        assert host is not None
+        assert host.expires_at is None
+        assert host.payload["durable"] is True
+        assert any(section.get("entries_opened") == 1 for section in host.payload["merged_scans"])
+        for item in hosts[:-1]:
+            assert session.get(Proposal, item["id"]) is None
+
+
+def test_scan_summary_jsonl_appends_the_full_card(firm_db, tmp_path, monkeypatch) -> None:
+    """Two publishes append two lines. The file only grows."""
+    path = tmp_path / "scan_summaries.jsonl"
+    monkeypatch.setattr("firm.scan_summary_log.LOG_PATH", path)
+    bar = HOUR + timedelta(hours=12)
+    publish_book_notes(
+        [_book("BTCUSDT|1h|LONG|log", bar, "extension_gate")],
+        now=bar,
+    )
+    first = path.read_bytes()
+    lines = [json.loads(line) for line in first.decode().splitlines() if line.strip()]
+    assert len(lines) == 1
+    card = lines[0]
+    assert card["action"] == "inserted"
+    assert card["durable"] is False
+    assert card["expires_at"] is not None
+    assert card["payload"]["dedupe_key"] == f"book|{bar.replace(microsecond=0).isoformat()}"
+    assert card["payload"]["rejection_counts"] == {"extension_gate": 1}
+    assert "extension_gate 1" in card["payload"]["summary"]
+    assert card["rationale"] == card["payload"]["summary"]
+    assert "entries opened 0, fills 0, exits 0" in card["rationale"]
+
+    trade_bar = bar + timedelta(minutes=15)
+    publish_book_notes(
+        [_book("ETHUSDT|1h|SHORT|log", trade_bar, "", signal=True, ordered=True)],
+        now=bar,
+    )
+    grown = path.read_bytes()
+    assert grown.startswith(first)
+    assert len(grown) > len(first)
+    lines = [json.loads(line) for line in grown.decode().splitlines() if line.strip()]
+    assert len(lines) == 2
+    assert lines[0]["payload"]["dedupe_key"] == card["payload"]["dedupe_key"]
+    assert lines[1]["action"] == "inserted"
+    assert lines[1]["durable"] is True
+    assert lines[1]["expires_at"] is None
+    assert lines[1]["payload"]["entries_opened"] == 1
+    assert lines[1]["payload"]["dedupe_key"] in lines[1]["rationale"] or "entries opened 1" in lines[1]["rationale"]
+
+    # The same bar again is an unchanged republish. It still appends a line.
+    before = path.read_bytes()
+    again = publish_book_notes(
+        [_book("ETHUSDT|1h|SHORT|log", trade_bar, "", signal=True, ordered=True)],
+        now=bar,
+    )[0]
+    assert again["action"] == "unchanged"
+    after = path.read_bytes()
+    assert after.startswith(before)
+    assert after.count(b"\n") == before.count(b"\n") + 1
+
+
+def test_summary_log_failure_still_writes_the_inbox(firm_db, monkeypatch, tmp_path) -> None:
+    """A log writer that raises does not drop the Inbox row or the flush."""
+    path = tmp_path / "scan_summaries.jsonl"
+    monkeypatch.setattr("firm.scan_summary_log.LOG_PATH", path)
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("log down")
+
+    monkeypatch.setattr("firm.scan_summary_log.append_scan_summary", boom)
+    bar = HOUR + timedelta(hours=14)
+    result = publish_book_notes(
+        [_book("BTCUSDT|1h|LONG|iso", bar, "no_signal")],
+        now=bar,
+    )
+    assert result[0]["action"] == "inserted"
+    assert any(row["id"] == result[0]["id"] for row in _pending_summaries())
+    assert not path.exists()
+
+    from firm.scan_inbox import flush_scan_notes
+
+    flush_bar = bar + timedelta(minutes=15)
+    flush_scan_notes(
+        [_book("ETHUSDT|1h|SHORT|flush", flush_bar, "no_signal")],
+        None,
+        now=bar,
+    )
+    kinds = {row["payload"]["dedupe_key"] for row in _pending_summaries()}
+    assert f"book|{flush_bar.replace(microsecond=0).isoformat()}" in kinds
+
+
+def test_summary_log_oserror_is_swallowed(firm_db, monkeypatch, tmp_path) -> None:
+    """A disk error inside the append is logged and does not block the card."""
+    path = tmp_path / "state" / "scan_summaries.jsonl"
+    monkeypatch.setattr("firm.scan_summary_log.LOG_PATH", path)
+
+    def boom(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("firm.scan_summary_log.os.open", boom)
+    from firm.scan_summary_log import append_scan_summary
+
+    append_scan_summary({"payload": {"summary": "must not raise"}})
+    bar = HOUR + timedelta(hours=15)
+    result = publish_book_notes(
+        [_book("BTCUSDT|1h|LONG|disk", bar, "no_signal")],
+        now=bar,
+    )
+    assert result[0]["action"] == "inserted"
+    assert any(row["id"] == result[0]["id"] for row in _pending_summaries())
+    assert not path.exists()
