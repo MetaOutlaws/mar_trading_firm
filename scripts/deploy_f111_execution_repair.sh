@@ -2,12 +2,29 @@
 # Owner-run deployment through the existing Singapore SSH session.
 set -euo pipefail
 umask 077
+
+# Marcus exception 1, same helper as the collector. While HEAD is still the
+# L01 base (868f1c9a), the three #119 blotter paths may be staged only when
+# both the index and the worktree are the 8d35ec7c blobs, mode 100644.
+# Any other dirty path fails. A missing helper fails closed.
+f111_deploy_clean_preflight() {
+  local repo=$1
+  local helper
+  helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/f111_repair_clean_tree.py"
+  test -f "$helper"
+  python3 "$helper" "$repo"
+}
+
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0
+fi
+
 repair_sha=${1:?Supply the reviewed full repair commit SHA}
 [[ "$repair_sha" =~ ^[0-9a-f]{40}$ ]]
 test "$(hostname)" = mo-paper-vm-sgp1
 base_sha=868f1c9a7a34c240dd81fb0c4b2f25b02455d4a4
 test "$(git -C /data/app rev-parse HEAD)" = "$base_sha"
-git -C /data/app diff --quiet HEAD -- core config scripts api research tests
+f111_deploy_clean_preflight /data/app
 git -C /data/app cat-file -e "$repair_sha^{commit}"
 git -C /data/app merge-base --is-ancestor "$base_sha" "$repair_sha"
 docker exec -w /app mo-paper-paper-1 python -c 'from core.strategy.f111_config import assert_f111_paper_only; assert_f111_paper_only()'
