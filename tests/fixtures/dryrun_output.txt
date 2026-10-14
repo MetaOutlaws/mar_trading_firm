@@ -1,0 +1,88 @@
+######## VARIANT B: dry-run
+key                          sym       side  trade         journal          pce        cash_delta    cash_after
+backfill-close:desktop:1     ETHUSDT   LONG  insert        post             insert     -23.785731   9883.390735
+backfill-close:desktop:2     XRPUSDT   SHORT insert        post             insert     -40.351458   9843.039276
+backfill-close:desktop:3     BNBUSDT   LONG  insert        post             insert      24.459077   9867.498354
+backfill-close:desktop:4     AVAXUSDT  LONG  insert        post             insert     -14.310094   9853.188260
+backfill-close:desktop:5     XRPUSDT   SHORT insert        post             insert     -35.081722   9818.106538
+backfill-close:desktop:6     BNBUSDT   LONG  insert        post             insert     -12.673055   9805.433483
+backfill-close:desktop:7     XRPUSDT   LONG  insert        post             insert     -12.759522   9792.673961
+backfill-close:desktop:8     XRPUSDT   SHORT insert        n/a(existing pap n/a          0.000000   9792.673961
+
+mode=DRY-RUN variant=B
+before: trades=10 sum_net=-71.753262 cash=9907.176466 open_positions=0
+after : trades=18 sum_net=-207.326039 cash=9792.673961 open_positions=0
+identity before: cash 9907.176466 vs 10000+sum_net 9928.246738 diff -21.070272 MISMATCH
+identity after: cash 9792.673961 vs 10000+sum_net 9792.673961 diff +0.000000 OK
+######## VARIANT B: apply to COPY
+mode=APPLY(copy) variant=B
+before: trades=10 sum_net=-71.753262 cash=9907.176466 open_positions=0
+after : trades=18 sum_net=-207.326039 cash=9792.673961 open_positions=0
+identity before: cash 9907.176466 vs 10000+sum_net 9928.246738 diff -21.070272 MISMATCH
+identity after: cash 9792.673961 vs 10000+sum_net 9792.673961 diff +0.000000 OK
+######## VARIANT B: re-run (idempotency)
+key                          sym       side  trade         journal          pce        cash_delta    cash_after
+backfill-close:desktop:1     ETHUSDT   LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9792.673961
+backfill-close:desktop:2     XRPUSDT   SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9792.673961
+backfill-close:desktop:3     BNBUSDT   LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9792.673961
+backfill-close:desktop:4     AVAXUSDT  LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9792.673961
+backfill-close:desktop:5     XRPUSDT   SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9792.673961
+backfill-close:desktop:6     BNBUSDT   LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9792.673961
+backfill-close:desktop:7     XRPUSDT   LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9792.673961
+backfill-close:desktop:8     XRPUSDT   SHORT skip(exists)  n/a(existing pap n/a          0.000000   9792.673961
+
+mode=APPLY(copy) variant=B
+before: trades=18 sum_net=-207.326039 cash=9792.673961 open_positions=0
+after : trades=18 sum_net=-207.326039 cash=9792.673961 open_positions=0
+identity before: cash 9792.673961 vs 10000+sum_net 9792.673961 diff +0.000000 OK
+identity after: cash 9792.673961 vs 10000+sum_net 9792.673961 diff +0.000000 OK
+######## VARIANT A: dry-run
+key                          sym       side  trade         journal          pce        cash_delta    cash_after
+backfill-close:desktop:1     ETHUSDT   LONG  insert        post             insert     -23.785731   9883.390735
+backfill-close:desktop:2     XRPUSDT   SHORT insert        post             insert     -40.351458   9843.039276
+backfill-close:desktop:3     BNBUSDT   LONG  insert        post             insert      24.459077   9867.498354
+backfill-close:desktop:4     AVAXUSDT  LONG  insert        post             insert     -14.310094   9853.188260
+backfill-close:desktop:5     XRPUSDT   SHORT insert        post             insert     -35.081722   9818.106538
+backfill-close:desktop:6     BNBUSDT   LONG  insert        post             insert     -12.673055   9805.433483
+backfill-close:desktop:7     XRPUSDT   LONG  insert        post             insert     -12.759522   9792.673961
+backfill-close:desktop:8     XRPUSDT   SHORT insert        n/a(existing pap n/a          0.000000   9792.673961
+backfill-close:desktop:9     BTCUSDT   SHORT insert        post             insert     -24.583087   9768.090874
+backfill-close:desktop:10    XRPUSDT   SHORT insert        post             insert      49.377778   9817.468652
+backfill-close:desktop:11    ETHUSDT   SHORT insert        post             insert      47.505602   9864.974254
+backfill-close:desktop:13    XRPUSDT   SHORT insert        post             insert     -31.450626   9833.523628
+backfill-close:desktop:14    AVAXUSDT  SHORT insert        post             insert     -31.241819   9802.281809
+backfill-close:desktop:12    ETHUSDT   SHORT insert        post             insert     -21.048668   9781.233142
+
+mode=DRY-RUN variant=A
+before: trades=10 sum_net=-71.753262 cash=9907.176466 open_positions=0
+after : trades=24 sum_net=-218.766858 cash=9781.233142 open_positions=0
+identity before: cash 9907.176466 vs 10000+sum_net 9928.246738 diff -21.070272 MISMATCH
+identity after: cash 9781.233142 vs 10000+sum_net 9781.233142 diff +0.000000 OK
+######## VARIANT A: apply to COPY
+mode=APPLY(copy) variant=A
+before: trades=10 sum_net=-71.753262 cash=9907.176466 open_positions=0
+after : trades=24 sum_net=-218.766858 cash=9781.233142 open_positions=0
+identity before: cash 9907.176466 vs 10000+sum_net 9928.246738 diff -21.070272 MISMATCH
+identity after: cash 9781.233142 vs 10000+sum_net 9781.233142 diff +0.000000 OK
+######## VARIANT A: re-run (idempotency)
+key                          sym       side  trade         journal          pce        cash_delta    cash_after
+backfill-close:desktop:1     ETHUSDT   LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:2     XRPUSDT   SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:3     BNBUSDT   LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:4     AVAXUSDT  LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:5     XRPUSDT   SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:6     BNBUSDT   LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:7     XRPUSDT   LONG  skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:8     XRPUSDT   SHORT skip(exists)  n/a(existing pap n/a          0.000000   9781.233142
+backfill-close:desktop:9     BTCUSDT   SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:10    XRPUSDT   SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:11    ETHUSDT   SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:13    XRPUSDT   SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:14    AVAXUSDT  SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+backfill-close:desktop:12    ETHUSDT   SHORT skip(exists)  skip(exists)     skip(exists)     0.000000   9781.233142
+
+mode=APPLY(copy) variant=A
+before: trades=24 sum_net=-218.766858 cash=9781.233142 open_positions=0
+after : trades=24 sum_net=-218.766858 cash=9781.233142 open_positions=0
+identity before: cash 9781.233142 vs 10000+sum_net 9781.233142 diff +0.000000 OK
+identity after: cash 9781.233142 vs 10000+sum_net 9781.233142 diff +0.000000 OK
