@@ -1,0 +1,85 @@
+# Standalone status page for the SGP1 paper host.
+#
+# The api and paper containers are a different compose project. Leave it alone:
+#   directory:  /opt/mo-paper
+#   project:    mo-paper
+#   containers: mo-paper-api-1, mo-paper-paper-1
+#
+# This file is the whole project (`name` below). It does not extend
+# docker-compose.yml and it does not define api or paper. `docker compose up`
+# therefore cannot recreate those containers. The runbook also passes
+# `-p sgp1-status`. Do not pass `-p mo-paper`, and do not add
+# `-f /opt/mo-paper/docker-compose.yml` to the command.
+#
+# Paths on the host:
+#   build context and code mount: /data/app
+#   state mount (read-only):      /data/state/data -> /app/data
+#   env file (status only):       /data/env/.env
+#
+#   docker compose \
+#     --env-file /data/env/.env \
+#     -p sgp1-status \
+#     -f /data/app/deploy/status/docker-compose.sgp1.yml \
+#     up -d --build
+
+name: sgp1-status
+
+services:
+  status:
+    build:
+      context: /data/app
+      dockerfile: deploy/status/Dockerfile
+    image: mar-status-page:sgp1
+    working_dir: /app
+    volumes:
+      # Checkout the paper host already runs. Logs may be written here.
+      - /data/app:/app
+      # State the paper worker writes. Read-only: this process cannot
+      # rewrite the book, the journal, or the scan log. Mounted after
+      # /data/app so it hides /app/data from that checkout.
+      - /data/state/data:/app/data:ro
+    command: python scripts/run_status_page.py
+    env_file: /data/env/.env
+    environment:
+      # Reachable by Caddy on this project's network. The port is not published.
+      STATUS_PAGE_HOST: "0.0.0.0"
+      STATUS_PAGE_PORT: "8088"
+    expose:
+      - "8088"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, urllib.error\ntry:\n    urllib.request.urlopen('http://127.0.0.1:8088/api/status', timeout=3)\nexcept urllib.error.HTTPError as exc:\n    raise SystemExit(0 if exc.code in (401, 503) else 1)\nexcept Exception:\n    raise SystemExit(1)\n"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2.8-alpine
+    ports:
+      - "443:443"
+    environment:
+      STATUS_PAGE_DOMAIN: ${STATUS_PAGE_DOMAIN:-}
+      STATUS_TLS_EMAIL: ${STATUS_TLS_EMAIL:-}
+      # Self-signed certificate names. The paper host address is always listed.
+      # Let's Encrypt ignores this when STATUS_PAGE_DOMAIN is a DNS name.
+      STATUS_TLS_SAN: "DNS:localhost,IP:127.0.0.1,IP:178.128.215.94"
+    volumes:
+      - /data/app/deploy/caddy/entrypoint.sh:/entrypoint.sh:ro
+      - /data/app/deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - status_caddy_data:/data
+      - status_caddy_config:/config
+      - status_certs:/certs
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    depends_on:
+      - status
+    restart: unless-stopped
+
+volumes:
+  status_caddy_data:
+  status_caddy_config:
+  status_certs:

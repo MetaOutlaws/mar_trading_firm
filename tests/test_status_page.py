@@ -207,6 +207,38 @@ def test_sliding_window_expires_and_public_peers_are_not_spoofed() -> None:
     assert client_key("203.0.113.4", "not-an-ip") == "203.0.113.4"
 
 
+def test_readonly_engine_reads_wal_when_the_directory_cannot_be_written(tmp_path) -> None:
+    """SGP1 mounts state read-only. WAL ``mode=ro`` cannot create ``-shm`` there."""
+    import sqlite3
+
+    from api.status_snapshot import readonly_engine
+
+    db = tmp_path / "firm.db"
+    writer = sqlite3.connect(db)
+    writer.execute("PRAGMA journal_mode=WAL")
+    writer.execute("CREATE TABLE marks (id INTEGER)")
+    writer.execute("INSERT INTO marks VALUES (1)")
+    writer.commit()
+    writer.execute("INSERT INTO marks VALUES (2)")
+    writer.commit()
+    writer.close()
+    for path in tmp_path.iterdir():
+        path.chmod(0o444)
+    tmp_path.chmod(0o555)
+    engine = readonly_engine(f"sqlite:///{db}")
+    try:
+        with engine.connect() as opened:
+            rows = opened.execute(text("SELECT id FROM marks ORDER BY id")).fetchall()
+            assert [row[0] for row in rows] == [1, 2]
+            with pytest.raises(Exception):
+                opened.execute(text("INSERT INTO marks VALUES (9)"))
+    finally:
+        engine.dispose()
+        tmp_path.chmod(0o755)
+        for path in tmp_path.iterdir():
+            path.chmod(0o644)
+
+
 def test_readonly_engine_rejects_writes(firm_db) -> None:
     from api.status_snapshot import readonly_engine
 
@@ -533,6 +565,102 @@ def test_ufw_script_only_adds_allow_rules() -> None:
     assert "443/tcp" in completed.stdout
     assert "operator ssh" in completed.stdout
     assert "would not turn the firewall on" in completed.stdout
+
+
+def test_status_module_does_not_need_settings_changes(monkeypatch) -> None:
+    """STATUS_* is read in the status module. settings.py has no status fields.
+
+    A cached Settings object is not consulted, so seeing a new token does
+    not require ``get_settings.cache_clear()`` or a settings.py edit.
+    """
+    settings_src = (ROOT / "config" / "settings.py").read_text(encoding="utf-8")
+    assert "status_page" not in settings_src.lower()
+    assert "STATUS_PAGE" not in settings_src
+    assert "STATUS_TLS" not in settings_src
+
+    from config.settings import Settings, get_settings
+
+    status_fields = {
+        "status_page_token",
+        "status_page_host",
+        "status_page_port",
+        "status_page_rate_limit",
+        "status_page_rate_window_seconds",
+    }
+    assert status_fields.isdisjoint(Settings.model_fields)
+
+    get_settings.cache_clear()
+    cached_before = get_settings()
+    monkeypatch.setenv("STATUS_PAGE_TOKEN", "fresh-token-not-in-settings")
+    monkeypatch.setenv("STATUS_PAGE_HOST", "0.0.0.0")
+    monkeypatch.setenv("STATUS_PAGE_PORT", "9099")
+    monkeypatch.setenv("STATUS_PAGE_RATE_LIMIT", "7")
+    monkeypatch.setenv("STATUS_PAGE_RATE_WINDOW_SECONDS", "15")
+    # The cache is still the object built before these env writes.
+    assert get_settings() is cached_before
+    for field_name in status_fields:
+        assert not hasattr(cached_before, field_name)
+
+    from api.status_auth import (
+        configured_token,
+        limiter_from_env,
+        status_page_host,
+        status_page_port,
+    )
+
+    assert configured_token() == "fresh-token-not-in-settings"
+    assert status_page_host() == "0.0.0.0"
+    assert status_page_port() == 9099
+    limiter = limiter_from_env()
+    assert limiter.limit == 7
+    assert limiter.window_seconds == 15.0
+    assert "fresh-token-not-in-settings" not in repr(cached_before)
+
+    for path in (ROOT / "api" / "status_auth.py", ROOT / "scripts" / "run_status_page.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                assert node.module != "config.settings"
+            elif isinstance(node, ast.Import):
+                assert all(alias.name != "config.settings" for alias in node.names)
+    auth_src = (ROOT / "api" / "status_auth.py").read_text(encoding="utf-8")
+    assert "os.environ" in auth_src
+    assert "STATUS_PAGE_TOKEN" in auth_src
+
+
+def test_sgp1_compose_is_a_standalone_project() -> None:
+    """The SGP1 file is its own project and uses the host paths."""
+    text = (ROOT / "deploy" / "status" / "docker-compose.sgp1.yml").read_text(encoding="utf-8")
+    assert "\nname: sgp1-status\n" in text
+    assert "\n  paper:" not in text
+    assert "\n  api:" not in text
+    assert "\n  status:" in text
+    assert "\n  caddy:" in text
+    assert "context: /data/app" in text
+    assert "dockerfile: deploy/status/Dockerfile" in text
+    assert "/data/app:/app" in text
+    assert "/data/state/data:/app/data:ro" in text
+    assert "/data/env/.env" in text
+    assert "IP:178.128.215.94" in text
+    assert "name: mo-paper" not in text
+    assert "-p mo-paper" not in text or "Do not pass" in text
+    caddy = text.split("\n  caddy:", 1)[1]
+    assert "env_file" not in caddy
+    assert "STATUS_PAGE_TOKEN" not in caddy
+    assert "run_paper_trading" not in text
+
+    runbook = (ROOT / "docs" / "runbooks" / "status_page.md").read_text(encoding="utf-8")
+    assert "/opt/mo-paper" in runbook
+    assert "-p sgp1-status" in runbook
+    assert "-f /data/app/deploy/status/docker-compose.sgp1.yml" in runbook
+    assert "--env-file /data/env/.env" in runbook
+    assert "IP:178.128.215.94" in runbook
+    assert "/data/state/data" in runbook
+    assert "up -d --build" in runbook
+    # The runbook must tell the operator not to join the paper project.
+    assert "-p mo-paper" in runbook
+    assert "mo-paper-paper-1" in runbook
+    assert "mo-paper-api-1" in runbook
 
 
 def test_compose_override_adds_only_status_and_caddy() -> None:

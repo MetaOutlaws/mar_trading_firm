@@ -1,10 +1,14 @@
 """Authentication and per-IP rate limiting for the status page.
 
-The token is read from settings (``STATUS_PAGE_TOKEN`` in the server ``.env``).
-A blank token disables the page. Comparison hashes both sides and then uses
-``hmac.compare_digest``, so the check does not short-circuit on the first
-differing character. This module does not log the token or the Authorization
-header.
+``STATUS_*`` variables are read from the process environment in this module.
+They are not fields on ``config.settings.Settings``. Deploying or rotating
+the status page does not require a settings change, and the paper worker
+does not load these values through ``get_settings()``.
+
+A blank ``STATUS_PAGE_TOKEN`` disables the page. Comparison hashes both
+sides and then uses ``hmac.compare_digest``, so the check does not
+short-circuit on the first differing character. This module does not log
+the token or the Authorization header.
 """
 
 from __future__ import annotations
@@ -13,20 +17,89 @@ import base64
 import hashlib
 import hmac
 import ipaddress
+import os
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass
 
-from config.settings import get_settings
-
 # TestClient and a local reverse proxy. A public peer never trusts X-Real-IP.
 _TRUSTED_PEER_NAMES = frozenset({"localhost", "testclient"})
 
+# Same defaults the page used when these lived on Settings. Out-of-range
+# rate values are rejected here so a bad env fails the status process
+# without touching config/settings.py.
+_DEFAULT_HOST = "127.0.0.1"
+_DEFAULT_PORT = 8088
+_DEFAULT_RATE_LIMIT = 30
+_DEFAULT_RATE_WINDOW_SECONDS = 60.0
+_RATE_LIMIT_MIN = 1
+_RATE_LIMIT_MAX = 10_000
+_RATE_WINDOW_MAX = 3600.0
+
+
+def _env(name: str) -> str:
+    """Stripped process environment value. Missing and blank are both empty."""
+    return os.environ.get(name, "").strip()
+
 
 def configured_token() -> str:
-    """Stripped status token. Empty means the page is disabled."""
-    return get_settings().status_page_token.strip()
+    """Stripped ``STATUS_PAGE_TOKEN``. Empty means the page is disabled."""
+    return _env("STATUS_PAGE_TOKEN")
+
+
+def status_page_host() -> str:
+    """Bind address from ``STATUS_PAGE_HOST``. Default ``127.0.0.1``."""
+    return _env("STATUS_PAGE_HOST") or _DEFAULT_HOST
+
+
+def status_page_port() -> int:
+    """Bind port from ``STATUS_PAGE_PORT``. Default 8088.
+
+    A non-integer value raises. The status process should fail closed on a
+    bad port rather than bind somewhere unexpected.
+    """
+    raw = _env("STATUS_PAGE_PORT")
+    if not raw:
+        return _DEFAULT_PORT
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError("STATUS_PAGE_PORT must be an integer") from exc
+
+
+def status_rate_limit() -> tuple[int, float]:
+    """``(limit, window_seconds)`` from the status rate-limit env vars.
+
+    Unset uses 30 requests per 60 seconds. A value outside the previous
+    Settings bounds (limit 1..10000, window greater than 0 and at most 3600)
+    raises, so the process does not start with a silently different window.
+    """
+    limit_raw = _env("STATUS_PAGE_RATE_LIMIT")
+    window_raw = _env("STATUS_PAGE_RATE_WINDOW_SECONDS")
+    if not limit_raw:
+        limit = _DEFAULT_RATE_LIMIT
+    else:
+        try:
+            limit = int(limit_raw)
+        except ValueError as exc:
+            raise ValueError("STATUS_PAGE_RATE_LIMIT must be an integer") from exc
+        if limit < _RATE_LIMIT_MIN or limit > _RATE_LIMIT_MAX:
+            raise ValueError(
+                f"STATUS_PAGE_RATE_LIMIT must be between {_RATE_LIMIT_MIN} and {_RATE_LIMIT_MAX}"
+            )
+    if not window_raw:
+        window = _DEFAULT_RATE_WINDOW_SECONDS
+    else:
+        try:
+            window = float(window_raw)
+        except ValueError as exc:
+            raise ValueError("STATUS_PAGE_RATE_WINDOW_SECONDS must be a number") from exc
+        if window <= 0 or window > _RATE_WINDOW_MAX:
+            raise ValueError(
+                "STATUS_PAGE_RATE_WINDOW_SECONDS must be greater than 0 and at most 3600"
+            )
+    return limit, window
 
 
 def tokens_equal(presented: str, expected: str) -> bool:
@@ -160,9 +233,7 @@ class SlidingWindowLimiter:
             self._hits.pop(key, None)
 
 
-def limiter_from_settings() -> SlidingWindowLimiter:
-    settings = get_settings()
-    return SlidingWindowLimiter(
-        settings.status_page_rate_limit,
-        settings.status_page_rate_window_seconds,
-    )
+def limiter_from_env() -> SlidingWindowLimiter:
+    """Limiter built from ``STATUS_PAGE_RATE_*`` in the process environment."""
+    limit, window = status_rate_limit()
+    return SlidingWindowLimiter(limit, window)
