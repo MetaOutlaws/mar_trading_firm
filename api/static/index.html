@@ -242,6 +242,14 @@ td.why {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Blotter strategy label can be a sleeve id plus an L01 version. Wrap it
+   instead of shoving the last column off the card. */
+td.strategy, th.strategy {
+  min-width: 12rem;
+  max-width: 22rem;
+  white-space: normal;
+  word-break: break-word;
+}
 tr:hover td { background: rgba(255,255,255,0.015); }
 tr.job-group td {
   background: var(--surface-2);
@@ -1591,7 +1599,7 @@ function renderBlotter() {
   const trades = state.trades || [];
   const filters = `
     <div class="toolbar">
-      <input class="field" id="blotterQ" placeholder="Filter symbol or reason" oninput="onFilterChange()"/>
+      <input class="field" id="blotterQ" placeholder="Filter symbol, strategy, or reason" oninput="onFilterChange()"/>
       <select class="field" id="blotterSide" onchange="onFilterChange()">
         <option value="">All sides</option><option>LONG</option><option>SHORT</option>
       </select>
@@ -1604,7 +1612,11 @@ function renderBlotter() {
   const q = (document.getElementById("blotterQ")?.value || "").toLowerCase();
   const side = document.getElementById("blotterSide")?.value || "";
   const rows = trades.filter(t => {
-    const hay = (t.symbol + " " + (t.exit_reason || "") + " " + (t.strategy || "")).toLowerCase();
+    const hay = (
+      t.symbol + " " + (t.exit_reason || "") + " " + (t.strategy || "") + " "
+      + (t.strategy_label || "") + " " + (t.sleeve || "") + " " + (t.strategy_id || "")
+      + " " + (t.strategy_version || "")
+    ).toLowerCase();
     return (!q || hay.includes(q)) && (!side || t.side === side);
   });
   const sliced = pageSlice("blotter", rows);
@@ -1615,7 +1627,7 @@ function renderBlotter() {
     <table>
       <thead><tr>
         <th>Closed</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th>
-        <th>Gross</th><th>Fees</th><th>Net</th><th>Return</th><th>Why</th><th>Slip</th><th>Agents</th>
+        <th>Gross</th><th>Fees</th><th>Net</th><th>Return</th><th>Why</th><th>Slip</th><th class="strategy">Strategy</th>
       </tr></thead>
       <tbody>${sliced.items.map(tradeRow).join("") || `<tr><td colspan="13">${empty("No rows match", "Clear the filter to see the full blotter.")}</td></tr>`}</tbody>
     </table>
@@ -1639,8 +1651,15 @@ function tradeRow(t) {
     <td class="num ${pnlClass(t.return_pct)}">${pct(t.return_pct)}</td>
     <td>${esc(prettyReason(t.exit_reason))}</td>
     <td class="num muted">${t.entry_slippage_bps != null ? Number(t.entry_slippage_bps).toFixed(1) + " / " + Number(t.exit_slippage_bps || 0).toFixed(1) : "—"}</td>
-    <td class="muted">${esc((t.agents || []).join(", ") || "—")}</td>
+    <td class="muted strategy">${esc(blotterStrategy(t))}</td>
   </tr>`;
+}
+
+function blotterStrategy(t) {
+  // Display only. /api/trades already joined the ledger strategy_id, sleeve,
+  // and L01 strategy_version into strategy_label. Blank stays an em dash.
+  const label = t && t.strategy_label != null ? String(t.strategy_label).trim() : "";
+  return label || "—";
 }
 
 function prettyReason(r) {
