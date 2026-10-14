@@ -11,8 +11,10 @@
 #   docker compose -f docker-compose.yml -f docker-compose.status.yml \
 #     up -d --no-deps --build status caddy
 #
-# The status process is the only container that receives .env (and therefore
-# STATUS_PAGE_TOKEN). Caddy terminates 443 and does not get that token.
+# The status container does not receive the whole .env. Compose interpolates
+# the allowlist below (STATUS_*, DATABASE_URL, TRADING_MODE, GIT_SHA).
+# Exchange keys, API_TOKEN, and provider keys are not passed in.
+# Caddy terminates 443 and does not get the status token.
 
 services:
   status:
@@ -26,12 +28,21 @@ services:
       # Same state directory the paper worker writes, when it is not ./data.
       - ${STATUS_STATE_DIR:-./data}:/app/data
     command: python scripts/run_status_page.py
-    env_file:
-      - .env
     environment:
+      # The script directory is on sys.path. The checkout root is not.
+      PYTHONPATH: /app
+      # Allowlist. A project-directory .env fills these and nothing else.
+      STATUS_PAGE_TOKEN: ${STATUS_PAGE_TOKEN:-}
       # Reachable by Caddy on the compose network. The port is not published.
       STATUS_PAGE_HOST: "0.0.0.0"
       STATUS_PAGE_PORT: "8088"
+      STATUS_PAGE_RATE_LIMIT: ${STATUS_PAGE_RATE_LIMIT:-30}
+      STATUS_PAGE_RATE_WINDOW_SECONDS: ${STATUS_PAGE_RATE_WINDOW_SECONDS:-60}
+      # Book path and the mode the snapshot reports. Not exchange credentials.
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///data/firm.db}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      # HEAD when the tree has no .git. Blank falls through to the GIT_SHA files.
+      GIT_SHA: ${GIT_SHA:-}
     expose:
       - "8088"
     restart: unless-stopped
