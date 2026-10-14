@@ -74,6 +74,7 @@ class Ledger:
         timeframe: str = "",
         max_holding_bars: int = 0,
         expiry_at: datetime | None = None,
+        opened_at: datetime | None = None,
     ) -> int:
         """Record a newly opened position and return its id."""
         with session_scope() as session:
@@ -101,6 +102,7 @@ class Ledger:
                 timeframe=timeframe,
                 max_holding_bars=max_holding_bars,
                 expiry_at=expiry_at,
+                opened_at=opened_at or utcnow(),
             )
             session.add(position)
             session.flush()

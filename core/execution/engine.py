@@ -1694,6 +1694,21 @@ class TradingEngine:
             )
             return 0
 
+        ram = broker._positions.get(symbol)
+        if ram is not None and ram.observed_funding_only:
+            from core.execution.f111_funding import observed_funding_fraction
+
+            observed_at = broker._now()
+            fraction, source = observed_funding_fraction(
+                symbol=symbol, side=1 if ram.side == "LONG" else -1,
+                entry_price=ram.entry_price, opened=ram.opened_at, now=observed_at,
+                data=broker._data, cache=ram.funding_settlements,
+            )
+            if fraction is None:
+                ram.funding_complete = False
+            else:
+                broker.record_observed_funding(symbol, fraction * ram.notional,
+                                               asof=observed_at, source=source)
         broker.accrue_funding()
         if at_mark:
             fill = float(mark_price if mark_price is not None else (broker.get_price(symbol) or 0.0))
@@ -1703,7 +1718,7 @@ class TradingEngine:
                 expected = float(ram.stop_loss)
             quoted = broker.quote_mark_close(symbol, fill, expected)
         else:
-            quoted = broker.quote_market_close(symbol)
+            quoted = broker.quote_market_close(symbol, quoted_price=mark_price)
         if quoted is None:
             return 0
 

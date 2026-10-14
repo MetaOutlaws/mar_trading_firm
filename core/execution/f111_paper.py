@@ -234,6 +234,14 @@ class F111Runtime:
         self.protection = dict(payload.get("protection") or {})
         self.last_exit = dict(payload.get("last_exit") or {})
         self.seen_signals = list(payload.get("seen_signals") or [])
+        for symbol, state in self.protection.items():
+            # Upgrade legacy states without replaying any historical samples.
+            # A previously decided floor is first applied on a future minute.
+            if "last_protection_minute" not in state:
+                state["last_protection_minute"] = _iso(self.clock().replace(second=0, microsecond=0))
+            position = getattr(self.broker, "_positions", {}).get(symbol)
+            if position is not None:
+                position.observed_funding_only = True
         if self.config.get("research_case") == "L01":
             # Do not let a pre-upgrade, unfiltered long fill after activation.
             # Existing positions/protection and all pending shorts stay intact.
@@ -657,6 +665,8 @@ class F111Runtime:
     ) -> dict[str, Any]:
         action = _parse_time(pending["action_time"])
         assert action is not None
+        if not self.entries_allowed():
+            return self._reject_pending(pending, "f111_scan_disabled", observed=observed, action=action)
         latency = (observed - action).total_seconds()
         opposite = [
             other
@@ -665,6 +675,7 @@ class F111Runtime:
             and other["symbol"] == pending["symbol"]
             and other["status"] == "scheduled"
             and other["action_time"] == pending["action_time"]
+            and other["side"] != pending["side"]
         ]
         if opposite:
             self._reject_pending(opposite[0], "simultaneous_opposite_entries", observed=observed, action=action)
@@ -672,7 +683,8 @@ class F111Runtime:
         if quote is None or quote_time is None or not _finite_price(quote):
             return self._reject_pending(pending, "missing_candle_or_quote", missing=True, observed=observed, action=action)
         quote_time = _as_utc(quote_time)
-        if quote_time < action or observed > action + self.actionable_window:
+        if (quote_time < action or quote_time > observed or observed < action
+                or observed > action + self.actionable_window):
             return self._reject_pending(pending, "stale_action", observed=observed, action=action)
         symbol = pending["symbol"]
         exit_at = _parse_time(self.last_exit.get(symbol))
@@ -731,6 +743,7 @@ class F111Runtime:
             side=side,
             quantity=decision.quantity,
             expected_price=float(quote),
+            quoted_price=float(quote),
         )
         if not result.success:
             return self._reject_pending(
@@ -741,6 +754,10 @@ class F111Runtime:
                 risk=True,
             )
         fill = float(result.fill_price or quote)
+        position = getattr(self.broker, "_positions", {}).get(symbol)
+        if position is not None:
+            position.observed_funding_only = True
+            position.opened_at = observed
         brackets = new_protection_state(
             entry_price=fill,
             side=sign,
@@ -774,6 +791,7 @@ class F111Runtime:
                                  "configuration_sha256": self.config_sha},
                 timeframe="1m",
                 max_holding_bars=0,
+                opened_at=observed,
             )
         brackets.update(
             {
@@ -788,7 +806,8 @@ class F111Runtime:
                 "funding_events": [] if funding_fraction is None else [
                     {"fraction": funding_fraction, "source": funding_source, "asof": _iso(observed)}
                 ],
-                "opened_at": _iso(observed),
+                "opened_at": _iso(position.opened_at if position is not None else observed),
+                "last_protection_minute": _iso((position.opened_at if position is not None else observed).replace(second=0, microsecond=0)),
             }
         )
         self.protection[symbol] = brackets
@@ -836,28 +855,52 @@ class F111Runtime:
         state = self.protection.get(symbol)
         if state is None:
             return []
+        sample = minute.replace(second=0, microsecond=0)
+        previous = _parse_time(state.get("last_protection_minute"))
+        opened = _parse_time(state.get("opened_at"))
+        if (previous is not None and sample <= previous) or (
+            opened is not None and sample <= opened.replace(second=0, microsecond=0)
+        ):
+            return []
         row = self._row_from_protection(state)
         row["poll_latency"] = (observed - minute).total_seconds()
         row["quote_time"] = _iso(quote_time)
-        if quote is None or not _finite_price(quote):
+        if (quote is None or not _finite_price(quote) or quote_time is None
+                or _as_utc(quote_time) < minute or _as_utc(quote_time) > observed
+                or observed - _as_utc(quote_time) > self.actionable_window):
             row["missing_candle_or_quote"] = True
             row["rejection_reason"] = "missing_candle_or_quote"
             row["funding_events"] = state.get("funding_events")
             return [self._emit(row)]
+        if funding_fraction is not None and not math.isfinite(funding_fraction):
+            funding_fraction = None
         if funding_fraction is None:
             # Do not arm or tighten a floor on a substituted zero.
             row["missing_candle_or_quote"] = False
+            position = getattr(self.broker, "_positions", {}).get(symbol)
+            if position is not None:
+                position.funding_complete = False
         else:
+            position = getattr(self.broker, "_positions", {}).get(symbol)
+            if position is not None:
+                self.broker.record_observed_funding(
+                    symbol, float(funding_fraction) * position.notional,
+                    asof=funding_asof or observed,
+                    source=funding_source or "explicit research input",
+                )
             events = list(state.get("funding_events") or [])
-            events.append(
-                {
+            event = {
                     "fraction": float(funding_fraction),
                     "source": funding_source,
                     "asof": _iso(funding_asof or observed),
                 }
-            )
+            if not events or events[-1].get("fraction") != event["fraction"] or events[-1].get("source") != funding_source:
+                events.append(event)
             state["funding_events"] = events
             state["funding_source"] = funding_source
+            state["funding_observed_through"] = event["asof"]
+        state["funding_known"] = funding_fraction is not None
+        state["funding_fraction"] = funding_fraction
         updated, exit_row = step_protection(
             state,
             float(quote),
@@ -884,6 +927,7 @@ class F111Runtime:
         row["estimated_cost_aware_exit_value"] = _estimated_floor_price(updated, self.fee)
         row["funding_events"] = updated.get("funding_events")
         if exit_row is None:
+            updated["last_protection_minute"] = _iso(sample)
             row["gate_decision"] = True
             row["rejection_reason"] = None if updated.get("funding_known") else "funding_missing"
             return [self._emit(row)]
@@ -912,15 +956,7 @@ class F111Runtime:
         fill_price = quote
         closed = None
         if self.broker is not None and symbol in getattr(self.broker, "_positions", {}):
-            if at_stop:
-                closed = self.broker.close_at_fill(symbol, quote, float(exit_row.get("configured_stop") or quote))
-            else:
-                # The market-close path reads the broker mark. Pin it to this
-                # sample so a later tick cannot reorder the exit.
-                prices = getattr(getattr(self.broker, "_data", None), "prices", None)
-                if isinstance(prices, dict):
-                    prices[symbol] = quote
-                closed = self.broker.close_position(symbol)
+            closed = self._close_at_quote(symbol, quote, at_stop)
             if not closed.success:
                 row = self._row_from_protection(state)
                 row["rejection_reason"] = closed.error or "close failed"
@@ -929,10 +965,6 @@ class F111Runtime:
             fill_price = float(closed.fill_price or quote)
             exit_fee = float(closed.fee or 0.0)
             funding = float(closed.funding or 0.0)
-        if self.ledger is not None and closed is not None and closed.success:
-            position = self.ledger.find_open_position(symbol)
-            if position is not None:
-                self._settle_ledger_close(position, closed, at_stop, quote)
         if closed is not None and closed.success:
             # close_at_fill already moved cash by gross - exit fee. Entry fee
             # left cash at the open. Funding was accrued into cash earlier.
@@ -973,22 +1005,48 @@ class F111Runtime:
         )
         return self._emit(row)
 
-    def _settle_ledger_close(self, position: Any, closed: Any, at_stop: bool, quote: float) -> None:
-        """Write the ledger trade after the broker has already moved cash.
+    def _close_at_quote(self, symbol: str, quote: float, at_stop: bool):
+        """Use one observed quote; commit a real ledger close before RAM cash."""
+        from core.execution.broker import OrderResult
+        from core.execution.paper_settle import paper_close_event_id, settle_paper_close
 
-        ``close_at_fill`` journals cash. Calling the paper settler as well
-        would apply that cash a second time, so this path only closes the
-        SQLite row.
-        """
-        self.ledger.close_position(
-            position_id=int(position.id),
-            exit_price=float(closed.fill_price or quote),
-            expected_exit_price=float(quote if at_stop else (closed.fill_price or quote)),
-            exit_reason="stop_loss" if at_stop else "take_profit",
-            entry_fees=float(getattr(position, "entry_fee", 0.0) or 0.0),
-            exit_fees=float(closed.fee or 0.0),
-            funding=float(closed.funding or 0.0),
+        broker = self.broker
+        broker.accrue_funding()
+        quoted = (broker.quote_mark_close(symbol, quote, quote) if at_stop
+                  else broker.quote_market_close(symbol, quoted_price=quote))
+        if quoted is None:
+            return OrderResult(success=False, symbol=symbol, error="close quote unavailable")
+        position = self.ledger.find_open_position(symbol) if self.ledger is not None else None
+        if self.ledger is not None and position is None:
+            from core.execution.paper_settle import load_durable_close_payloads
+
+            position_id = (self.protection.get(symbol) or {}).get("position_id")
+            # A commit may have succeeded before a JSON/RAM update failed.
+            # Recover by the exact position identity, never a new market quote.
+            if position_id is not None:
+                for saved in reversed(load_durable_close_payloads()):
+                    if saved.get("position_id") == position_id and saved.get("symbol") == symbol:
+                        return broker.apply_journal_close(saved)
+            return OrderResult(success=False, symbol=symbol, error="open ledger position missing")
+        reason = "stop_loss" if at_stop else "take_profit"
+        event_id = None if position is None else paper_close_event_id(
+            position_id=position.id, symbol=symbol, reason=reason,
+            quantity=quoted.quantity, fill_price=quoted.fill_price,
         )
+        payload = broker.build_close_payload(quoted, event_id=event_id,
+                                            position_id=None if position is None else position.id)
+        state = self.protection.get(symbol) or {}
+        payload["funding_status"] = "observed" if state.get("funding_known") else "incomplete_at_exit"
+        payload["funding_source"] = state.get("funding_source")
+        if position is not None:
+            result = settle_paper_close(
+                ledger=self.ledger, event_id=event_id, payload=payload,
+                position_id=position.id, exit_price=quoted.fill_price,
+                expected_exit_price=quote, exit_reason=reason,
+                entry_fees=quoted.entry_fee, exit_fees=quoted.fee, funding=quoted.funding,
+            )
+            payload = result.payload
+        return broker.apply_journal_close(payload)
 
     def _position_still_open(self, symbol: str) -> bool:
         """True when the broker or the ledger still has the row.
@@ -1192,7 +1250,7 @@ class F111Runtime:
                 logger.exception("F111 registry refresh failed")
             self.last_registry_at = now
         hour = now.replace(minute=0, second=0, microsecond=0)
-        if self.last_signal_hour != hour:
+        if self.entries_allowed() and self.last_signal_hour != hour:
             self._consume_hourly(data, now)
             self.last_signal_hour = hour
         for symbol in self._active_symbols():
@@ -1200,8 +1258,8 @@ class F111Runtime:
                 frame = data.fetch_latest(symbol, "1m", bars=90)
             except Exception as exc:
                 logger.warning("F111 minute fetch failed for %s: %s", symbol, exc)
-                continue
-            self._consume_minutes(symbol, frame, now)
+                frame = None
+            self._consume_minutes(symbol, frame, max(now, _as_utc(self.clock())))
 
     def _active_symbols(self) -> list[str]:
         names = {pending["symbol"] for pending in self.pending if pending["status"] in {"watching", "scheduled"}}
@@ -1332,7 +1390,7 @@ class F111Runtime:
                     compression=_finite_or_nan(last.get("compression")),
                     extension_atr=float(extension) if _finite_number(extension) is not None else float("nan"),
                     base_passed=parent_reason != "base_signal_blocked",
-                    observed_at=observed,
+                    observed_at=max(observed, _as_utc(self.clock())),
                     long_context=long_context,
                     features={
                         "compression": _finite_or_none(last.get("compression")),
@@ -1345,31 +1403,59 @@ class F111Runtime:
         _publish_hourly_summary(self, self.events[start:], now)
 
     def _consume_minutes(self, symbol: str, frame: Any, now: datetime) -> None:
-        from core.data.ohlcv import closed_candles
+        """Confirm closed candles once; execute only at a current quote.
 
-        if frame is None or len(frame) == 0:
+        OHLC confirms a retest. It is never an executable exit price. Protection
+        samples once per current minute; effective stops retain the hot poll.
+        """
+        now = _as_utc(now)
+        closed = []
+        if frame is not None and len(frame):
+            for stamp, bar in frame.sort_index().iterrows():
+                moment = _bar_open_utc(stamp)
+                if moment + timedelta(minutes=1) <= now:
+                    closed.append((moment, bar))
+        for moment, bar in closed:
+            for pending in list(self.pending):
+                if pending["symbol"] == symbol and pending["status"] == "watching":
+                    self._advance_pending(
+                        pending, moment, float(bar["high"]), float(bar["low"]),
+                        float(bar["close"]), None, None, now, None, None,
+                    )
+        for pending in self.pending:
+            if pending["symbol"] == symbol and pending["status"] == "watching":
+                expected = _parse_time(pending["next_minute"])
+                if expected is not None and expected + timedelta(minutes=1) <= now:
+                    self._reject_pending(pending, "missing_candle_or_quote", missing=True, observed=now)
+
+        state = self.protection.get(symbol)
+        if state is not None and not self._position_still_open(symbol):
+            self.protection.pop(symbol, None)
+            self.last_exit.setdefault(symbol, _iso(now) or "")
+            state = None
+        bucket = now.replace(second=0, microsecond=0)
+        previous = _parse_time(state.get("last_protection_minute")) if state else None
+        needs_protection = state is not None and (previous is None or bucket > previous)
+        scheduled = [p for p in self.pending if p["symbol"] == symbol and p["status"] == "scheduled"
+                     and _parse_time(p["action_time"]) <= now]
+        if not needs_protection and not scheduled:
+            self.persist()
             return
-        closed = closed_candles(frame, "1m", now=now)
-        earliest = self._earliest_minute(symbol)
-        for stamp, bar in closed.iterrows():
-            moment = stamp.to_pydatetime()
-            moment = moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment.astimezone(timezone.utc)
-            if earliest is not None and moment < earliest:
-                continue
-            fraction, source = _funding_for_open(self, symbol, moment)
-            self.observe_minute(
-                symbol=symbol,
-                minute=moment,
-                high=float(bar["high"]),
-                low=float(bar["low"]),
-                close=float(bar["close"]),
-                quote=float(bar["open"]),
-                quote_time=moment,
-                observed_at=now,
-                funding_fraction=fraction,
-                funding_source=source,
-                funding_asof=moment,
-            )
+        fraction, source = (None, None)
+        if needs_protection:
+            fraction, source = _funding_for_open(self, symbol, now)
+        # Obtain the quote AFTER any funding/candle request. Recheck the clock
+        # so a slow fetch cannot disguise a missed action or reuse an old open.
+        quote = self.broker.get_price(symbol) if self.broker is not None else None
+        observed = max(now, _as_utc(self.clock()))
+        sample = observed.replace(second=0, microsecond=0)
+        if needs_protection:
+            self._advance_protection(symbol, sample, quote, observed, observed,
+                                     fraction, source, now)
+        for pending in scheduled:
+            if pending["status"] == "scheduled":
+                self._try_fill(pending, quote, observed, observed, 0., "entry has no accrued funding")
+        self.persist()
 
     def _emit_data_gap(self, symbol: str, reason: str, side: str | None = None) -> None:
         sides = [side] if side else list(self.config["sides"])
@@ -1389,57 +1475,26 @@ class F111Runtime:
 
 
 def _funding_for_open(runtime: F111Runtime, symbol: str, now: datetime) -> tuple[float | None, str | None]:
-    """Observed funding fraction, or (None, reason) when the feed did not answer.
+    """One observed valuation for both protection and broker cash.
 
-    An empty successful window is an observed zero. A failed request is not
-    rewritten as zero.
+    Rates are valued at the settlement-minute open, the same documented price
+    proxy as saved research. This is not an exchange mark-price claim.
     """
+    from core.execution.f111_funding import observed_funding_fraction
+
     state = runtime.protection.get(symbol)
     if state is None:
         return None, None
     opened = _parse_time(state.get("opened_at"))
     if opened is None:
         return None, "funding opened_at missing"
-    try:
-        import httpx
-
-        response = httpx.get(
-            "https://api.bybit.com/v5/market/funding/history",
-            params={
-                "category": "linear",
-                "symbol": symbol,
-                "startTime": int(opened.timestamp() * 1000),
-                "endTime": int(now.timestamp() * 1000),
-                "limit": 200,
-            },
-            timeout=20.0,
-            headers={"User-Agent": "mar-trading-firm/0.1"},
-        )
-    except Exception as exc:
-        return None, f"funding unreachable: {exc}"
-    if response.status_code != 200:
-        return None, f"funding unreachable: HTTP {response.status_code}"
-    try:
-        payload = response.json()
-    except Exception as exc:
-        return None, f"funding unreachable: {exc}"
-    if int(payload.get("retCode") or 0) != 0:
-        return None, f"funding unreachable: {payload.get('retMsg')}"
-    rows = (payload.get("result") or {}).get("list") or []
-    sign = int(state["side"])
-    total = 0.0
-    counted = 0
-    for record in rows:
-        try:
-            stamp = datetime.fromtimestamp(int(record["fundingRateTimestamp"]) / 1000, tz=timezone.utc)
-            rate = float(record["fundingRate"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if opened < stamp <= now:
-            total += rate
-            counted += 1
-    # Debit positive: a long pays a positive rate, a short receives it.
-    return sign * total, f"bybit v5 funding history ({counted} settlements)"
+    data = getattr(runtime.broker, "_data", None) or getattr(runtime, "_market_data", None)
+    position = getattr(runtime.broker, "_positions", {}).get(symbol)
+    cache = position.funding_settlements if position is not None else state.setdefault("funding_settlements", {})
+    return observed_funding_fraction(
+        symbol=symbol, side=int(state["side"]), entry_price=float(state["entry_price"]),
+        opened=opened, now=now, data=data, cache=cache,
+    )
 
 
 def _finite_price(value: float | None) -> bool:
@@ -1751,8 +1806,7 @@ def run_attached_minute_step(engine: Any, *, data: Any = None, now: datetime | N
         return
     config, _digest = load_f111_config()
     if not scan_enabled(config):
-        logger.info("F111 scan disabled; existing exit supervision is unchanged")
-        return
+        logger.info("F111 entries disabled; existing protection remains supervised")
     runtime = attached_runtime(engine)
     when = _as_utc(now or runtime.clock())
     try:
