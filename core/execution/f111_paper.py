@@ -234,6 +234,18 @@ class F111Runtime:
         self.protection = dict(payload.get("protection") or {})
         self.last_exit = dict(payload.get("last_exit") or {})
         self.seen_signals = list(payload.get("seen_signals") or [])
+        if self.config.get("research_case") == "L01":
+            # Do not let a pre-upgrade, unfiltered long fill after activation.
+            # Existing positions/protection and all pending shorts stay intact.
+            for pending in self.pending:
+                if (pending.get("side") == "LONG" and pending.get("entry_case") != "L01"
+                        and pending.get("status") in {"watching", "scheduled"}):
+                    pending["status"] = "rejected"
+                    pending["rejection_reason"] = "l01_upgrade_requires_new_long_signal"
+                    row = self._row_from_pending(pending)
+                    row["rejection_reason"] = pending["rejection_reason"]
+                    self._emit(row)
+            self.persist()
 
     def persist(self) -> None:
         """Atomic replace so a crash mid-write cannot drop a pending retest."""
@@ -242,7 +254,7 @@ class F111Runtime:
         payload = {
             "version": 1,
             "config_sha256": self.config_sha,
-            "strategy_version": STRATEGY_VERSION,
+            "strategy_version": self.config.get("strategy_version", STRATEGY_VERSION),
             "pending": self.pending,
             "protection": self.protection,
             "last_exit": self.last_exit,
@@ -254,6 +266,9 @@ class F111Runtime:
         os.replace(temporary, self.state_path)
 
     def _emit(self, row: dict[str, Any]) -> dict[str, Any]:
+        row.setdefault("emitted_at", _iso(self.clock()))
+        row["strategy_version"] = self.config.get("strategy_version", STRATEGY_VERSION)
+        row["research_case"] = self.config.get("research_case", "F111")
         # Repair before the log and the JSONL write so both carry the string.
         if row.get("gate_decision") is False and not _reason_text(row.get("rejection_reason")):
             row["rejection_reason"] = NO_SIGNAL_REASON
@@ -301,6 +316,10 @@ class F111Runtime:
         """
         row = _blank_event(self.config_sha, self.run_id)
         row["deploy_marker"] = "restart"
+        row["runtime_code_sha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        row["process_id"] = os.getpid()
+        stat = Path(f"/proc/{os.getpid()}/stat")
+        row["process_start_ticks"] = stat.read_text().rsplit(")", 1)[1].split()[19] if stat.exists() else None
         row["gate_decision"] = None
         row["rejection_reason"] = "restart"
         return self._emit(row)
@@ -382,6 +401,7 @@ class F111Runtime:
         features: dict[str, Any] | None = None,
         feature_asof: dict[str, Any] | None = None,
         sector: str | None = None,
+        long_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Record the original hourly decision. A pass opens one pending retest.
 
@@ -416,6 +436,15 @@ class F111Runtime:
         if gate_reason == "missing_feature" and parent_reason in _KEPT_PARENT_REASONS:
             gate_reason = parent_reason
             passed = False
+        if passed and self.config.get("research_case") == "L01":
+            from core.strategy.l01_context import decision
+
+            passed, gate_reason, context_info = decision(side, long_context, t0)
+            features.update(context_info)
+            if long_context is None and side == "LONG" and features.get("l01_context_error"):
+                gate_reason = str(features["l01_context_error"])
+            if context_info.get("l01_available_at"):
+                feature_asof = {**(feature_asof or {}), "l01_4h_close": context_info["l01_available_at"]}
         row = self._signal_row(
             symbol=symbol,
             side=side,
@@ -455,6 +484,7 @@ class F111Runtime:
         # No opposite-signal cancellation: the other side's pending stays.
         self.seen_signals.append(signal_id)
         pending = {
+            "entry_case": self.config.get("research_case", "F111"),
             "symbol": symbol,
             "side": side,
             "sign": 1 if side == "LONG" else -1,
@@ -735,16 +765,19 @@ class F111Runtime:
                 strategy=STRATEGY_ID,
                 sector=pending.get("sector") or _sector(symbol),
                 signal_score=1.0,
-                signal_reason="F111 retest reclaim",
+                signal_reason=f"{pending.get('entry_case', 'F111')} retest reclaim",
                 broker_order_id=result.order_id or "",
                 entry_fee=brackets["entry_fee"],
                 execution_contract=self.config.get("execution_model_version") or "",
-                strategy_params={"strategy_version": STRATEGY_VERSION, "configuration_sha256": self.config_sha},
+                strategy_params={"strategy_version": self.config.get("strategy_version", STRATEGY_VERSION),
+                                 "entry_case": pending.get("entry_case", "F111"),
+                                 "configuration_sha256": self.config_sha},
                 timeframe="1m",
                 max_holding_bars=0,
             )
         brackets.update(
             {
+                "entry_case": pending.get("entry_case", "F111"),
                 "position_id": position_id,
                 "symbol": symbol,
                 "side_name": side,
@@ -1109,6 +1142,7 @@ class F111Runtime:
 
     def _row_from_protection(self, state: dict[str, Any]) -> dict[str, Any]:
         row = _blank_event(self.config_sha, self.run_id)
+        row["position_entry_case"] = state.get("entry_case", "F111")
         sign = int(state["side"])
         row.update(
             {
@@ -1272,6 +1306,22 @@ class F111Runtime:
                         "F111 distance snapshot failed for %s; the signal is unchanged", symbol
                     )
                     distance_features = {}
+                long_context = None
+                observed = now
+                if (self.config.get("research_case") == "L01" and side is SignalSide.LONG
+                        and not parent_reason and int(last.get("signal", 0)) != 0):
+                    from core.strategy.l01_context import ContextStore, ContextUnavailable
+
+                    try:
+                        store = ContextStore()
+                        long_context = store.refresh(symbol, t0, data, max_catchup_hours=8)
+                    except ContextUnavailable as exc:
+                        distance_features["l01_context_error"] = str(exc)
+                    except Exception:
+                        logger.exception("L01 context fetch failed for %s", symbol)
+                        distance_features["l01_context_error"] = "l01_context_fetch_failed"
+                    # A slow context request must not disguise a missed signal minute.
+                    observed = max(_as_utc(now), _as_utc(self.clock()))
                 self.observe_signal(
                     symbol=symbol,
                     side=side.value,
@@ -1282,7 +1332,8 @@ class F111Runtime:
                     compression=_finite_or_nan(last.get("compression")),
                     extension_atr=float(extension) if _finite_number(extension) is not None else float("nan"),
                     base_passed=parent_reason != "base_signal_blocked",
-                    observed_at=now,
+                    observed_at=observed,
+                    long_context=long_context,
                     features={
                         "compression": _finite_or_none(last.get("compression")),
                         "extension_atr": extension_feature,
@@ -1590,7 +1641,7 @@ def fresh_scan(
     transport = [item for item in unavailable if str(item["reason"]).startswith("instruments-info unreachable")]
     return {
         "strategy_id": STRATEGY_ID,
-        "strategy_version": STRATEGY_VERSION,
+        "strategy_version": config.get("strategy_version", STRATEGY_VERSION),
         "configuration_sha256": digest,
         "sleeves_expected": 192,
         "sleeves_evaluated": len(rows),

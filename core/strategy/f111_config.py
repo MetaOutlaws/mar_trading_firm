@@ -19,6 +19,8 @@ from config.settings import PROJECT_ROOT, TradingMode, get_settings
 STRATEGY_ID = "mar_f111_r12_extension_latefloor_v1"
 STRATEGY_VERSION = "f111-paper-v1"
 CONFIG_PATH = PROJECT_ROOT / "config" / "sleeves" / "mar_f111_r12_extension_latefloor_v1.json"
+L01_CONFIG_PATH = PROJECT_ROOT / "config" / "sleeves" / "mar_l01_long_f111_short_v1.json"
+L01_ENABLE_PATH = PROJECT_ROOT / "data" / "l01_paper_enabled.json"
 # Operator rollback switch. It is not part of the hashed config: creating it
 # stops new F111 entries without pretending the research thresholds changed.
 DISABLE_FLAG_PATH = PROJECT_ROOT / "data" / "f111_paper_scan_disabled"
@@ -78,10 +80,25 @@ TELEMETRY_FIELDS = (
 
 def load_f111_config(path: Path | None = None) -> tuple[dict, str]:
     """Return ``(config, sha256 hex of the file bytes)``."""
-    source = path or CONFIG_PATH
+    source = path or (L01_CONFIG_PATH if L01_ENABLE_PATH.exists() else CONFIG_PATH)
     raw = source.read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     config = json.loads(raw)
+    if path is None and source == L01_CONFIG_PATH:
+        marker = json.loads(L01_ENABLE_PATH.read_text())
+        if marker.get("configuration_sha256") != digest or marker.get("paper_only") is not True:
+            raise RuntimeError("L01 activation marker does not match the reviewed paper config")
+    if config.get("research_case") == "L01":
+        from core.strategy.l01_context import SEED_SHA256
+
+        expected = {"enabled": True, "side": "LONG", "timeframe": "4h", "ema_span": 50,
+                    "slope_lag_bars": 3, "minimum_complete_bars": 53,
+                    "strict_close_above_ema": True, "strict_positive_slope": True,
+                    "seed_sha256": SEED_SHA256}
+        if config.get("directional_long_filter") != expected:
+            raise RuntimeError("L01 filter differs from the owner-approved rule")
+    elif config.get("directional_long_filter"):
+        raise RuntimeError("Directional filter requires the explicit L01 research case")
     if config.get("strategy_id") != STRATEGY_ID:
         raise RuntimeError("F111 config strategy_id does not match the implementation")
     if config.get("live_authorized") is not False:
