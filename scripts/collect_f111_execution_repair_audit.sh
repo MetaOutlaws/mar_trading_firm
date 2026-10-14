@@ -5,7 +5,13 @@ set -euo pipefail
 umask 077
 test "$(hostname)" = "mo-paper-vm-sgp1"
 test "$(git -C /data/app rev-parse HEAD)" = "b00c4f73147f8319bc9c227c4f4ffb147fc87154"
-git -C /data/app diff --quiet HEAD -- core config scripts api
+# Marcus exception 1. Tolerate only the staged #119 blotter overlay
+# (api/app.py, api/static/index.html, tests/test_blotter_strategy.py) when
+# those blobs match 8d35ec7c. Any other dirty or staged path still fails.
+# The helper sits next to this script; extract both. A missing helper fails closed.
+helper="$(cd "$(dirname "$0")" && pwd)/f111_repair_clean_tree.py"
+test -f "$helper"
+python3 "$helper" /data/app
 docker exec -w /app mo-paper-paper-1 python -c 'from core.strategy.f111_config import assert_f111_paper_only; assert_f111_paper_only()'
 docker ps --format 'table {{.Names}}\t{{.Status}}'
 systemctl show mar-l01-context.timer --property=ActiveState,SubState,LastTriggerUSec,NextElapseUSecRealtime
