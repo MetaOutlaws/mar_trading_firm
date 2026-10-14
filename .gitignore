@@ -40,6 +40,9 @@ data/paper_bar_eval_state.json.tmp
 # See docs/runbooks/desk_deployed_sha.md.
 /GIT_SHA
 data/DEPLOYED_SHA
+# Status-page TLS material. The fingerprint is printed at deploy; the key
+# stays on the box. See docs/runbooks/status_page.md.
+deploy/caddy/certs/
 # 24h near-miss diary written by the paper worker. Pruned on read.
 data/near_miss_log.jsonl
 data/near_miss_log.jsonl.tmp

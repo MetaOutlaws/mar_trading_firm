@@ -1,0 +1,66 @@
+# Status page and its TLS proxy.
+#
+# Add-only override. It does not modify the api or paper services.
+# Start it without recreating the paper worker:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.status.yml \
+#     up -d --no-deps --build status caddy
+#
+# The status process is the only container that receives .env (and therefore
+# STATUS_PAGE_TOKEN). Caddy terminates 443 and does not get that token.
+
+services:
+  status:
+    build:
+      context: .
+      dockerfile: deploy/status/Dockerfile
+    image: mar-status-page:local
+    working_dir: /app
+    volumes:
+      - .:/app
+      # Same state directory the paper worker writes, when it is not ./data.
+      - ${STATUS_STATE_DIR:-./data}:/app/data
+    command: python scripts/run_status_page.py
+    env_file:
+      - .env
+    environment:
+      # Reachable by Caddy on the compose network. The port is not published.
+      STATUS_PAGE_HOST: "0.0.0.0"
+      STATUS_PAGE_PORT: "8088"
+    expose:
+      - "8088"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request, urllib.error\ntry:\n    urllib.request.urlopen('http://127.0.0.1:8088/api/status', timeout=3)\nexcept urllib.error.HTTPError as exc:\n    raise SystemExit(0 if exc.code in (401, 503) else 1)\nexcept Exception:\n    raise SystemExit(1)\n"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  caddy:
+    image: caddy:2.8-alpine
+    ports:
+      - "443:443"
+    environment:
+      STATUS_PAGE_DOMAIN: ${STATUS_PAGE_DOMAIN:-}
+      STATUS_TLS_EMAIL: ${STATUS_TLS_EMAIL:-}
+      STATUS_TLS_SAN: ${STATUS_TLS_SAN:-DNS:localhost,IP:127.0.0.1}
+    volumes:
+      - ./deploy/caddy/entrypoint.sh:/entrypoint.sh:ro
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - status_caddy_data:/data
+      - status_caddy_config:/config
+      - status_certs:/certs
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    depends_on:
+      - status
+    restart: unless-stopped
+
+volumes:
+  status_caddy_data:
+  status_caddy_config:
+  status_certs:

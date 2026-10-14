@@ -85,6 +85,16 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_token: str = "change-me-to-a-long-random-string"
 
+    # ---- Read-only status page ----------------------------------------------
+    # Blank disables the page (every request is refused). This is a separate
+    # process from the paper worker and from the desk API token above.
+    # ``repr=False`` keeps the value out of repr(settings). Do not log it.
+    status_page_token: str = Field(default="", repr=False)
+    status_page_host: str = "127.0.0.1"
+    status_page_port: int = 8088
+    status_page_rate_limit: int = Field(default=30, ge=1, le=10_000)
+    status_page_rate_window_seconds: float = Field(default=60.0, gt=0, le=3600)
+
     # ---- Logging ------------------------------------------------------------
     log_level: str = "INFO"
 
