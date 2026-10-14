@@ -16,6 +16,7 @@ from scripts import f111_repair_clean_tree as guard
 
 ROOT = Path(__file__).resolve().parents[1]
 COLLECTOR = ROOT / "scripts" / "collect_f111_execution_repair_audit.sh"
+DEPLOY = ROOT / "scripts" / "deploy_f111_execution_repair.sh"
 
 # Small stand-ins. The production pins are the real 8d35ec7c blobs, asserted below.
 OVERLAY = {
@@ -164,3 +165,89 @@ def test_other_file_fails(
     assert code == 1
     assert "docs/unrelated.md" in err
     assert "api/app.py" not in err
+
+
+def _deploy_preflight(repo: Path, script: Path = DEPLOY) -> subprocess.CompletedProcess[str]:
+    """Source the deploy script and run only its clean-tree preflight."""
+    return subprocess.run(
+        [
+            "bash",
+            "-c",
+            'set -euo pipefail; source "$1"; f111_deploy_clean_preflight "$2"',
+            "bash",
+            str(script),
+            str(repo),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_deploy_preflight_allows_exact_overlay(tmp_path: Path) -> None:
+    """The installer preflight calls the same helper and accepts the real #119 blobs."""
+    script = DEPLOY.read_text(encoding="utf-8")
+    assert "f111_deploy_clean_preflight /data/app" in script
+    assert 'test -f "$helper"' in script
+    assert 'python3 "$helper" "$repo"' in script
+    assert "868f1c9a7a34c240dd81fb0c4b2f25b02455d4a4" in script
+    head_check = script.index('test "$(git -C /data/app rev-parse HEAD)" = "$base_sha"')
+    preflight = script.index("f111_deploy_clean_preflight /data/app")
+    assert head_check < preflight
+    assert "diff --quiet HEAD -- core config scripts api research tests" not in script
+
+    repo = _init(tmp_path)
+    clean = _deploy_preflight(repo)
+    assert clean.returncode == 0, clean.stderr
+
+    for path, sha in guard.ALLOWED_OVERLAY_BLOBS.items():
+        blob = subprocess.run(
+            ["git", "-C", str(ROOT), "cat-file", "blob", sha],
+            capture_output=True,
+        )
+        if blob.returncode != 0:
+            pytest.skip("8d35ec7c blobs are not in this clone")
+        _stage(repo, path, blob.stdout)
+    allowed = _deploy_preflight(repo)
+    assert allowed.returncode == 0, allowed.stderr
+
+
+def test_deploy_preflight_mismatched_content_fails(tmp_path: Path) -> None:
+    """Different bytes on an allowed path still stop the installer."""
+    repo = _init(tmp_path)
+    _stage(repo, "api/app.py", b"not the blotter app\n")
+    result = _deploy_preflight(repo)
+    assert result.returncode == 1
+    assert "api/app.py" in result.stderr
+    assert "api/static/index.html" not in result.stderr
+
+
+def test_deploy_preflight_other_file_fails(tmp_path: Path) -> None:
+    """A path outside the three-file overlay still fails, including staged-only edits."""
+    repo = _init(tmp_path)
+    engine = repo / "core" / "execution" / "engine.py"
+    engine.write_bytes(b"engine-staged\n")
+    _git(repo, "add", "--", "core/execution/engine.py")
+    engine.write_bytes(b"engine-base\n")
+    result = _deploy_preflight(repo)
+    assert result.returncode == 1
+    assert "core/execution/engine.py" in result.stderr
+
+    _git(repo, "checkout", "HEAD", "--", "core/execution/engine.py")
+    note = repo / "docs" / "unrelated.md"
+    note.parent.mkdir()
+    note.write_bytes(b"outside the old deploy pathspec\n")
+    _git(repo, "add", "--", "docs/unrelated.md")
+    result = _deploy_preflight(repo)
+    assert result.returncode == 1
+    assert "docs/unrelated.md" in result.stderr
+
+
+def test_deploy_preflight_missing_helper_fails_closed(tmp_path: Path) -> None:
+    """Extracting the deploy script without the helper must not skip the check."""
+    isolated = tmp_path / "scripts"
+    isolated.mkdir()
+    script = isolated / "deploy_f111_execution_repair.sh"
+    script.write_text(DEPLOY.read_text(encoding="utf-8"), encoding="utf-8")
+    repo = _init(tmp_path)
+    result = _deploy_preflight(repo, script)
+    assert result.returncode != 0
