@@ -1,6 +1,21 @@
-# Grok: current research and paper approval, 8 October 2026
+# Grok: current research and paper approval, 14 October 2026
 
-Current approved PAPER strategy: hourly_compression_btc_connors_loweff_v1.
+Current owner-approved PAPER strategy: **L01 longs + unchanged F111 shorts**.
+The owner explicitly authorized Git push and activation on 14 October. Use
+[the frozen directional specification](docs/mar-l01-paper-handoff/README.md),
+[validation evidence](docs/mar-l01-paper-handoff/VALIDATION.json), and
+[the activation runbook](docs/runbooks/l01_paper_activation.md).
+
+The L01 4h trend filter applies only to new long admission. Keep the original
+F111 retest, risk, shorts and exit rules. Use the existing Singapore paper
+worker and persistent book; no second worker, cash reset, or live deployment.
+Publication is not activation proof. Require the running-worker verification
+described in the runbook. The configuration defaults to F111 until the
+hash-bound L01 activation marker is installed and that same worker restarts.
+
+## Historical handover — 8 October 2026 (superseded entry approval)
+
+Previously approved PAPER strategy: hourly_compression_btc_connors_loweff_v1.
 BTC/ETH/SOL, both directions, hourly. Original compression + Connors + BTC
 confirmation, with a one-ATR extension cap only when pre-signal ER24<0.30.
 SL2%, TP2.5%, no maximum hold. No RSI14 or ADX addition. No runtime rule changed
