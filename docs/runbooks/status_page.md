@@ -30,9 +30,15 @@ the pid file, and the paper log. It does not import `scripts/run_paper_trading`.
 ## Server environment
 
 Set these in the server env file. On SGP1 that file is `/data/env/.env`.
-The status process reads `STATUS_*` itself (`api/status_auth.py`). Those
-names are not fields on `config/settings.py`. A blank `STATUS_PAGE_TOKEN`
-disables the page: every request gets 503 and the book is not read.
+Compose uses it only to interpolate an allowlist into the status container.
+The file itself is not loaded there, so exchange keys, `API_TOKEN`, and
+provider keys never enter the container. The allowlist is `STATUS_*`,
+`DATABASE_URL` (the book path), `TRADING_MODE`, and `GIT_SHA`. The status
+process reads `STATUS_*` itself (`api/status_auth.py`). Those names are not
+fields on `config/settings.py`. A blank `STATUS_PAGE_TOKEN` disables the
+page: every request gets 503 and the book is not read. `PYTHONPATH=/app` is
+set in the compose file so `import api` resolves when the process is
+started as `python scripts/run_status_page.py`.
 
 | Variable | Purpose |
 |---|---|
@@ -96,7 +102,7 @@ project does not follow the directory you run it from.
 | `/opt/mo-paper` | Existing api/paper compose project. Not passed to this command. |
 | `/data/app` | Build context, and the bind mount on `/app`. |
 | `/data/state/data` | State directory, mounted on `/app/data` read-only. |
-| `/data/env/.env` | Env file for the status container, and compose interpolation (`--env-file`). |
+| `/data/env/.env` | Host env file. `--env-file` interpolates the allowlist only. It is not loaded into the container. |
 
 `STATUS_TLS_SAN` in that file is
 `DNS:localhost,IP:127.0.0.1,IP:178.128.215.94`, so the self-signed
@@ -130,8 +136,9 @@ docker compose \
   ps
 ```
 
-The status service reads `/data/env/.env` (including `STATUS_PAGE_TOKEN`).
-Caddy does not get that file. Caddy publishes host port 443. The status
+The status service receives the allowlist interpolated from `/data/env/.env`,
+including `STATUS_PAGE_TOKEN`. It does not receive the rest of that file.
+Caddy does not get the token. Caddy publishes host port 443. The status
 process listens on 8088 inside the `sgp1-status` network only. The state
 mount is read-only, so this process cannot write the book, the journal, or
 the scan log. SQLite is opened with `mode=ro`. When that cannot create the

@@ -14,7 +14,11 @@
 # Paths on the host:
 #   build context and code mount: /data/app
 #   state mount (read-only):      /data/state/data -> /app/data
-#   env file (status only):       /data/env/.env
+#   host env file, interpolation only: /data/env/.env
+#
+# That file is not loaded into either container. Compose interpolates the
+# allowlist under `environment` (STATUS_*, DATABASE_URL, TRADING_MODE,
+# GIT_SHA). Exchange keys, API_TOKEN, and provider keys stay on the host.
 #
 #   docker compose \
 #     --env-file /data/env/.env \
@@ -39,11 +43,21 @@ services:
       # /data/app so it hides /app/data from that checkout.
       - /data/state/data:/app/data:ro
     command: python scripts/run_status_page.py
-    env_file: /data/env/.env
     environment:
+      # The script directory is on sys.path. The checkout root is not.
+      PYTHONPATH: /app
+      # Allowlist. `--env-file /data/env/.env` fills these and nothing else.
+      STATUS_PAGE_TOKEN: ${STATUS_PAGE_TOKEN:-}
       # Reachable by Caddy on this project's network. The port is not published.
       STATUS_PAGE_HOST: "0.0.0.0"
       STATUS_PAGE_PORT: "8088"
+      STATUS_PAGE_RATE_LIMIT: ${STATUS_PAGE_RATE_LIMIT:-30}
+      STATUS_PAGE_RATE_WINDOW_SECONDS: ${STATUS_PAGE_RATE_WINDOW_SECONDS:-60}
+      # Book path and the mode the snapshot reports. Not exchange credentials.
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///data/firm.db}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      # HEAD when the tree has no .git. Blank falls through to the GIT_SHA files.
+      GIT_SHA: ${GIT_SHA:-}
     expose:
       - "8088"
     restart: unless-stopped

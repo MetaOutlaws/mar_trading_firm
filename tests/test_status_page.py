@@ -628,6 +628,216 @@ def test_status_module_does_not_need_settings_changes(monkeypatch) -> None:
     assert "STATUS_PAGE_TOKEN" in auth_src
 
 
+# Container environment keys the status compose files may set. Anything else
+# in the host env file, including exchange keys and API_TOKEN, stays out.
+_STATUS_ENV_ALLOWLIST = frozenset(
+    {
+        "PYTHONPATH",
+        "STATUS_PAGE_TOKEN",
+        "STATUS_PAGE_HOST",
+        "STATUS_PAGE_PORT",
+        "STATUS_PAGE_RATE_LIMIT",
+        "STATUS_PAGE_RATE_WINDOW_SECONDS",
+        "STATUS_PAGE_DOMAIN",
+        "STATUS_TLS_EMAIL",
+        "STATUS_TLS_SAN",
+        "DATABASE_URL",
+        "TRADING_MODE",
+        "GIT_SHA",
+    }
+)
+_STATUS_SERVICE_REQUIRED = frozenset(
+    {
+        "PYTHONPATH",
+        "STATUS_PAGE_TOKEN",
+        "STATUS_PAGE_HOST",
+        "STATUS_PAGE_PORT",
+        "DATABASE_URL",
+        "TRADING_MODE",
+        "GIT_SHA",
+    }
+)
+_CADDY_ENV_ALLOWLIST = frozenset(
+    {"STATUS_PAGE_DOMAIN", "STATUS_TLS_EMAIL", "STATUS_TLS_SAN"}
+)
+_SECRET_NAME_MARKERS = (
+    "API_KEY",
+    "API_SECRET",
+    "API_TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "CREDENTIAL",
+    "BYBIT",
+    "OPENAI",
+    "ANTHROPIC",
+    "GEMINI",
+    "DEEPSEEK",
+    "XAI_",
+)
+
+
+def _unquoted(value: str) -> str:
+    text = value.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
+        return text[1:-1]
+    return text
+
+
+def _compose_environments(text: str) -> dict[str, dict[str, str]]:
+    """Parse `environment:` mappings. Comments are not keys."""
+    services: dict[str, dict[str, str]] = {}
+    current: str | None = None
+    in_env = False
+    for raw in text.splitlines():
+        code = raw.split("#", 1)[0].rstrip()
+        if not code.strip():
+            continue
+        indent = len(code) - len(code.lstrip(" "))
+        stripped = code.strip()
+        if "env_file" in stripped:
+            raise AssertionError(f"env_file is set: {stripped}")
+        if indent == 2 and stripped.endswith(":") and not stripped.startswith("-"):
+            current = stripped[:-1].strip()
+            services.setdefault(current, {})
+            in_env = False
+            continue
+        if current is None:
+            continue
+        if indent == 4 and stripped == "environment:":
+            in_env = True
+            continue
+        if not in_env:
+            continue
+        if indent <= 4:
+            in_env = False
+            continue
+        key, sep, value = stripped.partition(":")
+        assert sep, stripped
+        services[current][key.strip()] = _unquoted(value)
+    return services
+
+
+def _interpolated_names(text: str) -> set[str]:
+    """`${NAME` and `${NAME:-default}` references outside comments."""
+    import re
+
+    names: set[str] = set()
+    for raw in text.splitlines():
+        code = raw.split("#", 1)[0]
+        names.update(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)", code))
+    return names
+
+
+def test_run_status_page_imports_from_another_cwd(tmp_path: Path) -> None:
+    """The entrypoint imports `api` when cwd is not the repo and PYTHONPATH is unset.
+
+    Running the file as a script puts `scripts/` on sys.path. An editable
+    install would hide that, so the probe removes the checkout from sys.path
+    before executing the file.
+    """
+    import subprocess
+    import sys
+
+    script = ROOT / "scripts" / "run_status_page.py"
+    probe = """
+import os
+import sys
+from pathlib import Path
+
+script = Path(sys.argv[1]).resolve()
+root = script.parent.parent
+os.chdir(sys.argv[2])
+kept = []
+for entry in sys.path:
+    if not entry:
+        kept.append(entry)
+        continue
+    try:
+        resolved = Path(entry).resolve()
+    except OSError:
+        kept.append(entry)
+        continue
+    if resolved == root or root in resolved.parents:
+        continue
+    kept.append(entry)
+sys.path = kept
+sys.path.insert(0, str(script.parent))
+
+
+def _finder_uses_checkout(finder):
+    module = sys.modules.get(getattr(finder, "__module__", ""))
+    mapping = getattr(module, "MAPPING", None)
+    if not isinstance(mapping, dict):
+        return False
+    for value in mapping.values():
+        try:
+            if Path(str(value)).resolve().is_relative_to(root):
+                return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
+sys.meta_path = [finder for finder in sys.meta_path if not _finder_uses_checkout(finder)]
+os.environ.pop("PYTHONPATH", None)
+try:
+    import api  # noqa: F401
+except ModuleNotFoundError:
+    pass
+else:
+    raise SystemExit("api was importable before the entrypoint ran")
+namespace = {"__name__": "run_status_page_probe", "__file__": str(script)}
+exec(compile(script.read_text(encoding="utf-8"), str(script), "exec"), namespace)
+print("status-entrypoint-imported")
+"""
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    completed = subprocess.run(
+        [sys.executable, "-c", probe, str(script), str(tmp_path)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "status-entrypoint-imported" in completed.stdout
+    assert "ModuleNotFoundError" not in completed.stderr
+    source = script.read_text(encoding="utf-8")
+    assert "sys.path.insert" in source
+
+
+def test_status_compose_env_is_an_allowlist() -> None:
+    """Status compose files pass an allowlist. They do not load an env file."""
+    paths = [
+        ROOT / "deploy" / "status" / "docker-compose.sgp1.yml",
+        ROOT / "docker-compose.status.yml",
+    ]
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        envs = _compose_environments(text)
+        assert set(envs) >= {"status", "caddy"}
+        status_env = envs["status"]
+        caddy_env = envs["caddy"]
+        assert set(status_env) <= _STATUS_ENV_ALLOWLIST
+        assert _STATUS_SERVICE_REQUIRED <= set(status_env)
+        assert set(caddy_env) <= _CADDY_ENV_ALLOWLIST
+        assert "STATUS_PAGE_TOKEN" not in caddy_env
+        assert status_env["PYTHONPATH"] == "/app"
+        assert "STATUS_PAGE_TOKEN" in status_env["STATUS_PAGE_TOKEN"]
+        for key in (*status_env, *caddy_env):
+            upper = key.upper()
+            assert not any(marker in upper for marker in _SECRET_NAME_MARKERS), key
+        interpolated = _interpolated_names(text)
+        # The local override mounts state with this host path. It is not a
+        # container environment variable and it is not a credential.
+        interpolated.discard("STATUS_STATE_DIR")
+        assert interpolated <= _STATUS_ENV_ALLOWLIST
+        for name in interpolated:
+            upper = name.upper()
+            assert not any(marker in upper for marker in _SECRET_NAME_MARKERS), name
+
+
 def test_sgp1_compose_is_a_standalone_project() -> None:
     """The SGP1 file is its own project and uses the host paths."""
     text = (ROOT / "deploy" / "status" / "docker-compose.sgp1.yml").read_text(encoding="utf-8")

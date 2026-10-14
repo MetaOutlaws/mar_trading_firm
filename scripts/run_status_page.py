@@ -14,10 +14,20 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
 
 import uvicorn
 
-from api.status_auth import configured_token, status_page_host, status_page_port
+# `python scripts/run_status_page.py` puts this file's directory on sys.path,
+# not the checkout root, so `import api` raises ModuleNotFoundError. The
+# compose files also set PYTHONPATH=/app. Inserting the root here covers a
+# host run that did not.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT_STR = str(_REPO_ROOT)
+if _REPO_ROOT_STR not in sys.path:
+    sys.path.insert(0, _REPO_ROOT_STR)
+
+from api.status_auth import configured_token, status_page_host, status_page_port  # noqa: E402
 
 
 def main() -> int:
