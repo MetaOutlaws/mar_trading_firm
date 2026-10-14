@@ -3,6 +3,8 @@
 State comes from the SQLite book, ``paper_cash.json``, the scan-summary log,
 the Soko regime file, the last-cycle file, the pid file, and the paper log.
 The database is opened with SQLite ``mode=ro`` and ``PRAGMA query_only``.
+On the SGP1 read-only state mount that open cannot create the WAL ``-shm``
+file, so the same connection falls back to ``immutable=1`` (still read-only).
 This module does not import the paper worker, does not call ``init_db``, and
 does not construct a trading engine.
 """
@@ -35,6 +37,9 @@ LAST_CYCLE_PATH = PROJECT_ROOT / "data" / "last_cycle.json"
 PAPER_LOG_PATH = PROJECT_ROOT / "logs" / "paper_trading.log"
 
 logger = logging.getLogger(__name__)
+
+# Logged once. The fallback is per connection; the warning should not be.
+_logged_immutable_fallback = False
 
 _ERROR_LINE = re.compile(r"\|\s*(ERROR|CRITICAL)\s*\|")
 _SECRET_ASSIGNMENT = re.compile(
@@ -107,12 +112,69 @@ def sqlite_path_from_url(database_url: str) -> Path | None:
     return path
 
 
+def _readonly_filesystem(exc: sqlite3.OperationalError) -> bool:
+    """True when SQLite failed because it could not write next to the file."""
+    message = str(exc).lower()
+    return "readonly" in message or "unable to open database file" in message
+
+
+def _connect_immutable_sqlite(path: Path) -> sqlite3.Connection:
+    """Read-only open that does not create the WAL ``-shm`` file."""
+    global _logged_immutable_fallback
+    conn = sqlite3.connect(
+        f"file:{path}?mode=ro&immutable=1",
+        uri=True,
+        check_same_thread=False,
+    )
+    conn.execute("PRAGMA query_only=ON")
+    if not _logged_immutable_fallback:
+        logger.warning(
+            "status database opened immutable and read-only; "
+            "the state directory is not writable"
+        )
+        _logged_immutable_fallback = True
+    return conn
+
+
+def _connect_readonly_sqlite(path: Path) -> sqlite3.Connection:
+    """Open ``path`` so the caller cannot write it.
+
+    ``mode=ro`` takes the WAL read lock, which has to create or update the
+    ``-shm`` file next to the database. That is the right open when the
+    state directory is writable. ``connect()`` can return before that write
+    happens; the ``sqlite_master`` probe is what forces it. The SGP1 compose
+    file mounts ``/data/state/data`` at ``/app/data:ro``, and the probe then
+    fails (``unable to open database file`` or ``attempt to write a readonly
+    database``). ``immutable=1`` does not create ``-shm`` and does not lock,
+    so a new connection can still see committed frames on that mount.
+    ``PRAGMA query_only`` rejects writes on either open.
+    """
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
+    except sqlite3.OperationalError as exc:
+        if not _readonly_filesystem(exc):
+            raise
+        return _connect_immutable_sqlite(path)
+    try:
+        conn.execute("PRAGMA query_only=ON")
+        # A real read, not ``SELECT 1``. WAL tries to create ``-shm`` here.
+        conn.execute("SELECT name FROM sqlite_master LIMIT 1")
+    except sqlite3.OperationalError as exc:
+        conn.close()
+        if not _readonly_filesystem(exc):
+            raise
+        return _connect_immutable_sqlite(path)
+    return conn
+
+
 def readonly_engine(database_url: str | None = None):
     """Engine that cannot write.
 
-    SQLite uses a ``mode=ro`` URI plus ``PRAGMA query_only``. Other dialects
-    set ``default_transaction_read_only`` on connect. ``NullPool`` so a status
-    request does not keep a writer-capable pool around.
+    SQLite uses a ``mode=ro`` URI plus ``PRAGMA query_only``, and falls
+    back to an immutable read-only open when the state directory cannot
+    host a WAL index. Other dialects set ``default_transaction_read_only``
+    on connect. ``NullPool`` so a status request does not keep a
+    writer-capable pool around.
     """
     from sqlalchemy import create_engine, event
 
@@ -123,9 +185,7 @@ def readonly_engine(database_url: str | None = None):
             raise FileNotFoundError(f"database file is missing: {path}")
 
         def creator() -> sqlite3.Connection:
-            conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
-            conn.execute("PRAGMA query_only=ON")
-            return conn
+            return _connect_readonly_sqlite(path)
 
         return create_engine("sqlite://", creator=creator, poolclass=NullPool, future=True)
 

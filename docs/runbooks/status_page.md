@@ -3,8 +3,10 @@
 A read-only page a remote box can poll over HTTPS. Outbound SSH from that
 box is blocked; 443 is not.
 
-The page is its own process. Deploying it, rotating its token, or rolling
-it back does not restart the paper worker and does not reload the desk API.
+The page is its own process. On the SGP1 paper host it is also its own
+compose project (`sgp1-status`), separate from the `mo-paper` project in
+`/opt/mo-paper`. Deploying it, rotating its token, or rolling it back does
+not restart the paper worker and does not reload the desk API.
 
 Nothing on this page places an order. The process opens the book read-only,
 replays `paper_cash.json` in memory, and reads the scan log, the Soko file,
@@ -27,8 +29,10 @@ the pid file, and the paper log. It does not import `scripts/run_paper_trading`.
 
 ## Server environment
 
-Set these in the server `.env`. A blank `STATUS_PAGE_TOKEN` disables the
-page: every request gets 503 and the book is not read.
+Set these in the server env file. On SGP1 that file is `/data/env/.env`.
+The status process reads `STATUS_*` itself (`api/status_auth.py`). Those
+names are not fields on `config/settings.py`. A blank `STATUS_PAGE_TOKEN`
+disables the page: every request gets 503 and the book is not read.
 
 | Variable | Purpose |
 |---|---|
@@ -39,8 +43,8 @@ page: every request gets 503 and the book is not read.
 | `STATUS_PAGE_RATE_WINDOW_SECONDS` | Window length. Default 60. |
 | `STATUS_PAGE_DOMAIN` | Public DNS name. Set it for Let's Encrypt. Blank means a self-signed cert. |
 | `STATUS_TLS_EMAIL` | Let's Encrypt account email. Used only when the domain is set. |
-| `STATUS_TLS_SAN` | Subject alternative names for the self-signed cert. Default `DNS:localhost,IP:127.0.0.1`. |
-| `STATUS_STATE_DIR` | Optional host path mounted on `/app/data` when state is not `./data`. |
+| `STATUS_TLS_SAN` | Subject alternative names for the self-signed cert. The local override defaults to `DNS:localhost,IP:127.0.0.1`. The SGP1 compose file sets `DNS:localhost,IP:127.0.0.1,IP:178.128.215.94`. |
+| `STATUS_STATE_DIR` | Local override only. Host path mounted on `/app/data` when state is not `./data`. SGP1 mounts `/data/state/data` read-only and does not use this variable. |
 | `SSH_PORT` | Port the ufw script keeps allowed. Default 22. |
 
 `API_TOKEN` is the desk halt token. The status page does not accept it.
@@ -53,9 +57,11 @@ On the paper host:
 openssl rand -hex 32
 ```
 
-Put the output in the server `.env` as `STATUS_PAGE_TOKEN`. Do not echo it
-into a world-readable file, the shell history you keep, or this repo.
-`chmod 600 .env`. Restart only the status service after the change.
+Put the output in the server env file as `STATUS_PAGE_TOKEN`. On SGP1 that
+file is `/data/env/.env`. Do not echo it into a world-readable file, the
+shell history you keep, or this repo. `chmod 600` the env file. Restart
+only the status service after the change (the SGP1 `--no-deps
+--force-recreate status` command in Rollback).
 
 The compare is constant-time (`hmac.compare_digest` on SHA-256 digests).
 The process logs that the token is unset when it is blank. It does not log
@@ -72,9 +78,84 @@ or Basic auth, where the password is the token and the username is ignored
 
 ## Deploy without a paper restart
 
-From the checkout the paper worker is already using (so `data/` is the state
-directory, including `firm.db`, `paper_cash.json`, and
-`scan_summaries.jsonl`):
+### SGP1 paper host
+
+The api and paper containers belong to the compose project at
+`/opt/mo-paper` (project name `mo-paper`, containers `mo-paper-api-1` and
+`mo-paper-paper-1`). Do not deploy the status page as an override of that
+project. A second `-f /opt/mo-paper/docker-compose.yml`, or `-p mo-paper`,
+makes compose reconcile `mo-paper` and can recreate `api` and `paper`.
+
+Use `deploy/status/docker-compose.sgp1.yml` on its own. On the host that
+file is `/data/app/deploy/status/docker-compose.sgp1.yml`. Its project name
+is `sgp1-status`. The command below passes `-p sgp1-status` as well, so the
+project does not follow the directory you run it from.
+
+| Path | Role |
+|---|---|
+| `/opt/mo-paper` | Existing api/paper compose project. Not passed to this command. |
+| `/data/app` | Build context, and the bind mount on `/app`. |
+| `/data/state/data` | State directory, mounted on `/app/data` read-only. |
+| `/data/env/.env` | Env file for the status container, and compose interpolation (`--env-file`). |
+
+`STATUS_TLS_SAN` in that file is
+`DNS:localhost,IP:127.0.0.1,IP:178.128.215.94`, so the self-signed
+certificate matches the paper host address.
+
+Record the paper container start times first:
+
+```bash
+docker inspect -f '{{.Name}} {{.State.StartedAt}}' mo-paper-api-1 mo-paper-paper-1
+```
+
+Build and start only the status project:
+
+```bash
+docker compose \
+  --env-file /data/env/.env \
+  -p sgp1-status \
+  -f /data/app/deploy/status/docker-compose.sgp1.yml \
+  up -d --build
+```
+
+Confirm the paper containers were not recreated (same `StartedAt` as above)
+and that the new containers belong to `sgp1-status`:
+
+```bash
+docker inspect -f '{{.Name}} {{.State.StartedAt}}' mo-paper-api-1 mo-paper-paper-1
+docker compose \
+  --env-file /data/env/.env \
+  -p sgp1-status \
+  -f /data/app/deploy/status/docker-compose.sgp1.yml \
+  ps
+```
+
+The status service reads `/data/env/.env` (including `STATUS_PAGE_TOKEN`).
+Caddy does not get that file. Caddy publishes host port 443. The status
+process listens on 8088 inside the `sgp1-status` network only. The state
+mount is read-only, so this process cannot write the book, the journal, or
+the scan log. SQLite is opened with `mode=ro`. When that cannot create the
+WAL `-shm` file on the read-only mount, the open falls back to SQLite's
+immutable read-only mode so the book is still visible.
+
+Fingerprint and proxy logs:
+
+```bash
+docker compose \
+  --env-file /data/env/.env \
+  -p sgp1-status \
+  -f /data/app/deploy/status/docker-compose.sgp1.yml \
+  logs caddy
+```
+
+### Local override
+
+`docker-compose.status.yml` is an add-only override for a checkout that
+already runs `docker-compose.yml` in the same directory. It is not the SGP1
+layout. Do not use it in `/opt/mo-paper`.
+
+From that local checkout (so `data/` is the state directory, including
+`firm.db`, `paper_cash.json`, and `scan_summaries.jsonl`):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.status.yml \
@@ -106,6 +187,8 @@ Client env: SGP1_STATUS_PINNED_PUBKEY=sha256//<base64>
 ```
 
 Read it from the log. The private key stays in the `status_certs` volume.
+On SGP1, use the `logs caddy` command in the SGP1 section above. For the
+local override:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.status.yml logs caddy
@@ -222,6 +305,23 @@ Per-IP limit defaults to 30 requests in 60 seconds. A 429 carries
 
 Stop the two status containers. The paper worker is not one of them.
 
+On SGP1, stay on project `sgp1-status`. This does not address `/opt/mo-paper`:
+
+```bash
+docker compose \
+  --env-file /data/env/.env \
+  -p sgp1-status \
+  -f /data/app/deploy/status/docker-compose.sgp1.yml \
+  stop
+docker compose \
+  --env-file /data/env/.env \
+  -p sgp1-status \
+  -f /data/app/deploy/status/docker-compose.sgp1.yml \
+  rm -f
+```
+
+Local override:
+
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.status.yml stop caddy status
 docker compose -f docker-compose.yml -f docker-compose.status.yml rm -f caddy status
@@ -236,9 +336,21 @@ sudo ufw status numbered
 # sudo ufw delete <number of the 443 allow only>
 ```
 
-Clear `STATUS_PAGE_TOKEN` to disable the page without removing the
-containers. The process keeps serving 503 until the token is set again.
-Restart the status service only:
+Clear `STATUS_PAGE_TOKEN` in the server env file to disable the page
+without removing the containers. The process keeps serving 503 until the
+token is set again. Restart the status service only.
+
+SGP1 (`/data/env/.env`, then this command):
+
+```bash
+docker compose \
+  --env-file /data/env/.env \
+  -p sgp1-status \
+  -f /data/app/deploy/status/docker-compose.sgp1.yml \
+  up -d --no-deps --force-recreate status
+```
+
+Local override:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.status.yml \

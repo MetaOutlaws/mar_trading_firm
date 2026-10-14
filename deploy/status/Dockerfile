@@ -1,6 +1,7 @@
 # Dependencies for the status process. Application source is bind-mounted
-# at runtime (see docker-compose.status.yml), so this image does not copy
-# the tree and cannot bake a .env or a private key into a layer.
+# at runtime (docker-compose.status.yml, or deploy/status/docker-compose.sgp1.yml
+# on the paper host), so this image does not copy the tree and cannot bake
+# a .env or a private key into a layer.
 FROM python:3.12-slim
 
 WORKDIR /app

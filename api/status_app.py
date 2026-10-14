@@ -18,7 +18,7 @@ from api.status_auth import (
     client_key,
     configured_token,
     credentials_match,
-    limiter_from_settings,
+    limiter_from_env,
 )
 from api.status_snapshot import build_snapshot
 
@@ -213,7 +213,7 @@ def create_status_app(*, limiter: SlidingWindowLimiter | None = None) -> FastAPI
         redoc_url=None,
         openapi_url=None,
     )
-    app.state.limiter = limiter or limiter_from_settings()
+    app.state.limiter = limiter or limiter_from_env()
     router = APIRouter()
 
     @router.get("/", response_class=HTMLResponse)

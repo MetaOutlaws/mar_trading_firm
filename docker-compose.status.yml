@@ -1,5 +1,10 @@
 # Status page and its TLS proxy.
 #
+# Local add-only override for a checkout that already runs docker-compose.yml
+# in this directory. On the SGP1 paper host the api/paper project is
+# /opt/mo-paper. Do not use this file there. Use
+# deploy/status/docker-compose.sgp1.yml with -p sgp1-status.
+#
 # Add-only override. It does not modify the api or paper services.
 # Start it without recreating the paper worker:
 #
