@@ -664,44 +664,132 @@ def risk() -> dict[str, Any]:
     }
 
 
+def _mapping(value: Any) -> dict[str, Any]:
+    """JSON columns sometimes arrive as a non-dict. The blotter must not crash."""
+    return value if isinstance(value, dict) else {}
+
+
+def _first_text(sources: list[dict[str, Any]], keys: tuple[str, ...]) -> str:
+    """First non-blank string among ``keys`` in each source, in that order."""
+    for source in sources:
+        for key in keys:
+            raw = source.get(key)
+            if raw is None:
+                continue
+            text = str(raw).strip()
+            if text:
+                return text
+    return ""
+
+
+def _belongs_to_l01(entry_case: str, version: str, label: str) -> bool:
+    """True when this closed trade was opened by the L01 long filter.
+
+    L01 reuses the F111 strategy id. The version and the entry case are what
+    tell the two apart. This only reads strings already stored on the row.
+    """
+    if entry_case.strip().upper() == "L01":
+        return True
+    probe = f"{version} {label}".lower()
+    return probe.startswith("l01-") or " l01-" in f" {probe}" or "l01-long-f111" in probe
+
+
+def blotter_strategy_fields(trade: Any) -> dict[str, str]:
+    """Display label for the blotter Strategy column. Read-only.
+
+    The opening identity lives on the ledger, not in a new column:
+
+    * ``strategy_id`` — ``Position.strategy_params['strategy_id']``, else the
+      same key on ``entry_indicators``, else the ``strategy`` string copied
+      onto the trade when it was opened.
+    * ``sleeve`` / ``sleeve_id`` — the sleeve identity when the open row
+      stored one. It wins over the strategy id because it names the sleeve
+      the fill actually used.
+    * ``strategy_version`` — shown beside the label only for L01
+      (``l01-long-f111-short-v1``). Other versions stay in the payload and
+      off the label.
+
+    Missing identity becomes an em dash. Nothing here writes the ledger.
+    """
+    position = getattr(trade, "position", None)
+    params = _mapping(getattr(position, "strategy_params", None))
+    indicators = _mapping(getattr(trade, "entry_indicators", None))
+    sources = [params, indicators]
+
+    sleeve = _first_text(sources, ("sleeve", "sleeve_id"))
+    strategy_id = _first_text(sources, ("strategy_id",))
+    if not strategy_id:
+        strategy_id = str(getattr(trade, "strategy", "") or "").strip()
+    if not strategy_id and position is not None:
+        strategy_id = str(getattr(position, "strategy", "") or "").strip()
+
+    version = _first_text(sources, ("strategy_version",))
+    entry_case = _first_text(sources, ("entry_case", "research_case"))
+    label = sleeve or strategy_id
+    if _belongs_to_l01(entry_case, version, label) and version and version not in label:
+        shown = f"{label} · strategy_version {version}" if label else f"strategy_version {version}"
+    else:
+        shown = label
+    return {
+        "strategy_id": strategy_id,
+        "sleeve": sleeve,
+        "strategy_version": version,
+        "strategy_label": shown or "—",
+    }
+
+
 @app.get("/api/trades")
 def trades(limit: int = 50) -> list[dict[str, Any]]:
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
 
     from core.db import session_scope
     from core.ledger.models import TradeRecord
 
     with session_scope() as session:
         rows = session.scalars(
-            select(TradeRecord).order_by(TradeRecord.exit_time.desc()).limit(limit)
+            select(TradeRecord)
+            .options(selectinload(TradeRecord.position))
+            .order_by(TradeRecord.exit_time.desc())
+            .limit(limit)
         )
-        return [
-            {
-                "id": t.id,
-                "symbol": t.symbol,
-                "side": t.side,
-                "quantity": t.quantity,
-                "notional": t.notional,
-                "entry_price": t.entry_price,
-                "exit_price": t.exit_price,
-                "gross_pnl": t.gross_pnl,
-                "net_pnl": t.net_pnl,
-                "return_pct": t.return_pct,
-                "fees": t.fees,
-                "entry_fees": t.entry_fees,
-                "exit_fees": t.exit_fees,
-                "funding": t.funding,
-                "exit_reason": t.exit_reason,
-                "strategy": t.strategy,
-                "agents": t.contributing_agents,
-                "entry_slippage_bps": t.entry_slippage_bps,
-                "exit_slippage_bps": t.exit_slippage_bps,
-                "mode": t.mode,
-                "entry_time": t.entry_time.isoformat(),
-                "exit_time": t.exit_time.isoformat(),
-            }
-            for t in rows
-        ]
+        payload = []
+        for t in rows:
+            # Position holds strategy_params (version, sleeve). Loaded here
+            # so the response can name the strategy without a second query
+            # after the session closes. This select does not update the row.
+            identity = blotter_strategy_fields(t)
+            payload.append(
+                {
+                    "id": t.id,
+                    "symbol": t.symbol,
+                    "side": t.side,
+                    "quantity": t.quantity,
+                    "notional": t.notional,
+                    "entry_price": t.entry_price,
+                    "exit_price": t.exit_price,
+                    "gross_pnl": t.gross_pnl,
+                    "net_pnl": t.net_pnl,
+                    "return_pct": t.return_pct,
+                    "fees": t.fees,
+                    "entry_fees": t.entry_fees,
+                    "exit_fees": t.exit_fees,
+                    "funding": t.funding,
+                    "exit_reason": t.exit_reason,
+                    "strategy": t.strategy,
+                    "strategy_id": identity["strategy_id"],
+                    "sleeve": identity["sleeve"],
+                    "strategy_version": identity["strategy_version"],
+                    "strategy_label": identity["strategy_label"],
+                    "agents": t.contributing_agents,
+                    "entry_slippage_bps": t.entry_slippage_bps,
+                    "exit_slippage_bps": t.exit_slippage_bps,
+                    "mode": t.mode,
+                    "entry_time": t.entry_time.isoformat(),
+                    "exit_time": t.exit_time.isoformat(),
+                }
+            )
+        return payload
 
 
 def _live_book(mode: str, positions: list[Any], marks: dict[str, float | None]) -> dict[str, Any]:
