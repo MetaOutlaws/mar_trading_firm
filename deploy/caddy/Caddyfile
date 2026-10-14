@@ -1,0 +1,27 @@
+# Status-page TLS terminator.
+#
+# The container entrypoint writes /etc/caddy/Caddyfile.runtime from the
+# environment and is what `docker compose` actually runs:
+#
+#   STATUS_PAGE_DOMAIN set to a DNS name  -> Let's Encrypt on 443
+#   STATUS_PAGE_DOMAIN blank              -> self-signed cert, fingerprint
+#                                            printed to the container log
+#
+# This file is the self-signed shape, kept here so the proxy rules are
+# visible without reading the shell entrypoint. Upstream is the status
+# process on the compose network. The status port is not published.
+
+:443 {
+	tls /certs/status.crt /certs/status.key
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	reverse_proxy status:8088 {
+		# Overwrite any client-supplied value with the TCP peer Caddy accepted.
+		header_up X-Real-IP {remote_host}
+	}
+}
