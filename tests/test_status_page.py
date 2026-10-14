@@ -280,15 +280,22 @@ def _open_and_close(ledger: Ledger) -> None:
     )
 
 
-def _seed_state(tmp_path: Path, monkeypatch, token: str) -> None:
-    """Point every status read at throwaway files. Does not touch production state."""
+def _seed_state(tmp_path: Path, monkeypatch, token: str) -> dict[str, datetime]:
+    """Point every status read at throwaway files. Does not touch production state.
+
+    The cycle and scan stamps are a minute old so the worker heartbeat is
+    fresh. A pid file is written and then ignored: liveness is not that pid.
+    """
     from api import status_snapshot
 
+    moment = datetime.now(timezone.utc).replace(microsecond=0)
+    cycle_at = moment - timedelta(seconds=90)
+    scan_at = moment - timedelta(seconds=30)
     cycle = tmp_path / "last_cycle.json"
     cycle.write_text(
         json.dumps(
             {
-                "started_at": "2026-10-14T12:00:00+00:00",
+                "started_at": cycle_at.isoformat(),
                 "errors": ["reconciliation failed: fixture"],
                 "halted": False,
                 "halt_reason": "",
@@ -307,20 +314,20 @@ def _seed_state(tmp_path: Path, monkeypatch, token: str) -> None:
     scan.write_text(
         json.dumps(
             {
-                "logged_at": "2026-10-14T12:05:00+00:00",
+                "logged_at": scan_at.isoformat(),
                 "action": "inserted",
                 "title": "book scan",
                 "rationale": "entries opened 0, fills 0, exits 0",
                 "payload": {
                     "summary": "book scan quiet",
                     "scan_type": "book",
-                    "bar_time": "2026-10-14T12:00:00+00:00",
+                    "bar_time": cycle_at.isoformat(),
                     "signals": 2,
                     "entries_opened": 0,
                     "fills": 0,
                     "exits": 0,
                     "rejection_counts": {"no_signal": 2},
-                    "dedupe_key": "book|2026-10-14T12:00:00+00:00",
+                    "dedupe_key": f"book|{cycle_at.isoformat()}",
                 },
             }
         )
@@ -353,6 +360,7 @@ def _seed_state(tmp_path: Path, monkeypatch, token: str) -> None:
     pid.write_text(str(os.getpid()), encoding="utf-8")
 
     monkeypatch.setattr(status_snapshot, "LAST_CYCLE_PATH", cycle)
+    monkeypatch.setattr(status_snapshot, "PAPER_BAR_STATE_PATH", tmp_path / "no-poll.json")
     monkeypatch.setattr(status_snapshot, "PAPER_LOG_PATH", log_path)
     monkeypatch.setattr("firm.scan_summary_log.LOG_PATH", scan)
     monkeypatch.setattr("core.data.soko_trend.LAST_SOKO_TREND_PATH", soko)
@@ -360,6 +368,7 @@ def _seed_state(tmp_path: Path, monkeypatch, token: str) -> None:
     monkeypatch.setattr("firm.locks.PAPER_PID_PATH", pid)
     monkeypatch.setattr(status_snapshot, "head_candidates", lambda _root: [git_file])
     monkeypatch.setattr(status_snapshot, "deployed_sha_candidates", lambda _root: [deployed])
+    return {"cycle_at": cycle_at, "scan_at": scan_at}
 
 
 def test_snapshot_reports_book_scan_regime_shas_and_worker(
@@ -389,7 +398,7 @@ def test_snapshot_reports_book_scan_regime_shas_and_worker(
         exposure=100.0,
         open_position_count=1,
     )
-    _seed_state(tmp_path, monkeypatch, TOKEN)
+    seeded = _seed_state(tmp_path, monkeypatch, TOKEN)
     monkeypatch.setenv("GIT_SHA", "c" * 40)
     get_settings.cache_clear()
 
@@ -452,9 +461,13 @@ def test_snapshot_reports_book_scan_regime_shas_and_worker(
     assert body["git"]["deployed_sha"]["source"] == "file"
 
     assert body["worker"]["alive"] is True
-    assert body["worker"]["pid"] == os.getpid()
-    assert body["worker"]["uptime_seconds"] >= 0
-    assert body["worker"]["last_cycle_at"].startswith("2026-10-14T12:00:00")
+    assert body["worker"]["state"] == "alive"
+    assert body["worker"]["heartbeat_source"] == "scan_summary"
+    assert body["worker"]["last_heartbeat_at"] == seeded["scan_at"].isoformat()
+    assert body["worker"]["age_seconds"] < 120
+    assert "pid" not in body["worker"]
+    assert "uptime_seconds" not in body["worker"]
+    assert body["worker"]["last_cycle_at"] == seeded["cycle_at"].isoformat()
     messages = [row["message"] for row in body["worker"]["recent_errors"]]
     assert any("reconciliation failed: fixture" in message for message in messages)
     assert any("feed down" in message for message in messages)
@@ -504,12 +517,14 @@ def test_head_file_and_deployed_sha_are_independent(tmp_path, monkeypatch) -> No
 
 
 def test_cycle_path_matches_the_engine_constant() -> None:
-    """The status reader uses the file the paper engine already writes."""
+    """The status reader uses the files the paper process already writes."""
     from core.execution.engine import LAST_CYCLE_PATH as engine_path
+    from core.execution.paper_bar_eval import PAPER_BAR_STATE_PATH as poll_path
 
-    from api.status_snapshot import LAST_CYCLE_PATH
+    from api.status_snapshot import LAST_CYCLE_PATH, PAPER_BAR_STATE_PATH
 
     assert LAST_CYCLE_PATH == engine_path
+    assert PAPER_BAR_STATE_PATH == poll_path
 
 
 def test_status_modules_do_not_import_the_paper_worker() -> None:
@@ -644,6 +659,7 @@ _STATUS_ENV_ALLOWLIST = frozenset(
         "DATABASE_URL",
         "TRADING_MODE",
         "GIT_SHA",
+        "STATUS_WORKER_STALE_SECONDS",
     }
 )
 _STATUS_SERVICE_REQUIRED = frozenset(
@@ -655,6 +671,7 @@ _STATUS_SERVICE_REQUIRED = frozenset(
         "DATABASE_URL",
         "TRADING_MODE",
         "GIT_SHA",
+        "STATUS_WORKER_STALE_SECONDS",
     }
 )
 _CADDY_ENV_ALLOWLIST = frozenset(
@@ -945,22 +962,117 @@ def test_cert_fingerprint_script(tmp_path) -> None:
     assert key.read_text(encoding="utf-8") not in printed.stdout
 
 
-def test_worker_uptime_uses_proc_when_the_pid_is_alive(tmp_path, monkeypatch) -> None:
+def _isolate_worker_files(tmp_path: Path, monkeypatch) -> Path:
+    """Point heartbeat reads at tmp. A pid file of 1 must not count."""
+    cycle = tmp_path / "last_cycle.json"
+    monkeypatch.setattr("api.status_snapshot.LAST_CYCLE_PATH", cycle)
+    monkeypatch.setattr("api.status_snapshot.PAPER_BAR_STATE_PATH", tmp_path / "poll.json")
+    monkeypatch.setattr("api.status_snapshot.PAPER_LOG_PATH", tmp_path / "missing.log")
+    monkeypatch.setattr("firm.scan_summary_log.LOG_PATH", tmp_path / "scan.jsonl")
+    pid = tmp_path / "paper.pid"
+    pid.write_text("1\n", encoding="utf-8")
+    monkeypatch.setattr("firm.locks.PAPER_PID_PATH", pid)
+    monkeypatch.delenv("STATUS_WORKER_STALE_SECONDS", raising=False)
+    return cycle
+
+
+def test_fresh_heartbeat_means_the_worker_is_alive(tmp_path, monkeypatch) -> None:
     from api.status_snapshot import worker_status
 
-    pid_path = tmp_path / "paper.pid"
-    pid_path.write_text(str(os.getpid()), encoding="utf-8")
-    cycle = tmp_path / "last_cycle.json"
-    started = datetime.now(timezone.utc) - timedelta(minutes=5)
+    now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+    cycle = _isolate_worker_files(tmp_path, monkeypatch)
+    fresh = now - timedelta(seconds=100)
     cycle.write_text(
-        json.dumps({"started_at": started.isoformat(), "errors": []}),
+        json.dumps({"started_at": fresh.isoformat(), "errors": []}),
         encoding="utf-8",
     )
-    monkeypatch.setattr("firm.locks.PAPER_PID_PATH", pid_path)
-    monkeypatch.setattr("api.status_snapshot.LAST_CYCLE_PATH", cycle)
-    monkeypatch.setattr("api.status_snapshot.PAPER_LOG_PATH", tmp_path / "missing.log")
-    payload = worker_status()
+    payload = worker_status(now=now)
     assert payload["alive"] is True
-    assert payload["uptime_seconds"] is not None
-    assert payload["uptime_seconds"] >= 0
-    assert payload["last_cycle_age_seconds"] >= 60
+    assert payload["state"] == "alive"
+    assert payload["age_seconds"] == 100
+    assert payload["last_heartbeat_at"] == fresh.isoformat()
+    assert payload["heartbeat_source"] == "last_cycle"
+    assert payload["stale_after_seconds"] == 1920
+    assert "pid" not in payload
+    assert "uptime_seconds" not in payload
+
+
+def test_stale_heartbeat_means_the_worker_is_dead(tmp_path, monkeypatch) -> None:
+    from api.status_snapshot import worker_status
+
+    now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+    cycle = _isolate_worker_files(tmp_path, monkeypatch)
+    # age == threshold is not alive. Two cycles plus the margin, exactly.
+    stale = now - timedelta(seconds=1920)
+    cycle.write_text(
+        json.dumps({"started_at": stale.isoformat(), "errors": []}),
+        encoding="utf-8",
+    )
+    payload = worker_status(now=now)
+    assert payload["alive"] is False
+    assert payload["state"] == "dead"
+    assert payload["age_seconds"] == 1920
+    assert payload["last_heartbeat_at"] == stale.isoformat()
+
+
+def test_missing_heartbeat_is_unknown(tmp_path, monkeypatch) -> None:
+    from api.status_snapshot import worker_status
+
+    now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+    _isolate_worker_files(tmp_path, monkeypatch)
+    payload = worker_status(now=now)
+    assert payload["alive"] is False
+    assert payload["state"] == "unknown"
+    assert payload["last_heartbeat_at"] is None
+    assert payload["age_seconds"] is None
+    assert "pid" not in payload
+    assert "uptime_seconds" not in payload
+
+
+def test_newer_poll_heartbeat_beats_an_older_cycle(tmp_path, monkeypatch) -> None:
+    from api.status_snapshot import worker_status
+
+    now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+    cycle = _isolate_worker_files(tmp_path, monkeypatch)
+    old = now - timedelta(seconds=3000)
+    fresh = now - timedelta(seconds=20)
+    cycle.write_text(
+        json.dumps({"started_at": old.isoformat(), "errors": []}),
+        encoding="utf-8",
+    )
+    poll = tmp_path / "poll.json"
+    poll.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "sleeves": {
+                    "BTCUSDT|1h|LONG": {"evaluated_at": fresh.isoformat(), "signal": "flat"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    payload = worker_status(now=now)
+    assert payload["alive"] is True
+    assert payload["heartbeat_source"] == "poll"
+    assert payload["last_heartbeat_at"] == fresh.isoformat()
+    assert payload["age_seconds"] == 20
+    assert payload["last_cycle_at"] == old.isoformat()
+
+
+def test_stale_threshold_is_env_configurable(tmp_path, monkeypatch) -> None:
+    from api.status_snapshot import worker_status
+
+    now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+    cycle = _isolate_worker_files(tmp_path, monkeypatch)
+    fresh = now - timedelta(seconds=100)
+    cycle.write_text(
+        json.dumps({"started_at": fresh.isoformat(), "errors": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("STATUS_WORKER_STALE_SECONDS", "50")
+    payload = worker_status(now=now)
+    assert payload["alive"] is False
+    assert payload["state"] == "dead"
+    assert payload["stale_after_seconds"] == 50
+    assert payload["age_seconds"] == 100

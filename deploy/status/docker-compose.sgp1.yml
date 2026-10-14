@@ -58,6 +58,8 @@ services:
       TRADING_MODE: ${TRADING_MODE:-paper}
       # HEAD when the tree has no .git. Blank falls through to the GIT_SHA files.
       GIT_SHA: ${GIT_SHA:-}
+      # Two 900s cycles plus 120s. A pid in this container is not the worker.
+      STATUS_WORKER_STALE_SECONDS: ${STATUS_WORKER_STALE_SECONDS:-1920}
     expose:
       - "8088"
     restart: unless-stopped
