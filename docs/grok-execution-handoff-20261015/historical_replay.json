@@ -1,0 +1,19 @@
+{
+  "status": "pass",
+  "symbols": 96,
+  "minute_rows_loaded": 153845100,
+  "raw_hashes_checked": 192,
+  "eligible_signals": 355,
+  "retest_fills": 187,
+  "retest_failures": 0,
+  "costed_semantics_paths": 374,
+  "semantics_samples": 656937,
+  "semantics_mismatches": 0,
+  "admitted_runtime_paths": 370,
+  "runtime_mismatches": 0,
+  "observed_funding_paths": 374,
+  "observed_funding_mismatches": 0,
+  "cash_events": 2583,
+  "historical_2026_opened": false,
+  "scope": "Offline research-input parity uses quantity one, synthetic instrument metadata, locked research costs and supplied funding. The production funding adapter separately matches retained settlement observations on all 374 paths. Worker/quote/SQLite interfaces are covered by local fixtures. Live API coverage, Singapore deployment and actual forward fills are not certified."
+}

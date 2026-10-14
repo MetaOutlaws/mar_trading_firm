@@ -1,0 +1,20 @@
+{
+  "status": "PENDING",
+  "captured_at": null,
+  "host": null,
+  "actual_commit": null,
+  "configuration_sha256": null,
+  "backup_path": null,
+  "worker_run_id": null,
+  "containers": {},
+  "installed": false,
+  "activation_verified": false,
+  "cash_positions_reconciled": false,
+  "saved_path_parity": "UNVERIFIED",
+  "preflight_blocker": null,
+  "position_reconciliation": [],
+  "cash_reconciliation": {},
+  "funding_exceptions": [],
+  "timer_observation": {},
+  "evidence_files": []
+}
