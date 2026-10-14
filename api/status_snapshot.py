@@ -1,7 +1,10 @@
 """Read-only snapshot of the paper box for the status page.
 
 State comes from the SQLite book, ``paper_cash.json``, the scan-summary log,
-the Soko regime file, the last-cycle file, the pid file, and the paper log.
+the Soko regime file, the last-cycle file, the bar-eval poll state, and the
+paper log. Worker liveness is the age of those heartbeats. This module does
+not read the paper pid file: that pid belongs to the paper container's PID
+namespace, and pid 1 in this container is the status process itself.
 The database is opened with SQLite ``mode=ro`` and ``PRAGMA query_only``.
 On the SGP1 read-only state mount that open cannot create the WAL ``-shm``
 file, so the same connection falls back to ``immutable=1`` (still read-only).
@@ -31,10 +34,18 @@ from api.status_auth import configured_token
 from config.settings import PROJECT_ROOT, get_settings
 from core.ledger.models import EquitySnapshot, PaperCashEvent, Position, PositionStatus, TradeRecord
 
-# Same file the paper engine writes. Kept here so this module does not import
-# the engine. tests/test_status_page.py locks the two paths together.
+# Same files the paper process writes. Kept here so this module does not
+# import the engine. tests/test_status_page.py locks the paths together.
 LAST_CYCLE_PATH = PROJECT_ROOT / "data" / "last_cycle.json"
+PAPER_BAR_STATE_PATH = PROJECT_ROOT / "data" / "paper_bar_eval_state.json"
 PAPER_LOG_PATH = PROJECT_ROOT / "logs" / "paper_trading.log"
+
+# The paper loop's scan interval is 900s. A cycle plus the following sleep
+# can pass before the next heartbeat, so two intervals plus a short margin
+# is the default stale line. ``STATUS_WORKER_STALE_SECONDS`` overrides it.
+_WORKER_CYCLE_SECONDS = 900
+_WORKER_STALE_MARGIN_SECONDS = 120
+_DEFAULT_WORKER_STALE_SECONDS = _WORKER_CYCLE_SECONDS * 2 + _WORKER_STALE_MARGIN_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -286,53 +297,75 @@ def git_status(root: Path | None = None) -> dict[str, Any]:
     return {"head": head, "deployed_sha": deployed}
 
 
-def linux_process_start(pid: int) -> datetime | None:
-    """Process start time from ``/proc``. ``None`` when procfs is unavailable."""
-    stat_path = Path(f"/proc/{pid}/stat")
-    proc_stat = Path("/proc/stat")
-    if not stat_path.is_file() or not proc_stat.is_file():
-        return None
-    text = stat_path.read_text(encoding="utf-8", errors="replace")
+def worker_stale_seconds() -> int:
+    """Seconds after which a heartbeat means the paper worker is dead.
+
+    Default is two 900s cycles plus 120s (1920). ``STATUS_WORKER_STALE_SECONDS``
+    overrides that. Blank, non-integer, and non-positive values keep the default
+    so a bad setting does not take the page down.
+    """
+    raw = os.environ.get("STATUS_WORKER_STALE_SECONDS", "").strip()
+    if not raw:
+        return _DEFAULT_WORKER_STALE_SECONDS
     try:
-        after = text.rsplit(")", 1)[1].split()
-        # Field 22 is starttime. Field 3 is the first token after comm.
-        start_ticks = int(after[19])
-    except (IndexError, ValueError):
-        return None
-    btime = None
-    for line in proc_stat.read_text(encoding="utf-8", errors="replace").splitlines():
-        if line.startswith("btime "):
-            try:
-                btime = int(line.split()[1])
-            except (IndexError, ValueError):
-                return None
-            break
-    if btime is None:
-        return None
-    hz = os.sysconf("SC_CLK_TCK")
-    return datetime.fromtimestamp(btime + (start_ticks / hz), tz=timezone.utc)
+        value = int(raw)
+    except ValueError:
+        return _DEFAULT_WORKER_STALE_SECONDS
+    if value < 1:
+        return _DEFAULT_WORKER_STALE_SECONDS
+    return value
 
 
-def _pidfile_mtime(path: Path) -> datetime | None:
-    try:
-        return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
-    except OSError:
+def _poll_heartbeat(path: Path) -> datetime | None:
+    """Newest ``evaluated_at`` in the bar-eval state the 15s poll writes."""
+    payload = _read_json_object(path)
+    if not isinstance(payload, dict):
         return None
+    sleeves = payload.get("sleeves")
+    if not isinstance(sleeves, dict):
+        return None
+    newest: datetime | None = None
+    for row in sleeves.values():
+        if not isinstance(row, dict):
+            continue
+        stamp = _parse_time(row.get("evaluated_at"))
+        if stamp is None:
+            continue
+        if newest is None or stamp > newest:
+            newest = stamp
+    return newest
+
+
+def _heartbeat_candidates() -> list[tuple[str, datetime]]:
+    """Timestamps the paper process writes into the read-only state dir."""
+    from firm.scan_summary_log import LOG_PATH
+
+    found: list[tuple[str, datetime]] = []
+    cycle = _read_json_object(LAST_CYCLE_PATH)
+    if isinstance(cycle, dict):
+        stamp = _parse_time(cycle.get("started_at"))
+        if stamp is not None:
+            found.append(("last_cycle", stamp))
+    scan = read_last_json_object(LOG_PATH)
+    if isinstance(scan, dict):
+        stamp = _parse_time(scan.get("logged_at"))
+        if stamp is not None:
+            found.append(("scan_summary", stamp))
+    poll = _poll_heartbeat(PAPER_BAR_STATE_PATH)
+    if poll is not None:
+        found.append(("poll", poll))
+    return found
 
 
 def worker_status(now: datetime | None = None) -> dict[str, Any]:
-    """Pid, uptime, last cycle clock, and recent errors. Read-only."""
-    from firm.locks import PAPER_PID_PATH, read_pidfile
+    """Heartbeat age, last cycle clock, and recent errors. Read-only.
 
+    ``alive`` is true only when the newest heartbeat is younger than
+    ``worker_stale_seconds()``. No heartbeat is ``unknown`` and not alive.
+    A pid file is ignored: inside this container that number is not the
+    paper process.
+    """
     moment = _as_utc(now or _utcnow())
-    pid_info = read_pidfile(PAPER_PID_PATH)
-    pid = pid_info.get("pid")
-    alive = bool(pid_info.get("alive"))
-    started: datetime | None = None
-    if alive and isinstance(pid, int):
-        started = linux_process_start(pid)
-    if started is None and PAPER_PID_PATH.exists():
-        started = _pidfile_mtime(PAPER_PID_PATH)
     cycle = _read_json_object(LAST_CYCLE_PATH)
     cycle_started = _parse_time(cycle.get("started_at")) if isinstance(cycle, dict) else None
     errors = _recent_errors(cycle if isinstance(cycle, dict) else None)
@@ -342,13 +375,30 @@ def worker_status(now: datetime | None = None) -> dict[str, Any]:
         last_cycle_at = cycle["started_at"]
     else:
         last_cycle_at = None
+
+    threshold = worker_stale_seconds()
+    candidates = _heartbeat_candidates()
+    if not candidates:
+        heartbeat_at: datetime | None = None
+        source: str | None = None
+        age: int | None = None
+        state = "unknown"
+        alive = False
+    else:
+        source, heartbeat_at = max(candidates, key=lambda item: item[1])
+        age = _age_seconds(heartbeat_at, moment)
+        # A timestamp slightly ahead of this clock is still a fresh write.
+        if age is not None and age < 0:
+            age = 0
+        alive = age is not None and age < threshold
+        state = "alive" if alive else "dead"
     return {
-        "pid": pid if isinstance(pid, int) else None,
         "alive": alive,
-        "pid_path": str(PAPER_PID_PATH),
-        "pid_file_present": PAPER_PID_PATH.exists(),
-        "started_at": _iso(started) if alive or PAPER_PID_PATH.exists() else None,
-        "uptime_seconds": _age_seconds(started, moment) if alive else None,
+        "state": state,
+        "last_heartbeat_at": _iso(heartbeat_at),
+        "age_seconds": age,
+        "stale_after_seconds": threshold,
+        "heartbeat_source": source,
         "last_cycle_at": last_cycle_at,
         "last_cycle_age_seconds": _age_seconds(cycle_started, moment),
         "halted": bool(cycle.get("halted")) if isinstance(cycle, dict) else None,
@@ -675,9 +725,10 @@ def build_snapshot(*, trade_limit: int = 20, now: datetime | None = None) -> dic
         worker = worker_status(now=moment)
     except Exception as exc:
         worker = {
-            "pid": None,
             "alive": False,
-            "uptime_seconds": None,
+            "state": "unknown",
+            "last_heartbeat_at": None,
+            "age_seconds": None,
             "last_cycle_at": None,
             "recent_errors": [],
             "error": _public_error(exc),
@@ -688,10 +739,16 @@ def build_snapshot(*, trade_limit: int = 20, now: datetime | None = None) -> dic
         health_status = "ok"
     else:
         health_status = "degraded"
+    if worker.get("alive"):
+        worker_health = "alive"
+    elif worker.get("state") == "unknown":
+        worker_health = "unknown"
+    else:
+        worker_health = "down"
     health = {
         "status": health_status,
         "database": database,
-        "worker": "alive" if worker.get("alive") else "down",
+        "worker": worker_health,
         "read_only": True,
         "error": book.get("error"),
     }

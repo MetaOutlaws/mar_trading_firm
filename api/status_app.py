@@ -188,10 +188,11 @@ Mode {_esc(snapshot.get('mode'))}.</p>
 
 <h2>Worker</h2>
 <dl>
-  <dt>PID</dt>
-  <dd>{_esc(worker.get('pid'))} ({_esc('alive' if worker.get('alive') else 'down')})</dd>
-  <dt>Uptime (seconds)</dt><dd>{_esc(worker.get('uptime_seconds'))}</dd>
-  <dt>Started</dt><dd>{_esc(worker.get('started_at'))}</dd>
+  <dt>Liveness</dt><dd>{_esc(worker.get('state'))}</dd>
+  <dt>Last heartbeat</dt>
+  <dd>{_esc(worker.get('last_heartbeat_at'))} ({_esc(worker.get('heartbeat_source'))})</dd>
+  <dt>Age (seconds)</dt><dd>{_esc(worker.get('age_seconds'))}</dd>
+  <dt>Stale after (seconds)</dt><dd>{_esc(worker.get('stale_after_seconds'))}</dd>
   <dt>Last cycle</dt><dd>{_esc(worker.get('last_cycle_at'))}</dd>
   <dt>Cycle age (seconds)</dt><dd>{_esc(worker.get('last_cycle_age_seconds'))}</dd>
 </dl>

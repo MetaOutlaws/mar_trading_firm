@@ -24,8 +24,13 @@ the pid file, and the paper log. It does not import `scripts/run_paper_trading`.
 - The last scan-summary card (#115 / #116), from `data/scan_summaries.jsonl`.
 - Regime from `data/last_soko_trend.json`.
 - HEAD (`GIT_SHA`) and `DEPLOYED_SHA` (`/app/data/DEPLOYED_SHA`), both.
-- Worker pid, uptime, last cycle time (`data/last_cycle.json`), and recent
-  errors from that file plus `logs/paper_trading.log`.
+- Worker liveness from the newest heartbeat in the read-only state:
+  `data/last_cycle.json` `started_at`, the last scan-summary `logged_at`, or
+  the newest `evaluated_at` in `data/paper_bar_eval_state.json`. Alive means
+  that age is under `STATUS_WORKER_STALE_SECONDS` (default 1920, two 900s
+  cycles plus 120s). The paper pid file is not used. In this container pid 1
+  is the status process, so a pid check would call a dead worker alive.
+  Recent errors come from `last_cycle.json` and `logs/paper_trading.log`.
 
 ## Server environment
 
@@ -47,6 +52,7 @@ started as `python scripts/run_status_page.py`.
 | `STATUS_PAGE_PORT` | Default `8088`. Not published on the host. |
 | `STATUS_PAGE_RATE_LIMIT` | Requests per IP per window. Default 30. |
 | `STATUS_PAGE_RATE_WINDOW_SECONDS` | Window length. Default 60. |
+| `STATUS_WORKER_STALE_SECONDS` | Heartbeat age after which the worker is dead. Default 1920 (2 × 900 + 120). |
 | `STATUS_PAGE_DOMAIN` | Public DNS name. Set it for Let's Encrypt. Blank means a self-signed cert. |
 | `STATUS_TLS_EMAIL` | Let's Encrypt account email. Used only when the domain is set. |
 | `STATUS_TLS_SAN` | Subject alternative names for the self-signed cert. The local override defaults to `DNS:localhost,IP:127.0.0.1`. The SGP1 compose file sets `DNS:localhost,IP:127.0.0.1,IP:178.128.215.94`. |
