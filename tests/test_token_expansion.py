@@ -280,14 +280,41 @@ def test_strategies_endpoint_publishes_the_blocked_row_filter(monkeypatch) -> No
     assert not any(pair.get("verdict") in {"FAIL", "VETO", "PENDING"} for pair in payload["pairs"])
 
 
-def _write_phase(root: Path, phase: str, summary: str, trades: str) -> str:
-    """Seal one phase directory and return the SHA256SUMS digest."""
+TRADE_FIXTURE = (
+    ROOT
+    / "research"
+    / "token_expansion"
+    / "fixtures"
+    / "trades"
+    / "bb_medium_bw_upper_reject_SHORT_4h_AAVEUSDT_official_0.31.csv"
+)
+RULE = "bb_medium_bw_upper_reject"
+TRADE_HEADER = "net_pnl,return_pct,symbol,segment\n"
+
+
+def _trade_name(token: str, cost: str = "official_0.31", rule: str = RULE, side: str = "SHORT", clock: str = "4h") -> str:
+    return f"trades/{rule}_{side}_{clock}_{token}_{cost}.csv"
+
+
+def _trade_csv(rows: list[tuple[str, str, str, str]]) -> str:
+    """rows are (net_pnl, return_pct, symbol, segment)."""
+    body = "".join(f"{pnl},{ret},{symbol},{segment}\n" for pnl, ret, symbol, segment in rows)
+    return TRADE_HEADER + body
+
+
+def _seal_phase(root: Path, phase: str, summary: str, files: dict[str, str]) -> str:
+    """Write one sealed phase. ``files`` maps manifest paths to contents."""
     directory = root / phase
-    directory.mkdir()
+    directory.mkdir(parents=True)
     (directory / "summary.csv").write_text(summary, encoding="utf-8")
-    (directory / "per_token_trades.csv").write_text(trades, encoding="utf-8")
+    names = ["summary.csv"]
+    for rel, text in files.items():
+        path = directory / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        names.append(rel)
     lines = []
-    for name in ("summary.csv", "per_token_trades.csv"):
+    for name in names:
         digest = hashlib.sha256((directory / name).read_bytes()).hexdigest()
         lines.append(f"{digest}  {name}\n")
     manifest = directory / "SHA256SUMS"
@@ -295,53 +322,75 @@ def _write_phase(root: Path, phase: str, summary: str, trades: str) -> str:
     return hashlib.sha256(manifest.read_bytes()).hexdigest()
 
 
-def test_win_rate_from_trade_list_and_null_when_n_is_zero(tmp_path) -> None:
-    """Official-cost net_return > 0 over N. N = 0 stays null. Other costs are ignored."""
+def _summary(*rows: str, with_win_rate: bool = False) -> str:
+    header = "cost_bar,row,token,pf,trades"
+    if with_win_rate:
+        header += ",win_rate"
+    return header + "\n" + "".join(rows)
+
+
+def test_win_rate_reads_the_sealed_trade_file_format(tmp_path) -> None:
+    """Win is net_pnl > 0. Phase is the directory. fold and tail both count."""
     from research.token_expansion.ingest import (
-        TRADE_NET_RETURN_COLUMN,
+        TRADE_LIST_COLUMNS,
+        TRADE_NET_PNL_COLUMN,
+        TRADE_RETURN_PCT_COLUMN,
         TRADE_SEGMENT_COLUMN,
+        TRADE_SYMBOL_COLUMN,
         build_results,
         compute_win_rate,
     )
 
-    assert TRADE_NET_RETURN_COLUMN == "net_return"
+    assert TRADE_NET_PNL_COLUMN == "net_pnl"
+    assert TRADE_RETURN_PCT_COLUMN == "return_pct"
+    assert TRADE_SYMBOL_COLUMN == "symbol"
     assert TRADE_SEGMENT_COLUMN == "segment"
+    assert TRADE_LIST_COLUMNS == ("net_pnl", "return_pct", "symbol", "segment")
+    fixture = TRADE_FIXTURE.read_text(encoding="utf-8")
+    assert fixture.startswith("net_pnl,return_pct,symbol,segment\n")
+    assert "fold" in fixture and "tail" in fixture
     assert compute_win_rate([]) is None
-    assert compute_win_rate([0.1, -0.2, 0.0]) == pytest.approx(1 / 3)
+    assert compute_win_rate([0.2, -0.1, 0.0]) == pytest.approx(1 / 3)
     assert compute_win_rate([-0.05]) == 0.0
 
-    header = "cost_bar,row,token,pf,trades\n"
-    identity = "bb_medium_bw_upper_reject:x:SHORT:4h"
-    trade_header = "token,row,segment,cost_bar,net_return\n"
+    identity = f"{RULE}:x:SHORT:4h"
+    aave_name = _trade_name("AAVEUSDT")
+    other_cost = _trade_csv([("9", "9", "AAVEUSDT", "fold")] * 4)
+    exploratory = _trade_csv([("-0.05", "-0.01", "AAVEUSDT", "fold")])
     seals = {
-        "main": _write_phase(
+        "main": _seal_phase(
             tmp_path,
             "main",
-            header
-            + f"official_0.31,{identity},AAVEUSDT,1.2,3\n"
-            + f"official_0.31,{identity},NEARUSDT,,0\n"
-            + f"other_cost,{identity},AAVEUSDT,9,9\n",
-            trade_header
-            + f"AAVEUSDT,{identity},main,official_0.31,0.2\n"
-            + f"AAVEUSDT,{identity},main,official_0.31,-0.1\n"
-            + f"AAVEUSDT,{identity},main,official_0.31,0\n"
-            + f"AAVEUSDT,{identity},main,other_cost,5\n",
+            _summary(
+                f"official_0.31,{identity},AAVEUSDT,1.2,3,{1/3:.10f}\n",
+                f"official_0.31,{identity},NEARUSDT,,0,\n",
+                f"other_cost,{identity},AAVEUSDT,9,9,1\n",
+                with_win_rate=True,
+            ),
+            {
+                aave_name: fixture,
+                _trade_name("AAVEUSDT", cost="loose"): other_cost,
+            },
         ),
-        "holdout": _write_phase(
+        "holdout": _seal_phase(
             tmp_path,
             "holdout",
-            header
-            + f"official_0.31,{identity},AAVEUSDT,,0\n"
-            + f"official_0.31,{identity},NEARUSDT,,0\n",
-            trade_header,
+            _summary(
+                f"official_0.31,{identity},AAVEUSDT,,0,\n",
+                f"official_0.31,{identity},NEARUSDT,,0,\n",
+                with_win_rate=True,
+            ),
+            {},
         ),
-        "exploratory": _write_phase(
+        "exploratory": _seal_phase(
             tmp_path,
             "exploratory",
-            header
-            + f"official_0.31,{identity},AAVEUSDT,0.4,1\n"
-            + f"official_0.31,{identity},NEARUSDT,,0\n",
-            trade_header + f"AAVEUSDT,{identity},2026,official_0.31,-0.05\n",
+            _summary(
+                f"official_0.31,{identity},AAVEUSDT,0.4,1,0\n",
+                f"official_0.31,{identity},NEARUSDT,,0,\n",
+                with_win_rate=True,
+            ),
+            {_trade_name("AAVEUSDT"): exploratory},
         ),
     }
     document = build_results(str(tmp_path), seals=seals)
@@ -351,6 +400,7 @@ def test_win_rate_from_trade_list_and_null_when_n_is_zero(tmp_path) -> None:
     assert by_token["AAVEUSDT"]["winrate_2026"] == 0.0
     assert by_token["AAVEUSDT"]["pf_exploratory"] == pytest.approx(0.4)
     assert "winrate_exploratory" not in by_token["AAVEUSDT"]
+    assert "win_rate" not in by_token["AAVEUSDT"]
     assert by_token["NEARUSDT"]["winrate_main"] is None
     assert by_token["NEARUSDT"]["winrate_holdout"] is None
     assert by_token["NEARUSDT"]["winrate_2026"] is None
@@ -359,21 +409,91 @@ def test_win_rate_from_trade_list_and_null_when_n_is_zero(tmp_path) -> None:
     assert "core.execution" not in source
 
 
+def test_summary_win_rate_mismatch_fails_closed(tmp_path) -> None:
+    from research.token_expansion.ingest import build_results
+
+    identity = f"{RULE}:x:SHORT:4h"
+    trades = _trade_csv([("0.2", "0.02", "AAVEUSDT", "fold"), ("-0.1", "-0.01", "AAVEUSDT", "tail")])
+    seals = {}
+    for phase in ("main", "holdout", "exploratory"):
+        files = {}
+        if phase == "main":
+            summary = _summary(
+                f"official_0.31,{identity},AAVEUSDT,1.2,2,0.9\n",
+                with_win_rate=True,
+            )
+            files[_trade_name("AAVEUSDT")] = trades
+        else:
+            summary = _summary(f"official_0.31,{identity},AAVEUSDT,1.2,0\n")
+        seals[phase] = _seal_phase(tmp_path, phase, summary, files)
+    with pytest.raises(SystemExit) as caught:
+        build_results(str(tmp_path), seals=seals)
+    assert "summary win_rate" in str(caught.value)
+
+
+def test_bad_segment_symbol_or_legacy_file_fails_closed(tmp_path) -> None:
+    """fold|tail and the filename identity are required. The old single CSV is not read."""
+    from research.token_expansion.ingest import build_results
+
+    identity = f"{RULE}:x:SHORT:4h"
+    summary = _summary(f"official_0.31,{identity},AAVEUSDT,1,1\n")
+    empty = {phase: _summary(f"official_0.31,{identity},AAVEUSDT,1,0\n") for phase in ("holdout", "exploratory")}
+
+    bad_segment = _seal_phase(
+        tmp_path,
+        "main",
+        summary,
+        {_trade_name("AAVEUSDT"): _trade_csv([("0.2", "0.02", "AAVEUSDT", "main")])},
+    )
+    seals = {"main": bad_segment, "holdout": _seal_phase(tmp_path, "holdout", empty["holdout"], {}), "exploratory": _seal_phase(tmp_path, "exploratory", empty["exploratory"], {})}
+    with pytest.raises(SystemExit) as caught:
+        build_results(str(tmp_path), seals=seals)
+    assert "fold or tail" in str(caught.value)
+
+    bad_symbol_root = tmp_path / "symbol"
+    seals = {
+        "main": _seal_phase(
+            bad_symbol_root,
+            "main",
+            summary,
+            {_trade_name("AAVEUSDT"): _trade_csv([("0.2", "0.02", "ETHUSDT", "fold")])},
+        ),
+        "holdout": _seal_phase(bad_symbol_root, "holdout", empty["holdout"], {}),
+        "exploratory": _seal_phase(bad_symbol_root, "exploratory", empty["exploratory"], {}),
+    }
+    with pytest.raises(SystemExit) as caught:
+        build_results(str(bad_symbol_root), seals=seals)
+    assert "symbol" in str(caught.value)
+
+    legacy_root = tmp_path / "legacy"
+    seals = {
+        "main": _seal_phase(
+            legacy_root,
+            "main",
+            summary,
+            {"per_token_trades.csv": "token,row,segment,cost_bar,net_return\nAAVEUSDT,x,main,official_0.31,0.2\n"},
+        ),
+        "holdout": _seal_phase(legacy_root, "holdout", empty["holdout"], {}),
+        "exploratory": _seal_phase(legacy_root, "exploratory", empty["exploratory"], {}),
+    }
+    with pytest.raises(SystemExit) as caught:
+        build_results(str(legacy_root), seals=seals)
+    assert "trade-list N" in str(caught.value)
+
+
 def test_trade_list_count_mismatch_fails_closed(tmp_path) -> None:
     from research.token_expansion.ingest import build_results
 
-    header = "cost_bar,row,token,pf,trades\n"
-    identity = "bb_medium_bw_upper_reject:x:SHORT:4h"
-    trade_header = "token,row,segment,cost_bar,net_return\n"
+    identity = f"{RULE}:x:SHORT:4h"
     seals = {}
-    for phase, segment in (("main", "main"), ("holdout", "holdout"), ("exploratory", "exploratory")):
-        trades = trade_header
-        summary = header + f"official_0.31,{identity},AAVEUSDT,1,2\n"
+    for phase in ("main", "holdout", "exploratory"):
+        files = {}
         if phase == "main":
-            trades += f"AAVEUSDT,{identity},{segment},official_0.31,0.1\n"
+            summary = _summary(f"official_0.31,{identity},AAVEUSDT,1,2\n")
+            files[_trade_name("AAVEUSDT")] = _trade_csv([("0.1", "0.01", "AAVEUSDT", "tail")])
         else:
-            summary = header + f"official_0.31,{identity},AAVEUSDT,1,0\n"
-        seals[phase] = _write_phase(tmp_path, phase, summary, trades)
+            summary = _summary(f"official_0.31,{identity},AAVEUSDT,1,0\n")
+        seals[phase] = _seal_phase(tmp_path, phase, summary, files)
     with pytest.raises(SystemExit) as caught:
         build_results(str(tmp_path), seals=seals)
     assert "FAIL CLOSED" in str(caught.value)
@@ -383,12 +503,7 @@ def test_manifest_mismatch_fails_before_trade_lists(tmp_path) -> None:
     from research.token_expansion.ingest import build_results
 
     seals = {
-        phase: _write_phase(
-            tmp_path,
-            phase,
-            "cost_bar,row,token,pf,trades\n",
-            "token,row,segment,cost_bar,net_return\n",
-        )
+        phase: _seal_phase(tmp_path, phase, "cost_bar,row,token,pf,trades\n", {})
         for phase in ("main", "holdout", "exploratory")
     }
     seals["main"] = "0" * 64
