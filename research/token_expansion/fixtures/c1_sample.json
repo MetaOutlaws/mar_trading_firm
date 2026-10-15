@@ -1,0 +1,83 @@
+{
+  "batch": "C1",
+  "cost_view": "official_0.31",
+  "verdict_source": null,
+  "rows": [
+    {
+      "batch": "C1",
+      "rule": "week_open_reclaim",
+      "side": "LONG",
+      "clock": "4h",
+      "token": "AAVEUSDT",
+      "verdict": "PENDING",
+      "seal_sha": {
+        "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+        "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+        "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+      },
+      "pf_main": 1.5643245578233809,
+      "trades_main": 39,
+      "pf_holdout": 2.256166951548558,
+      "trades_holdout": 12,
+      "pf_exploratory": 1.2619038576969857,
+      "trades_exploratory": 14
+    },
+    {
+      "batch": "C1",
+      "rule": "doji_star_reversal",
+      "side": "SHORT",
+      "clock": "1h",
+      "token": "DOGEUSDT",
+      "verdict": "PENDING",
+      "seal_sha": {
+        "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+        "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+        "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+      },
+      "pf_main": 1.4903417982523892,
+      "trades_main": 57,
+      "pf_holdout": 0.38679670135442035,
+      "trades_holdout": 10,
+      "pf_exploratory": 1.3704713567554188,
+      "trades_exploratory": 18
+    },
+    {
+      "batch": "C1",
+      "rule": "bb_medium_bw_upper_reject",
+      "side": "SHORT",
+      "clock": "4h",
+      "token": "AAVEUSDT",
+      "verdict": "PENDING",
+      "seal_sha": {
+        "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+        "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+        "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+      },
+      "pf_main": 0.9152349586090192,
+      "trades_main": 109,
+      "pf_holdout": 0.9461530457479702,
+      "trades_holdout": 37,
+      "pf_exploratory": 1.0459035481344277,
+      "trades_exploratory": 52
+    },
+    {
+      "batch": "C1",
+      "rule": "fib_extension_break",
+      "side": "SHORT",
+      "clock": "4h",
+      "token": "NEARUSDT",
+      "verdict": "PENDING",
+      "seal_sha": {
+        "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+        "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+        "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+      },
+      "pf_main": 0.45627068237937185,
+      "trades_main": 18,
+      "pf_holdout": 1.1398758576868178,
+      "trades_holdout": 3,
+      "pf_exploratory": "",
+      "trades_exploratory": 2
+    }
+  ]
+}

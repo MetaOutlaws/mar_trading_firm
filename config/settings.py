@@ -123,6 +123,24 @@ class Settings(BaseSettings):
     pipeline_hung_median_n: int = Field(default=20, ge=3)
     pipeline_hung_median_mult: float = Field(default=3.0, ge=1.0)
 
+    # ---- Token expansion display (Research tab only) -----------------------
+    #: Sealed results JSON. Relative paths resolve from the repo root.
+    #: Env: ``TOKEN_EXPANSION_RESULTS_PATH``. The API returns an error, and
+    #: no rows, when this file is missing.
+    token_expansion_results_path: str = (
+        "research/token_expansion/data/token_expansion_c1_results.json"
+    )
+    #: sha256 of the results file. Env: ``TOKEN_EXPANSION_RESULTS_SHA256``.
+    #: A mismatch fails closed. The default seals the committed C1 artifact.
+    #: This does not approve a sleeve and is not read by the paper engine.
+    token_expansion_results_sha256: str = (
+        "1f164c78ffbffa4b3531904ffda94cfc2242bd51725d9d83620368fed3b2e877"
+    )
+    #: Optional verdict overlay. Env: ``TOKEN_EXPANSION_VERDICTS_PATH``.
+    #: Blank or missing file means every row stays PENDING. Profit factor
+    #: is never used as a verdict. Restart the API after changing this.
+    token_expansion_verdicts_path: str = ""
+
     # -----------------------------------------------------------------------
     # Validation
     # -----------------------------------------------------------------------

@@ -28,6 +28,14 @@ packages = [
     "firm",
     "firm.employees",
     "research",
+    "research.token_expansion",
+]
+
+[tool.setuptools.package-data]
+"research.token_expansion" = [
+    "schema/*.json",
+    "fixtures/*.json",
+    "data/*.json",
 ]
 
 [tool.pytest.ini_options]
