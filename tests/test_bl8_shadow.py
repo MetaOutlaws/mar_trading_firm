@@ -11,6 +11,8 @@ import unittest
 from unittest.mock import patch
 
 from core.execution.bl8_shadow import Ledger, depth_fill, FEE, SLIP
+from core.risk.limits import PAPER_LIMITS
+from core.risk.sizing import size_position
 from core.strategy.bl8 import fill_gate
 from core.strategy.bl8 import decision, HOUR
 
@@ -20,6 +22,16 @@ T=1_800_000_000_000//3_600_000*3_600_000
 def signal(symbol='XUSDT', uid='s'):
     return dict(symbol=symbol,uid=uid,signal_ms=T,action_ms=T+60_000,
                 eligible_signal=True,stop=90.,target=115.,regime='trend_down')
+
+
+def reference_entry(ask=100.):
+    """Touch ask plus the modeled 20bp entry slip the ledger sizes against."""
+    return ask*(1+SLIP)
+
+
+def stop_at(distance, ask=100.):
+    """Stop that puts ``distance`` of the reference entry between fill and stop."""
+    return reference_entry(ask)*(1-distance)
 
 
 def book(now, bid=99.9, ask=100., symbol='XUSDT'):
@@ -36,8 +48,76 @@ class LedgerTests(unittest.TestCase):
     def tearDown(self): self.ledger.db.close();self.tmp.cleanup()
     def enter(self): return self.ledger.enter(self.s,book(self.now),INST,self.now)
     def test_entry_rounding_risk_and_fees(self):
-        p=self.enter();self.assertGreater(p['initial_risk_usdt'],0);self.assertLessEqual(p['initial_risk_usdt'],1)
+        p=self.enter();equity=self.ledger.starting_equity
+        self.assertGreater(p['initial_risk_usdt'],0)
+        self.assertLessEqual(p['initial_risk_usdt'],equity*PAPER_LIMITS.max_risk_per_trade_pct+1e-6)
+        self.assertLessEqual(p['notional_usdt'],equity*PAPER_LIMITS.max_position_pct+1e-6)
+        self.assertLessEqual(p['notional_usdt'],equity*PAPER_LIMITS.max_leverage+1e-6)
         self.assertAlmostEqual(self.ledger.audit()['cash_pnl_usdt'],-p['entry_price']*p['quantity']*FEE)
+    def test_ten_percent_cap_binds(self):
+        # An 9% stop wants about 11.1% of equity from the 1% risk budget, so the 10% cap wins.
+        s=signal(uid='cap');s['stop']=stop_at(0.09);self.ledger.signal(s,self.now)
+        p=self.ledger.enter(s,book(self.now),INST,self.now)
+        cap=self.ledger.starting_equity*PAPER_LIMITS.max_position_pct
+        self.assertAlmostEqual(p['notional_usdt'],cap,delta=1)
+        self.assertLess(p['initial_risk_usdt'],self.ledger.starting_equity*PAPER_LIMITS.max_risk_per_trade_pct)
+        self.assertEqual(self.ledger.limits.max_position_pct,0.10)
+    def test_risk_cap_binds_with_tight_stop(self):
+        # With the 10% cap out of the way, a 2% stop is sized by equity*1%/distance.
+        from dataclasses import replace
+        limits=replace(PAPER_LIMITS,max_position_pct=1.0,max_total_exposure_pct=1.0)
+        equity=10_000.;distance=0.02
+        _qty,notional,risk,notes,_reduced=size_position(
+            equity=equity,stop_distance_pct=distance,entry_price=100.,total_exposure=0.,limits=limits)
+        self.assertEqual(limits.max_risk_per_trade_pct,PAPER_LIMITS.max_risk_per_trade_pct)
+        self.assertAlmostEqual(notional,equity*0.01/distance)
+        self.assertAlmostEqual(risk,equity*0.01)
+        self.assertTrue(any('risk-per-trade' in note for note in notes))
+        self.assertLess(notional,equity*limits.max_position_pct)
+    def test_observer_risk_cap_binds_on_wide_stop(self):
+        # Under the real caps a stop wider than 10% is the case the 1% budget binds.
+        s=signal(uid='wide');s['stop']=stop_at(0.20);self.ledger.signal(s,self.now)
+        p=self.ledger.enter(s,book(self.now),INST,self.now)
+        self.assertAlmostEqual(p['initial_risk_usdt'],self.ledger.starting_equity*0.01,delta=0.05)
+        self.assertAlmostEqual(p['notional_usdt'],self.ledger.starting_equity*0.01/0.20,delta=1)
+        self.assertTrue(any('risk-per-trade' in note for note in p['sizing_notes']))
+        self.assertLess(p['notional_usdt'],self.ledger.starting_equity*PAPER_LIMITS.max_position_pct)
+    def test_exposure_room_binds(self):
+        held={'symbol':'OTHERUSDT','entry_price':100.,'quantity':46.,'mark_price':100.,
+              'entry_ms':self.now-60_000,'exit_ms':None,'initial_risk_usdt':1.,'entry_fee':0.,
+              'stop':90.,'target':115.,'funding_status':'unknown'}
+        self.ledger.db.execute('INSERT INTO positions VALUES(?,?,?,?)',('held','OTHERUSDT','open',json.dumps(held)))
+        self.ledger.db.commit()
+        s=signal(uid='next');s['stop']=stop_at(0.09);self.ledger.signal(s,self.now)
+        p=self.ledger.enter(s,book(self.now),INST,self.now)
+        self.assertAlmostEqual(p['notional_usdt'],400,delta=1)
+        self.assertLess(p['notional_usdt'],self.ledger.starting_equity*PAPER_LIMITS.max_position_pct)
+        self.assertTrue(any('exposure headroom' in note for note in p['sizing_notes']))
+    def test_reject_below_five_usdt_never_upsizes(self):
+        inst=copy.deepcopy(INST)
+        inst['lotSizeFilter']['minNotionalValue']='1'
+        inst['lotSizeFilter']['minOrderQty']='.001'
+        self.ledger.starting_equity=40.  # 10% cap is 4 USDT, already under the floor
+        under=signal(uid='under');under['stop']=stop_at(0.09);self.ledger.signal(under,self.now)
+        self.assertIsNone(self.ledger.enter(under,book(self.now),inst,self.now))
+        self.ledger.starting_equity=50.  # 10% cap is exactly 5; the lot floor drops it under 5
+        rounded=signal(uid='rounded');rounded['stop']=stop_at(0.09);self.ledger.signal(rounded,self.now)
+        self.assertIsNone(self.ledger.enter(rounded,book(self.now),inst,self.now))
+        self.assertEqual(self.ledger.positions(),[])
+        rows={r[0]:r[1] for r in self.ledger.db.execute("SELECT uid,status FROM signals WHERE uid IN ('under','rounded')")}
+        self.assertEqual(rows['under'],'below_min_notional')
+        self.assertEqual(rows['rounded'],'below_min_notional')
+    def test_leverage_cap_binds_at_one_times_equity(self):
+        from dataclasses import replace
+        self.ledger.limits=replace(PAPER_LIMITS,max_risk_per_trade_pct=1.0,max_position_pct=5.0,max_total_exposure_pct=5.0)
+        self.ledger.starting_equity=1_000.
+        self.assertEqual(self.ledger.limits.max_leverage,1.0)
+        self.assertEqual(PAPER_LIMITS.max_leverage,1.0)
+        s=signal(uid='lev');s['stop']=stop_at(0.09);self.ledger.signal(s,self.now)
+        p=self.ledger.enter(s,book(self.now),INST,self.now)
+        self.assertAlmostEqual(p['notional_usdt'],1_000,delta=1)
+        self.assertLessEqual(p['notional_usdt'],self.ledger.starting_equity*1.0+1e-6)
+        self.assertTrue(any('leverage cap' in note for note in p['sizing_notes']))
     def test_restart_exactly_once(self):
         p=self.enter();self.ledger.db.close();self.ledger=Ledger(self.path,'fixed');self.enter()
         self.assertEqual(len(self.ledger.positions()),1);self.assertEqual(self.ledger.audit()['cash_events'],1)
@@ -143,6 +223,14 @@ class MarketChecks(unittest.TestCase):
         root=Path(__file__).resolve().parents[1];c=json.loads((root/'config/sleeves/mar_bl8_shadow_v1.json').read_text())
         old=json.loads((root/'config/sleeves/mar_l01_long_f111_short_v1.json').read_text())
         self.assertEqual(c['universe'],old['universe']);self.assertEqual(len(set(c['universe'])),96);self.assertFalse(c['live_authorized'])
+        self.assertEqual(c['sizing_policy'],'hourly_paper_limits')
+        self.assertNotIn('initial_price_stop_risk_usdt',c)
+        self.assertEqual(c['starting_equity_usdt'],10000)
+        self.assertEqual(c['max_risk_per_trade_pct'],PAPER_LIMITS.max_risk_per_trade_pct)
+        self.assertEqual(c['max_position_pct'],PAPER_LIMITS.max_position_pct)
+        self.assertEqual(c['max_total_exposure_pct'],PAPER_LIMITS.max_total_exposure_pct)
+        self.assertEqual(c['max_leverage'],PAPER_LIMITS.max_leverage)
+        self.assertEqual(c['min_notional_usdt'],PAPER_LIMITS.min_notional_usdt)
     def test_warmup_boundary_and_bad_bars(self):
         asof=T//(4*HOUR)*(4*HOUR)
         h=[dict(t=asof-(24-i)*HOUR,o=100.,h=101.,l=99.,c=100.) for i in range(25)]

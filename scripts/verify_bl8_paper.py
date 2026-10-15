@@ -13,7 +13,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--db',required=True,type=Path);ap.add_argument('--expected-commit',required=True);args=ap.parse_args()
     now=time.time_ns()//1_000_000;status=json.loads((args.db.parent/'status.json').read_text())
-    config=(ROOT/'config/sleeves/mar_bl8_shadow_v1.json').read_bytes();sha=hashlib.sha256(config).hexdigest();universe=set(json.loads(config)['universe'])
+    config=(ROOT/'config/sleeves/mar_bl8_shadow_v1.json').read_bytes();sha=hashlib.sha256(config).hexdigest();cfg=json.loads(config);universe=set(cfg['universe'])
     db=sqlite3.connect(args.db.resolve().as_uri()+'?mode=ro',uri=True);db.row_factory=sqlite3.Row;db.execute('PRAGMA query_only=ON');db.execute('BEGIN')
     failures=[]
     stored_sha=db.execute("SELECT v FROM meta WHERE k='config_sha'").fetchone()
@@ -54,7 +54,17 @@ def main():
             'closed_funding_incomplete':incomplete,'observed_fill_close_cash_checks_pass':any(p['exit_ms'] is not None for p in positions) and not incomplete and not failures and not errors and gap_count==0,
             'full_forward_parity':'UNVERIFIED',
             'profitability_validated':False,'zero_fills_is_valid_activation':True,'hourly_repair_reconciliation':'SEPARATE_UNVERIFIED_UNLESS_OPERATOR_SUPPLIES_EVIDENCE',
-            'test_risk_unit_usdt':1,'account_return_or_leverage_policy':None}
+            'position_sizing':{
+                'policy':cfg.get('sizing_policy'),
+                'starting_equity_usdt':cfg.get('starting_equity_usdt'),
+                'max_risk_per_trade_pct':cfg.get('max_risk_per_trade_pct'),
+                'max_position_pct':cfg.get('max_position_pct'),
+                'max_total_exposure_pct':cfg.get('max_total_exposure_pct'),
+                'max_leverage':cfg.get('max_leverage'),
+                'min_notional_usdt':cfg.get('min_notional_usdt'),
+                'below_min_notional':'reject_never_upsize',
+            },
+            'account_return_or_leverage_policy':'hourly PAPER_LIMITS on the isolated BL8 book; leverage 1x; live off'}
     db.rollback();db.close();print(json.dumps(output,indent=2));raise SystemExit(bool(failures))
 
 

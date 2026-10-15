@@ -7,6 +7,7 @@ import concurrent.futures as cf
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -17,7 +18,8 @@ from urllib.request import Request, urlopen
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from core.strategy.bl8 import decision
-from core.execution.bl8_shadow import Ledger
+from core.execution.bl8_shadow import HOURLY_PAPER_STARTING_EQUITY, Ledger
+from core.risk.limits import PAPER_LIMITS
 
 ALLOWED={'instruments-info','kline','orderbook','funding/history'}
 
@@ -93,11 +95,28 @@ def main():
     raw=args.config.read_bytes();config=json.loads(raw);sha=hashlib.sha256(raw).hexdigest()
     if config.get('mode')!='paper_shadow' or config.get('live_authorized') is not False:
         raise ValueError('paper-only config required')
-    if config.get('initial_price_stop_risk_usdt')!=1 or config.get('entry_market_slippage')!=.002 or config.get('fee_per_side')!=.00055 or config.get('price_stop_min_fraction')!=.08:
+    if config.get('initial_price_stop_risk_usdt') is not None:
+        raise ValueError('fixed one-USDT unit is not the sizing rule')
+    if config.get('sizing_policy')!='hourly_paper_limits':
+        raise ValueError('paper limits sizing policy required')
+    expected={
+        'starting_equity_usdt':HOURLY_PAPER_STARTING_EQUITY,
+        'max_risk_per_trade_pct':PAPER_LIMITS.max_risk_per_trade_pct,
+        'max_position_pct':PAPER_LIMITS.max_position_pct,
+        'max_total_exposure_pct':PAPER_LIMITS.max_total_exposure_pct,
+        'max_leverage':PAPER_LIMITS.max_leverage,
+        'min_notional_usdt':PAPER_LIMITS.min_notional_usdt,
+        'account_risk_fraction':PAPER_LIMITS.max_risk_per_trade_pct,
+    }
+    for key,value in expected.items():
+        got=config.get(key)
+        if not isinstance(got,(int,float)) or not math.isclose(float(got),float(value),rel_tol=0,abs_tol=0):
+            raise ValueError(f'frozen paper limit {key} changed')
+    if config.get('entry_market_slippage')!=.002 or config.get('fee_per_side')!=.00055 or config.get('price_stop_min_fraction')!=.08:
         raise ValueError('frozen test units/costs changed')
     args.db.parent.mkdir(parents=True,exist_ok=True)
     lock=(args.db.parent/'worker.lock').open('a');fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    ledger=Ledger(args.db,sha)
+    ledger=Ledger(args.db,sha,starting_equity=float(config['starting_equity_usdt']),limits=PAPER_LIMITS)
     if args.audit: print(json.dumps(ledger.audit(),indent=2));return
     release=(ROOT/'BL8_RELEASE_SHA').read_text().strip() if (ROOT/'BL8_RELEASE_SHA').exists() else 'local_unpublished'
     started=now_ms();ledger.observe(started,'startup',{'config_sha':sha,'release':release,'pid':os.getpid(),'paper_only':True})
