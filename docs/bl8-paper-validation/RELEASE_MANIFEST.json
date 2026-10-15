@@ -1,0 +1,15 @@
+{
+  "local_validation": "PASS",
+  "historical_2026_opened": false,
+  "base_commit": "954d375f234c8d4e0f83e062c15adefdf6c3a53e",
+  "runtime_sha256": {
+    "core/strategy/bl8.py": "ce150ed0a9bd250a6ace6ea4423aae2b477bb09002161901f086d9785075d99c",
+    "core/execution/bl8_shadow.py": "b2ca34d278fd15feb1bbf3ae2d37ec9f8f0ab4ff128b8e3ed361c8f2aedccef4",
+    "scripts/run_bl8_paper.py": "31d3750ff17a55e9f3af55a7a307a4c6d7f7850a8a447bed3c6dc5d6769a494b",
+    "scripts/verify_bl8_paper.py": "15cd0e93c3aecdb96970116282da9008cc279ccaecee5bdcf67fc983987ed08c",
+    "config/sleeves/mar_bl8_shadow_v1.json": "f0d9aee119484463f2b4c850474f87ec6f0b8783f045992510bc335129371b89",
+    "config/sleeves/mar_l01_long_f111_short_v1.json": "3b0972e83ba4e698a88c4f4681852bfd5f8fa3945f0187420d4b49e852908b5d",
+    "tests/test_bl8_shadow.py": "5b9bdae569ce46d070f714b33f3c1386a66e0ffef329308659e763860932441b"
+  },
+  "config_sha256": "f0d9aee119484463f2b4c850474f87ec6f0b8783f045992510bc335129371b89"
+}
