@@ -445,6 +445,24 @@ tr.fam-child td:first-child { color: var(--faint); padding-left: 22px; }
   border-radius: 10px;
   padding: 8px 10px;
 }
+.exp-filter { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+.exp-filter .field { width: auto; max-width: 160px; }
+.exp-filter .exp-num { width: 72px; }
+.expansion-scroll { overflow-x: auto; }
+.expansion-table { min-width: 1280px; }
+button.sort-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+button.sort-btn:hover { color: var(--ink); }
 .feed { display: grid; gap: 10px; padding-right: 4px; }
 .scroll-list { padding-right: 4px; }
 .stamp { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; color: var(--muted); white-space: nowrap; }
@@ -866,8 +884,26 @@ const FILTER_IDS = [
   "stratStatus", "stratFamily", "stratWhen", "stratQ",
   "inboxQ", "inboxWhen", "escalQ", "escalWhen", "escalSev",
   "paperFamQ",
-  "expansionStatus",
+  "expansionBatch", "expansionRule", "expansionSide", "expansionToken", "expansionVerdict",
+  "expansionPfMainMin", "expansionPfMainMax",
+  "expansionPfHoldMin", "expansionPfHoldMax",
+  "expansionPf2026Min", "expansionPf2026Max",
+  "expansionWrMainMin", "expansionWrMainMax",
+  "expansionWrHoldMin", "expansionWrHoldMax",
+  "expansionWr2026Min", "expansionWr2026Max",
+  "expansionNMainMin",
 ];
+const EXPANSION_FILTER_IDS = [
+  "expansionBatch", "expansionRule", "expansionSide", "expansionToken", "expansionVerdict",
+  "expansionPfMainMin", "expansionPfMainMax",
+  "expansionPfHoldMin", "expansionPfHoldMax",
+  "expansionPf2026Min", "expansionPf2026Max",
+  "expansionWrMainMin", "expansionWrMainMax",
+  "expansionWrHoldMin", "expansionWrHoldMax",
+  "expansionWr2026Min", "expansionWr2026Max",
+  "expansionNMainMin",
+];
+let expansionSort = { key: "", dir: "asc" };
 function snapshotFilters() {
   const out = {};
   for (const id of FILTER_IDS) {
@@ -1883,6 +1919,144 @@ function expansionPf(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(2) : esc(value);
 }
+// Win rate is a fraction. Blank when the results file has no winrate field.
+function expansionWr(value) {
+  if (value == null || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return (n * 100).toFixed(1) + "%";
+}
+function expansionNumber(value) {
+  if (value == null || value === "" || value === "nan" || value === "inf") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function expansionMetric(row, key) {
+  if (key === "pf_2026") {
+    return expansionNumber(row.pf_2026 != null && row.pf_2026 !== "" ? row.pf_2026 : row.pf_exploratory);
+  }
+  if (key === "trades_2026") {
+    const raw = row.trades_2026 != null && row.trades_2026 !== "" ? row.trades_2026 : row.trades_exploratory;
+    return expansionNumber(raw);
+  }
+  if (key === "winrate_main" || key === "winrate_holdout" || key === "winrate_2026" || key.indexOf("pf_") === 0 || key.indexOf("trades_") === 0) {
+    return expansionNumber(row[key]);
+  }
+  const text = row[key];
+  if (text == null || text === "") return null;
+  return String(text).toUpperCase();
+}
+function expansionBound(raw) {
+  if (raw == null || String(raw).trim() === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+// A set min or max drops nulls. An empty box does not filter.
+function expansionPassesRange(value, minRaw, maxRaw, scale) {
+  const min = expansionBound(minRaw);
+  const max = expansionBound(maxRaw);
+  if (min == null && max == null) return true;
+  if (value == null) return false;
+  const scaled = scale ? value * scale : value;
+  if (min != null && scaled < min) return false;
+  if (max != null && scaled > max) return false;
+  return true;
+}
+function expansionPassesMinCount(value, minRaw) {
+  const min = expansionBound(minRaw);
+  if (min == null) return true;
+  if (value == null) return false;
+  return value >= min;
+}
+function expansionPassesChoice(value, selected) {
+  if (!selected || selected === "all") return true;
+  return String(value ?? "") === selected;
+}
+function expansionDistinct(rows, field, normalize) {
+  const seen = new Set();
+  const values = [];
+  for (const row of rows) {
+    let value = row[field];
+    if (value == null || value === "") continue;
+    value = normalize ? normalize(value) : String(value);
+    if (seen.has(value)) continue;
+    seen.add(value);
+    values.push(value);
+  }
+  values.sort();
+  return values;
+}
+function expansionSelect(id, label, values, current) {
+  const options = [`<option value="all"${current === "all" ? " selected" : ""}>All</option>`]
+    .concat(values.map(value => `<option value="${esc(value)}"${current === value ? " selected" : ""}>${esc(value)}</option>`));
+  return `<label class="exp-filter">${esc(label)} <select class="field" id="${id}" onchange="onFilterChange()">${options.join("")}</select></label>`;
+}
+function expansionNum(id, label, current) {
+  return `<label class="exp-filter">${esc(label)} <input class="field exp-num" id="${id}" type="number" step="any" value="${esc(current)}" oninput="onFilterChange()"/></label>`;
+}
+function expansionHeader(key, label, title) {
+  const active = expansionSort.key === key;
+  const caret = active ? (expansionSort.dir === "asc" ? " \u25B2" : " \u25BC") : "";
+  return `<th title="${esc(title)}"><button type="button" class="sort-btn" onclick="sortExpansion('${key}')">${esc(label)}${caret}</button></th>`;
+}
+// Display only. Does not write active_strategies or the Strategies table.
+function sortExpansion(key) {
+  if (expansionSort.key === key) {
+    expansionSort.dir = expansionSort.dir === "asc" ? "desc" : "asc";
+  } else {
+    expansionSort.key = key;
+    expansionSort.dir = "asc";
+  }
+  pages.expansion = 1;
+  render({ keepScroll: true, force: true });
+}
+function resetExpansionFilters() {
+  expansionSort = { key: "", dir: "asc" };
+  pages.expansion = 1;
+  for (const id of EXPANSION_FILTER_IDS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.value = el.tagName === "SELECT" ? "all" : "";
+  }
+  render({ keepScroll: true, force: true });
+}
+function expansionFilteredRows(rows) {
+  const batch = filterVal("expansionBatch", "all");
+  const rule = filterVal("expansionRule", "all");
+  const side = filterVal("expansionSide", "all");
+  const token = filterVal("expansionToken", "all");
+  const verdict = filterVal("expansionVerdict", "all");
+  const kept = rows.filter(row => {
+    if (!expansionPassesChoice(row.batch, batch)) return false;
+    if (!expansionPassesChoice(row.rule, rule)) return false;
+    if (!expansionPassesChoice(row.side, side)) return false;
+    if (!expansionPassesChoice(row.token, token)) return false;
+    if (!expansionPassesChoice(String(row.verdict || "PENDING").toUpperCase(), verdict)) return false;
+    if (!expansionPassesRange(expansionMetric(row, "pf_main"), filterVal("expansionPfMainMin", ""), filterVal("expansionPfMainMax", ""))) return false;
+    if (!expansionPassesRange(expansionMetric(row, "pf_holdout"), filterVal("expansionPfHoldMin", ""), filterVal("expansionPfHoldMax", ""))) return false;
+    if (!expansionPassesRange(expansionMetric(row, "pf_2026"), filterVal("expansionPf2026Min", ""), filterVal("expansionPf2026Max", ""))) return false;
+    if (!expansionPassesRange(expansionMetric(row, "winrate_main"), filterVal("expansionWrMainMin", ""), filterVal("expansionWrMainMax", ""), 100)) return false;
+    if (!expansionPassesRange(expansionMetric(row, "winrate_holdout"), filterVal("expansionWrHoldMin", ""), filterVal("expansionWrHoldMax", ""), 100)) return false;
+    if (!expansionPassesRange(expansionMetric(row, "winrate_2026"), filterVal("expansionWr2026Min", ""), filterVal("expansionWr2026Max", ""), 100)) return false;
+    if (!expansionPassesMinCount(expansionMetric(row, "trades_main"), filterVal("expansionNMainMin", ""))) return false;
+    return true;
+  });
+  if (!expansionSort.key) return kept;
+  const key = expansionSort.key;
+  const dir = expansionSort.dir === "desc" ? -1 : 1;
+  return kept.slice().sort((a, b) => {
+    const av = expansionMetric(a, key);
+    const bv = expansionMetric(b, key);
+    // Nulls stay last in both directions.
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    let cmp = 0;
+    if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
+    else cmp = String(av).localeCompare(String(bv));
+    return cmp * dir;
+  });
+}
 function shortSeal(value) {
   const text = String(value || "");
   return text ? text.slice(0, 12) : "—";
@@ -1892,27 +2066,41 @@ function renderTokenExpansion() {
   const rows = Array.isArray(doc.rows) ? doc.rows : [];
   const active = Array.isArray(doc.active_strategies) ? doc.active_strategies : [];
   const counts = doc.counts || {};
-  const status = filterVal("expansionStatus", "all");
-  const filtered = rows.filter(row => status === "all" || String(row.verdict || "PENDING").toUpperCase() === status);
+  // Local to this card. Not written onto state.strategies or active_strategies.
+  const filtered = expansionFilteredRows(rows);
   const sliced = pageSlice("expansion", filtered);
   const seal = (rows[0] && rows[0].seal_sha) || {};
   const error = doc.ok === false ? (doc.error || "Batch file unavailable. No rows shown.") : "";
+  const pfTitle = "PF = gross profit / gross loss";
+  const nTitle = "N = trade count";
+  const wrTitle = "WR = winning trades / N";
+  const holdTitle = "Holdout = H2 2025, scored once";
+  const yTitle = "2026 = exploratory, veto-only";
+  const headers = [
+    expansionHeader("verdict", "Status", "Verdict from the optional verdict file"),
+    expansionHeader("rule", "Rule", "Rule"),
+    expansionHeader("side", "Side", "Side"),
+    expansionHeader("clock", "Clock", "Clock"),
+    expansionHeader("token", "Token", "Token"),
+    expansionHeader("pf_main", "Main PF", pfTitle),
+    expansionHeader("trades_main", "Main N", nTitle),
+    expansionHeader("winrate_main", "Main WR", wrTitle),
+    expansionHeader("pf_holdout", "Holdout PF", pfTitle + ". " + holdTitle),
+    expansionHeader("trades_holdout", "Holdout N", nTitle + ". " + holdTitle),
+    expansionHeader("winrate_holdout", "Holdout WR", wrTitle + ". " + holdTitle),
+    expansionHeader("pf_2026", "2026 PF", pfTitle + ". " + yTitle),
+    expansionHeader("trades_2026", "2026 N", nTitle + ". " + yTitle),
+    expansionHeader("winrate_2026", "2026 WR", wrTitle + ". " + yTitle),
+  ].join("");
   const body = error
     ? `<div class="warn">${esc(error)}</div>`
-    : (rows.length ? `<div id="expansionPane" data-page-list="expansion">
-        <table class="table-fixed">
-          <colgroup>
-            <col style="width:9%"/><col style="width:22%"/><col style="width:8%"/><col style="width:6%"/><col style="width:13%"/>
-            <col style="width:7%"/><col style="width:7%"/><col style="width:7%"/><col style="width:7%"/><col style="width:7%"/><col style="width:7%"/>
-          </colgroup>
-          <thead><tr>
-            <th>Status</th><th>Rule</th><th>Side</th><th>Clock</th><th>Token</th>
-            <th>Main PF</th><th>Main n</th><th>Holdout PF</th><th>Holdout n</th>
-            <th title="2026 exploratory window (pf_exploratory in the sealed file)">2026 PF</th>
-            <th title="Trade count on the 2026 exploratory window">2026 n</th>
-          </tr></thead>
+    : (rows.length ? `<div id="expansionPane" class="expansion-scroll" data-page-list="expansion">
+        <table class="table-fixed expansion-table">
+          <thead><tr>${headers}</tr></thead>
           <tbody>${sliced.items.map(row => {
             const verdict = String(row.verdict || "PENDING").toUpperCase();
+            const pf2026 = row.pf_2026 != null && row.pf_2026 !== "" ? row.pf_2026 : row.pf_exploratory;
+            const n2026 = row.trades_2026 != null && row.trades_2026 !== "" ? row.trades_2026 : row.trades_exploratory;
             return `<tr>
               <td><span class="badge ${expansionVerdictClass(verdict)}">${esc(verdict)}</span></td>
               <td title="${esc(row.rule)}"><strong>${esc(row.rule)}</strong></td>
@@ -1921,29 +2109,45 @@ function renderTokenExpansion() {
               <td title="${esc(row.token)}"><strong>${esc(row.token)}</strong></td>
               <td class="num">${expansionPf(row.pf_main)}</td>
               <td class="num">${esc(row.trades_main ?? "—")}</td>
+              <td class="num">${expansionWr(row.winrate_main)}</td>
               <td class="num">${expansionPf(row.pf_holdout)}</td>
               <td class="num">${esc(row.trades_holdout ?? "—")}</td>
-              <td class="num">${expansionPf(row.pf_2026 != null ? row.pf_2026 : row.pf_exploratory)}</td>
-              <td class="num">${esc(row.trades_2026 != null ? row.trades_2026 : (row.trades_exploratory ?? "—"))}</td>
+              <td class="num">${expansionWr(row.winrate_holdout)}</td>
+              <td class="num">${expansionPf(pf2026)}</td>
+              <td class="num">${esc(n2026 ?? "—")}</td>
+              <td class="num">${expansionWr(row.winrate_2026)}</td>
             </tr>`;
           }).join("")}</tbody>
         </table>
       </div>${pagerHtml("expansion", sliced, "rows")}` : `<div class="muted">No token-expansion rows in the sealed file.</div>`);
+  const filters = `<div class="toolbar filters">
+        ${expansionSelect("expansionBatch", "Batch", expansionDistinct(rows, "batch"), filterVal("expansionBatch", "all"))}
+        ${expansionSelect("expansionRule", "Rule", expansionDistinct(rows, "rule"), filterVal("expansionRule", "all"))}
+        ${expansionSelect("expansionSide", "Side", expansionDistinct(rows, "side"), filterVal("expansionSide", "all"))}
+        ${expansionSelect("expansionToken", "Token", expansionDistinct(rows, "token"), filterVal("expansionToken", "all"))}
+        ${expansionSelect("expansionVerdict", "Verdict", expansionDistinct(rows, "verdict", value => String(value).toUpperCase()), filterVal("expansionVerdict", "all"))}
+        ${expansionNum("expansionPfMainMin", "PF main min", filterVal("expansionPfMainMin", ""))}
+        ${expansionNum("expansionPfMainMax", "PF main max", filterVal("expansionPfMainMax", ""))}
+        ${expansionNum("expansionPfHoldMin", "PF holdout min", filterVal("expansionPfHoldMin", ""))}
+        ${expansionNum("expansionPfHoldMax", "PF holdout max", filterVal("expansionPfHoldMax", ""))}
+        ${expansionNum("expansionPf2026Min", "PF 2026 min", filterVal("expansionPf2026Min", ""))}
+        ${expansionNum("expansionPf2026Max", "PF 2026 max", filterVal("expansionPf2026Max", ""))}
+        ${expansionNum("expansionWrMainMin", "WR main % min", filterVal("expansionWrMainMin", ""))}
+        ${expansionNum("expansionWrMainMax", "WR main % max", filterVal("expansionWrMainMax", ""))}
+        ${expansionNum("expansionWrHoldMin", "WR holdout % min", filterVal("expansionWrHoldMin", ""))}
+        ${expansionNum("expansionWrHoldMax", "WR holdout % max", filterVal("expansionWrHoldMax", ""))}
+        ${expansionNum("expansionWr2026Min", "WR 2026 % min", filterVal("expansionWr2026Min", ""))}
+        ${expansionNum("expansionWr2026Max", "WR 2026 % max", filterVal("expansionWr2026Max", ""))}
+        ${expansionNum("expansionNMainMin", "Main N min", filterVal("expansionNMainMin", ""))}
+        <button class="btn" type="button" onclick="resetExpansionFilters()">Reset filters</button>
+        <span class="filter-count">showing ${filtered.length} of ${rows.length} rows</span>
+      </div>`;
   return `<div class="card">
       <h2>Token expansion</h2>
-      <p class="muted">Display only. Status comes from the optional verdict file. If that file is missing, every row stays PENDING. Profit factor is not a verdict. FAIL, VETO, and PENDING never join the Strategies table. Live stays off.</p>
+      <p class="muted">Display only. Status comes from the optional verdict file. If that file is missing, every row stays PENDING. Profit factor is not a verdict. Win rate is blank when the file has no winrate fields. FAIL, VETO, and PENDING never join the Strategies table. Filters and sorting stay on this card. Live stays off.</p>
       <div class="muted" style="margin-bottom:8px">${esc(doc.batch || "C1")} · ${esc(doc.cost_view || "")} · ${esc(counts.rows != null ? counts.rows : rows.length)} rows · ${esc(counts.pending != null ? counts.pending : rows.filter(r => String(r.verdict || "PENDING").toUpperCase() === "PENDING").length)} pending · ${esc(active.length)} on the active list, not copied onto Strategies · verdict file ${doc.verdict_file_found ? "loaded" : "not loaded"}</div>
       ${rows.length ? `<div class="muted" style="margin-bottom:8px">Seals main ${esc(shortSeal(seal.main))} · holdout ${esc(shortSeal(seal.holdout))} · 2026 ${esc(shortSeal(seal.exploratory))}</div>` : ""}
-      <div class="toolbar filters">
-        <select class="field" id="expansionStatus" onchange="onFilterChange()">
-          <option value="all" ${status === "all" ? "selected" : ""}>All statuses (${rows.length})</option>
-          <option value="PENDING" ${status === "PENDING" ? "selected" : ""}>Pending</option>
-          <option value="PASS" ${status === "PASS" ? "selected" : ""}>Pass</option>
-          <option value="FAIL" ${status === "FAIL" ? "selected" : ""}>Fail</option>
-          <option value="VETO" ${status === "VETO" ? "selected" : ""}>Veto</option>
-        </select>
-        <span class="filter-count">${filtered.length} of ${rows.length}</span>
-      </div>
+      ${filters}
       ${body}
     </div>`;
 }
