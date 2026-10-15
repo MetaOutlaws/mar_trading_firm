@@ -5,13 +5,14 @@
   "runtime_sha256": {
     "core/strategy/bl8.py": "ce150ed0a9bd250a6ace6ea4423aae2b477bb09002161901f086d9785075d99c",
     "core/execution/bl8_shadow.py": "9f014951e7a718243fb6b37436fea7a720e72beea39bda113ef7384c267959ae",
+    "core/execution/bl8_public.py": "488e54ef4b18db2793f26f02bb6c1259b326f5656efd7eaa796e3466768eded8",
     "core/risk/limits.py": "8d36ef9e97f00ba053585431b7da686113b33ec4ba65cfa7035aac4640fd71e7",
     "core/risk/sizing.py": "fd0ec64b23a92c0a1a4d0bcc62802d5650a343f97563a62044bc82c6905662a1",
-    "scripts/run_bl8_paper.py": "9d80a9639d3c240443069221087b659dc39219dab15b4846454621a68151ea18",
-    "scripts/verify_bl8_paper.py": "2953e6aabd5c929360b09b0e8ac67aaa73bbfb59abcf649f990e7f2c072ef61e",
+    "scripts/run_bl8_paper.py": "1b74b99697165e13299a729faef3a33ea420d5875f337a733da30a5880016c7b",
+    "scripts/verify_bl8_paper.py": "1f550da52d988370294b6afc93873a1ca0805cb808349d7951feee63ee2a1929",
     "config/sleeves/mar_bl8_shadow_v1.json": "fdff003e3997ff648418f03a5e63af0e1e0fd83c3ab66225420b252ff9b23b6c",
     "config/sleeves/mar_l01_long_f111_short_v1.json": "3b0972e83ba4e698a88c4f4681852bfd5f8fa3945f0187420d4b49e852908b5d",
-    "tests/test_bl8_shadow.py": "cf029442396e644bce8b8ea62520fb0f8c2c6dca8ea5118b26e2476ab0f6e457"
+    "tests/test_bl8_shadow.py": "36e5fa4dac7bb3ebabb4ae204499dc367076f12e4b8634f0f288de07d567f94c"
   },
   "config_sha256": "fdff003e3997ff648418f03a5e63af0e1e0fd83c3ab66225420b252ff9b23b6c"
 }

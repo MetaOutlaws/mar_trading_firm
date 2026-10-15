@@ -1,7 +1,7 @@
 {
   "local_status": "PASS",
   "completed_at": "2026-10-15T20:34:00+00:00",
-  "unit_tests": 37,
+  "unit_tests": 43,
   "unit_test_failures": 0,
   "historical_signal_comparison": {
     "status": "pass",
@@ -34,5 +34,6 @@
   "existing_hourly_changed": false,
   "hourly_risk_limits_behavior": "unchanged; RiskEngine._size_position delegates to core.risk.sizing.size_position; tests/test_risk.py 39 passed",
   "account_risk_fraction_selected": true,
-  "sizing_policy": "hourly_paper_limits"
+  "sizing_policy": "hourly_paper_limits",
+  "public_scan_pacing": "2 in flight, 0.2s between starts (5/s); 96 symbols x 3 calls = 288; about 57.6s; retry 10006/10018/429/403 rate responses"
 }

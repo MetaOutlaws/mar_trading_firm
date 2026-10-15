@@ -21,7 +21,7 @@ chmod 700 "$root" "$root/releases" "$state"
 stage="$(mktemp -d "$root/releases/.prepare-XXXXXX")"
 trap 'rm -rf -- "$stage"' EXIT
 git -C /data/app archive "$sha" \
- core/strategy/bl8.py core/execution/bl8_shadow.py \
+ core/strategy/bl8.py core/execution/bl8_shadow.py core/execution/bl8_public.py \
  core/risk/limits.py core/risk/sizing.py \
  scripts/run_bl8_paper.py scripts/verify_bl8_paper.py \
  config/sleeves/mar_bl8_shadow_v1.json config/sleeves/mar_l01_long_f111_short_v1.json tests/test_bl8_shadow.py \
@@ -70,6 +70,9 @@ ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=$state
 Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=BL8_PUBLIC_CONCURRENCY=2
+Environment=BL8_PUBLIC_MIN_INTERVAL_S=0.2
+Environment=BL8_PUBLIC_MAX_ATTEMPTS=5
 
 [Install]
 WantedBy=multi-user.target

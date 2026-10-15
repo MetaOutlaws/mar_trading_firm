@@ -13,39 +13,46 @@ from pathlib import Path
 import sys
 import time
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from core.strategy.bl8 import decision
 from core.execution.bl8_shadow import HOURLY_PAPER_STARTING_EQUITY, Ledger
+from core.execution.bl8_public import client_from_env, requeue_seconds
 from core.risk.limits import PAPER_LIMITS
 
 ALLOWED={'instruments-info','kline','orderbook','funding/history'}
+CLIENT=None
 
 
 def now_ms(): return time.time_ns()//1_000_000
 
 
+def public_client():
+    global CLIENT
+    if CLIENT is None:
+        CLIENT=client_from_env()
+    return CLIENT
+
+
 def public_get(path, **params):
     if path not in ALLOWED: raise ValueError('Only four public market-data endpoints are permitted')
-    request=Request('https://api.bybit.com/v5/market/'+path+'?'+urlencode({'category':'linear',**params}),
-                    headers={'User-Agent':'MAR-BL8-paper-validation/1'})
-    with urlopen(request,timeout=5) as response: body=json.load(response)
-    if body.get('retCode')!=0: raise ValueError(f'public market response {body.get("retCode")}')
+    url='https://api.bybit.com/v5/market/'+path+'?'+urlencode({'category':'linear',**params})
+    body=public_client().get(url, {'User-Agent':'MAR-BL8-paper-validation/1'})
     server=int(body['time']);received=now_ms()
     if not 0<=received-server<=5000: raise ValueError('server clock/response age mismatch')
     return body
 
 
-def context(symbol, asof):
-    instrument=public_get('instruments-info',symbol=symbol)['result']['list']
+def context(symbol, asof, get=None):
+    get=get or public_get
+    instrument=get('instruments-info',symbol=symbol)['result']['list']
     matches=[x for x in instrument if x.get('symbol')==symbol]
     if len(matches)!=1 or matches[0].get('status')!='Trading':
         return {'symbol':symbol,'eligible_signal':False,'reason':'instrument_unavailable','instrument':matches}
     histories=[];raw=[]
     for interval,duration in [('60',3_600_000),('240',14_400_000)]:
-        data=public_get('kline',symbol=symbol,interval=interval,end=asof-1,limit=40);raw.append(data)
+        data=get('kline',symbol=symbol,interval=interval,end=asof-1,limit=40);raw.append(data)
         bars=[{'t':int(r[0])+duration,**dict(zip('ohlc',map(float,r[1:5])))} for r in data['result']['list'] if int(r[0])+duration<=asof]
         bars.sort(key=lambda b:b['t']);histories.append(bars)
     return decision(symbol,*histories,asof)|{'instrument':matches[0],'raw_context':raw}
@@ -119,26 +126,37 @@ def main():
     ledger=Ledger(args.db,sha,starting_equity=float(config['starting_equity_usdt']),limits=PAPER_LIMITS)
     if args.audit: print(json.dumps(ledger.audit(),indent=2));return
     release=(ROOT/'BL8_RELEASE_SHA').read_text().strip() if (ROOT/'BL8_RELEASE_SHA').exists() else 'local_unpublished'
-    started=now_ms();ledger.observe(started,'startup',{'config_sha':sha,'release':release,'pid':os.getpid(),'paper_only':True})
+    global CLIENT
+    CLIENT=client_from_env()
+    pace={'concurrency':CLIENT.pacer.concurrency,'min_interval_s':CLIENT.pacer.min_interval_s,'max_attempts':CLIENT.max_attempts}
+    requeue_s=requeue_seconds()
+    started=now_ms();ledger.observe(started,'startup',{'config_sha':sha,'release':release,'pid':os.getpid(),'paper_only':True,'public_pacing':pace})
     jobs={};queued=set();last_hour=None;last_quote=0;last_funding=0;last_status=0;instruments={};last_loop=started
-    with cf.ThreadPoolExecutor(max_workers=12) as scan_pool, cf.ThreadPoolExecutor(max_workers=12) as exit_pool, cf.ThreadPoolExecutor(max_workers=4) as funding_pool:
+    scan_ok=set();retry_after={}
+    workers=CLIENT.pacer.concurrency
+    with cf.ThreadPoolExecutor(max_workers=workers) as scan_pool, cf.ThreadPoolExecutor(max_workers=workers) as exit_pool, cf.ThreadPoolExecutor(max_workers=workers) as funding_pool:
       while True:
         now=now_ms();hour=now//3_600_000*3_600_000
         if now-last_loop>15_000: ledger.observe(now,'supervision_gap',{'milliseconds':now-last_loop})
         last_loop=now
         if hour!=last_hour:
-            last_hour=hour
-            for symbol in config['universe']:
-                job=scan_pool.submit(context,symbol,hour);jobs[job]=('context',symbol)
+            last_hour=hour;scan_ok.clear();retry_after.clear()
+        mono=time.monotonic()
+        for symbol in config['universe']:
+            if symbol in scan_ok or ('context',symbol) in queued or retry_after.get(symbol,0)>mono: continue
+            job=scan_pool.submit(context,symbol,hour);jobs[job]=('context',symbol,hour);queued.add(('context',symbol))
         for job in list(jobs):
             if not job.done(): continue
-            kind,identity=jobs.pop(job);queued.discard((kind,identity));observed=now_ms()
+            meta=jobs.pop(job);kind,identity=meta[0],meta[1];job_hour=meta[2] if len(meta)>2 else hour
+            queued.discard((kind,identity));observed=now_ms()
             try:
                 value=job.result()
                 if kind=='context':
                     ledger.observe(observed,'context',value)
                     if isinstance(value.get('instrument'),dict): instruments[identity]=value['instrument']
                     ledger.signal(value,observed)
+                    if job_hour==last_hour:
+                        scan_ok.add(identity);retry_after.pop(identity,None)
                 elif kind=='quote':
                     ledger.observe(observed,'quote',value)
                     for p in ledger.positions():
@@ -151,7 +169,9 @@ def main():
                 elif kind=='funding':
                     through,settlements,complete=value;ledger.funding(identity,through,settlements,complete=complete)
             except Exception as exc:
-                ledger.observe(observed,'error',{'operation':kind,'identity':identity,'error':f'{type(exc).__name__}: {exc}'})
+                ledger.observe(observed,'error',{'operation':kind,'identity':identity,'error':f'{type(exc).__name__}: {exc}','attempts':getattr(exc,'attempts',None)})
+                if kind=='context' and job_hour==last_hour:
+                    scan_ok.discard(identity);retry_after[identity]=time.monotonic()+requeue_s
         if now-last_quote>=5000:
             last_quote=now;symbols={p['symbol'] for p in ledger.positions()}
             for s in ledger.signals():
@@ -169,7 +189,8 @@ def main():
                     interval=instruments[p['symbol']].get('fundingInterval',0)
                     job=funding_pool.submit(funding_snapshot,p,interval);jobs[job]=('funding',p['uid']);queued.add(('funding',p['uid']))
         if now-last_status>=10_000:
-            last_status=now;status={'heartbeat_ms':now,'started_ms':started,'config_sha':sha,'release':release,'jobs':len(jobs),'paper_only':True,'audit':ledger.audit()}
+            last_status=now;status={'heartbeat_ms':now,'started_ms':started,'config_sha':sha,'release':release,'jobs':len(jobs),'paper_only':True,'audit':ledger.audit(),
+                'public_pacing':pace,'universe_scan_complete':set(config['universe'])<=scan_ok and not any(symbol not in scan_ok for symbol in retry_after)}
             status['equity']=ledger.equity(now)
             status['entry_decisions']={r[0]:r[1] for r in ledger.db.execute('SELECT status,count(*) FROM signals GROUP BY status')}
             tmp=args.db.parent/'status.tmp';tmp.write_text(json.dumps(status,indent=2));os.replace(tmp,args.db.parent/'status.json')

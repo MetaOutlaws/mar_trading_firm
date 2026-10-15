@@ -50,9 +50,11 @@ docker inspect -f '{{.State.Running}}' mo-paper-paper-1
 
 Fetching the pull-request branch updates `FETCH_HEAD` only. It does not check out that commit, does not move the hourly HEAD, and does not restart a container. If either `test` fails, stop and report that before installing.
 
-## Keep the previous BL8 book
+## Keep the paper-limits book
 
-This commit changes the sleeve config, so the ledger will refuse a database written by the 1 USDT sizing rule. That refusal is the rule-change guard. Preserve the old files and let the new release open a new `paper.db`. Do not delete the old database to make the audit pass.
+Sizing is unchanged, and the sleeve file is unchanged, so the database written by `5c29472b335b2776e5d6e63acce99f0b31693f05` still matches this release. Leave `/data/state/bl8-paper/paper.db` in place, including its `-wal` and `-shm` files. Do not delete it and do not move it aside to force a fresh scan.
+
+Move the database only if the installer audit says the existing book refused the release. Preserve it, do not delete it:
 
 ```bash
 state=/data/state/bl8-paper
@@ -70,6 +72,12 @@ fi
 ```
 
 Leave `entries_disabled` as you found it. Leave `status.json` in place; the new process replaces it after it is started.
+
+## Public request pace
+
+The unit sets `BL8_PUBLIC_CONCURRENCY=2`, `BL8_PUBLIC_MIN_INTERVAL_S=0.2` (5 requests/second), and `BL8_PUBLIC_MAX_ATTEMPTS=5`. A 96-symbol scan makes 288 public calls (instrument, hourly kline, four-hour kline). At that pace the scan takes about 58 seconds when Bybit answers promptly, which is inside the two-minute entry window and under Bybit's published budget of 600 requests per 5 seconds. The burst that returned `retCode` 10006 was about 96 requests in one second.
+
+`10006`, `10018`, HTTP 429, and HTTP 403 responses that say the caller is too fast are retried with exponential backoff and jitter. `X-Bapi-Limit-Reset-Timestamp` or `Retry-After` is used when Bybit sends it. When the attempts are used up, that symbol is stored as an error and tried again after a short pause. The universe scan stays incomplete until every symbol's latest context attempt succeeded. Verification still reports `initial_universe_scan_incomplete` in that case. Wait for the scan (about a minute, longer if Bybit keeps rate-limiting) before treating a missing symbol as a failed install.
 
 ## Install the release and leave the service stopped
 
@@ -106,7 +114,7 @@ systemctl start mar-bl8-shadow.service
 systemctl is-active mar-bl8-shadow.service
 ```
 
-After the first 96-symbol scan, run the verification command the installer printed. It looks like:
+After the first 96-symbol scan (about 58 seconds at the default pace, longer if requests are retried), run the verification command the installer printed. It looks like:
 
 ```bash
 python3 /opt/mar-bl8/releases/<sha>/scripts/verify_bl8_paper.py \

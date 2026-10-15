@@ -5,9 +5,12 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+import sys
 import time
 
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT))
+from core.execution.bl8_public import scan_complete
 
 
 def main():
@@ -25,10 +28,17 @@ def main():
     manifest=json.loads((ROOT/'docs/bl8-paper-validation/RELEASE_MANIFEST.json').read_text())
     for name,digest in manifest['runtime_sha256'].items():
         if hashlib.sha256((ROOT/name).read_bytes()).hexdigest()!=digest:failures.append('runtime_hash:'+name)
-    context={};context_times={}
-    for r in db.execute("SELECT t,payload FROM observations WHERE kind='context' AND t>=? ORDER BY id",(status['started_ms'],)):
-        p=json.loads(r['payload']);context[p['symbol']]=p;context_times[p['symbol']]=r['t']
-    if set(context)!=universe:failures.append('initial_universe_scan_incomplete')
+    context={};context_times={};scan_events=[]
+    for r in db.execute("SELECT t,kind,payload FROM observations WHERE kind IN ('context','error') AND t>=? ORDER BY id",(status['started_ms'],)):
+        p=json.loads(r['payload'])
+        if r['kind']=='error':
+            if p.get('operation') not in (None,'context'): continue
+            symbol=p.get('identity')
+            if symbol: scan_events.append((r['t'],'error',symbol))
+            continue
+        context[p['symbol']]=p;context_times[p['symbol']]=r['t'];scan_events.append((r['t'],'context',p['symbol']))
+    if set(context)!=universe or not scan_complete(universe,scan_events) or status.get('universe_scan_complete') is False:
+        failures.append('initial_universe_scan_incomplete')
     if any(not 0<=now-t<=70*60_000 for t in context_times.values()):failures.append('stale_context_scan')
     errors=[dict(r) for r in db.execute("SELECT t,payload FROM observations WHERE kind='error' AND t>=? ORDER BY id DESC LIMIT 30",(status['started_ms'],))]
     gap_count=db.execute("SELECT count(*) FROM observations WHERE kind='supervision_gap' AND t>=?",(status['started_ms'],)).fetchone()[0]
