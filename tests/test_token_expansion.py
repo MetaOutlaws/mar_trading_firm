@@ -280,6 +280,166 @@ def test_strategies_endpoint_publishes_the_blocked_row_filter(monkeypatch) -> No
     assert not any(pair.get("verdict") in {"FAIL", "VETO", "PENDING"} for pair in payload["pairs"])
 
 
+def _write_phase(root: Path, phase: str, summary: str, trades: str) -> str:
+    """Seal one phase directory and return the SHA256SUMS digest."""
+    directory = root / phase
+    directory.mkdir()
+    (directory / "summary.csv").write_text(summary, encoding="utf-8")
+    (directory / "per_token_trades.csv").write_text(trades, encoding="utf-8")
+    lines = []
+    for name in ("summary.csv", "per_token_trades.csv"):
+        digest = hashlib.sha256((directory / name).read_bytes()).hexdigest()
+        lines.append(f"{digest}  {name}\n")
+    manifest = directory / "SHA256SUMS"
+    manifest.write_text("".join(lines), encoding="utf-8")
+    return hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+
+def test_win_rate_from_trade_list_and_null_when_n_is_zero(tmp_path) -> None:
+    """Official-cost net_return > 0 over N. N = 0 stays null. Other costs are ignored."""
+    from research.token_expansion.ingest import (
+        TRADE_NET_RETURN_COLUMN,
+        TRADE_SEGMENT_COLUMN,
+        build_results,
+        compute_win_rate,
+    )
+
+    assert TRADE_NET_RETURN_COLUMN == "net_return"
+    assert TRADE_SEGMENT_COLUMN == "segment"
+    assert compute_win_rate([]) is None
+    assert compute_win_rate([0.1, -0.2, 0.0]) == pytest.approx(1 / 3)
+    assert compute_win_rate([-0.05]) == 0.0
+
+    header = "cost_bar,row,token,pf,trades\n"
+    identity = "bb_medium_bw_upper_reject:x:SHORT:4h"
+    trade_header = "token,row,segment,cost_bar,net_return\n"
+    seals = {
+        "main": _write_phase(
+            tmp_path,
+            "main",
+            header
+            + f"official_0.31,{identity},AAVEUSDT,1.2,3\n"
+            + f"official_0.31,{identity},NEARUSDT,,0\n"
+            + f"other_cost,{identity},AAVEUSDT,9,9\n",
+            trade_header
+            + f"AAVEUSDT,{identity},main,official_0.31,0.2\n"
+            + f"AAVEUSDT,{identity},main,official_0.31,-0.1\n"
+            + f"AAVEUSDT,{identity},main,official_0.31,0\n"
+            + f"AAVEUSDT,{identity},main,other_cost,5\n",
+        ),
+        "holdout": _write_phase(
+            tmp_path,
+            "holdout",
+            header
+            + f"official_0.31,{identity},AAVEUSDT,,0\n"
+            + f"official_0.31,{identity},NEARUSDT,,0\n",
+            trade_header,
+        ),
+        "exploratory": _write_phase(
+            tmp_path,
+            "exploratory",
+            header
+            + f"official_0.31,{identity},AAVEUSDT,0.4,1\n"
+            + f"official_0.31,{identity},NEARUSDT,,0\n",
+            trade_header + f"AAVEUSDT,{identity},2026,official_0.31,-0.05\n",
+        ),
+    }
+    document = build_results(str(tmp_path), seals=seals)
+    by_token = {row["token"]: row for row in document["rows"]}
+    assert by_token["AAVEUSDT"]["winrate_main"] == pytest.approx(1 / 3)
+    assert by_token["AAVEUSDT"]["winrate_holdout"] is None
+    assert by_token["AAVEUSDT"]["winrate_2026"] == 0.0
+    assert by_token["AAVEUSDT"]["pf_exploratory"] == pytest.approx(0.4)
+    assert "winrate_exploratory" not in by_token["AAVEUSDT"]
+    assert by_token["NEARUSDT"]["winrate_main"] is None
+    assert by_token["NEARUSDT"]["winrate_holdout"] is None
+    assert by_token["NEARUSDT"]["winrate_2026"] is None
+    source = (ROOT / "research" / "token_expansion" / "ingest.py").read_text(encoding="utf-8")
+    assert "research.engine" not in source
+    assert "core.execution" not in source
+
+
+def test_trade_list_count_mismatch_fails_closed(tmp_path) -> None:
+    from research.token_expansion.ingest import build_results
+
+    header = "cost_bar,row,token,pf,trades\n"
+    identity = "bb_medium_bw_upper_reject:x:SHORT:4h"
+    trade_header = "token,row,segment,cost_bar,net_return\n"
+    seals = {}
+    for phase, segment in (("main", "main"), ("holdout", "holdout"), ("exploratory", "exploratory")):
+        trades = trade_header
+        summary = header + f"official_0.31,{identity},AAVEUSDT,1,2\n"
+        if phase == "main":
+            trades += f"AAVEUSDT,{identity},{segment},official_0.31,0.1\n"
+        else:
+            summary = header + f"official_0.31,{identity},AAVEUSDT,1,0\n"
+        seals[phase] = _write_phase(tmp_path, phase, summary, trades)
+    with pytest.raises(SystemExit) as caught:
+        build_results(str(tmp_path), seals=seals)
+    assert "FAIL CLOSED" in str(caught.value)
+
+
+def test_manifest_mismatch_fails_before_trade_lists(tmp_path) -> None:
+    from research.token_expansion.ingest import build_results
+
+    seals = {
+        phase: _write_phase(
+            tmp_path,
+            phase,
+            "cost_bar,row,token,pf,trades\n",
+            "token,row,segment,cost_bar,net_return\n",
+        )
+        for phase in ("main", "holdout", "exploratory")
+    }
+    seals["main"] = "0" * 64
+    with pytest.raises(SystemExit) as caught:
+        build_results(str(tmp_path), seals=seals)
+    assert "manifest mismatch" in str(caught.value)
+
+
+def test_old_results_file_leaves_win_rate_blank(monkeypatch) -> None:
+    """The committed C1 file has no winrate fields and keeps its sha."""
+    _arm(monkeypatch, FIXTURE, _sha(FIXTURE), None)
+    from research.token_expansion.load import load_token_expansion
+
+    document = load_token_expansion()
+    assert document["rows"]
+    for row in document["rows"]:
+        assert row["winrate_main"] is None
+        assert row["winrate_holdout"] is None
+        assert row["winrate_2026"] is None
+        assert row["pf_2026"] == row["pf_exploratory"]
+    full = json.loads(FULL.read_text(encoding="utf-8"))
+    assert "winrate_main" not in full["rows"][0]
+    assert "winrate_2026" not in full["rows"][0]
+    assert _sha(FULL) == (
+        "1f164c78ffbffa4b3531904ffda94cfc2242bd51725d9d83620368fed3b2e877"
+    )
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    required = schema["$defs"]["row"]["required"]
+    properties = schema["$defs"]["row"]["properties"]
+    assert "winrate_main" not in required
+    assert "winrate_holdout" not in required
+    assert "winrate_2026" not in required
+    assert "pf_exploratory" in required
+    assert "winrate_main" in properties
+
+
+def test_win_rate_out_of_range_fails_closed(tmp_path, monkeypatch) -> None:
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    for row in document["rows"]:
+        row["winrate_main"] = 1.5
+        row["winrate_holdout"] = None
+        row["winrate_2026"] = 0.25
+    path = tmp_path / "bad-winrate.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    _arm(monkeypatch, path, _sha(path), None)
+    response = _expansion_response()
+    assert response.status_code == 422
+    assert "rows" not in response.json()
+    assert "AAVEUSDT" not in response.text
+
+
 def test_dashboard_keeps_expansion_off_the_strategies_table() -> None:
     html = DASHBOARD.read_text(encoding="utf-8")
     assert "function renderTokenExpansion(" in html
@@ -293,3 +453,18 @@ def test_dashboard_keeps_expansion_off_the_strategies_table() -> None:
     strategies_fn = html.split("function renderStrategies()", 1)[1].split("function renderGates()", 1)[0]
     assert "state.expansion.rows" not in strategies_fn
     assert "active_strategies" not in strategies_fn
+    assert "sortExpansion" not in strategies_fn
+    assert "expansionFilteredRows" not in strategies_fn
+    assert "resetExpansionFilters" not in strategies_fn
+    # Card filters are display-only. They do not feed the strategies table.
+    assert "PF = gross profit / gross loss" in html
+    assert "N = trade count" in html
+    assert "WR = winning trades / N" in html
+    assert "Holdout = H2 2025, scored once" in html
+    assert "2026 = exploratory, veto-only" in html
+    assert "showing ${filtered.length} of ${rows.length} rows" in html
+    assert "Reset filters" in html
+    assert "function sortExpansion(" in html
+    assert "winrate_main" in html
+    assert "expansionNMainMin" in html
+    assert "Nulls stay last" in html

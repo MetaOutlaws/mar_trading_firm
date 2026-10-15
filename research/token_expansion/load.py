@@ -122,7 +122,22 @@ def _require_document(document: object) -> dict[str, Any]:
         for field in ("trades_main", "trades_holdout", "trades_exploratory"):
             if not _is_trade_count(row[field]):
                 raise ExpansionSealError(422, f"token expansion row {index} has a bad {field}")
+        # Optional. Absent on the committed C1 file. Never filled in from PF.
+        for field in ("winrate_main", "winrate_holdout", "winrate_2026"):
+            row[field] = _optional_win_rate(row, field, index)
     return document
+
+
+def _optional_win_rate(row: dict[str, Any], field: str, index: int) -> float | None:
+    """Fraction in 0..1, or null. Missing and JSON null are both null."""
+    if field not in row or row[field] is None:
+        return None
+    value = row[field]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ExpansionSealError(422, f"token expansion row {index} has a bad {field}")
+    if value < 0 or value > 1:
+        raise ExpansionSealError(422, f"token expansion row {index} has a bad {field}")
+    return float(value)
 
 
 def _load_verdict_map(raw_path: str) -> tuple[dict[tuple[str, str, str, str], str], str | None, bool]:
@@ -191,6 +206,10 @@ def _public_row(row: dict[str, Any], verdict: str) -> dict[str, Any]:
         "trades_exploratory": row["trades_exploratory"],
         "pf_2026": row["pf_exploratory"],
         "trades_2026": row["trades_exploratory"],
+        # Blank when the results file predates win rate. Not inferred from PF.
+        "winrate_main": row.get("winrate_main"),
+        "winrate_holdout": row.get("winrate_holdout"),
+        "winrate_2026": row.get("winrate_2026"),
         "seal_sha": {
             "main": row["seal_sha"]["main"],
             "holdout": row["seal_sha"]["holdout"],

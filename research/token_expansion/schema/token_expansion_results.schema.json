@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mar-trading-firm.local/schema/token_expansion_results.schema.json",
   "title": "Token expansion batch results",
-  "description": "Sealed token-expansion batch. Display artifact only. The verdict field in this file is not a promotion. The dashboard overlays verdicts from a separate file and otherwise shows PENDING. pf_exploratory and trades_exploratory are the 2026 window.",
+  "description": "Sealed token-expansion batch. Display artifact only. The verdict field in this file is not a promotion. The dashboard overlays verdicts from a separate file and otherwise shows PENDING. pf_exploratory and trades_exploratory are the 2026 window (also exposed as pf_2026 and trades_2026). winrate_main, winrate_holdout, and winrate_2026 are optional fractions from 0 to 1, or null. Files written before win rate existed omit them and still validate.",
   "type": "object",
   "additionalProperties": false,
   "required": ["batch", "cost_view", "verdict_source", "rows"],
@@ -28,6 +28,13 @@
       ]
     },
     "trade_count": { "type": "integer", "minimum": 0 },
+    "win_rate": {
+      "description": "Winning trades divided by N. A fraction from 0 to 1, or null when N is 0 or the field was not in the file.",
+      "anyOf": [
+        { "type": "number", "minimum": 0, "maximum": 1 },
+        { "type": "null" }
+      ]
+    },
     "row": {
       "type": "object",
       "additionalProperties": false,
@@ -80,6 +87,12 @@
         "trades_exploratory": {
           "$ref": "#/$defs/trade_count",
           "description": "Trade count on the 2026 exploratory window."
+        },
+        "winrate_main": { "$ref": "#/$defs/win_rate" },
+        "winrate_holdout": { "$ref": "#/$defs/win_rate" },
+        "winrate_2026": {
+          "$ref": "#/$defs/win_rate",
+          "description": "Win rate on the 2026 exploratory window. pf_exploratory remains the profit-factor field for that window."
         }
       }
     }
