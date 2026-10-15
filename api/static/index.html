@@ -445,9 +445,10 @@ tr.fam-child td:first-child { color: var(--faint); padding-left: 22px; }
   border-radius: 10px;
   padding: 8px 10px;
 }
-.exp-filter { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+.expansion-filters { flex-wrap: nowrap; }
+.exp-filter { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .exp-filter .field { width: auto; max-width: 160px; }
-.exp-filter .exp-num { width: 72px; }
+.exp-filter .exp-num { width: 64px; }
 .expansion-scroll { overflow-x: auto; }
 .expansion-table { min-width: 1280px; }
 button.sort-btn {
@@ -884,24 +885,10 @@ const FILTER_IDS = [
   "stratStatus", "stratFamily", "stratWhen", "stratQ",
   "inboxQ", "inboxWhen", "escalQ", "escalWhen", "escalSev",
   "paperFamQ",
-  "expansionBatch", "expansionRule", "expansionSide", "expansionToken", "expansionVerdict",
-  "expansionPfMainMin", "expansionPfMainMax",
-  "expansionPfHoldMin", "expansionPfHoldMax",
-  "expansionPf2026Min", "expansionPf2026Max",
-  "expansionWrMainMin", "expansionWrMainMax",
-  "expansionWrHoldMin", "expansionWrHoldMax",
-  "expansionWr2026Min", "expansionWr2026Max",
-  "expansionNMainMin",
+  "expansionWrMainMin", "expansionPfMainMin", "expansionWr2026Min", "expansionPf2026Min",
 ];
 const EXPANSION_FILTER_IDS = [
-  "expansionBatch", "expansionRule", "expansionSide", "expansionToken", "expansionVerdict",
-  "expansionPfMainMin", "expansionPfMainMax",
-  "expansionPfHoldMin", "expansionPfHoldMax",
-  "expansionPf2026Min", "expansionPf2026Max",
-  "expansionWrMainMin", "expansionWrMainMax",
-  "expansionWrHoldMin", "expansionWrHoldMax",
-  "expansionWr2026Min", "expansionWr2026Max",
-  "expansionNMainMin",
+  "expansionWrMainMin", "expansionPfMainMin", "expansionWr2026Min", "expansionPf2026Min",
 ];
 let expansionSort = { key: "", dir: "asc" };
 function snapshotFilters() {
@@ -1951,48 +1938,16 @@ function expansionBound(raw) {
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
-// A set min or max drops nulls. An empty box does not filter.
-function expansionPassesRange(value, minRaw, maxRaw, scale) {
-  const min = expansionBound(minRaw);
-  const max = expansionBound(maxRaw);
-  if (min == null && max == null) return true;
-  if (value == null) return false;
-  const scaled = scale ? value * scale : value;
-  if (min != null && scaled < min) return false;
-  if (max != null && scaled > max) return false;
-  return true;
-}
-function expansionPassesMinCount(value, minRaw) {
+// An empty minimum keeps every row, including nulls. A set minimum drops nulls.
+function expansionPassesMin(value, minRaw, scale) {
   const min = expansionBound(minRaw);
   if (min == null) return true;
   if (value == null) return false;
-  return value >= min;
-}
-function expansionPassesChoice(value, selected) {
-  if (!selected || selected === "all") return true;
-  return String(value ?? "") === selected;
-}
-function expansionDistinct(rows, field, normalize) {
-  const seen = new Set();
-  const values = [];
-  for (const row of rows) {
-    let value = row[field];
-    if (value == null || value === "") continue;
-    value = normalize ? normalize(value) : String(value);
-    if (seen.has(value)) continue;
-    seen.add(value);
-    values.push(value);
-  }
-  values.sort();
-  return values;
-}
-function expansionSelect(id, label, values, current) {
-  const options = [`<option value="all"${current === "all" ? " selected" : ""}>All</option>`]
-    .concat(values.map(value => `<option value="${esc(value)}"${current === value ? " selected" : ""}>${esc(value)}</option>`));
-  return `<label class="exp-filter">${esc(label)} <select class="field" id="${id}" onchange="onFilterChange()">${options.join("")}</select></label>`;
+  const scaled = scale ? value * scale : value;
+  return scaled >= min;
 }
 function expansionNum(id, label, current) {
-  return `<label class="exp-filter">${esc(label)} <input class="field exp-num" id="${id}" type="number" step="any" value="${esc(current)}" oninput="onFilterChange()"/></label>`;
+  return `<label class="exp-filter">${esc(label)} <input class="field exp-num" id="${id}" type="number" step="any" placeholder="min" value="${esc(current)}" oninput="onFilterChange()"/></label>`;
 }
 function expansionHeader(key, label, title) {
   const active = expansionSort.key === key;
@@ -2015,30 +1970,16 @@ function resetExpansionFilters() {
   pages.expansion = 1;
   for (const id of EXPANSION_FILTER_IDS) {
     const el = document.getElementById(id);
-    if (!el) continue;
-    el.value = el.tagName === "SELECT" ? "all" : "";
+    if (el) el.value = "";
   }
   render({ keepScroll: true, force: true });
 }
 function expansionFilteredRows(rows) {
-  const batch = filterVal("expansionBatch", "all");
-  const rule = filterVal("expansionRule", "all");
-  const side = filterVal("expansionSide", "all");
-  const token = filterVal("expansionToken", "all");
-  const verdict = filterVal("expansionVerdict", "all");
   const kept = rows.filter(row => {
-    if (!expansionPassesChoice(row.batch, batch)) return false;
-    if (!expansionPassesChoice(row.rule, rule)) return false;
-    if (!expansionPassesChoice(row.side, side)) return false;
-    if (!expansionPassesChoice(row.token, token)) return false;
-    if (!expansionPassesChoice(String(row.verdict || "PENDING").toUpperCase(), verdict)) return false;
-    if (!expansionPassesRange(expansionMetric(row, "pf_main"), filterVal("expansionPfMainMin", ""), filterVal("expansionPfMainMax", ""))) return false;
-    if (!expansionPassesRange(expansionMetric(row, "pf_holdout"), filterVal("expansionPfHoldMin", ""), filterVal("expansionPfHoldMax", ""))) return false;
-    if (!expansionPassesRange(expansionMetric(row, "pf_2026"), filterVal("expansionPf2026Min", ""), filterVal("expansionPf2026Max", ""))) return false;
-    if (!expansionPassesRange(expansionMetric(row, "winrate_main"), filterVal("expansionWrMainMin", ""), filterVal("expansionWrMainMax", ""), 100)) return false;
-    if (!expansionPassesRange(expansionMetric(row, "winrate_holdout"), filterVal("expansionWrHoldMin", ""), filterVal("expansionWrHoldMax", ""), 100)) return false;
-    if (!expansionPassesRange(expansionMetric(row, "winrate_2026"), filterVal("expansionWr2026Min", ""), filterVal("expansionWr2026Max", ""), 100)) return false;
-    if (!expansionPassesMinCount(expansionMetric(row, "trades_main"), filterVal("expansionNMainMin", ""))) return false;
+    if (!expansionPassesMin(expansionMetric(row, "winrate_main"), filterVal("expansionWrMainMin", ""), 100)) return false;
+    if (!expansionPassesMin(expansionMetric(row, "pf_main"), filterVal("expansionPfMainMin", ""))) return false;
+    if (!expansionPassesMin(expansionMetric(row, "winrate_2026"), filterVal("expansionWr2026Min", ""), 100)) return false;
+    if (!expansionPassesMin(expansionMetric(row, "pf_2026"), filterVal("expansionPf2026Min", ""))) return false;
     return true;
   });
   if (!expansionSort.key) return kept;
@@ -2120,26 +2061,12 @@ function renderTokenExpansion() {
           }).join("")}</tbody>
         </table>
       </div>${pagerHtml("expansion", sliced, "rows")}` : `<div class="muted">No token-expansion rows in the sealed file.</div>`);
-  const filters = `<div class="toolbar filters">
-        ${expansionSelect("expansionBatch", "Batch", expansionDistinct(rows, "batch"), filterVal("expansionBatch", "all"))}
-        ${expansionSelect("expansionRule", "Rule", expansionDistinct(rows, "rule"), filterVal("expansionRule", "all"))}
-        ${expansionSelect("expansionSide", "Side", expansionDistinct(rows, "side"), filterVal("expansionSide", "all"))}
-        ${expansionSelect("expansionToken", "Token", expansionDistinct(rows, "token"), filterVal("expansionToken", "all"))}
-        ${expansionSelect("expansionVerdict", "Verdict", expansionDistinct(rows, "verdict", value => String(value).toUpperCase()), filterVal("expansionVerdict", "all"))}
-        ${expansionNum("expansionPfMainMin", "PF main min", filterVal("expansionPfMainMin", ""))}
-        ${expansionNum("expansionPfMainMax", "PF main max", filterVal("expansionPfMainMax", ""))}
-        ${expansionNum("expansionPfHoldMin", "PF holdout min", filterVal("expansionPfHoldMin", ""))}
-        ${expansionNum("expansionPfHoldMax", "PF holdout max", filterVal("expansionPfHoldMax", ""))}
-        ${expansionNum("expansionPf2026Min", "PF 2026 min", filterVal("expansionPf2026Min", ""))}
-        ${expansionNum("expansionPf2026Max", "PF 2026 max", filterVal("expansionPf2026Max", ""))}
-        ${expansionNum("expansionWrMainMin", "WR main % min", filterVal("expansionWrMainMin", ""))}
-        ${expansionNum("expansionWrMainMax", "WR main % max", filterVal("expansionWrMainMax", ""))}
-        ${expansionNum("expansionWrHoldMin", "WR holdout % min", filterVal("expansionWrHoldMin", ""))}
-        ${expansionNum("expansionWrHoldMax", "WR holdout % max", filterVal("expansionWrHoldMax", ""))}
-        ${expansionNum("expansionWr2026Min", "WR 2026 % min", filterVal("expansionWr2026Min", ""))}
-        ${expansionNum("expansionWr2026Max", "WR 2026 % max", filterVal("expansionWr2026Max", ""))}
-        ${expansionNum("expansionNMainMin", "Main N min", filterVal("expansionNMainMin", ""))}
-        <button class="btn" type="button" onclick="resetExpansionFilters()">Reset filters</button>
+  const filters = `<div class="toolbar filters expansion-filters">
+        ${expansionNum("expansionWrMainMin", "Main WR %", filterVal("expansionWrMainMin", ""))}
+        ${expansionNum("expansionPfMainMin", "Main PF", filterVal("expansionPfMainMin", ""))}
+        ${expansionNum("expansionWr2026Min", "2026 WR %", filterVal("expansionWr2026Min", ""))}
+        ${expansionNum("expansionPf2026Min", "2026 PF", filterVal("expansionPf2026Min", ""))}
+        <button class="btn" type="button" onclick="resetExpansionFilters()">Reset</button>
         <span class="filter-count">showing ${filtered.length} of ${rows.length} rows</span>
       </div>`;
   return `<div class="card">
