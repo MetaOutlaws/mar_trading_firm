@@ -1,0 +1,2287 @@
+{
+ "batch": "C1",
+ "cost_view": "official_0.31",
+ "verdict_source": null,
+ "rows": [
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9152349586090192,
+   "trades_main": 109,
+   "pf_holdout": 0.9461530457479702,
+   "trades_holdout": 37,
+   "pf_exploratory": 1.0459035481344277,
+   "trades_exploratory": 52
+  },
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0076629886942083,
+   "trades_main": 102,
+   "pf_holdout": 0.9341785768097565,
+   "trades_holdout": 32,
+   "pf_exploratory": 0.9018074046063,
+   "trades_exploratory": 38
+  },
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.6936906761636744,
+   "trades_main": 98,
+   "pf_holdout": 1.1692124472074326,
+   "trades_holdout": 28,
+   "pf_exploratory": 1.115776843270413,
+   "trades_exploratory": 37
+  },
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.887393487736831,
+   "trades_main": 115,
+   "pf_holdout": 1.5521130729231611,
+   "trades_holdout": 24,
+   "pf_exploratory": 1.3951070843429025,
+   "trades_exploratory": 40
+  },
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.6164773653154079,
+   "trades_main": 106,
+   "pf_holdout": 1.3800894282115022,
+   "trades_holdout": 32,
+   "pf_exploratory": 0.7367605217976475,
+   "trades_exploratory": 40
+  },
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0541565543794986,
+   "trades_main": 107,
+   "pf_holdout": 0.6411874728957926,
+   "trades_holdout": 29,
+   "pf_exploratory": 1.0785330477125459,
+   "trades_exploratory": 36
+  },
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9578010211548234,
+   "trades_main": 108,
+   "pf_holdout": 0.570747153224097,
+   "trades_holdout": 32,
+   "pf_exploratory": 0.9186692343589018,
+   "trades_exploratory": 43
+  },
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8368473595885769,
+   "trades_main": 89,
+   "pf_holdout": 1.0070469783311005,
+   "trades_holdout": 32,
+   "pf_exploratory": 0.8819867978417278,
+   "trades_exploratory": 43
+  },
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.6069309927113101,
+   "trades_main": 70,
+   "pf_holdout": 0.6590927552516314,
+   "trades_holdout": 12,
+   "pf_exploratory": 1.266506428004849,
+   "trades_exploratory": 11
+  },
+  {
+   "batch": "C1",
+   "rule": "bb_medium_bw_upper_reject",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.7342656282272517,
+   "trades_main": 124,
+   "pf_holdout": 1.0066901127575718,
+   "trades_holdout": 26,
+   "pf_exploratory": 1.0363291203623533,
+   "trades_exploratory": 56
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9061032726522082,
+   "trades_main": 49,
+   "pf_holdout": 0.48775001498326054,
+   "trades_holdout": 17,
+   "pf_exploratory": 1.976501133077707,
+   "trades_exploratory": 17
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.6874356664590747,
+   "trades_main": 47,
+   "pf_holdout": 0.9420894781117991,
+   "trades_holdout": 14,
+   "pf_exploratory": 0.5791966303479312,
+   "trades_exploratory": 19
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.4903417982523892,
+   "trades_main": 57,
+   "pf_holdout": 0.38679670135442035,
+   "trades_holdout": 10,
+   "pf_exploratory": 1.3704713567554188,
+   "trades_exploratory": 18
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0718664079638824,
+   "trades_main": 40,
+   "pf_holdout": 0.39854190060741673,
+   "trades_holdout": 15,
+   "pf_exploratory": 1.8504434479688943,
+   "trades_exploratory": 17
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.1297758216390132,
+   "trades_main": 51,
+   "pf_holdout": 0.9386157608202806,
+   "trades_holdout": 14,
+   "pf_exploratory": 1.5364717615728214,
+   "trades_exploratory": 20
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.4665969326892412,
+   "trades_main": 44,
+   "pf_holdout": 2.0835061222288154,
+   "trades_holdout": 7,
+   "pf_exploratory": 1.9752128219108822,
+   "trades_exploratory": 15
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9886330233023561,
+   "trades_main": 50,
+   "pf_holdout": 1.1589567409660253,
+   "trades_holdout": 14,
+   "pf_exploratory": 1.2010707854570397,
+   "trades_exploratory": 17
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0791240000932394,
+   "trades_main": 44,
+   "pf_holdout": 1.037659267250355,
+   "trades_holdout": 14,
+   "pf_exploratory": 0.863073086560874,
+   "trades_exploratory": 13
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.45747476932746106,
+   "trades_main": 39,
+   "pf_holdout": 0.9896802949813702,
+   "trades_holdout": 12,
+   "pf_exploratory": 0.3096281973816716,
+   "trades_exploratory": 16
+  },
+  {
+   "batch": "C1",
+   "rule": "doji_star_reversal",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.704969781559127,
+   "trades_main": 46,
+   "pf_holdout": 0.583027991241067,
+   "trades_holdout": 11,
+   "pf_exploratory": 1.0519533409233623,
+   "trades_exploratory": 24
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.5133462912569998,
+   "trades_main": 36,
+   "pf_holdout": 0.7529687204524746,
+   "trades_holdout": 11,
+   "pf_exploratory": 1.1540314273130512,
+   "trades_exploratory": 16
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.8635038910290844,
+   "trades_main": 37,
+   "pf_holdout": 0.7049050926217544,
+   "trades_holdout": 16,
+   "pf_exploratory": 1.61848466392952,
+   "trades_exploratory": 19
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9104573416363673,
+   "trades_main": 49,
+   "pf_holdout": 0.8982087366977143,
+   "trades_holdout": 8,
+   "pf_exploratory": 0.9339279086425282,
+   "trades_exploratory": 20
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9581466998574557,
+   "trades_main": 28,
+   "pf_holdout": 0.898052931183661,
+   "trades_holdout": 12,
+   "pf_exploratory": 3.269341105584469,
+   "trades_exploratory": 24
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.7129078292889216,
+   "trades_main": 34,
+   "pf_holdout": 2.0909938722826524,
+   "trades_holdout": 10,
+   "pf_exploratory": 1.2280508905673262,
+   "trades_exploratory": 18
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9467707186902039,
+   "trades_main": 40,
+   "pf_holdout": 1.5791327066936895,
+   "trades_holdout": 11,
+   "pf_exploratory": 2.6200413147242525,
+   "trades_exploratory": 17
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.2895237589634103,
+   "trades_main": 42,
+   "pf_holdout": 0.3869805661308857,
+   "trades_holdout": 10,
+   "pf_exploratory": 1.0380035213748964,
+   "trades_exploratory": 13
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.134471708983028,
+   "trades_main": 36,
+   "pf_holdout": 1.5661769409386614,
+   "trades_holdout": 11,
+   "pf_exploratory": 1.2267476879995294,
+   "trades_exploratory": 20
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.44211924080126186,
+   "trades_main": 28,
+   "pf_holdout": 0.7461268144158273,
+   "trades_holdout": 4,
+   "pf_exploratory": 0.3551309607060486,
+   "trades_exploratory": 15
+  },
+  {
+   "batch": "C1",
+   "rule": "double_top_neckline_break",
+   "side": "SHORT",
+   "clock": "1h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.6023369013582367,
+   "trades_main": 35,
+   "pf_holdout": 1.5035308269902816,
+   "trades_holdout": 16,
+   "pf_exploratory": 0.7840555790582322,
+   "trades_exploratory": 15
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.7535471258761612,
+   "trades_main": 16,
+   "pf_holdout": 0.0,
+   "trades_holdout": 6,
+   "pf_exploratory": 0.5072734378853018,
+   "trades_exploratory": 11
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.5344874520341322,
+   "trades_main": 21,
+   "pf_holdout": 1.6994395330547583,
+   "trades_holdout": 4,
+   "pf_exploratory": 0.0,
+   "trades_exploratory": 7
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.713050049416869,
+   "trades_main": 21,
+   "pf_holdout": 0.0,
+   "trades_holdout": 4,
+   "pf_exploratory": 5.665977659167811,
+   "trades_exploratory": 7
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.6788981947141308,
+   "trades_main": 33,
+   "pf_holdout": 0.0,
+   "trades_holdout": 4,
+   "pf_exploratory": 0.0,
+   "trades_exploratory": 3
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.44036835512480244,
+   "trades_main": 16,
+   "pf_holdout": 0.0,
+   "trades_holdout": 2,
+   "pf_exploratory": 0.0,
+   "trades_exploratory": 6
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.3060263805222073,
+   "trades_main": 17,
+   "pf_holdout": 0.7660945428760458,
+   "trades_holdout": 4,
+   "pf_exploratory": 0.7516660931496815,
+   "trades_exploratory": 4
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.5209815618071583,
+   "trades_main": 20,
+   "pf_holdout": 0.0,
+   "trades_holdout": 3,
+   "pf_exploratory": 1.1396951050011372,
+   "trades_exploratory": 9
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.45627068237937185,
+   "trades_main": 18,
+   "pf_holdout": 1.1398758576868178,
+   "trades_holdout": 3,
+   "pf_exploratory": "",
+   "trades_exploratory": 2
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.3569814667495294,
+   "trades_main": 15,
+   "pf_holdout": 2.21521228078424,
+   "trades_holdout": 4,
+   "pf_exploratory": 0.622753645915007,
+   "trades_exploratory": 5
+  },
+  {
+   "batch": "C1",
+   "rule": "fib_extension_break",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 5.311679832453598,
+   "trades_main": 10,
+   "pf_holdout": 1.517206818003299,
+   "trades_holdout": 5,
+   "pf_exploratory": 0.3768848090443845,
+   "trades_exploratory": 7
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9115055746748714,
+   "trades_main": 19,
+   "pf_holdout": 1.0407776279360736,
+   "trades_holdout": 5,
+   "pf_exploratory": 1.9337411428534652,
+   "trades_exploratory": 9
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.563374816411027,
+   "trades_main": 20,
+   "pf_holdout": 1.5625360631732472,
+   "trades_holdout": 10,
+   "pf_exploratory": 0.0,
+   "trades_exploratory": 7
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 2.10431430594962,
+   "trades_main": 14,
+   "pf_holdout": 0.9261236142990954,
+   "trades_holdout": 8,
+   "pf_exploratory": 1.2425172480328757,
+   "trades_exploratory": 9
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9531834159473105,
+   "trades_main": 19,
+   "pf_holdout": 1.5464563688471704,
+   "trades_holdout": 6,
+   "pf_exploratory": 0.9211442665145209,
+   "trades_exploratory": 8
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0466602851659164,
+   "trades_main": 10,
+   "pf_holdout": 1.1737412301481709,
+   "trades_holdout": 7,
+   "pf_exploratory": 0.25739753721742326,
+   "trades_exploratory": 7
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8963988667587948,
+   "trades_main": 13,
+   "pf_holdout": 0.30918497514912147,
+   "trades_holdout": 6,
+   "pf_exploratory": 1.5502903812853452,
+   "trades_exploratory": 8
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.777392578485092,
+   "trades_main": 21,
+   "pf_holdout": 1.5399351919371431,
+   "trades_holdout": 4,
+   "pf_exploratory": 2.0548858311910108,
+   "trades_exploratory": 7
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.5855612516322485,
+   "trades_main": 11,
+   "pf_holdout": 2.3387067128009824,
+   "trades_holdout": 5,
+   "pf_exploratory": 0.17186586190674338,
+   "trades_exploratory": 10
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.482954662237169,
+   "trades_main": 22,
+   "pf_holdout": 0.5038324849494407,
+   "trades_holdout": 6,
+   "pf_exploratory": 0.46680267758814065,
+   "trades_exploratory": 5
+  },
+  {
+   "batch": "C1",
+   "rule": "monday_range_sweep_reversal",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.3145464205034185,
+   "trades_main": 24,
+   "pf_holdout": 2.066785447933614,
+   "trades_holdout": 7,
+   "pf_exploratory": 0.7667033183365584,
+   "trades_exploratory": 3
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9520492625861404,
+   "trades_main": 116,
+   "pf_holdout": 0.612845130347108,
+   "trades_holdout": 33,
+   "pf_exploratory": 1.0394073624223605,
+   "trades_exploratory": 48
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0491369051892911,
+   "trades_main": 110,
+   "pf_holdout": 1.5646693516849175,
+   "trades_holdout": 36,
+   "pf_exploratory": 1.8563049891088181,
+   "trades_exploratory": 41
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.7850491531813808,
+   "trades_main": 106,
+   "pf_holdout": 1.527080162220247,
+   "trades_holdout": 30,
+   "pf_exploratory": 1.6698192801392344,
+   "trades_exploratory": 49
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.2506319223689888,
+   "trades_main": 107,
+   "pf_holdout": 1.2074874913736178,
+   "trades_holdout": 26,
+   "pf_exploratory": 1.0414195383727103,
+   "trades_exploratory": 42
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8899633896329796,
+   "trades_main": 98,
+   "pf_holdout": 1.0144228826485133,
+   "trades_holdout": 26,
+   "pf_exploratory": 1.1351248871852246,
+   "trades_exploratory": 39
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.1076232406728415,
+   "trades_main": 103,
+   "pf_holdout": 1.0029455129025155,
+   "trades_holdout": 28,
+   "pf_exploratory": 1.7505305374587183,
+   "trades_exploratory": 49
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.6960778514942886,
+   "trades_main": 107,
+   "pf_holdout": 0.6296589123051629,
+   "trades_holdout": 25,
+   "pf_exploratory": 0.7427123609203142,
+   "trades_exploratory": 46
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.66551697097162,
+   "trades_main": 89,
+   "pf_holdout": 1.1052949802971541,
+   "trades_holdout": 32,
+   "pf_exploratory": 0.7418616812577646,
+   "trades_exploratory": 53
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9706376520882816,
+   "trades_main": 74,
+   "pf_holdout": 0.8824266114883298,
+   "trades_holdout": 24,
+   "pf_exploratory": 0.506998455593735,
+   "trades_exploratory": 24
+  },
+  {
+   "batch": "C1",
+   "rule": "orb_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9552054232856675,
+   "trades_main": 96,
+   "pf_holdout": 0.2915108630999126,
+   "trades_holdout": 27,
+   "pf_exploratory": 0.8751324630802002,
+   "trades_exploratory": 45
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.5778582246785056,
+   "trades_main": 119,
+   "pf_holdout": 2.058475780506808,
+   "trades_holdout": 27,
+   "pf_exploratory": 0.8910257334437779,
+   "trades_exploratory": 41
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.2288451108726461,
+   "trades_main": 98,
+   "pf_holdout": 1.428215994353939,
+   "trades_holdout": 26,
+   "pf_exploratory": 1.609152435463975,
+   "trades_exploratory": 42
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.355650931241749,
+   "trades_main": 96,
+   "pf_holdout": 0.8559026442228849,
+   "trades_holdout": 22,
+   "pf_exploratory": 0.7821144887145212,
+   "trades_exploratory": 47
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.5622874499644217,
+   "trades_main": 94,
+   "pf_holdout": 0.5048344168755471,
+   "trades_holdout": 33,
+   "pf_exploratory": 1.2990448344138044,
+   "trades_exploratory": 47
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.1540439398477822,
+   "trades_main": 106,
+   "pf_holdout": 0.678705399858432,
+   "trades_holdout": 18,
+   "pf_exploratory": 1.1578021959627254,
+   "trades_exploratory": 34
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.3540410336204003,
+   "trades_main": 112,
+   "pf_holdout": 1.1381941011309042,
+   "trades_holdout": 30,
+   "pf_exploratory": 1.6681187003493916,
+   "trades_exploratory": 41
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.1122529347012187,
+   "trades_main": 100,
+   "pf_holdout": 0.6540616001380115,
+   "trades_holdout": 27,
+   "pf_exploratory": 0.8410049927306896,
+   "trades_exploratory": 40
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.045711103197226,
+   "trades_main": 118,
+   "pf_holdout": 0.6334187352336536,
+   "trades_holdout": 23,
+   "pf_exploratory": 0.5558732215120913,
+   "trades_exploratory": 56
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8785657789131347,
+   "trades_main": 73,
+   "pf_holdout": 0.8797451028834187,
+   "trades_holdout": 21,
+   "pf_exploratory": 0.4138351508486607,
+   "trades_exploratory": 23
+  },
+  {
+   "batch": "C1",
+   "rule": "outside_bar_fail_reversion",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.808121518140814,
+   "trades_main": 111,
+   "pf_holdout": 0.6356027438209797,
+   "trades_holdout": 23,
+   "pf_exploratory": 0.8468871041637402,
+   "trades_exploratory": 45
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.2249858299160903,
+   "trades_main": 67,
+   "pf_holdout": 0.8697073825118188,
+   "trades_holdout": 27,
+   "pf_exploratory": 0.6511073316118623,
+   "trades_exploratory": 35
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9263201236278358,
+   "trades_main": 82,
+   "pf_holdout": 0.7844077089512868,
+   "trades_holdout": 33,
+   "pf_exploratory": 1.0514682765952783,
+   "trades_exploratory": 41
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.1135253410542139,
+   "trades_main": 78,
+   "pf_holdout": 1.1164661122152817,
+   "trades_holdout": 32,
+   "pf_exploratory": 0.900037561925767,
+   "trades_exploratory": 41
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.330207977852796,
+   "trades_main": 79,
+   "pf_holdout": 0.6948857793719408,
+   "trades_holdout": 32,
+   "pf_exploratory": 1.2096967082994186,
+   "trades_exploratory": 33
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.2409065399989159,
+   "trades_main": 77,
+   "pf_holdout": 0.7612212581447628,
+   "trades_holdout": 34,
+   "pf_exploratory": 0.6337301344036584,
+   "trades_exploratory": 41
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.4751996424631397,
+   "trades_main": 72,
+   "pf_holdout": 0.9848458757462702,
+   "trades_holdout": 30,
+   "pf_exploratory": 1.2439055001091286,
+   "trades_exploratory": 30
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.4907618467422754,
+   "trades_main": 72,
+   "pf_holdout": 1.2106204515340824,
+   "trades_holdout": 26,
+   "pf_exploratory": 0.7049591829152552,
+   "trades_exploratory": 35
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.610910363022409,
+   "trades_main": 92,
+   "pf_holdout": 0.7719193705895119,
+   "trades_holdout": 26,
+   "pf_exploratory": 0.7701898286872437,
+   "trades_exploratory": 33
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8167496237697627,
+   "trades_main": 68,
+   "pf_holdout": 1.5527386500908211,
+   "trades_holdout": 16,
+   "pf_exploratory": 0.2756819748426414,
+   "trades_exploratory": 18
+  },
+  {
+   "batch": "C1",
+   "rule": "range_compression_volume_thrust",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.011026291383226,
+   "trades_main": 84,
+   "pf_holdout": 0.7036931728231428,
+   "trades_holdout": 28,
+   "pf_exploratory": 0.5832860514183613,
+   "trades_exploratory": 33
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.4938375705710205,
+   "trades_main": 45,
+   "pf_holdout": 0.6572126779783912,
+   "trades_holdout": 18,
+   "pf_exploratory": 0.6055011085273454,
+   "trades_exploratory": 19
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8822475436352482,
+   "trades_main": 46,
+   "pf_holdout": 1.6344366357605986,
+   "trades_holdout": 12,
+   "pf_exploratory": 3.8062175402117053,
+   "trades_exploratory": 16
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0798980514888807,
+   "trades_main": 33,
+   "pf_holdout": 0.5052570481803742,
+   "trades_holdout": 11,
+   "pf_exploratory": 0.5302299786029181,
+   "trades_exploratory": 19
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.1064835113463294,
+   "trades_main": 43,
+   "pf_holdout": 1.5201621666475678,
+   "trades_holdout": 10,
+   "pf_exploratory": 1.7815203751403472,
+   "trades_exploratory": 17
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8116201054902733,
+   "trades_main": 43,
+   "pf_holdout": 1.9578081331958952,
+   "trades_holdout": 13,
+   "pf_exploratory": 1.5436148776280172,
+   "trades_exploratory": 18
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.066194805203641,
+   "trades_main": 41,
+   "pf_holdout": 0.6923412165286019,
+   "trades_holdout": 10,
+   "pf_exploratory": 0.9443608762216688,
+   "trades_exploratory": 17
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8569325188651311,
+   "trades_main": 44,
+   "pf_holdout": 1.6931347645505013,
+   "trades_holdout": 11,
+   "pf_exploratory": 0.6721020019626098,
+   "trades_exploratory": 22
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.663461394241468,
+   "trades_main": 40,
+   "pf_holdout": 1.299158415741136,
+   "trades_holdout": 11,
+   "pf_exploratory": 0.3822206231367092,
+   "trades_exploratory": 14
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8333898825112627,
+   "trades_main": 49,
+   "pf_holdout": 1.702742042576338,
+   "trades_holdout": 7,
+   "pf_exploratory": 0.14197967821380642,
+   "trades_exploratory": 24
+  },
+  {
+   "batch": "C1",
+   "rule": "sma20_stretch_fade",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.7383198761683583,
+   "trades_main": 41,
+   "pf_holdout": 1.0787661855640438,
+   "trades_holdout": 16,
+   "pf_exploratory": 0.4710873704397283,
+   "trades_exploratory": 18
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9051226346438666,
+   "trades_main": 19,
+   "pf_holdout": 2.5658716647376725,
+   "trades_holdout": 8,
+   "pf_exploratory": 1.5377827486364382,
+   "trades_exploratory": 10
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.7956696336643314,
+   "trades_main": 16,
+   "pf_holdout": 0.9313711193780084,
+   "trades_holdout": 8,
+   "pf_exploratory": 1.228143837921,
+   "trades_exploratory": 9
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.1761820451830245,
+   "trades_main": 24,
+   "pf_holdout": 0.4405334981706831,
+   "trades_holdout": 9,
+   "pf_exploratory": 1.5302678514351464,
+   "trades_exploratory": 10
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.7803440968091546,
+   "trades_main": 15,
+   "pf_holdout": 0.6754764902934923,
+   "trades_holdout": 10,
+   "pf_exploratory": 2.793952064843262,
+   "trades_exploratory": 8
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.2947098892000855,
+   "trades_main": 22,
+   "pf_holdout": 1.0338836372605267,
+   "trades_holdout": 5,
+   "pf_exploratory": 0.38186005174872,
+   "trades_exploratory": 10
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.7943644331559224,
+   "trades_main": 20,
+   "pf_holdout": 0.6639110836575669,
+   "trades_holdout": 10,
+   "pf_exploratory": 1.030911185205908,
+   "trades_exploratory": 15
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.7229029475699715,
+   "trades_main": 22,
+   "pf_holdout": 0.512946062977375,
+   "trades_holdout": 4,
+   "pf_exploratory": 1.240375603230493,
+   "trades_exploratory": 9
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.3439611148799555,
+   "trades_main": 22,
+   "pf_holdout": 0.40565948214422,
+   "trades_holdout": 11,
+   "pf_exploratory": 1.5466457993826286,
+   "trades_exploratory": 12
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.4080609976760758,
+   "trades_main": 26,
+   "pf_holdout": 0.022789080407671688,
+   "trades_holdout": 7,
+   "pf_exploratory": 0.45004021723542353,
+   "trades_exploratory": 11
+  },
+  {
+   "batch": "C1",
+   "rule": "three_black_crows",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.6128965687520962,
+   "trades_main": 20,
+   "pf_holdout": 4.664669386230678,
+   "trades_holdout": 4,
+   "pf_exploratory": 1.5421972408714117,
+   "trades_exploratory": 6
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.5643245578233809,
+   "trades_main": 39,
+   "pf_holdout": 2.256166951548558,
+   "trades_holdout": 12,
+   "pf_exploratory": 1.2619038576969857,
+   "trades_exploratory": 14
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9834289973754946,
+   "trades_main": 36,
+   "pf_holdout": 2.8041419317640277,
+   "trades_holdout": 9,
+   "pf_exploratory": 0.6820697194443959,
+   "trades_exploratory": 18
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.1708231682549217,
+   "trades_main": 35,
+   "pf_holdout": 0.748650418257722,
+   "trades_holdout": 12,
+   "pf_exploratory": 1.7501943890984597,
+   "trades_exploratory": 16
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0778304007134663,
+   "trades_main": 37,
+   "pf_holdout": 3.1625131535897144,
+   "trades_holdout": 11,
+   "pf_exploratory": 1.127144265281357,
+   "trades_exploratory": 18
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9916556607033404,
+   "trades_main": 39,
+   "pf_holdout": 1.1812559156048306,
+   "trades_holdout": 13,
+   "pf_exploratory": 0.6959274476393144,
+   "trades_exploratory": 17
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.538968908006358,
+   "trades_main": 31,
+   "pf_holdout": 0.346711783675484,
+   "trades_holdout": 14,
+   "pf_exploratory": 0.8075511716730143,
+   "trades_exploratory": 19
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.99515011680347,
+   "trades_main": 34,
+   "pf_holdout": 0.40794767810849486,
+   "trades_holdout": 13,
+   "pf_exploratory": 0.8982435039360794,
+   "trades_exploratory": 14
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.6971344625608894,
+   "trades_main": 38,
+   "pf_holdout": 1.6034639515440383,
+   "trades_holdout": 12,
+   "pf_exploratory": 1.885071853759946,
+   "trades_exploratory": 11
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0637283320467168,
+   "trades_main": 30,
+   "pf_holdout": 2.293972298141155,
+   "trades_holdout": 9,
+   "pf_exploratory": 1.9677833883940392,
+   "trades_exploratory": 15
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "LONG",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.867858800616497,
+   "trades_main": 36,
+   "pf_holdout": 0.24445758342783008,
+   "trades_holdout": 14,
+   "pf_exploratory": 1.0843739315011525,
+   "trades_exploratory": 13
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "AAVEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.904732097642316,
+   "trades_main": 40,
+   "pf_holdout": 0.40239858893854263,
+   "trades_holdout": 13,
+   "pf_exploratory": 1.6792099115279961,
+   "trades_exploratory": 20
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "ADAUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.986045696079249,
+   "trades_main": 46,
+   "pf_holdout": 1.0142541119484958,
+   "trades_holdout": 17,
+   "pf_exploratory": 1.6038650266106584,
+   "trades_exploratory": 18
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOGEUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.18234840108426,
+   "trades_main": 39,
+   "pf_holdout": 1.0267576939609397,
+   "trades_holdout": 15,
+   "pf_exploratory": 1.022231560411414,
+   "trades_exploratory": 20
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "DOTUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0361974610604532,
+   "trades_main": 43,
+   "pf_holdout": 2.2316031160180807,
+   "trades_holdout": 14,
+   "pf_exploratory": 1.235309446932111,
+   "trades_exploratory": 19
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "FILUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.1834213699138325,
+   "trades_main": 43,
+   "pf_holdout": 0.8759862767243618,
+   "trades_holdout": 17,
+   "pf_exploratory": 1.0905433815655898,
+   "trades_exploratory": 20
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "HBARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.9020879849553438,
+   "trades_main": 42,
+   "pf_holdout": 0.7013260611999593,
+   "trades_holdout": 16,
+   "pf_exploratory": 1.4486216329546138,
+   "trades_exploratory": 21
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "LINKUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.4995408214023873,
+   "trades_main": 38,
+   "pf_holdout": 0.4479519461870696,
+   "trades_holdout": 17,
+   "pf_exploratory": 0.6730893026936681,
+   "trades_exploratory": 21
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "NEARUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.8259639329230734,
+   "trades_main": 41,
+   "pf_holdout": 0.9002115498767664,
+   "trades_holdout": 16,
+   "pf_exploratory": 0.7194061813993543,
+   "trades_exploratory": 18
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "TRXUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 0.6773134853191114,
+   "trades_main": 42,
+   "pf_holdout": 3.7785958045577313,
+   "trades_holdout": 6,
+   "pf_exploratory": 0.30617904810898267,
+   "trades_exploratory": 16
+  },
+  {
+   "batch": "C1",
+   "rule": "week_open_reclaim",
+   "side": "SHORT",
+   "clock": "4h",
+   "token": "UNIUSDT",
+   "verdict": "PENDING",
+   "seal_sha": {
+    "main": "16ead71273c6a6c5608887564c7631b37685869a3f06416e6cc454f305296729",
+    "holdout": "04bbc365edaaf8f1c3532b21dc8b7782ca6dafdaa118bf4f18665b6bc33773d6",
+    "exploratory": "c232e61481f273c544e583eadc267fabc0319d59146b11d331e91dbd923250f8"
+   },
+   "pf_main": 1.0823516987003756,
+   "trades_main": 41,
+   "pf_holdout": 1.441691169328564,
+   "trades_holdout": 13,
+   "pf_exploratory": 0.7210811276457324,
+   "trades_exploratory": 19
+  }
+ ]
+}

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mar-trading-firm.local/schema/token_expansion_results.schema.json",
+  "title": "Token expansion batch results",
+  "description": "Sealed token-expansion batch. Display artifact only. The verdict field in this file is not a promotion. The dashboard overlays verdicts from a separate file and otherwise shows PENDING. pf_exploratory and trades_exploratory are the 2026 window.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["batch", "cost_view", "verdict_source", "rows"],
+  "properties": {
+    "batch": { "type": "string", "minLength": 1 },
+    "cost_view": { "type": "string", "minLength": 1 },
+    "verdict_source": { "type": ["string", "null"] },
+    "rows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/row" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "profit_factor": {
+      "description": "Numeric profit factor, or a blank/inf/nan token copied from the seal when the cell was not a finite number.",
+      "anyOf": [
+        { "type": "number" },
+        { "type": "string", "enum": ["", "inf", "nan"] }
+      ]
+    },
+    "trade_count": { "type": "integer", "minimum": 0 },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batch",
+        "rule",
+        "side",
+        "clock",
+        "token",
+        "verdict",
+        "seal_sha",
+        "pf_main",
+        "trades_main",
+        "pf_holdout",
+        "trades_holdout",
+        "pf_exploratory",
+        "trades_exploratory"
+      ],
+      "properties": {
+        "batch": { "type": "string", "minLength": 1 },
+        "rule": { "type": "string", "minLength": 1 },
+        "side": { "type": "string", "minLength": 1 },
+        "clock": { "type": "string", "minLength": 1 },
+        "token": { "type": "string", "minLength": 1 },
+        "verdict": {
+          "type": "string",
+          "description": "Stored on the artifact. The API ignores this value and loads verdicts only from the optional verdict file."
+        },
+        "seal_sha": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["main", "holdout", "exploratory"],
+          "properties": {
+            "main": { "$ref": "#/$defs/sha256" },
+            "holdout": { "$ref": "#/$defs/sha256" },
+            "exploratory": {
+              "$ref": "#/$defs/sha256",
+              "description": "Seal of the 2026 exploratory window."
+            }
+          }
+        },
+        "pf_main": { "$ref": "#/$defs/profit_factor" },
+        "trades_main": { "$ref": "#/$defs/trade_count" },
+        "pf_holdout": { "$ref": "#/$defs/profit_factor" },
+        "trades_holdout": { "$ref": "#/$defs/trade_count" },
+        "pf_exploratory": {
+          "$ref": "#/$defs/profit_factor",
+          "description": "Profit factor on the 2026 exploratory window."
+        },
+        "trades_exploratory": {
+          "$ref": "#/$defs/trade_count",
+          "description": "Trade count on the 2026 exploratory window."
+        }
+      }
+    }
+  }
+}

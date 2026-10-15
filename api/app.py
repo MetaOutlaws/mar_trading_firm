@@ -174,6 +174,26 @@ def research_plan_endpoint() -> dict[str, Any]:
     return research_plan()
 
 
+@app.get("/api/research/expansion")
+def research_expansion() -> dict[str, Any]:
+    """Sealed token-expansion batch for the Research tab. Display only.
+
+    The results path and expected sha256 come from settings
+    (``TOKEN_EXPANSION_RESULTS_PATH`` and ``TOKEN_EXPANSION_RESULTS_SHA256``).
+    A missing file or a hash mismatch is an error and the body has no rows.
+    Verdicts come only from ``TOKEN_EXPANSION_VERDICTS_PATH``. When that file
+    is unset or missing, every row is PENDING. Profit factor is not a verdict.
+    FAIL, VETO, and PENDING are omitted from ``active_strategies``. This
+    route does not write the approval book and does not start a scan.
+    """
+    from research.token_expansion.load import ExpansionSealError, load_token_expansion
+
+    try:
+        return load_token_expansion()
+    except ExpansionSealError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
 @app.get("/api/local-session")
 def local_session(request: Request) -> dict[str, Any]:
     """Hand the desk the API token when the browser is on this machine.
@@ -381,6 +401,11 @@ def strategies() -> dict[str, Any]:
                 "validated_at": record.get("validated_at"),
             }
         )
+    # Token-expansion FAIL / VETO / PENDING rows are not this table. Live-book
+    # pairs have no expansion source mark, so the mounted book is unchanged.
+    from research.token_expansion.load import drop_blocked_expansion_pairs
+
+    pairs = drop_blocked_expansion_pairs(pairs)
     paper_overrides = [p for p in pairs if p.get("paper_override") and not p.get("approved")]
     return {
         "verdict": book["verdict"],

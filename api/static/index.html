@@ -754,12 +754,12 @@ const KICKERS = {
   positions: "Open book — mark, open P&L, stop, and target",
   strategies: "Research-approved (live gate) vs operator paper vetoes vs rejects",
   inbox: "Proposals that need a human, plus open escalations",
-  research: "Ranked next tests (clock/side follow-ups), then finished family verdicts",
+  research: "Token expansion batch, then ranked next tests and finished family verdicts",
   sentiment: "Luke CT snapshot — L1 display only; no trade calls",
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
 };
-let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, f111: {}, regime: {} };
+let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, f111: {}, regime: {}, expansion: { rows: [], active_strategies: [] } };
 let lastError = "";
 
 function viewName() {
@@ -866,6 +866,7 @@ const FILTER_IDS = [
   "stratStatus", "stratFamily", "stratWhen", "stratQ",
   "inboxQ", "inboxWhen", "escalQ", "escalWhen", "escalSev",
   "paperFamQ",
+  "expansionStatus",
 ];
 function snapshotFilters() {
   const out = {};
@@ -897,6 +898,7 @@ const PAGE_SIZES = {
   hypotheses: 10,
   positions: 10,
   nextTests: 5,
+  expansion: 15,
 };
 function pageSize(id) {
   return PAGE_SIZES[id] || 10;
@@ -906,7 +908,7 @@ const VIEW_PAGE_KEYS = {
   strategies: ["strat", "integrity"],
   blotter: ["blotter", "rejects"],
   inbox: ["inbox", "escal"],
-  research: ["jobs", "backlog", "hypotheses", "nextTests"],
+  research: ["jobs", "backlog", "hypotheses", "nextTests", "expansion"],
   positions: ["positions"],
   floor: ["activity", "jobs"],
 };
@@ -1858,6 +1860,94 @@ function renderInbox() {
   </div>`;
 }
 
+// Token-expansion verdicts that must not show on the Strategies table.
+// PENDING is the default when the verdict file is missing. PF is not a verdict.
+function expansionBlocked(verdict) {
+  const v = String(verdict || "PENDING").toUpperCase();
+  return v === "FAIL" || v === "VETO" || v === "PENDING";
+}
+function expansionPairBlocked(pair) {
+  const marked = pair.source === "token_expansion" || pair.expansion_batch || pair.batch === "C1" || pair.batch === "token_expansion";
+  return !!(marked && expansionBlocked(pair.verdict));
+}
+function expansionVerdictClass(verdict) {
+  const v = String(verdict || "PENDING").toUpperCase();
+  if (v === "PASS") return "ok";
+  if (v === "FAIL") return "bad";
+  if (v === "VETO") return "warn";
+  return "";
+}
+function expansionPf(value) {
+  if (value == null || value === "" || value === "nan") return "—";
+  if (value === "inf") return "inf";
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : esc(value);
+}
+function shortSeal(value) {
+  const text = String(value || "");
+  return text ? text.slice(0, 12) : "—";
+}
+function renderTokenExpansion() {
+  const doc = state.expansion || {};
+  const rows = Array.isArray(doc.rows) ? doc.rows : [];
+  const active = Array.isArray(doc.active_strategies) ? doc.active_strategies : [];
+  const counts = doc.counts || {};
+  const status = filterVal("expansionStatus", "all");
+  const filtered = rows.filter(row => status === "all" || String(row.verdict || "PENDING").toUpperCase() === status);
+  const sliced = pageSlice("expansion", filtered);
+  const seal = (rows[0] && rows[0].seal_sha) || {};
+  const error = doc.ok === false ? (doc.error || "Batch file unavailable. No rows shown.") : "";
+  const body = error
+    ? `<div class="warn">${esc(error)}</div>`
+    : (rows.length ? `<div id="expansionPane" data-page-list="expansion">
+        <table class="table-fixed">
+          <colgroup>
+            <col style="width:9%"/><col style="width:22%"/><col style="width:8%"/><col style="width:6%"/><col style="width:13%"/>
+            <col style="width:7%"/><col style="width:7%"/><col style="width:7%"/><col style="width:7%"/><col style="width:7%"/><col style="width:7%"/>
+          </colgroup>
+          <thead><tr>
+            <th>Status</th><th>Rule</th><th>Side</th><th>Clock</th><th>Token</th>
+            <th>Main PF</th><th>Main n</th><th>Holdout PF</th><th>Holdout n</th>
+            <th title="2026 exploratory window (pf_exploratory in the sealed file)">2026 PF</th>
+            <th title="Trade count on the 2026 exploratory window">2026 n</th>
+          </tr></thead>
+          <tbody>${sliced.items.map(row => {
+            const verdict = String(row.verdict || "PENDING").toUpperCase();
+            return `<tr>
+              <td><span class="badge ${expansionVerdictClass(verdict)}">${esc(verdict)}</span></td>
+              <td title="${esc(row.rule)}"><strong>${esc(row.rule)}</strong></td>
+              <td>${esc(row.side || "—")}</td>
+              <td class="muted">${esc(row.clock || "—")}</td>
+              <td title="${esc(row.token)}"><strong>${esc(row.token)}</strong></td>
+              <td class="num">${expansionPf(row.pf_main)}</td>
+              <td class="num">${esc(row.trades_main ?? "—")}</td>
+              <td class="num">${expansionPf(row.pf_holdout)}</td>
+              <td class="num">${esc(row.trades_holdout ?? "—")}</td>
+              <td class="num">${expansionPf(row.pf_2026 != null ? row.pf_2026 : row.pf_exploratory)}</td>
+              <td class="num">${esc(row.trades_2026 != null ? row.trades_2026 : (row.trades_exploratory ?? "—"))}</td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table>
+      </div>${pagerHtml("expansion", sliced, "rows")}` : `<div class="muted">No token-expansion rows in the sealed file.</div>`);
+  return `<div class="card">
+      <h2>Token expansion</h2>
+      <p class="muted">Display only. Status comes from the optional verdict file. If that file is missing, every row stays PENDING. Profit factor is not a verdict. FAIL, VETO, and PENDING never join the Strategies table. Live stays off.</p>
+      <div class="muted" style="margin-bottom:8px">${esc(doc.batch || "C1")} · ${esc(doc.cost_view || "")} · ${esc(counts.rows != null ? counts.rows : rows.length)} rows · ${esc(counts.pending != null ? counts.pending : rows.filter(r => String(r.verdict || "PENDING").toUpperCase() === "PENDING").length)} pending · ${esc(active.length)} on the active list, not copied onto Strategies · verdict file ${doc.verdict_file_found ? "loaded" : "not loaded"}</div>
+      ${rows.length ? `<div class="muted" style="margin-bottom:8px">Seals main ${esc(shortSeal(seal.main))} · holdout ${esc(shortSeal(seal.holdout))} · 2026 ${esc(shortSeal(seal.exploratory))}</div>` : ""}
+      <div class="toolbar filters">
+        <select class="field" id="expansionStatus" onchange="onFilterChange()">
+          <option value="all" ${status === "all" ? "selected" : ""}>All statuses (${rows.length})</option>
+          <option value="PENDING" ${status === "PENDING" ? "selected" : ""}>Pending</option>
+          <option value="PASS" ${status === "PASS" ? "selected" : ""}>Pass</option>
+          <option value="FAIL" ${status === "FAIL" ? "selected" : ""}>Fail</option>
+          <option value="VETO" ${status === "VETO" ? "selected" : ""}>Veto</option>
+        </select>
+        <span class="filter-count">${filtered.length} of ${rows.length}</span>
+      </div>
+      ${body}
+    </div>`;
+}
+
 function renderResearch() {
   const plan = state.floor.research_plan || {};
   const nextTests = plan.next_tests || [];
@@ -1995,7 +2085,7 @@ function renderResearch() {
         ${pagerHtml("hypotheses", hypSliced, "hypotheses")}
       </div>`
     : `<div class="card">${empty("No hypotheses yet", "The quant researcher writes here after a cycle. The catalog above is the plan it must follow.")}</div>`;
-  return pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
+  return renderTokenExpansion() + pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
 }
 
 function sentimentDesk() {
@@ -2414,7 +2504,9 @@ function testedNamesPanel(s, names) {
 
 function renderStrategies() {
   const s = state.strategies || {};
-  const pairs = s.pairs || [];
+  // Expansion FAIL / VETO / PENDING rows are not this table, even if a caller
+  // attached them. Live-book rows have no expansion mark and stay.
+  const pairs = (s.pairs || []).filter(p => !expansionPairBlocked(p));
   const approved = pairs.filter(p => p.approved).length;
   const paperN = pairs.filter(p => p.paper_override).length;
   const legend = s.legend || {};
@@ -2617,7 +2709,7 @@ function viewFingerprint(name) {
     positions: { pos: (state.risk || {}).open_positions, eq: state.equity },
     strategies: { strategies: state.strategies, integrity: floor.integrity },
     inbox: { inbox: floor.inbox, escalations: floor.escalations, near: (state.nearMisses || {}).count },
-    research: { pipeline: floor.pipeline, research: floor.research, plan: floor.research_plan },
+    research: { pipeline: floor.pipeline, research: floor.research, plan: floor.research_plan, expansion: state.expansion },
     sentiment: { sentiment: floor.sentiment, regime: floor.regime },
     gates: { golive: state.golive },
     controls: { llm: state.llm, budget: floor.budget },
@@ -2805,7 +2897,7 @@ async function wakeFloor() {
 async function load(manual) {
   try {
     await ensureLocalToken();
-    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime, nearMisses] = await Promise.all([
+    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime, nearMisses, expansion] = await Promise.all([
       get("/api/floor"),
       get("/api/risk"),
       get("/api/trades?limit=100"),
@@ -2819,8 +2911,11 @@ async function load(manual) {
       get("/api/f111"),
       get("/api/regime"),
       get("/api/near-misses").catch(() => ({ count: 0, rows: [] })),
+      // A seal error must not blank the rest of the desk, and must not
+      // invent rows. The Research section shows the error instead.
+      get("/api/research/expansion").catch(err => ({ ok: false, error: String(err.message || err), rows: [], active_strategies: [] })),
     ]);
-    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime: regime || {}, nearMisses, llmPing: state.llmPing };
+    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime: regime || {}, nearMisses, expansion: expansion || { ok: false, rows: [], active_strategies: [] }, llmPing: state.llmPing };
     lastError = "";
     render({ keepScroll: true, force: !!manual });
   } catch (err) {
