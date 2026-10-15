@@ -1,0 +1,4 @@
+net_pnl,return_pct,symbol,segment
+0.2,0.02,AAVEUSDT,fold
+-0.1,-0.01,AAVEUSDT,tail
+0.0,0.0,AAVEUSDT,fold
