@@ -26,6 +26,7 @@ from enum import Enum
 
 from core.risk.killswitch import KillSwitch, TripReason
 from core.risk.limits import RiskLimits
+from core.risk.sizing import size_position
 
 logger = logging.getLogger(__name__)
 
@@ -347,50 +348,25 @@ class RiskEngine:
     ) -> tuple[float, float, float, list[str], bool]:
         """Compute position size as the *minimum* of every applicable cap.
 
-        Three independent caps, and the smallest wins:
+        Four independent caps, and the smallest wins:
           - risk-based: equity risked if the stop fills
           - notional: single-position size cap
           - headroom: what remains under the total exposure cap
+          - leverage: equity times the leverage ceiling
 
         Taking the minimum rather than a preferred sizing rule means adding a
-        new cap can only ever make positions smaller.
+        new cap can only ever make positions smaller. The arithmetic lives in
+        ``core.risk.sizing.size_position`` so the BL8 observer uses this method's
+        result without importing the kill switch.
         """
-        limits = self.limits
-        notes: list[str] = []
-
-        # Cap 1: risk-based sizing off stop distance.
-        risk_budget = state.equity * limits.max_risk_per_trade_pct
-        stop_distance = intent.stop_distance_pct
-        risk_based_notional = risk_budget / stop_distance if stop_distance > 0 else 0.0
-
-        # Cap 2: single-position notional cap.
-        position_cap = state.equity * limits.max_position_pct
-
-        # Cap 3: remaining room under the total exposure cap.
-        exposure_room = max(
-            0.0, state.equity * limits.max_total_exposure_pct - state.total_exposure
+        # Identical inputs to the function BL8 calls. Do not fork the arithmetic.
+        return size_position(
+            equity=state.equity,
+            stop_distance_pct=intent.stop_distance_pct,
+            entry_price=intent.entry_price,
+            total_exposure=state.total_exposure,
+            limits=self.limits,
         )
-
-        # Cap 4: leverage ceiling.
-        leverage_cap = state.equity * limits.max_leverage
-
-        notional = min(risk_based_notional, position_cap, exposure_room, leverage_cap)
-
-        binding = min(
-            ("risk-per-trade", risk_based_notional),
-            ("position cap", position_cap),
-            ("exposure headroom", exposure_room),
-            ("leverage cap", leverage_cap),
-            key=lambda pair: pair[1],
-        )[0]
-        reduced = notional < position_cap - 1e-9
-        if reduced:
-            notes.append(f"size limited by {binding} to ${notional:.2f}")
-
-        quantity = notional / intent.entry_price if intent.entry_price > 0 else 0.0
-        risk_amount = notional * stop_distance
-
-        return quantity, notional, risk_amount, notes, reduced
 
     # -----------------------------------------------------------------
     # Agent interaction

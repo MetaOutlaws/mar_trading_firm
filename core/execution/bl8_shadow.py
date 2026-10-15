@@ -7,11 +7,16 @@ import sqlite3
 from pathlib import Path
 from decimal import Decimal, ROUND_DOWN
 
+from core.risk.limits import PAPER_LIMITS
+from core.risk.sizing import size_position
 from core.strategy.bl8 import fill_gate
 
 FEE = .00055
 SLIP = .002
 MAX_QUOTE_AGE_MS = 5000
+# Same default as the hourly paper broker and build_engine. This book does not
+# read the hourly account; the percentage caps are applied to this equity.
+HOURLY_PAPER_STARTING_EQUITY = 10_000.0
 
 
 def depth_fill(book: dict, quantity: float, buy: bool, now: int) -> float:
@@ -39,8 +44,21 @@ def depth_fill(book: dict, quantity: float, buy: bool, now: int) -> float:
     raise ValueError('insufficient_visible_depth')
 
 
+def _floor_step(quantity: float, step: Decimal) -> float:
+    """Round quantity down to the exchange step. Never round up toward a minimum."""
+    if not math.isfinite(quantity) or quantity <= 0:
+        return 0.0
+    floored = (Decimal(str(quantity)) / step).to_integral_value(rounding=ROUND_DOWN) * step
+    return float(floored)
+
+
 class Ledger:
-    def __init__(self, path: Path, config_sha: str):
+    def __init__(self, path: Path, config_sha: str, *, starting_equity: float = HOURLY_PAPER_STARTING_EQUITY, limits=None):
+        # limits defaults to PAPER_LIMITS (1% risk, 10% position, 50% exposure, 1x, 5 USDT).
+        self.starting_equity = float(starting_equity)
+        self.limits = PAPER_LIMITS if limits is None else limits
+        if not math.isfinite(self.starting_equity) or self.starting_equity <= 0:
+            raise ValueError('starting equity must be positive')
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, timeout=20)
         self.db.row_factory = sqlite3.Row
@@ -84,6 +102,20 @@ class Ledger:
             self.db.execute('INSERT INTO observations(t,kind,payload) VALUES(?,?,?)',(now,'entry_rejected',json.dumps({'uid':signal['uid'],'reason':reason})))
         return None
 
+    def _paper_equity_and_exposure(self):
+        """Account equity and committed open notional for the shared sizer.
+
+        Cash events are PnL only, so equity is the isolated starting equity plus
+        realised cash plus unrealised mark-to-entry. Exposure is entry notional
+        of open positions, the size those entries already consumed.
+        """
+        cash=self.db.execute('SELECT coalesce(sum(amount),0) FROM events').fetchone()[0]
+        unrealized=0.; exposure=0.
+        for p in self.positions():
+            unrealized += p['quantity']*(p.get('mark_price', p['entry_price'])-p['entry_price'])
+            exposure += p['quantity']*p['entry_price']
+        return self.starting_equity+cash+unrealized, exposure
+
     def enter(self, signal, book, instrument, now, *, entries_enabled=True):
         row=self.db.execute('SELECT status FROM signals WHERE uid=?',(signal['uid'],)).fetchone()
         if row is None or row[0]!='pending': return None
@@ -99,8 +131,8 @@ class Ledger:
             p=json.loads(latest[0])
             if p.get('exit_ms') is None or now//60_000 <= p['exit_ms']//60_000:
                 return self.reject(signal,now,'token_busy_inclusive_exit_minute')
-        # One USDT of initial price-stop risk is a fixed test unit, never account risk.
-        # Lot/minimum rules can make it unexecutable; reject rather than secretly upsize.
+        # Reference price is the touch ask plus the modeled entry slip. Depth is
+        # checked after the lot floor; a worse walk can only reject, never enlarge.
         ep=float(book['a'][0][0])*(1+SLIP)
         if not fill_gate(signal,ep): return self.reject(signal,now,'fill_gate')
         lot=instrument['lotSizeFilter'];step=Decimal(lot['qtyStep'])
@@ -109,21 +141,47 @@ class Ledger:
         maxqty=float(lot.get('maxMktOrderQty',lot.get('maxOrderQty','0')))
         if not all(math.isfinite(v) for v in [minqty,minvalue,maxqty]) or minqty<=0 or minvalue<0 or maxqty<minqty:
             raise ValueError('invalid_instrument_limits')
-        qty=float((Decimal(str(1/(ep-signal['stop'])))/step).to_integral_value(rounding=ROUND_DOWN)*step)
-        if qty<=0 or qty<minqty or qty*ep<minvalue:
-            return self.reject(signal,now,'test_unit_below_exchange_minimum')
+        equity, exposure = self._paper_equity_and_exposure()
+        stop_distance = abs(ep-float(signal['stop']))/ep if ep>0 else 0.0
+        raw_qty, raw_notional, _risk, notes, _reduced = size_position(
+            equity=equity, stop_distance_pct=stop_distance, entry_price=ep,
+            total_exposure=exposure, limits=self.limits)
+        # Floor to the lot step. If that falls under 5 USDT or the exchange
+        # minimum, reject. Do not bump the quantity up to clear either floor.
+        qty=_floor_step(raw_qty, step)
+        notional=qty*ep
+        if qty<=0 or notional < self.limits.min_notional_usdt:
+            return self.reject(signal,now,'below_min_notional')
+        if qty<minqty or notional<minvalue:
+            return self.reject(signal,now,'below_exchange_minimum')
         if qty>maxqty:
             return self.reject(signal,now,'quantity_above_exchange_maximum')
         ep=depth_fill(book,qty,True,now)*(1+SLIP)
         if not fill_gate(signal,ep): return self.reject(signal,now,'fill_gate_after_depth')
-        risk=qty*(ep-signal['stop'])
-        if risk>1.+1e-9: return self.reject(signal,now,'depth_exceeds_test_risk_unit')
+        filled_distance=abs(ep-float(signal['stop']))/ep
+        _qty, cap_notional, cap_risk, _notes, _reduced = size_position(
+            equity=equity, stop_distance_pct=filled_distance, entry_price=ep,
+            total_exposure=exposure, limits=self.limits)
+        risk=qty*(ep-signal['stop']); filled_notional=qty*ep
+        # Depth can only raise a buy. If the walked price breaks a cap, reject.
+        if filled_notional > cap_notional+1e-6 or risk > cap_risk+1e-6:
+            return self.reject(signal,now,'depth_exceeds_paper_limits')
         p=signal|{'entry_ms':now,'entry_quote_ms':int(book['ts']),'entry_price':ep,'quantity':qty,
-                  'initial_risk_usdt':risk,'entry_fee':qty*ep*FEE,'exit_ms':None,
+                  'notional_usdt':filled_notional,'initial_risk_usdt':risk,'entry_fee':qty*ep*FEE,'exit_ms':None,
                   'funding_observed_through':None,'funding_status':'unknown',
                   'model':'visible_depth_plus_20bp; stop_visible_bid_depth_no_extra_slip',
                   'mark_price':float(book['b'][0][0]),'mark_ms':int(book['ts']),
-                  'account_risk_allocation':None}
+                  'account_risk_allocation':'hourly_paper_limits',
+                  'sizing_notes':notes,'sizing':{
+                      'equity_usdt':equity,'open_exposure_usdt':exposure,
+                      'starting_equity_usdt':self.starting_equity,
+                      'raw_notional_usdt':raw_notional,
+                      'max_risk_per_trade_pct':self.limits.max_risk_per_trade_pct,
+                      'max_position_pct':self.limits.max_position_pct,
+                      'max_total_exposure_pct':self.limits.max_total_exposure_pct,
+                      'max_leverage':self.limits.max_leverage,
+                      'min_notional_usdt':self.limits.min_notional_usdt,
+                      'notes':notes}}
         with self.db:
             self.db.execute('INSERT INTO positions VALUES(?,?,?,?)',(signal['uid'],signal['symbol'],'open',json.dumps(p)))
             self.event(signal['uid']+'|entryfee',signal['uid'],now,'entry_fee',-p['entry_fee'],{'quote':book,'instrument':instrument})
@@ -153,6 +211,7 @@ class Ledger:
             self.db.execute('INSERT OR REPLACE INTO equity_samples VALUES(?,?,?,?,?,?)',(now,cash,unrealized,cash+unrealized,int(complete),int(known)))
             self.db.execute("INSERT OR REPLACE INTO meta VALUES('equity_extremes',?)",(json.dumps([peak,drawdown]),))
         return {'cash_pnl_usdt':cash,'unrealized_pnl_usdt':unrealized,'equity_pnl_usdt':cash+unrealized,
+                'account_equity_usdt':self.starting_equity+cash+unrealized,
                 'all_open_marks_fresh':complete,'funding_observations_available':known,
                 'sampled_provisional_drawdown_usdt':drawdown,'quote_mark_basis':'best bid; exit fees and modeled exit slip not deducted until filled'}
 
@@ -213,4 +272,4 @@ class Ledger:
                 'cash_pnl_usdt':sum(e['amount'] for e in events),'open_positions':len(self.positions()),
                 'closed_positions':len(self.positions('closed')),'cash_events':len(events),
                 'account_return_percent':None,'forward_profitability_validated':False,
-                'note':'Fixed one-USDT initial-risk execution test; exchange minimum failures explicit. No account capital, leverage, or portfolio sizing policy.'}
+                'note':'Sized with hourly PAPER_LIMITS on this isolated book: 1% risk, 10% position, 50% exposure, 1x leverage. Below 5 USDT is rejected and never upsized. Live orders are not possible from this ledger.'}

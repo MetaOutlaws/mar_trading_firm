@@ -1,7 +1,7 @@
 {
   "local_status": "PASS",
-  "completed_at": "2026-10-15T18:30:26.041429+00:00",
-  "unit_tests": 31,
+  "completed_at": "2026-10-15T20:34:00+00:00",
+  "unit_tests": 43,
   "unit_test_failures": 0,
   "historical_signal_comparison": {
     "status": "pass",
@@ -15,20 +15,25 @@
     "production_signal_sha256": "ce150ed0a9bd250a6ace6ea4423aae2b477bb09002161901f086d9785075d99c"
   },
   "historical_ledger_cash_comparison": {
-    "status": "pass",
+    "status": "not_rerun_after_paper_limits_sizing",
+    "previous_status": "pass",
     "admitted_primary_paths": 1007,
     "symbols": 95,
     "funding_events": 5172,
     "duplicate_funding_updates_idempotent": true,
     "cash_bridge_pass": true,
     "maximum_net_R_difference": 1.7319479184152442e-14,
-    "scope": "Historical research entry/exit quotes and synthetic small lot/minimum metadata exercise real production ledger/SQLite cash. Research paths supply first-exit timestamps; this is not a full polled-forward-path replay or proof of live instrument/capacity eligibility.",
-    "production_ledger_sha256": "b2ca34d278fd15feb1bbf3ae2d37ec9f8f0ab4ff128b8e3ed361c8f2aedccef4"
+    "scope": "Prior 1 USDT ledger comparison. It was not repeated after entries were sized with hourly PAPER_LIMITS, so that netR parity is not evidence for the new sizes.",
+    "previous_ledger_sha256": "b2ca34d278fd15feb1bbf3ae2d37ec9f8f0ab4ff128b8e3ed361c8f2aedccef4",
+    "production_ledger_sha256": "9f014951e7a718243fb6b37436fea7a720e72beea39bda113ef7384c267959ae"
   },
   "remote_deployed": false,
   "activation_verified": false,
   "full_forward_parity": "UNVERIFIED",
   "historical_2026_opened": false,
   "existing_hourly_changed": false,
-  "account_risk_fraction_selected": false
+  "hourly_risk_limits_behavior": "unchanged; RiskEngine._size_position delegates to core.risk.sizing.size_position; tests/test_risk.py 39 passed",
+  "account_risk_fraction_selected": true,
+  "sizing_policy": "hourly_paper_limits",
+  "public_scan_pacing": "2 in flight, 0.2s between starts (5/s); 96 symbols x 3 calls = 288; about 57.6s; retry 10006/10018/429/403 rate responses"
 }

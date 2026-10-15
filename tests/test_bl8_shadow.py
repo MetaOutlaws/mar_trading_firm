@@ -11,6 +11,8 @@ import unittest
 from unittest.mock import patch
 
 from core.execution.bl8_shadow import Ledger, depth_fill, FEE, SLIP
+from core.risk.limits import PAPER_LIMITS
+from core.risk.sizing import size_position
 from core.strategy.bl8 import fill_gate
 from core.strategy.bl8 import decision, HOUR
 
@@ -20,6 +22,16 @@ T=1_800_000_000_000//3_600_000*3_600_000
 def signal(symbol='XUSDT', uid='s'):
     return dict(symbol=symbol,uid=uid,signal_ms=T,action_ms=T+60_000,
                 eligible_signal=True,stop=90.,target=115.,regime='trend_down')
+
+
+def reference_entry(ask=100.):
+    """Touch ask plus the modeled 20bp entry slip the ledger sizes against."""
+    return ask*(1+SLIP)
+
+
+def stop_at(distance, ask=100.):
+    """Stop that puts ``distance`` of the reference entry between fill and stop."""
+    return reference_entry(ask)*(1-distance)
 
 
 def book(now, bid=99.9, ask=100., symbol='XUSDT'):
@@ -36,8 +48,76 @@ class LedgerTests(unittest.TestCase):
     def tearDown(self): self.ledger.db.close();self.tmp.cleanup()
     def enter(self): return self.ledger.enter(self.s,book(self.now),INST,self.now)
     def test_entry_rounding_risk_and_fees(self):
-        p=self.enter();self.assertGreater(p['initial_risk_usdt'],0);self.assertLessEqual(p['initial_risk_usdt'],1)
+        p=self.enter();equity=self.ledger.starting_equity
+        self.assertGreater(p['initial_risk_usdt'],0)
+        self.assertLessEqual(p['initial_risk_usdt'],equity*PAPER_LIMITS.max_risk_per_trade_pct+1e-6)
+        self.assertLessEqual(p['notional_usdt'],equity*PAPER_LIMITS.max_position_pct+1e-6)
+        self.assertLessEqual(p['notional_usdt'],equity*PAPER_LIMITS.max_leverage+1e-6)
         self.assertAlmostEqual(self.ledger.audit()['cash_pnl_usdt'],-p['entry_price']*p['quantity']*FEE)
+    def test_ten_percent_cap_binds(self):
+        # An 9% stop wants about 11.1% of equity from the 1% risk budget, so the 10% cap wins.
+        s=signal(uid='cap');s['stop']=stop_at(0.09);self.ledger.signal(s,self.now)
+        p=self.ledger.enter(s,book(self.now),INST,self.now)
+        cap=self.ledger.starting_equity*PAPER_LIMITS.max_position_pct
+        self.assertAlmostEqual(p['notional_usdt'],cap,delta=1)
+        self.assertLess(p['initial_risk_usdt'],self.ledger.starting_equity*PAPER_LIMITS.max_risk_per_trade_pct)
+        self.assertEqual(self.ledger.limits.max_position_pct,0.10)
+    def test_risk_cap_binds_with_tight_stop(self):
+        # With the 10% cap out of the way, a 2% stop is sized by equity*1%/distance.
+        from dataclasses import replace
+        limits=replace(PAPER_LIMITS,max_position_pct=1.0,max_total_exposure_pct=1.0)
+        equity=10_000.;distance=0.02
+        _qty,notional,risk,notes,_reduced=size_position(
+            equity=equity,stop_distance_pct=distance,entry_price=100.,total_exposure=0.,limits=limits)
+        self.assertEqual(limits.max_risk_per_trade_pct,PAPER_LIMITS.max_risk_per_trade_pct)
+        self.assertAlmostEqual(notional,equity*0.01/distance)
+        self.assertAlmostEqual(risk,equity*0.01)
+        self.assertTrue(any('risk-per-trade' in note for note in notes))
+        self.assertLess(notional,equity*limits.max_position_pct)
+    def test_observer_risk_cap_binds_on_wide_stop(self):
+        # Under the real caps a stop wider than 10% is the case the 1% budget binds.
+        s=signal(uid='wide');s['stop']=stop_at(0.20);self.ledger.signal(s,self.now)
+        p=self.ledger.enter(s,book(self.now),INST,self.now)
+        self.assertAlmostEqual(p['initial_risk_usdt'],self.ledger.starting_equity*0.01,delta=0.05)
+        self.assertAlmostEqual(p['notional_usdt'],self.ledger.starting_equity*0.01/0.20,delta=1)
+        self.assertTrue(any('risk-per-trade' in note for note in p['sizing_notes']))
+        self.assertLess(p['notional_usdt'],self.ledger.starting_equity*PAPER_LIMITS.max_position_pct)
+    def test_exposure_room_binds(self):
+        held={'symbol':'OTHERUSDT','entry_price':100.,'quantity':46.,'mark_price':100.,
+              'entry_ms':self.now-60_000,'exit_ms':None,'initial_risk_usdt':1.,'entry_fee':0.,
+              'stop':90.,'target':115.,'funding_status':'unknown'}
+        self.ledger.db.execute('INSERT INTO positions VALUES(?,?,?,?)',('held','OTHERUSDT','open',json.dumps(held)))
+        self.ledger.db.commit()
+        s=signal(uid='next');s['stop']=stop_at(0.09);self.ledger.signal(s,self.now)
+        p=self.ledger.enter(s,book(self.now),INST,self.now)
+        self.assertAlmostEqual(p['notional_usdt'],400,delta=1)
+        self.assertLess(p['notional_usdt'],self.ledger.starting_equity*PAPER_LIMITS.max_position_pct)
+        self.assertTrue(any('exposure headroom' in note for note in p['sizing_notes']))
+    def test_reject_below_five_usdt_never_upsizes(self):
+        inst=copy.deepcopy(INST)
+        inst['lotSizeFilter']['minNotionalValue']='1'
+        inst['lotSizeFilter']['minOrderQty']='.001'
+        self.ledger.starting_equity=40.  # 10% cap is 4 USDT, already under the floor
+        under=signal(uid='under');under['stop']=stop_at(0.09);self.ledger.signal(under,self.now)
+        self.assertIsNone(self.ledger.enter(under,book(self.now),inst,self.now))
+        self.ledger.starting_equity=50.  # 10% cap is exactly 5; the lot floor drops it under 5
+        rounded=signal(uid='rounded');rounded['stop']=stop_at(0.09);self.ledger.signal(rounded,self.now)
+        self.assertIsNone(self.ledger.enter(rounded,book(self.now),inst,self.now))
+        self.assertEqual(self.ledger.positions(),[])
+        rows={r[0]:r[1] for r in self.ledger.db.execute("SELECT uid,status FROM signals WHERE uid IN ('under','rounded')")}
+        self.assertEqual(rows['under'],'below_min_notional')
+        self.assertEqual(rows['rounded'],'below_min_notional')
+    def test_leverage_cap_binds_at_one_times_equity(self):
+        from dataclasses import replace
+        self.ledger.limits=replace(PAPER_LIMITS,max_risk_per_trade_pct=1.0,max_position_pct=5.0,max_total_exposure_pct=5.0)
+        self.ledger.starting_equity=1_000.
+        self.assertEqual(self.ledger.limits.max_leverage,1.0)
+        self.assertEqual(PAPER_LIMITS.max_leverage,1.0)
+        s=signal(uid='lev');s['stop']=stop_at(0.09);self.ledger.signal(s,self.now)
+        p=self.ledger.enter(s,book(self.now),INST,self.now)
+        self.assertAlmostEqual(p['notional_usdt'],1_000,delta=1)
+        self.assertLessEqual(p['notional_usdt'],self.ledger.starting_equity*1.0+1e-6)
+        self.assertTrue(any('leverage cap' in note for note in p['sizing_notes']))
     def test_restart_exactly_once(self):
         p=self.enter();self.ledger.db.close();self.ledger=Ledger(self.path,'fixed');self.enter()
         self.assertEqual(len(self.ledger.positions()),1);self.assertEqual(self.ledger.audit()['cash_events'],1)
@@ -143,6 +223,14 @@ class MarketChecks(unittest.TestCase):
         root=Path(__file__).resolve().parents[1];c=json.loads((root/'config/sleeves/mar_bl8_shadow_v1.json').read_text())
         old=json.loads((root/'config/sleeves/mar_l01_long_f111_short_v1.json').read_text())
         self.assertEqual(c['universe'],old['universe']);self.assertEqual(len(set(c['universe'])),96);self.assertFalse(c['live_authorized'])
+        self.assertEqual(c['sizing_policy'],'hourly_paper_limits')
+        self.assertNotIn('initial_price_stop_risk_usdt',c)
+        self.assertEqual(c['starting_equity_usdt'],10000)
+        self.assertEqual(c['max_risk_per_trade_pct'],PAPER_LIMITS.max_risk_per_trade_pct)
+        self.assertEqual(c['max_position_pct'],PAPER_LIMITS.max_position_pct)
+        self.assertEqual(c['max_total_exposure_pct'],PAPER_LIMITS.max_total_exposure_pct)
+        self.assertEqual(c['max_leverage'],PAPER_LIMITS.max_leverage)
+        self.assertEqual(c['min_notional_usdt'],PAPER_LIMITS.min_notional_usdt)
     def test_warmup_boundary_and_bad_bars(self):
         asof=T//(4*HOUR)*(4*HOUR)
         h=[dict(t=asof-(24-i)*HOUR,o=100.,h=101.,l=99.,c=100.) for i in range(25)]
@@ -176,6 +264,142 @@ class MarketChecks(unittest.TestCase):
         with patch('scripts.run_bl8_paper.public_get',side_effect=fake):
             through,values,complete=funding_snapshot(p,480)
             self.assertTrue(complete);self.assertEqual(values[0]['price'],120.);self.assertEqual(values[0]['rate'],-.001)
+
+
+class _Body:
+    def __init__(self, status, payload, headers=None):
+        self.status=status
+        self.headers=headers or {}
+        self._raw=payload if isinstance(payload,bytes) else (payload if isinstance(payload,str) else json.dumps(payload)).encode()
+    def read(self): return self._raw
+    def __enter__(self): return self
+    def __exit__(self, *args): return False
+
+
+class PublicPaceTests(unittest.TestCase):
+    def _client(self, opener, **kw):
+        from core.execution.bl8_public import PublicClient
+        defaults=dict(min_interval_s=0, concurrency=1, max_attempts=5, opener=opener, sleep=lambda _s: None, rng=lambda: 0, now_s=lambda: 1_000.0)
+        defaults.update(kw)
+        return PublicClient(**defaults)
+
+    def test_rate_limit_retry_succeeds(self):
+        sleeps=[]; calls=[]
+        def opener(request, timeout=5):
+            calls.append(request.full_url)
+            if len(calls)==1:
+                return _Body(200, {'retCode':10006,'retMsg':'Too many visits!'}, {'X-Bapi-Limit-Reset-Timestamp':'1000500'})
+            return _Body(200, {'retCode':0,'result':{'ok':True}})
+        client=self._client(opener, sleep=sleeps.append)
+        body=client.get('https://api.bybit.com/v5/market/kline?category=linear&symbol=X')
+        self.assertEqual(body['retCode'],0); self.assertEqual(len(calls),2); self.assertEqual(sleeps,[0.5])
+        # 10018, HTTP 429 with Retry-After, and a 403 rate page are the same retry path.
+        for status, payload, headers, expected in (
+            (200, {'retCode':10018,'retMsg':'Exceeded the IP Rate Limit.'}, {}, 0.5),
+            (429, {'retCode':10006,'retMsg':'Too many visits!'}, {'Retry-After':'1.5'}, 1.5),
+            (403, 'access too frequent', {}, 0.5),
+        ):
+            seen=[]
+            def opener(request, timeout=5, status=status, payload=payload, headers=headers):
+                seen.append(1)
+                if len(seen)==1: return _Body(status, payload, headers)
+                return _Body(200, {'retCode':0,'result':{}})
+            waited=[]
+            client=self._client(opener, sleep=waited.append, backoff_base_s=0.5)
+            self.assertEqual(client.get('https://api.bybit.com/v5/market/kline')['retCode'],0)
+            self.assertEqual(len(seen),2); self.assertAlmostEqual(waited[0], expected)
+
+    def test_retries_exhausted_leaves_symbol_errored_and_scan_incomplete(self):
+        from core.execution.bl8_public import RateLimited, scan_complete
+        from scripts.run_bl8_paper import context
+        sleeps=[]
+        def opener(request, timeout=5):
+            return _Body(200, {'retCode':10006,'retMsg':'Too many visits!'})
+        client=self._client(opener, max_attempts=3, sleep=sleeps.append)
+        def get(path, **params):
+            return client.get('https://api.bybit.com/v5/market/'+path)
+        with self.assertRaises(RateLimited) as caught:
+            context('XUSDT', T, get=get)
+        self.assertEqual(caught.exception.attempts,3); self.assertEqual(len(sleeps),2)
+        self.ledger=Ledger(Path(tempfile.mkdtemp())/'paper.db','pace')
+        self.addCleanup(self.ledger.db.close)
+        now=T+1
+        self.ledger.observe(now,'error',{'operation':'context','identity':'XUSDT','error':str(caught.exception),'attempts':caught.exception.attempts})
+        self.ledger.observe(now,'context',{'symbol':'YUSDT','reason':'no_signal'})
+        events=[(now,'error','XUSDT'),(now,'context','YUSDT')]
+        self.assertFalse(scan_complete(['XUSDT','YUSDT'], events))
+        self.assertEqual(self.ledger.db.execute("SELECT count(*) FROM observations WHERE kind='context' AND payload LIKE '%XUSDT%'").fetchone()[0],0)
+
+    def test_scan_not_marked_complete_while_any_symbol_is_erroring(self):
+        from scripts import verify_bl8_paper as verifier
+        from core.execution.bl8_public import scan_complete
+        self.assertFalse(scan_complete(['XUSDT','YUSDT'], [(1,'context','XUSDT'),(2,'error','YUSDT')]))
+        self.assertTrue(scan_complete(['XUSDT'], [(1,'error','XUSDT'),(2,'context','XUSDT')]))
+        root=Path(tempfile.mkdtemp())/'release'; (root/'config/sleeves').mkdir(parents=True); (root/'docs/bl8-paper-validation').mkdir(parents=True)
+        raw=json.dumps({'universe':['XUSDT','YUSDT']}).encode(); (root/'config/sleeves/mar_bl8_shadow_v1.json').write_bytes(raw)
+        (root/'BL8_RELEASE_SHA').write_text('b'*40); (root/'docs/bl8-paper-validation/RELEASE_MANIFEST.json').write_text('{"runtime_sha256":{}}')
+        path=Path(tempfile.mkdtemp())/'paper.db'; ledger=Ledger(path, hashlib.sha256(raw).hexdigest())
+        self.addCleanup(ledger.db.close)
+        now=T+60_000
+        ledger.observe(now,'context',{'symbol':'XUSDT','reason':'no_signal','instrument':INST})
+        ledger.observe(now+1,'error',{'operation':'context','identity':'YUSDT','error':'RateLimited: HTTP 200 retCode 10006 after 5 attempts','attempts':5})
+        status={'heartbeat_ms':now+2,'started_ms':T,'release':'b'*40,'config_sha':hashlib.sha256(raw).hexdigest(),'universe_scan_complete':False}
+        (path.parent/'status.json').write_text(json.dumps(status))
+        argv=['verify','--db',str(path),'--expected-commit','b'*40]; buf=io.StringIO()
+        with patch.object(verifier,'ROOT',root), patch('sys.argv',argv), patch.object(verifier.time,'time_ns',return_value=(now+2)*1_000_000), contextlib.redirect_stdout(buf):
+            with self.assertRaises(SystemExit) as ex: verifier.main()
+        self.assertEqual(ex.exception.code, True)
+        result=json.loads(buf.getvalue())
+        self.assertIn('initial_universe_scan_incomplete', result['failures']); self.assertFalse(result['activation_verified'])
+
+    def test_pacing_limits_the_request_rate(self):
+        from core.execution.bl8_public import DEFAULT_MIN_INTERVAL_S, PublicClient, expected_scan_seconds
+        clock={'t':0.0}
+        def opener(request, timeout=5):
+            return _Body(200, {'retCode':0,'result':{}})
+        interval=0.2
+        client=PublicClient(min_interval_s=interval, concurrency=1, max_attempts=1, opener=opener,
+                            monotonic=lambda: clock['t'], sleep=lambda seconds: clock.__setitem__('t', clock['t']+seconds), rng=lambda: 0)
+        for _ in range(6):
+            client.get('https://api.bybit.com/v5/market/kline')
+        self.assertAlmostEqual(clock['t'], 5*interval)
+        self.assertLessEqual(5/clock['t'], 1/interval+1e-9)
+        seconds=expected_scan_seconds(96)
+        self.assertAlmostEqual(seconds, 96*3*DEFAULT_MIN_INTERVAL_S)
+        self.assertAlmostEqual(seconds, 57.6)
+        self.assertLess(seconds, 120)
+        self.assertLess(96*3/seconds, 120)
+        self.assertEqual(DEFAULT_MIN_INTERVAL_S, 0.2)
+
+    def test_concurrency_stays_bounded(self):
+        import threading
+        import time
+        from core.execution.bl8_public import PublicClient
+        state={'current':0,'peak':0}; lock=threading.Lock(); started=threading.Barrier(6)
+        def opener(request, timeout=5):
+            with lock:
+                state['current']+=1; state['peak']=max(state['peak'], state['current'])
+            time.sleep(0.05)
+            with lock:
+                state['current']-=1
+            return _Body(200, {'retCode':0,'result':{}})
+        client=PublicClient(min_interval_s=0, concurrency=2, max_attempts=1, opener=opener)
+        def run():
+            started.wait()
+            client.get('https://api.bybit.com/v5/market/kline')
+        threads=[threading.Thread(target=run) for _ in range(6)]
+        for thread in threads: thread.start()
+        for thread in threads: thread.join()
+        self.assertLessEqual(state['peak'], 2); self.assertGreater(state['peak'], 0)
+
+    def test_non_rate_403_is_not_retried(self):
+        calls=[]
+        def opener(request, timeout=5):
+            calls.append(1)
+            return _Body(403, {'retCode':10005,'retMsg':'Permission denied'})
+        client=self._client(opener, max_attempts=4)
+        with self.assertRaises(ValueError): client.get('https://api.bybit.com/v5/market/kline')
+        self.assertEqual(len(calls), 1)
 
 
 if __name__=='__main__':unittest.main()
