@@ -578,8 +578,29 @@ def test_dashboard_keeps_expansion_off_the_strategies_table() -> None:
     assert "Holdout = H2 2025, scored once" in html
     assert "2026 = exploratory, veto-only" in html
     assert "showing ${filtered.length} of ${rows.length} rows" in html
-    assert "Reset filters" in html
+    assert "Main WR %" in html
+    assert "Main PF" in html
+    assert "2026 WR %" in html
+    assert "2026 PF" in html
+    assert 'expansionNum("expansionWrMainMin", "Main WR %"' in html
+    assert 'expansionNum("expansionPfMainMin", "Main PF"' in html
+    assert 'expansionNum("expansionWr2026Min", "2026 WR %"' in html
+    assert 'expansionNum("expansionPf2026Min", "2026 PF"' in html
+    assert ">Reset</button>" in html
     assert "function sortExpansion(" in html
     assert "winrate_main" in html
-    assert "expansionNMainMin" in html
     assert "Nulls stay last" in html
+    assert "A set minimum drops nulls" in html
+    for gone in (
+        "expansionBatch",
+        "expansionRule",
+        "expansionSide",
+        "expansionToken",
+        'expansionSelect("expansionVerdict"',
+        "expansionPfMainMax",
+        "expansionPfHoldMin",
+        "expansionWrHoldMin",
+        "expansionNMainMin",
+        "function expansionSelect(",
+    ):
+        assert gone not in html
