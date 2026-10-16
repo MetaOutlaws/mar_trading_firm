@@ -1,0 +1,36 @@
+test_action_deadline (tests.test_bl8_shadow.LedgerTests.test_action_deadline) ... ok
+test_atomic_close_failure_and_retry (tests.test_bl8_shadow.LedgerTests.test_atomic_close_failure_and_retry) ... ok
+test_close_cash_and_restart (tests.test_bl8_shadow.LedgerTests.test_close_cash_and_restart) ... ok
+test_config_drift_refuses_existing_book (tests.test_bl8_shadow.LedgerTests.test_config_drift_refuses_existing_book) ... ok
+test_disabled_entries_keep_exits (tests.test_bl8_shadow.LedgerTests.test_disabled_entries_keep_exits) ... ok
+test_entry_rounding_risk_and_fees (tests.test_bl8_shadow.LedgerTests.test_entry_rounding_risk_and_fees) ... ok
+test_equity_cash_unrealized_and_stale_marks (tests.test_bl8_shadow.LedgerTests.test_equity_cash_unrealized_and_stale_marks) ... ok
+test_exit_minute_occupied (tests.test_bl8_shadow.LedgerTests.test_exit_minute_occupied) ... ok
+test_funding_debit_credit_and_duplicate (tests.test_bl8_shadow.LedgerTests.test_funding_debit_credit_and_duplicate) ... ok
+test_funding_gap_never_final_zero (tests.test_bl8_shadow.LedgerTests.test_funding_gap_never_final_zero) ... ok
+test_funding_snapshot_cannot_erase_prior (tests.test_bl8_shadow.LedgerTests.test_funding_snapshot_cannot_erase_prior) ... ok
+test_future_and_expired_signals (tests.test_bl8_shadow.LedgerTests.test_future_and_expired_signals) ... ok
+test_invalid_limits_refuse_entry (tests.test_bl8_shadow.LedgerTests.test_invalid_limits_refuse_entry) ... ok
+test_low_size_is_rejected_not_upsized (tests.test_bl8_shadow.LedgerTests.test_low_size_is_rejected_not_upsized) ... ok
+test_missing_quote_does_not_close (tests.test_bl8_shadow.LedgerTests.test_missing_quote_does_not_close) ... ok
+test_no_exit_on_entry_minute (tests.test_bl8_shadow.LedgerTests.test_no_exit_on_entry_minute) ... ok
+test_out_of_order_marks_do_not_replace_recent (tests.test_bl8_shadow.LedgerTests.test_out_of_order_marks_do_not_replace_recent) ... ok
+test_readonly_verifier_distinguishes_activation_and_fill_evidence (tests.test_bl8_shadow.LedgerTests.test_readonly_verifier_distinguishes_activation_and_fill_evidence) ... ok
+test_restart_exactly_once (tests.test_bl8_shadow.LedgerTests.test_restart_exactly_once) ... ok
+test_stop_fills_observed_depth_not_stop_level (tests.test_bl8_shadow.LedgerTests.test_stop_fills_observed_depth_not_stop_level) ... ok
+test_unavailable_or_wrong_symbol (tests.test_bl8_shadow.LedgerTests.test_unavailable_or_wrong_symbol) ... ok
+test_depth_vwap (tests.test_bl8_shadow.MarketChecks.test_depth_vwap) ... ok
+test_fill_gate_boundaries (tests.test_bl8_shadow.MarketChecks.test_fill_gate_boundaries) ... ok
+test_fixed_band_strict_boundary_arithmetic (tests.test_bl8_shadow.MarketChecks.test_fixed_band_strict_boundary_arithmetic) ... ok
+test_frozen_config (tests.test_bl8_shadow.MarketChecks.test_frozen_config) ... ok
+test_funding_public_response_gap_is_unknown (tests.test_bl8_shadow.MarketChecks.test_funding_public_response_gap_is_unknown) ... ok
+test_funding_public_response_values_settlement_open (tests.test_bl8_shadow.MarketChecks.test_funding_public_response_values_settlement_open) ... ok
+test_insufficient_crossed_and_unsorted (tests.test_bl8_shadow.MarketChecks.test_insufficient_crossed_and_unsorted) ... ok
+test_public_only_endpoint (tests.test_bl8_shadow.MarketChecks.test_public_only_endpoint) ... ok
+test_quote_age_and_future (tests.test_bl8_shadow.MarketChecks.test_quote_age_and_future) ... ok
+test_warmup_boundary_and_bad_bars (tests.test_bl8_shadow.MarketChecks.test_warmup_boundary_and_bad_bars) ... ok
+
+----------------------------------------------------------------------
+Ran 31 tests in 0.054s
+
+OK

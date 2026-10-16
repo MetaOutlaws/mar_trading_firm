@@ -1,0 +1,862 @@
+{
+  "study": "MAR-BL8-VALIDATION-01",
+  "protocol": {
+    "frozen_at": "2026-10-15T18:03:41.483761+00:00",
+    "protocol_sha256": "b6d8985cebba5fa1a714375bae67c9e97ca6b8f856cb94ca2e7a8d7443d9e70f",
+    "parent_checkpoint_sha256": "4c321f2eb9a12423778b0e37328161a818ea37513cf2bc5cc5e9d170863acc6a",
+    "historical_2026_opened": false
+  },
+  "stress": [
+    {
+      "key": "C1_ALL_A00",
+      "period": "2022-25",
+      "net_R": 45.1694804549,
+      "drawdown_R": 11.7414878127,
+      "peak_notional": 223.50777586,
+      "peak_positions": 9
+    },
+    {
+      "key": "C1_ALL_A00",
+      "period": "2022",
+      "net_R": 10.4128491202,
+      "drawdown_R": 6.543997828,
+      "peak_notional": 95.4503388684,
+      "peak_positions": 4
+    },
+    {
+      "key": "C1_ALL_A00",
+      "period": "2023",
+      "net_R": 13.8102525757,
+      "drawdown_R": 6.618340689,
+      "peak_notional": 61.9997155949,
+      "peak_positions": 3
+    },
+    {
+      "key": "C1_ALL_A00",
+      "period": "2024",
+      "net_R": 10.0253030525,
+      "drawdown_R": 11.7414878127,
+      "peak_notional": 107.5460535164,
+      "peak_positions": 4
+    },
+    {
+      "key": "C1_ALL_A00",
+      "period": "2025",
+      "net_R": 10.9210757065,
+      "drawdown_R": 11.5091912084,
+      "peak_notional": 223.50777586,
+      "peak_positions": 9
+    },
+    {
+      "key": "C1_ALL_BL8",
+      "period": "2022-25",
+      "net_R": 269.691877174,
+      "drawdown_R": 62.1600836035,
+      "peak_notional": 591.5332571735,
+      "peak_positions": 61
+    },
+    {
+      "key": "C1_ALL_BL8",
+      "period": "2022",
+      "net_R": 23.2241199842,
+      "drawdown_R": 62.1600836035,
+      "peak_notional": 260.5698996203,
+      "peak_positions": 29
+    },
+    {
+      "key": "C1_ALL_BL8",
+      "period": "2023",
+      "net_R": 18.0404410555,
+      "drawdown_R": 6.9703426925,
+      "peak_notional": 51.7632814367,
+      "peak_positions": 6
+    },
+    {
+      "key": "C1_ALL_BL8",
+      "period": "2024",
+      "net_R": 120.5088815015,
+      "drawdown_R": 43.2099357404,
+      "peak_notional": 522.3938578121,
+      "peak_positions": 61
+    },
+    {
+      "key": "C1_ALL_BL8",
+      "period": "2025",
+      "net_R": 107.9184346328,
+      "drawdown_R": 41.4653200165,
+      "peak_notional": 591.5332571735,
+      "peak_positions": 59
+    },
+    {
+      "key": "C1_ALL_J01",
+      "period": "2022-25",
+      "net_R": 313.5772948049,
+      "drawdown_R": 62.1600836035,
+      "peak_notional": 591.5332571735,
+      "peak_positions": 61
+    },
+    {
+      "key": "C1_ALL_J01",
+      "period": "2022",
+      "net_R": 33.6369691044,
+      "drawdown_R": 62.1600836035,
+      "peak_notional": 260.5698996203,
+      "peak_positions": 29
+    },
+    {
+      "key": "C1_ALL_J01",
+      "period": "2023",
+      "net_R": 31.8506936312,
+      "drawdown_R": 12.3349569366,
+      "peak_notional": 61.9997155949,
+      "peak_positions": 6
+    },
+    {
+      "key": "C1_ALL_J01",
+      "period": "2024",
+      "net_R": 130.534184554,
+      "drawdown_R": 43.2099357404,
+      "peak_notional": 522.3938578121,
+      "peak_positions": 61
+    },
+    {
+      "key": "C1_ALL_J01",
+      "period": "2025",
+      "net_R": 117.5554475153,
+      "drawdown_R": 41.4653200165,
+      "peak_notional": 591.5332571735,
+      "peak_positions": 59
+    },
+    {
+      "key": "S0_ALL_A00",
+      "period": "2022-25",
+      "net_R": 46.2833549937,
+      "drawdown_R": 11.8544115839,
+      "peak_notional": 223.7319561768,
+      "peak_positions": 9
+    },
+    {
+      "key": "S0_ALL_A00",
+      "period": "2022",
+      "net_R": 9.905483612,
+      "drawdown_R": 6.6167719602,
+      "peak_notional": 95.3551740241,
+      "peak_positions": 4
+    },
+    {
+      "key": "S0_ALL_A00",
+      "period": "2023",
+      "net_R": 13.0659189246,
+      "drawdown_R": 6.6184872356,
+      "peak_notional": 62.0619018693,
+      "peak_positions": 3
+    },
+    {
+      "key": "S0_ALL_A00",
+      "period": "2024",
+      "net_R": 10.5924654779,
+      "drawdown_R": 11.8544115839,
+      "peak_notional": 107.6539231789,
+      "peak_positions": 4
+    },
+    {
+      "key": "S0_ALL_A00",
+      "period": "2025",
+      "net_R": 12.7194869792,
+      "drawdown_R": 11.3565069751,
+      "peak_notional": 223.7319561768,
+      "peak_positions": 9
+    },
+    {
+      "key": "S0_ALL_BL8",
+      "period": "2022-25",
+      "net_R": 276.1939621823,
+      "drawdown_R": 62.2100765596,
+      "peak_notional": 584.4619302535,
+      "peak_positions": 61
+    },
+    {
+      "key": "S0_ALL_BL8",
+      "period": "2022",
+      "net_R": 25.055349516,
+      "drawdown_R": 62.2100765596,
+      "peak_notional": 250.5151850191,
+      "peak_positions": 29
+    },
+    {
+      "key": "S0_ALL_BL8",
+      "period": "2023",
+      "net_R": 15.9861661697,
+      "drawdown_R": 7.1863970564,
+      "peak_notional": 52.1683138565,
+      "peak_positions": 6
+    },
+    {
+      "key": "S0_ALL_BL8",
+      "period": "2024",
+      "net_R": 124.767655535,
+      "drawdown_R": 43.5563630761,
+      "peak_notional": 515.0768300136,
+      "peak_positions": 61
+    },
+    {
+      "key": "S0_ALL_BL8",
+      "period": "2025",
+      "net_R": 110.3847909616,
+      "drawdown_R": 41.7843645663,
+      "peak_notional": 584.4619302535,
+      "peak_positions": 58
+    },
+    {
+      "key": "S0_ALL_J01",
+      "period": "2022-25",
+      "net_R": 321.2037372186,
+      "drawdown_R": 62.2100765596,
+      "peak_notional": 584.4619302535,
+      "peak_positions": 61
+    },
+    {
+      "key": "S0_ALL_J01",
+      "period": "2022",
+      "net_R": 34.960833128,
+      "drawdown_R": 62.2100765596,
+      "peak_notional": 250.5151850191,
+      "peak_positions": 29
+    },
+    {
+      "key": "S0_ALL_J01",
+      "period": "2023",
+      "net_R": 29.0520850942,
+      "drawdown_R": 12.3259149544,
+      "peak_notional": 62.0619018693,
+      "peak_positions": 6
+    },
+    {
+      "key": "S0_ALL_J01",
+      "period": "2024",
+      "net_R": 135.3601210129,
+      "drawdown_R": 43.5563630761,
+      "peak_notional": 515.0768300136,
+      "peak_positions": 61
+    },
+    {
+      "key": "S0_ALL_J01",
+      "period": "2025",
+      "net_R": 121.8306979835,
+      "drawdown_R": 41.7843645663,
+      "peak_notional": 584.4619302535,
+      "peak_positions": 58
+    },
+    {
+      "key": "S1_ALL_A00",
+      "period": "2022-25",
+      "net_R": 41.2990569799,
+      "drawdown_R": 12.1625945012,
+      "peak_notional": 223.50777586,
+      "peak_positions": 9
+    },
+    {
+      "key": "S1_ALL_A00",
+      "period": "2022",
+      "net_R": 9.3872145041,
+      "drawdown_R": 6.8200447782,
+      "peak_notional": 95.4503388684,
+      "peak_positions": 4
+    },
+    {
+      "key": "S1_ALL_A00",
+      "period": "2023",
+      "net_R": 13.3618958572,
+      "drawdown_R": 6.8964602605,
+      "peak_notional": 61.9997155949,
+      "peak_positions": 3
+    },
+    {
+      "key": "S1_ALL_A00",
+      "period": "2024",
+      "net_R": 8.9209979077,
+      "drawdown_R": 12.1625945012,
+      "peak_notional": 107.5460535164,
+      "peak_positions": 4
+    },
+    {
+      "key": "S1_ALL_A00",
+      "period": "2025",
+      "net_R": 9.6289487109,
+      "drawdown_R": 12.0211982226,
+      "peak_notional": 223.50777586,
+      "peak_positions": 9
+    },
+    {
+      "key": "S1_ALL_BL8",
+      "period": "2022-25",
+      "net_R": 264.6330302122,
+      "drawdown_R": 62.8934361777,
+      "peak_notional": 591.5332571735,
+      "peak_positions": 61
+    },
+    {
+      "key": "S1_ALL_BL8",
+      "period": "2022",
+      "net_R": 21.7277263374,
+      "drawdown_R": 62.8934361777,
+      "peak_notional": 260.5698996203,
+      "peak_positions": 29
+    },
+    {
+      "key": "S1_ALL_BL8",
+      "period": "2023",
+      "net_R": 17.57323423,
+      "drawdown_R": 7.0796569503,
+      "peak_notional": 51.7632814367,
+      "peak_positions": 6
+    },
+    {
+      "key": "S1_ALL_BL8",
+      "period": "2024",
+      "net_R": 118.6776561963,
+      "drawdown_R": 43.2588605974,
+      "peak_notional": 522.3938578121,
+      "peak_positions": 61
+    },
+    {
+      "key": "S1_ALL_BL8",
+      "period": "2025",
+      "net_R": 106.6544134485,
+      "drawdown_R": 41.4653200165,
+      "peak_notional": 591.5332571735,
+      "peak_positions": 59
+    },
+    {
+      "key": "S1_ALL_J01",
+      "period": "2022-25",
+      "net_R": 304.6480243682,
+      "drawdown_R": 62.8934361777,
+      "peak_notional": 591.5332571735,
+      "peak_positions": 61
+    },
+    {
+      "key": "S1_ALL_J01",
+      "period": "2022",
+      "net_R": 31.1149408415,
+      "drawdown_R": 62.8934361777,
+      "peak_notional": 260.5698996203,
+      "peak_positions": 29
+    },
+    {
+      "key": "S1_ALL_J01",
+      "period": "2023",
+      "net_R": 30.9351300872,
+      "drawdown_R": 12.6812410799,
+      "peak_notional": 61.9997155949,
+      "peak_positions": 6
+    },
+    {
+      "key": "S1_ALL_J01",
+      "period": "2024",
+      "net_R": 127.5986541041,
+      "drawdown_R": 43.2588605974,
+      "peak_notional": 522.3938578121,
+      "peak_positions": 61
+    },
+    {
+      "key": "S1_ALL_J01",
+      "period": "2025",
+      "net_R": 114.9992993354,
+      "drawdown_R": 41.4653200165,
+      "peak_notional": 591.5332571735,
+      "peak_positions": 59
+    },
+    {
+      "key": "S2_ALL_A00",
+      "period": "2022-25",
+      "net_R": 21.5123779964,
+      "drawdown_R": 13.0797354707,
+      "peak_notional": 223.0594152264,
+      "peak_positions": 9
+    },
+    {
+      "key": "S2_ALL_A00",
+      "period": "2022",
+      "net_R": 2.8117386535,
+      "drawdown_R": 9.8030112096,
+      "peak_notional": 95.6406685571,
+      "peak_positions": 4
+    },
+    {
+      "key": "S2_ALL_A00",
+      "period": "2023",
+      "net_R": 10.6998693304,
+      "drawdown_R": 7.5159469449,
+      "peak_notional": 61.8753430461,
+      "peak_positions": 3
+    },
+    {
+      "key": "S2_ALL_A00",
+      "period": "2024",
+      "net_R": 4.3683519919,
+      "drawdown_R": 13.0797354707,
+      "peak_notional": 107.3303141913,
+      "peak_positions": 4
+    },
+    {
+      "key": "S2_ALL_A00",
+      "period": "2025",
+      "net_R": 3.6324180205,
+      "drawdown_R": 12.854231172,
+      "peak_notional": 223.0594152264,
+      "peak_positions": 9
+    },
+    {
+      "key": "S2_ALL_BL8",
+      "period": "2022-25",
+      "net_R": 211.7013762503,
+      "drawdown_R": 66.054113985,
+      "peak_notional": 605.5912282788,
+      "peak_positions": 61
+    },
+    {
+      "key": "S2_ALL_BL8",
+      "period": "2022",
+      "net_R": 5.9702436023,
+      "drawdown_R": 66.054113985,
+      "peak_notional": 280.5048456767,
+      "peak_positions": 29
+    },
+    {
+      "key": "S2_ALL_BL8",
+      "period": "2023",
+      "net_R": 13.4048895011,
+      "drawdown_R": 7.9114924209,
+      "peak_notional": 50.9745272247,
+      "peak_positions": 6
+    },
+    {
+      "key": "S2_ALL_BL8",
+      "period": "2024",
+      "net_R": 91.4833410819,
+      "drawdown_R": 46.353375436,
+      "peak_notional": 549.4672974422,
+      "peak_positions": 61
+    },
+    {
+      "key": "S2_ALL_BL8",
+      "period": "2025",
+      "net_R": 100.842902065,
+      "drawdown_R": 42.8473283905,
+      "peak_notional": 605.5912282788,
+      "peak_positions": 61
+    },
+    {
+      "key": "S2_ALL_J01",
+      "period": "2022-25",
+      "net_R": 232.0323536875,
+      "drawdown_R": 66.054113985,
+      "peak_notional": 605.5912282788,
+      "peak_positions": 61
+    },
+    {
+      "key": "S2_ALL_J01",
+      "period": "2022",
+      "net_R": 8.7819822558,
+      "drawdown_R": 66.054113985,
+      "peak_notional": 280.5048456767,
+      "peak_positions": 29
+    },
+    {
+      "key": "S2_ALL_J01",
+      "period": "2023",
+      "net_R": 24.1047588315,
+      "drawdown_R": 13.1216063907,
+      "peak_notional": 61.8753430461,
+      "peak_positions": 6
+    },
+    {
+      "key": "S2_ALL_J01",
+      "period": "2024",
+      "net_R": 95.8516930739,
+      "drawdown_R": 47.4599478641,
+      "peak_notional": 549.4672974422,
+      "peak_positions": 61
+    },
+    {
+      "key": "S2_ALL_J01",
+      "period": "2025",
+      "net_R": 103.2939195264,
+      "drawdown_R": 42.8473283905,
+      "peak_notional": 605.5912282788,
+      "peak_positions": 61
+    },
+    {
+      "key": "S3_ALL_A00",
+      "period": "2022-25",
+      "net_R": -47.5820982063,
+      "drawdown_R": 49.1380831997,
+      "peak_notional": 221.9385136423,
+      "peak_positions": 9
+    },
+    {
+      "key": "S3_ALL_A00",
+      "period": "2022",
+      "net_R": -19.4625668997,
+      "drawdown_R": 21.0185518931,
+      "peak_notional": 96.1164927788,
+      "peak_positions": 4
+    },
+    {
+      "key": "S3_ALL_A00",
+      "period": "2023",
+      "net_R": -0.2907232137,
+      "drawdown_R": 9.8996749183,
+      "peak_notional": 61.564411674,
+      "peak_positions": 3
+    },
+    {
+      "key": "S3_ALL_A00",
+      "period": "2024",
+      "net_R": -16.2961110021,
+      "drawdown_R": 25.8939893014,
+      "peak_notional": 106.7909658788,
+      "peak_positions": 4
+    },
+    {
+      "key": "S3_ALL_A00",
+      "period": "2025",
+      "net_R": -11.5326970908,
+      "drawdown_R": 22.3466942608,
+      "peak_notional": 221.9385136423,
+      "peak_positions": 9
+    },
+    {
+      "key": "S3_ALL_BL8",
+      "period": "2022-25",
+      "net_R": 68.6192253797,
+      "drawdown_R": 76.3695367271,
+      "peak_notional": 585.0888486885,
+      "peak_positions": 62
+    },
+    {
+      "key": "S3_ALL_BL8",
+      "period": "2022",
+      "net_R": -17.3921980586,
+      "drawdown_R": 76.3695367271,
+      "peak_notional": 303.8128915882,
+      "peak_positions": 30
+    },
+    {
+      "key": "S3_ALL_BL8",
+      "period": "2023",
+      "net_R": 2.4553662388,
+      "drawdown_R": 11.6836642291,
+      "peak_notional": 82.6643330106,
+      "peak_positions": 7
+    },
+    {
+      "key": "S3_ALL_BL8",
+      "period": "2024",
+      "net_R": 27.2317424985,
+      "drawdown_R": 72.2431377231,
+      "peak_notional": 585.0888486885,
+      "peak_positions": 62
+    },
+    {
+      "key": "S3_ALL_BL8",
+      "period": "2025",
+      "net_R": 56.3243147011,
+      "drawdown_R": 42.8366268322,
+      "peak_notional": 579.2964793032,
+      "peak_positions": 61
+    },
+    {
+      "key": "S3_ALL_J01",
+      "period": "2022-25",
+      "net_R": 19.9738047976,
+      "drawdown_R": 88.895348228,
+      "peak_notional": 585.0888486885,
+      "peak_positions": 62
+    },
+    {
+      "key": "S3_ALL_J01",
+      "period": "2022",
+      "net_R": -36.8547649583,
+      "drawdown_R": 82.6823359815,
+      "peak_notional": 303.8128915882,
+      "peak_positions": 30
+    },
+    {
+      "key": "S3_ALL_J01",
+      "period": "2023",
+      "net_R": 2.1646430251,
+      "drawdown_R": 17.0784852646,
+      "peak_notional": 82.6643330106,
+      "peak_positions": 7
+    },
+    {
+      "key": "S3_ALL_J01",
+      "period": "2024",
+      "net_R": 10.9356314964,
+      "drawdown_R": 79.9547334938,
+      "peak_notional": 585.0888486885,
+      "peak_positions": 62
+    },
+    {
+      "key": "S3_ALL_J01",
+      "period": "2025",
+      "net_R": 43.7282952344,
+      "drawdown_R": 43.3014735758,
+      "peak_notional": 579.2964793032,
+      "peak_positions": 61
+    }
+  ],
+  "earlier_data_risk_calibration": [
+    {
+      "test_year": 2023,
+      "case_id": "A00",
+      "scale": 1.0,
+      "net_R": 13.0659189246,
+      "drawdown_R": 6.6184872356,
+      "peak_notional": 62.0619018693,
+      "realized_daily_std": 0.3616605264,
+      "diagnostic_year_boundary_rebalance": true
+    },
+    {
+      "test_year": 2023,
+      "case_id": "BL8",
+      "scale": 0.1912462079,
+      "net_R": 3.0572936583,
+      "drawdown_R": 1.3743711853,
+      "peak_notional": 9.9769921961,
+      "realized_daily_std": 0.106674776,
+      "diagnostic_year_boundary_rebalance": true
+    },
+    {
+      "test_year": 2023,
+      "case_id": "J01",
+      "scale": 0.1882731918,
+      "net_R": 5.4697287904,
+      "drawdown_R": 2.3206393509,
+      "peak_notional": 11.6845923568,
+      "realized_daily_std": 0.1253035171,
+      "diagnostic_year_boundary_rebalance": true
+    },
+    {
+      "test_year": 2024,
+      "case_id": "A00",
+      "scale": 1.0,
+      "net_R": 10.5924654779,
+      "drawdown_R": 11.8544115839,
+      "peak_notional": 107.6539231789,
+      "realized_daily_std": 0.559132621,
+      "diagnostic_year_boundary_rebalance": true
+    },
+    {
+      "test_year": 2024,
+      "case_id": "BL8",
+      "scale": 0.2296646026,
+      "net_R": 28.654714028,
+      "drawdown_R": 10.0033548174,
+      "peak_notional": 118.2949154828,
+      "realized_daily_std": 0.7285831212,
+      "diagnostic_year_boundary_rebalance": true
+    },
+    {
+      "test_year": 2024,
+      "case_id": "J01",
+      "scale": 0.2243102044,
+      "net_R": 30.3626564134,
+      "drawdown_R": 9.770136705,
+      "peak_notional": 115.5369890273,
+      "realized_daily_std": 0.7237264786,
+      "diagnostic_year_boundary_rebalance": true
+    },
+    {
+      "test_year": 2025,
+      "case_id": "A00",
+      "scale": 1.0,
+      "net_R": 12.7194869792,
+      "drawdown_R": 11.3565069751,
+      "peak_notional": 223.7319561768,
+      "realized_daily_std": 0.6842178208,
+      "diagnostic_year_boundary_rebalance": true
+    },
+    {
+      "test_year": 2025,
+      "case_id": "BL8",
+      "scale": 0.2002569602,
+      "net_R": 22.1053226875,
+      "drawdown_R": 8.3676098309,
+      "peak_notional": 117.0425694905,
+      "realized_daily_std": 1.1875631538,
+      "diagnostic_year_boundary_rebalance": true
+    },
+    {
+      "test_year": 2025,
+      "case_id": "J01",
+      "scale": 0.196359712,
+      "net_R": 23.9226407745,
+      "drawdown_R": 8.2047657943,
+      "peak_notional": 114.764776327,
+      "realized_daily_std": 1.1704514865,
+      "diagnostic_year_boundary_rebalance": true
+    }
+  ],
+  "token_selection": [
+    {
+      "scenario": "S0",
+      "case_id": "A00",
+      "policy": "P",
+      "period": "2023-25",
+      "delta_R": -20.6360596886,
+      "lower": -49.803526959,
+      "upper": 8.721930544,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "S0",
+      "case_id": "A00",
+      "policy": "E",
+      "period": "2023-25",
+      "delta_R": 0.0,
+      "lower": 0.0,
+      "upper": 0.0,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "S0",
+      "case_id": "BL8",
+      "policy": "P",
+      "period": "2023-25",
+      "delta_R": -77.5850785908,
+      "lower": -156.7489614013,
+      "upper": -11.9402254984,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "S0",
+      "case_id": "BL8",
+      "policy": "E",
+      "period": "2023-25",
+      "delta_R": -27.521577123,
+      "lower": -67.3610468163,
+      "upper": 2.9921346364,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "S0",
+      "case_id": "J01",
+      "policy": "P",
+      "period": "2023-25",
+      "delta_R": -96.9475583221,
+      "lower": -186.803922537,
+      "upper": -20.61478574,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "S0",
+      "case_id": "J01",
+      "policy": "E",
+      "period": "2023-25",
+      "delta_R": -27.521577123,
+      "lower": -67.3610468163,
+      "upper": 2.9921346364,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "C1",
+      "case_id": "A00",
+      "policy": "P",
+      "period": "2023-25",
+      "delta_R": -19.5192439591,
+      "lower": -48.8151566516,
+      "upper": 10.1793517686,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "C1",
+      "case_id": "A00",
+      "policy": "E",
+      "period": "2023-25",
+      "delta_R": 0.0,
+      "lower": 0.0,
+      "upper": 0.0,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "C1",
+      "case_id": "BL8",
+      "policy": "P",
+      "period": "2023-25",
+      "delta_R": -70.0140530746,
+      "lower": -146.496234021,
+      "upper": -7.3538455335,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "C1",
+      "case_id": "BL8",
+      "policy": "E",
+      "period": "2023-25",
+      "delta_R": -25.0168037404,
+      "lower": -62.1441654554,
+      "upper": 3.580293398,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "C1",
+      "case_id": "J01",
+      "policy": "P",
+      "period": "2023-25",
+      "delta_R": -88.2492342097,
+      "lower": -172.2155666698,
+      "upper": -15.1777580627,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    },
+    {
+      "scenario": "C1",
+      "case_id": "J01",
+      "policy": "E",
+      "period": "2023-25",
+      "delta_R": -25.0168037404,
+      "lower": -62.1441654554,
+      "upper": 3.580293398,
+      "block_weeks": 4,
+      "draws": 2000,
+      "exploratory_reused_data": true
+    }
+  ],
+  "decision": "Retain all96 available tokens; no selected historical-token filter. Proceed with isolated forward execution validation; no account risk or leverage chosen.",
+  "research_verification": {
+    "status": "pass",
+    "cash_path_checks": 22629,
+    "independent_funding_checks": 6513,
+    "raw_hashes": 192,
+    "raw_rows": 153845100,
+    "zero_preserving_token_period_rows": 13920,
+    "daily_parent_reconciliations": 8766,
+    "terminal_cash_all_books": true,
+    "token_daily_reconciled": 42369
+  },
+  "remote_activation_verified": false
+}
