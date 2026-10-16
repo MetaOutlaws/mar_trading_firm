@@ -3,10 +3,10 @@
 set -euo pipefail
 umask 077
 
-# Marcus exception 1, same helper as the collector. While HEAD is still the
-# L01 base (868f1c9a), the three #119 blotter paths may be staged only when
-# both the index and the worktree are the 8d35ec7c blobs, mode 100644.
-# Any other dirty path fails. A missing helper fails closed.
+# Same helper as the collector. While HEAD is still the L01 base (868f1c9a),
+# only the ten pinned overlay paths may differ, and only when both the index
+# and the worktree are that blob at mode 100644. Any other dirty path fails.
+# A missing helper fails closed.
 f111_deploy_clean_preflight() {
   local repo=$1
   local helper

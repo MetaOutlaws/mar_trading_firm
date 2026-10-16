@@ -1,12 +1,15 @@
-"""Collector clean-tree guard: Marcus exception 1 for the #119 blotter overlay.
+"""Collector clean-tree guard for the ten SGP1 overlay blobs recorded 2026-10-16.
 
-The three cases are the contract: the staged files pass only when their git
-blobs are the pinned #119 ids, a different byte on those paths fails, and any
+The contract: those paths pass only when both the index and the worktree are
+the pinned blob at mode 100644, a different byte on those paths fails, and any
 other dirty or staged path fails even when the overlay itself is exact.
+``saved_path_parity`` is derived from the checked-in parity run.
 """
 
 from __future__ import annotations
 
+import csv
+import json
 import subprocess
 from pathlib import Path
 
@@ -18,11 +21,33 @@ ROOT = Path(__file__).resolve().parents[1]
 COLLECTOR = ROOT / "scripts" / "collect_f111_execution_repair_audit.sh"
 DEPLOY = ROOT / "scripts" / "deploy_f111_execution_repair.sh"
 
-# Small stand-ins. The production pins are the real 8d35ec7c blobs, asserted below.
+# Abbreviations printed in the 2026-10-16 FINDINGS note. The guard stores the
+# one full blob id each abbreviation names.
+FINDINGS_BLOB_PREFIXES = {
+    "api/app.py": "c9b9f03f",
+    "api/desk_status.py": "0ebd3b44",
+    "api/static/index.html": "e5649287",
+    "api/status_app.py": "ad4de7a2",
+    "api/status_auth.py": "28a9ccd9",
+    "api/status_snapshot.py": "9fe475f6",
+    "config/settings.py": "9c02305f",
+    "scripts/run_status_page.py": "b2f130fd",
+    "scripts/status_cert_fingerprint.sh": "94c8b412",
+    "scripts/ufw_status_443.sh": "f9ef5d0f",
+}
+
+# Small stand-ins. The production pins are the real overlay blobs, asserted below.
 OVERLAY = {
-    "api/app.py": b"blotter app\n",
-    "api/static/index.html": b"blotter html\n",
-    "tests/test_blotter_strategy.py": b"blotter test\n",
+    "api/app.py": b"overlay app\n",
+    "api/desk_status.py": b"overlay desk\n",
+    "api/static/index.html": b"overlay html\n",
+    "api/status_app.py": b"overlay status app\n",
+    "api/status_auth.py": b"overlay status auth\n",
+    "api/status_snapshot.py": b"overlay status snapshot\n",
+    "config/settings.py": b"overlay settings\n",
+    "scripts/run_status_page.py": b"overlay run status\n",
+    "scripts/status_cert_fingerprint.sh": b"overlay cert\n",
+    "scripts/ufw_status_443.sh": b"overlay ufw\n",
 }
 
 
@@ -31,7 +56,7 @@ def _git(repo: Path, *args: str) -> None:
 
 
 def _init(tmp_path: Path) -> Path:
-    """A committed base whose three overlay paths are not the allowed bytes."""
+    """A committed base whose overlay paths are not the allowed bytes."""
     repo = tmp_path / "app"
     repo.mkdir()
     _git(repo, "init", "-q")
@@ -86,14 +111,33 @@ def test_allowed_exact_match(
 ) -> None:
     """A clean tree passes, and so does the overlay when every blob matches."""
     assert guard.ALLOWED_OVERLAY_BLOBS == {
-        "api/app.py": "0b92809901b32009c99c4bbaf0757b56f795d836",
-        "api/static/index.html": "c036f22b759ff7fef2d017a014dc2ed73503ed1d",
-        "tests/test_blotter_strategy.py": "97cdc4fe10dce3652faa8224716abfd3aa3db45d",
+        "api/app.py": "c9b9f03f8f4759e809ec17324daee52baffae4fa",
+        "api/desk_status.py": "0ebd3b44a5bf36ff5287780e11090d72bbb83b12",
+        "api/static/index.html": "e5649287f0122def78d7b3ecab7ddce4c2adec44",
+        "api/status_app.py": "ad4de7a26776f2a14dd384057ef85c47fd936ef7",
+        "api/status_auth.py": "28a9ccd99a3705dcbe370430e1e72215e6f1b51d",
+        "api/status_snapshot.py": "9fe475f649a0f049f6406ddece144b7481f66b4c",
+        "config/settings.py": "9c02305f6e855960410daa9761abc4a849c97a1a",
+        "scripts/run_status_page.py": "b2f130fd36fda79a3d23d987c56ad3484f7e7767",
+        "scripts/status_cert_fingerprint.sh": "94c8b4126490d57ef728d258567dd294e098f0f4",
+        "scripts/ufw_status_443.sh": "f9ef5d0f510b19421d88f6f249d1c8fb37f92824",
     }
-    assert guard.OVERLAY_COMMIT == "8d35ec7c4acaf05958eec79136c3526684517811"
+    assert set(guard.ALLOWED_OVERLAY_BLOBS) == set(FINDINGS_BLOB_PREFIXES)
+    for path, prefix in FINDINGS_BLOB_PREFIXES.items():
+        blob = guard.ALLOWED_OVERLAY_BLOBS[path]
+        assert blob.startswith(prefix) and len(blob) == 40
+        # When this clone has the object, the pin must be that blob and no other.
+        found = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", f"--disambiguate={prefix}"],
+            capture_output=True,
+            text=True,
+        )
+        if found.returncode == 0 and found.stdout.strip():
+            assert found.stdout.split() == [blob]
     collector = COLLECTOR.read_text(encoding="utf-8")
     assert "f111_repair_clean_tree.py" in collector
-    # The old pathspec check ignored tests/ and would not pin blob ids.
+    assert 'test -f "$helper"' in collector
+    # The old pathspec check did not pin blob ids.
     assert "diff --quiet HEAD -- core config scripts api" not in collector
 
     repo = _init(tmp_path)
@@ -110,10 +154,10 @@ def test_allowed_exact_match(
 def test_mismatched_content_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The three allowed paths fail when the staged or on-disk bytes differ."""
+    """An allowed path fails when the staged or on-disk bytes differ."""
     repo = _init(tmp_path)
     contents = dict(OVERLAY)
-    contents["api/static/index.html"] = b"blotter html tampered\n"
+    contents["api/static/index.html"] = b"overlay html tampered\n"
     pins = _pins(OVERLAY)
     _stage_overlay(repo, contents)
     monkeypatch.setattr(guard, "ALLOWED_OVERLAY_BLOBS", pins)
@@ -122,20 +166,20 @@ def test_mismatched_content_fails(
     assert code == 1
     assert err == "clean-tree guard: dirty path(s): api/static/index.html\n"
 
-    # tests/ was outside the old pathspec. A wrong blob there must still fail.
+    # The stale #119 blotter test is not one of the ten paths.
     _stage(repo, "api/static/index.html", OVERLAY["api/static/index.html"])
-    _stage(repo, "tests/test_blotter_strategy.py", b"not the blotter test\n")
+    _stage(repo, "tests/test_blotter_strategy.py", b"not an overlay path\n")
     code, err = _run(repo, capsys)
     assert code == 1
     assert "tests/test_blotter_strategy.py" in err
     assert "api/app.py" not in err
 
     # Staged blob is exact, then the worktree is edited without another add.
-    _stage(repo, "tests/test_blotter_strategy.py", OVERLAY["tests/test_blotter_strategy.py"])
+    _git(repo, "rm", "-q", "-f", "--", "tests/test_blotter_strategy.py")
     (repo / "api" / "app.py").write_bytes(b"worktree drifted\n")
     code, err = _run(repo, capsys)
     assert code == 1
-    assert "api/app.py" in err
+    assert err == "clean-tree guard: dirty path(s): api/app.py\n"
 
 
 def test_other_file_fails(
@@ -167,6 +211,72 @@ def test_other_file_fails(
     assert "api/app.py" not in err
 
 
+def test_executable_mode_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Mode 100755 fails even when the index and the worktree bytes match."""
+    repo = _init(tmp_path)
+    pins = _stage_overlay(repo)
+    monkeypatch.setattr(guard, "ALLOWED_OVERLAY_BLOBS", pins)
+    script = repo / "scripts" / "ufw_status_443.sh"
+    script.chmod(script.stat().st_mode | 0o111)
+    _git(repo, "add", "--", "scripts/ufw_status_443.sh")
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert "scripts/ufw_status_443.sh" in err
+
+    # Index back to 100644; the worktree execute bit alone still fails.
+    script.chmod(script.stat().st_mode & ~0o111)
+    _git(repo, "add", "--", "scripts/ufw_status_443.sh")
+    script.chmod(script.stat().st_mode | 0o111)
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): scripts/ufw_status_443.sh\n"
+
+
+def _parity_tree(dest: Path, *, deployed: str, remote: bool, flip_runtime: bool) -> None:
+    """Copy the real parity artifacts and optionally break one admitted row."""
+    src = ROOT / "docs" / "grok-execution-handoff-20261015"
+    dst = dest / "docs" / "grok-execution-handoff-20261015"
+    dst.mkdir(parents=True)
+    with (src / "saved_path_checks.csv").open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+        fieldnames = list(rows[0])
+    if flip_runtime:
+        for row in rows:
+            if row["admitted"] == "True":
+                row["runtime_match"] = "False"
+                break
+    with (dst / "saved_path_checks.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    validation = json.loads((src / "repair_validation.json").read_text(encoding="utf-8"))
+    validation["deployed_saved_path_parity"] = deployed
+    validation["remote_execution_performed"] = remote
+    (dst / "repair_validation.json").write_text(json.dumps(validation), encoding="utf-8")
+
+
+def test_saved_path_parity_is_computed(tmp_path: Path) -> None:
+    """The label follows the parity artifacts. The recorded run stays UNVERIFIED."""
+    assert guard.saved_path_parity(ROOT) == "UNVERIFIED"
+    assert guard.saved_path_parity(tmp_path) == "UNVERIFIED"
+
+    # Same rows, but a summary that claims the deployed scope was actually run.
+    passed = tmp_path / "passed"
+    _parity_tree(passed, deployed="PASS", remote=True, flip_runtime=False)
+    assert guard.saved_path_parity(passed) == "PASS"
+
+    failed = tmp_path / "failed"
+    _parity_tree(failed, deployed="PASS", remote=True, flip_runtime=True)
+    assert guard.saved_path_parity(failed) == "FAIL"
+
+    collector = COLLECTOR.read_text(encoding="utf-8")
+    assert "'saved_path_parity':'UNVERIFIED'" not in collector
+    assert "F111_SAVED_PATH_PARITY" in collector
+    assert "module.saved_path_parity(" in collector
+
+
 def _deploy_preflight(repo: Path, script: Path = DEPLOY) -> subprocess.CompletedProcess[str]:
     """Source the deploy script and run only its clean-tree preflight."""
     return subprocess.run(
@@ -184,7 +294,7 @@ def _deploy_preflight(repo: Path, script: Path = DEPLOY) -> subprocess.Completed
 
 
 def test_deploy_preflight_allows_exact_overlay(tmp_path: Path) -> None:
-    """The installer preflight calls the same helper and accepts the real #119 blobs."""
+    """The installer preflight calls the same helper and accepts the real overlay blobs."""
     script = DEPLOY.read_text(encoding="utf-8")
     assert "f111_deploy_clean_preflight /data/app" in script
     assert 'test -f "$helper"' in script
@@ -205,7 +315,7 @@ def test_deploy_preflight_allows_exact_overlay(tmp_path: Path) -> None:
             capture_output=True,
         )
         if blob.returncode != 0:
-            pytest.skip("8d35ec7c blobs are not in this clone")
+            pytest.skip("overlay blobs are not in this clone")
         _stage(repo, path, blob.stdout)
     allowed = _deploy_preflight(repo)
     assert allowed.returncode == 0, allowed.stderr
@@ -222,7 +332,7 @@ def test_deploy_preflight_mismatched_content_fails(tmp_path: Path) -> None:
 
 
 def test_deploy_preflight_other_file_fails(tmp_path: Path) -> None:
-    """A path outside the three-file overlay still fails, including staged-only edits."""
+    """A path outside the ten-file overlay still fails, including staged-only edits."""
     repo = _init(tmp_path)
     engine = repo / "core" / "execution" / "engine.py"
     engine.write_bytes(b"engine-staged\n")

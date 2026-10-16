@@ -1,33 +1,44 @@
 """Clean-tree guard for the F111 execution-repair collector.
 
 The collector refuses to read a Singapore checkout whose tracked files differ
-from the pinned repair commit ``b00c4f73``. SGP1 currently has three files from
-the blotter Strategy column (#119, squash ``8d35ec7c``) checked out and staged
-on top of that tree. Marcus exception 1 tolerates that overlay and nothing
-else.
+from the pinned repair commit ``b00c4f73``. The 2026-10-16 read-only check
+found ten tracked paths under the old ``core config scripts api`` guard whose
+worktree bytes are not that commit. Those ten paths, and nothing else, may
+stay staged.
 
-A path is allowed only when it is one of the three #119 paths and both the
-index and the worktree are the git blob from that commit (mode 100644). Any
-other staged or unstaged tracked path fails. Those three paths also fail when
-their bytes differ. Untracked files stay out of scope, matching the previous
-``git diff HEAD`` check, which never saw them.
+A path is allowed only when it is one of those ten and both the index and the
+worktree are the pinned git blob at mode 100644. Any other staged or unstaged
+tracked path fails. An allowed path also fails when its bytes differ or either
+copy is executable (100755). Untracked files stay out of scope, matching the
+previous ``git diff HEAD`` check, which never saw them.
 """
 
 from __future__ import annotations
 
+import csv
+import json
 import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-# Squash of "Show the opening strategy on the blotter." (#119).
-OVERLAY_COMMIT = "8d35ec7c4acaf05958eec79136c3526684517811"
-
-# ``git rev-parse 8d35ec7c:<path>``. These are git blob ids, not raw sha256.
+# Worktree blob ids from the 2026-10-16 SGP1 check. FINDINGS recorded the
+# 8-character abbreviations in the comments. Each abbreviation names one blob;
+# the value is that full git blob id, not a raw sha256 and not the HEAD blob.
+# scripts/status_cert_fingerprint.sh and scripts/ufw_status_443.sh are mode
+# 100755 in the commits that added them. This map still requires 100644, so
+# an executable index or worktree of those exact bytes fails closed.
 ALLOWED_OVERLAY_BLOBS = {
-    "api/app.py": "0b92809901b32009c99c4bbaf0757b56f795d836",
-    "api/static/index.html": "c036f22b759ff7fef2d017a014dc2ed73503ed1d",
-    "tests/test_blotter_strategy.py": "97cdc4fe10dce3652faa8224716abfd3aa3db45d",
+    "api/app.py": "c9b9f03f8f4759e809ec17324daee52baffae4fa",  # c9b9f03f
+    "api/desk_status.py": "0ebd3b44a5bf36ff5287780e11090d72bbb83b12",  # 0ebd3b44
+    "api/static/index.html": "e5649287f0122def78d7b3ecab7ddce4c2adec44",  # e5649287
+    "api/status_app.py": "ad4de7a26776f2a14dd384057ef85c47fd936ef7",  # ad4de7a2
+    "api/status_auth.py": "28a9ccd99a3705dcbe370430e1e72215e6f1b51d",  # 28a9ccd9
+    "api/status_snapshot.py": "9fe475f649a0f049f6406ddece144b7481f66b4c",  # 9fe475f6
+    "config/settings.py": "9c02305f6e855960410daa9761abc4a849c97a1a",  # 9c02305f
+    "scripts/run_status_page.py": "b2f130fd36fda79a3d23d987c56ad3484f7e7767",  # b2f130fd
+    "scripts/status_cert_fingerprint.sh": "94c8b4126490d57ef728d258567dd294e098f0f4",  # 94c8b412
+    "scripts/ufw_status_443.sh": "f9ef5d0f510b19421d88f6f249d1c8fb37f92824",  # f9ef5d0f
 }
 
 _REGULAR_FILE = "100644"
@@ -84,20 +95,39 @@ def _worktree_blob(repo: Path, path: str) -> str | None:
     return hashed.stdout.decode("ascii").strip()
 
 
+def _worktree_git_mode(repo: Path, path: str) -> str | None:
+    """Return git's 100644 or 100755 for a regular file.
+
+    Git records 100755 when any execute bit is set. Symlinks and missing
+    paths return None so they cannot satisfy the 100644 pin.
+    """
+    candidate = repo / path
+    if candidate.is_symlink() or not candidate.is_file():
+        return None
+    if candidate.stat().st_mode & 0o111:
+        return "100755"
+    return _REGULAR_FILE
+
+
 def _overlay_ok(repo: Path, path: str, expected: str) -> bool:
-    """Both copies of an allowed path must be the pinned regular-file blob."""
+    """Both copies must be the pinned blob and both must be mode 100644."""
     staged = _index_blob(repo, path)
     if staged is None:
         return False
     mode, blob = staged
-    return mode == _REGULAR_FILE and blob == expected and _worktree_blob(repo, path) == expected
+    return (
+        mode == _REGULAR_FILE
+        and blob == expected
+        and _worktree_git_mode(repo, path) == _REGULAR_FILE
+        and _worktree_blob(repo, path) == expected
+    )
 
 
 def clean_tree_violations(
     repo: Path,
     allowed: Mapping[str, str] | None = None,
 ) -> list[str]:
-    """Return dirty tracked paths that are not the exact #119 overlay.
+    """Return dirty tracked paths that are not the exact pinned overlay.
 
     An empty list means the collector may continue. ``allowed`` is the
     production pin unless a test supplies a fixture map.
@@ -109,6 +139,57 @@ def clean_tree_violations(
         if expected is None or not _overlay_ok(repo, path, expected):
             violations.append(path)
     return violations
+
+
+# Offline historical run shipped with the handoff. It is not copied into the
+# deployed b00c4f73 tree. A collector extracted without these files fails closed.
+_PARITY_CSV = Path("docs/grok-execution-handoff-20261015/saved_path_checks.csv")
+_PARITY_VALIDATION = Path("docs/grok-execution-handoff-20261015/repair_validation.json")
+
+
+def _saved_path_row_matches(row: Mapping[str, str]) -> bool:
+    """One saved-path row agrees with the historical run's own columns.
+
+    Admitted rows must match semantics, runtime, the cash journal and observed
+    funding. Rows the run left unadmitted keep those runtime cells empty; a
+    value there would be a different result than the one that was recorded.
+    """
+    if row.get("semantics_match") != "True" or row.get("observed_funding_match") != "True":
+        return False
+    if row.get("admitted") == "True":
+        return row.get("runtime_match") == "True" and row.get("cash_journal_match") == "True"
+    if row.get("admitted") == "False":
+        return row.get("runtime_match") == "" and row.get("cash_journal_match") == ""
+    return False
+
+
+def saved_path_parity(root: Path) -> str:
+    """Derive the parity label from the checked-in run, or fail closed.
+
+    Matching historical rows are not deployed forward-fill parity. The label
+    stays ``UNVERIFIED`` unless that run's validation also records a completed
+    remote execution and ``deployed_saved_path_parity`` of ``PASS``. A row that
+    does not match the recorded run is ``FAIL``. A missing or unreadable
+    artifact is ``UNVERIFIED``.
+    """
+    try:
+        csv_path = root / _PARITY_CSV
+        validation_path = root / _PARITY_VALIDATION
+        if not csv_path.is_file() or not validation_path.is_file():
+            return "UNVERIFIED"
+        with csv_path.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+        validation = json.loads(validation_path.read_text(encoding="utf-8"))
+        if not isinstance(validation, dict):
+            return "UNVERIFIED"
+    except (OSError, csv.Error, json.JSONDecodeError, UnicodeError):
+        return "UNVERIFIED"
+    if not rows or not all(_saved_path_row_matches(row) for row in rows):
+        return "FAIL"
+    deployed = validation.get("deployed_saved_path_parity")
+    if deployed == "PASS" and validation.get("remote_execution_performed") is True:
+        return "PASS"
+    return "UNVERIFIED"
 
 
 def main(argv: list[str] | None = None) -> int:
