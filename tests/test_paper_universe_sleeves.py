@@ -17,17 +17,22 @@ from core.strategy.ema_adx_trend import EmaAdxParams
 from core.strategy.range_compression_volume_thrust import (
     RangeCompressionVolumeThrustParams,
 )
+from core.strategy.doji_star_reversal import DojiStarParams
 from firm.paper_universe_sleeves import (
     BOOK_PATH,
     CLOSED_REASON,
+    DOJI_SOURCE_KEY,
     EXCHANGE_STATUS_BY_SYMBOL,
     RISK_LIMITS_PATH,
+    append_doji_sleeves,
     append_sleeves,
+    approved_doji_params,
     book_sha256,
     closed_exclusions,
     feature_exclusions,
     frozen_params,
     frozen_timeframe,
+    plan_doji_sleeves,
     plan_sleeves,
     required_complete_bars,
     sgp1_paper_universe,
@@ -217,10 +222,12 @@ def test_committed_book_old_rows_are_byte_identical() -> None:
         assert new[key] == value
     added_keys = [key for key in new if key not in old]
     assert added_keys
-    assert all(key.split(":")[0] in RULES for key in added_keys)
+    assert all(key.split(":")[0] in (*RULES, "doji_star_reversal") for key in added_keys)
     assert all(new[key]["approved"] is False for key in added_keys)
     assert all(new[key]["paper_override"] is True for key in added_keys)
-    assert all(new[key]["timeframe"] == "4h" for key in added_keys)
+    assert all(
+        new[key]["timeframe"] == "4h" for key in added_keys if key.split(":")[0] in RULES
+    )
     # A second append is a no-op, so the digest cannot move under a re-run.
     again, decision = append_sleeves(current)
     assert again == current
@@ -266,8 +273,13 @@ def test_skipped_majors_and_added_count() -> None:
     assert all(key.split(":")[1] not in closed_names for key in decision["added"])
     old_rows = sum(1 for key in historical if parse_approval_key(key) is not None)
     new_rows = sum(1 for key in new if parse_approval_key(key) is not None)
+    doji_added = [
+        key
+        for key in new
+        if key not in historical and key.split(":")[0] == "doji_star_reversal"
+    ]
     assert old_rows == 1812
-    assert new_rows == old_rows + len(decision["added"])
+    assert new_rows == old_rows + len(decision["added"]) + len(doji_added)
     assert book_sha256(current) != OLD_BOOK_SHA256
 
 
@@ -327,3 +339,120 @@ def test_append_refuses_an_approved_row(monkeypatch) -> None:
     monkeypatch.setattr("firm.paper_universe_sleeves.plan_sleeves", _plan)
     with pytest.raises(ValueError, match="must not be approved"):
         append_sleeves(raw)
+
+
+# SHA-256 of the book after the ema/thrust append (#134) and before doji.
+PRIOR_BOOK_SHA256 = (
+    "c69ac33f7cf08eb4bb0eb80591b240193351a6bd54584eba483e05b16a103117"
+)
+PRIOR_BOOK_LEN = 1808682
+
+
+def _book_before_doji(current: bytes) -> bytes:
+    """Recover the c69ac33f file from the doji splice."""
+    assert len(current) >= PRIOR_BOOK_LEN
+    comma_at = PRIOR_BOOK_LEN - len(OLD_BOOK_CLOSER)
+    assert current[comma_at : comma_at + 1] == b","
+    restored = current[:comma_at] + OLD_BOOK_CLOSER
+    assert len(restored) == PRIOR_BOOK_LEN
+    assert book_sha256(restored) == PRIOR_BOOK_SHA256
+    return restored
+
+
+def test_doji_params_come_from_the_approved_sol_short_row() -> None:
+    current = BOOK_PATH.read_bytes()
+    historical = json.loads(_book_before_doji(current))
+    params = approved_doji_params(historical)
+    assert params == {"run_bars": 3, "take_profit_pct": 0.05, "stop_loss_pct": 0.03}
+    defaults = DojiStarParams()
+    assert params["run_bars"] == defaults.run_bars == 3
+    assert params["take_profit_pct"] != defaults.take_profit_pct
+    assert params["stop_loss_pct"] != defaults.stop_loss_pct
+    assert defaults.take_profit_pct == 0.04
+    assert defaults.stop_loss_pct == 0.02
+    assert "max_body_frac" not in params
+    assert "max_holding_bars" not in params
+
+
+def test_doji_append_keeps_c69ac33f_and_skips_existing_1h() -> None:
+    current = BOOK_PATH.read_bytes()
+    historical_raw = _book_before_doji(current)
+    historical = json.loads(historical_raw)
+    # The approved SOL short row is the same object before and after.
+    assert historical[DOJI_SOURCE_KEY]["approved"] is True
+    assert json.loads(current)[DOJI_SOURCE_KEY] == historical[DOJI_SOURCE_KEY]
+    decision = plan_doji_sleeves(historical)
+    skipped = {
+        (row["strategy"], row["symbol"], row["side"], row["timeframe"])
+        for row in decision["skipped"]
+    }
+    expected_skips = {
+        ("doji_star_reversal", symbol, side, "1h")
+        for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+        for side in ("LONG", "SHORT")
+    }
+    expected_skips.update(
+        {
+            ("doji_star_reversal", symbol, "SHORT", "1h")
+            for symbol in ("BNBUSDT", "XRPUSDT", "AVAXUSDT")
+        }
+    )
+    assert skipped == expected_skips
+    assert ("doji_star_reversal", "SOLUSDT", "SHORT", "1h") in skipped
+    excluded = {row["symbol"] for row in decision["excluded"]}
+    assert excluded == set(EXCHANGE_STATUS_BY_SYMBOL)
+    # 79 tradable symbols, both sides, minus 9 existing 1h keys.
+    assert len(decision["added"]) == 79 * 2 - 9
+    assert DOJI_SOURCE_KEY not in decision["added"]
+    new = json.loads(current)
+    assert set(decision["added"]) <= set(new)
+    assert all(new[key]["approved"] is False for key in decision["added"])
+    assert all(new[key]["live_authorized"] is False for key in decision["added"])
+    assert all(new[key]["timeframe"] == "1h" for key in decision["added"])
+    assert all(new[key]["params"] == decision["params"] for key in decision["added"])
+    assert all(key.split(":")[1] not in excluded for key in decision["added"])
+    old_rows = sum(1 for key in historical if parse_approval_key(key) is not None)
+    new_rows = sum(1 for key in new if parse_approval_key(key) is not None)
+    assert old_rows == 2107
+    assert new_rows == old_rows + len(decision["added"])
+    approved = sum(
+        1
+        for key, value in new.items()
+        if parse_approval_key(key) is not None and value.get("approved") is True
+    )
+    assert approved == 12
+    again, second = append_doji_sleeves(current)
+    assert again == current
+    assert second["added"] == {}
+
+
+def test_live_plan_does_not_select_new_doji_rows(monkeypatch) -> None:
+    from config.universe import Universe
+    from core.execution.engine import build_plan
+
+    book = json.loads(BOOK_PATH.read_text(encoding="utf-8"))
+    universe = Universe(approvals={k: v for k, v in book.items() if isinstance(v, dict)})
+    monkeypatch.setattr("core.execution.engine.get_universe", lambda: universe)
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda: "chop")
+    live = build_plan(require_approval=True)
+    live_ids = {
+        (entry.strategy.name, entry.symbol, entry.side.value, entry.timeframe)
+        for entry in live.entries
+    }
+    # Pre-existing approval. New paper rows stay off the live plan.
+    assert ("doji_star_reversal", "SOLUSDT", "SHORT", "1h") in live_ids
+    assert ("doji_star_reversal", "ADAUSDT", "LONG", "1h") not in live_ids
+    assert ("doji_star_reversal", "ADAUSDT", "SHORT", "1h") not in live_ids
+    assert ("doji_star_reversal", "BNBUSDT", "LONG", "1h") not in live_ids
+    assert ("doji_star_reversal", "MATICUSDT", "LONG", "1h") not in live_ids
+    paper = build_plan(require_approval=False)
+    paper_ids = {
+        (entry.strategy.name, entry.symbol, entry.side.value, entry.timeframe)
+        for entry in paper.entries
+    }
+    assert ("doji_star_reversal", "ADAUSDT", "LONG", "1h") in paper_ids
+    assert ("doji_star_reversal", "ADAUSDT", "SHORT", "1h") in paper_ids
+    assert ("doji_star_reversal", "BNBUSDT", "LONG", "1h") in paper_ids
+    # Existing rejected 1h rows were not promoted.
+    assert ("doji_star_reversal", "BTCUSDT", "LONG", "1h") not in paper_ids
+    assert ("doji_star_reversal", "MATICUSDT", "SHORT", "1h") not in paper_ids

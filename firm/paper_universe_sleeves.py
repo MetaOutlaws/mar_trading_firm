@@ -344,6 +344,162 @@ def append_sleeves(raw: bytes) -> tuple[bytes, dict[str, Any]]:
     return updated, decision
 
 
+# Approved survivor. Its timeframe is the 1h leg of a square 1h/1h clock.
+# CLOCK_BY_FAMILY still says 4h/4h for this family; that is not the row Brian
+# named. Params are copied from this record, not from DojiStarParams defaults.
+DOJI_FAMILY = "doji_star_reversal"
+DOJI_SOURCE_KEY = "doji_star_reversal:SOLUSDT:SHORT:1h"
+DOJI_TIMEFRAME = "1h"
+DOJI_PAPER_OVERRIDE_AT = "2026-10-16T05:39:00+00:00"
+DOJI_PAPER_OVERRIDE_REASON = (
+    "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. "
+    "Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. "
+    "No re-optimisation."
+)
+
+
+def approved_doji_source(book: Mapping[str, Any]) -> dict[str, Any]:
+    """The approved SOLUSDT SHORT 1h row. Callers must not rewrite it."""
+    record = book.get(DOJI_SOURCE_KEY)
+    if not isinstance(record, dict):
+        raise ValueError(f"{DOJI_SOURCE_KEY} is missing from the approval book")
+    if record.get("approved") is not True:
+        raise ValueError(f"{DOJI_SOURCE_KEY} is no longer approved")
+    if str(record.get("timeframe") or "") != DOJI_TIMEFRAME:
+        raise ValueError(f"{DOJI_SOURCE_KEY} timeframe drifted from {DOJI_TIMEFRAME}")
+    params = record.get("params")
+    if not isinstance(params, dict) or not params:
+        raise ValueError(f"{DOJI_SOURCE_KEY} has no params to freeze")
+    return record
+
+
+def approved_doji_params(book: Mapping[str, Any]) -> dict[str, Any]:
+    """Param dict from the approved row, key order preserved.
+
+    ``DojiStarParams`` defaults are take-profit 0.04 and stop 0.02.
+    The approved row is take-profit 0.05 and stop 0.03, with ``run_bars`` 3.
+    ``max_body_frac`` is absent on the row, so it is not added here.
+    """
+    params = approved_doji_source(book)["params"]
+    return dict(params)
+
+
+def doji_sleeve_record(params: Mapping[str, Any]) -> dict[str, Any]:
+    """One paper-only doji row. ``approved`` is false. Live plan skips it."""
+    return {
+        "approved": False,
+        "paper_override": True,
+        "paper_override_at": DOJI_PAPER_OVERRIDE_AT,
+        "paper_override_by": PAPER_OVERRIDE_BY,
+        "paper_override_reason": DOJI_PAPER_OVERRIDE_REASON,
+        "timeframe": DOJI_TIMEFRAME,
+        "strategy": DOJI_FAMILY,
+        "params": dict(params),
+        "activation_mode": "unrestricted",
+        "blocked_regimes": [],
+        "regime_activation_filter": [],
+        "live_authorized": False,
+    }
+
+
+def plan_doji_sleeves(
+    book: Mapping[str, Any],
+    symbols: list[str] | None = None,
+) -> dict[str, Any]:
+    """1h doji paper sleeves for the 79 tradable symbols.
+
+    Skip a symbol+side when ``doji_star_reversal`` at 1h is already in the
+    book. The approved SOLUSDT SHORT row is one of those skips. Closed symbols
+    are not added. A 4h doji row does not block the 1h sleeve.
+    """
+    universe = symbols if symbols is not None else sgp1_paper_universe()
+    present = existing_combinations(book)
+    excluded = exclusion_reasons(universe)
+    params = approved_doji_params(book)
+    record = doji_sleeve_record(params)
+    added: dict[str, dict[str, Any]] = {}
+    skipped: list[dict[str, str]] = []
+    excluded_rows: list[dict[str, str]] = []
+    for symbol in universe:
+        if symbol in excluded:
+            excluded_rows.append({"symbol": symbol, "reason": excluded[symbol]})
+            continue
+        for side in SIDES:
+            key = approval_record_key(DOJI_FAMILY, symbol, side, DOJI_TIMEFRAME)
+            if (DOJI_FAMILY, symbol, side, DOJI_TIMEFRAME) in present or key in book:
+                skipped.append(
+                    {
+                        "strategy": DOJI_FAMILY,
+                        "symbol": symbol,
+                        "side": side,
+                        "timeframe": DOJI_TIMEFRAME,
+                        "reason": "rule+symbol+side+timeframe already in the book",
+                    }
+                )
+                continue
+            added[key] = record
+    return {
+        "added": added,
+        "skipped": skipped,
+        "excluded": excluded_rows,
+        "universe": len(universe),
+        "params": params,
+    }
+
+
+def append_doji_sleeves(raw: bytes) -> tuple[bytes, dict[str, Any]]:
+    """Splice doji paper rows. Idempotent once applied. Does not touch ema rows."""
+    book = json.loads(raw)
+    if not isinstance(book, dict):
+        raise ValueError("approval book must be a JSON object")
+    source = approved_doji_source(book)
+    decision = plan_doji_sleeves(book)
+    updated = splice_records(raw, decision["added"])
+    parsed = json.loads(updated)
+    for key, value in book.items():
+        if parsed.get(key) != value:
+            raise ValueError(f"append changed existing row {key}")
+    if parsed.get(DOJI_SOURCE_KEY) != source:
+        raise ValueError(f"{DOJI_SOURCE_KEY} must stay byte-identical")
+    for key, value in decision["added"].items():
+        if parsed.get(key) != value:
+            raise ValueError(f"appended row {key} did not round-trip")
+        if value.get("approved") is True or value.get("live_authorized") is True:
+            raise ValueError(f"{key} must not be approved or live")
+    return updated, decision
+
+
+def apply_doji_to_path(path: Path = BOOK_PATH) -> dict[str, Any]:
+    """Splice doji paper sleeves onto ``path``. Returns a summary."""
+    before = path.read_bytes()
+    after, decision = append_doji_sleeves(before)
+    if after != before:
+        path.write_bytes(after)
+    added = decision["added"]
+    parsed_after = json.loads(path.read_bytes())
+    summary = {
+        "path": str(path),
+        "old_sha256": book_sha256(before),
+        "new_sha256": book_sha256(path.read_bytes()),
+        "sleeves_added": len(added),
+        "rows_before": sum(1 for key in json.loads(before) if parse_approval_key(key) is not None),
+        "rows_after": sum(1 for key in parsed_after if parse_approval_key(key) is not None),
+        "approved_after": sum(
+            1
+            for key, value in parsed_after.items()
+            if parse_approval_key(key) is not None
+            and isinstance(value, dict)
+            and value.get("approved") is True
+        ),
+        "skipped": decision["skipped"],
+        "excluded": decision["excluded"],
+        "params": decision["params"],
+        "unchanged": after == before,
+    }
+    summary["risk_limits_sha256"] = book_sha256(RISK_LIMITS_PATH.read_bytes())
+    return summary
+
+
 def catalog_clock_ok() -> None:
     """Fail if the hypothesis card for the thrust rule is no longer 4h/4h."""
     thrust = [
