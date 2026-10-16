@@ -112,6 +112,104 @@ def realized_skew_scores(
     return pd.Series(scores, dtype="float64", name="score")
 
 
+def daily_sample_prices(bars: pd.DataFrame) -> pd.Series:
+    """Price at each 00:00 UTC: the close of the bar that opened at 23:00.
+
+    The stamp is the bar's close time, so a Monday 00:00 rebalance can see
+    Sunday 23:00's close and cannot see the Monday 00:00 bar's own close.
+    """
+    if bars.empty:
+        return pd.Series(dtype="float64")
+    chosen = bars.loc[bars.index.hour == 23, "close"]
+    if chosen.empty:
+        return pd.Series(dtype="float64")
+    stamped = pd.to_numeric(chosen, errors="coerce")
+    stamped.index = chosen.index + pd.Timedelta(hours=1)
+    stamped = stamped[~stamped.index.duplicated(keep="last")].sort_index()
+    stamped.name = "price"
+    return stamped
+
+
+def daily_log_returns(prices: pd.Series) -> pd.Series:
+    """Log returns on a calendar daily index. A missing day stays missing."""
+    if prices.empty:
+        return pd.Series(dtype="float64")
+    full = pd.date_range(prices.index.min(), prices.index.max(), freq="D", tz="UTC")
+    px = prices.reindex(full).astype("float64")
+    prev = px.shift(1)
+    out = np.log(px / prev)
+    out[(px <= 0) | (prev <= 0) | ~np.isfinite(px) | ~np.isfinite(prev)] = np.nan
+    out.name = "log_return"
+    return out
+
+
+def ols_slope(y: np.ndarray, x: np.ndarray) -> float:
+    """OLS slope of ``y`` on ``x`` with an intercept. ``x`` is BTC."""
+    y = np.asarray(y, dtype="float64")
+    x = np.asarray(x, dtype="float64")
+    if y.size < 2 or x.size != y.size:
+        return float("nan")
+    x_mean = float(np.mean(x))
+    y_mean = float(np.mean(y))
+    var = float(np.mean((x - x_mean) ** 2))
+    if not np.isfinite(var) or var == 0.0:
+        return float("nan")
+    cov = float(np.mean((y - y_mean) * (x - x_mean)))
+    return cov / var
+
+
+def btc_beta_at(
+    bars: pd.DataFrame,
+    btc_bars: pd.DataFrame,
+    as_of: pd.Timestamp,
+    *,
+    lookback_days: int,
+    min_pairs: int,
+) -> float:
+    """Beta of one perp on BTC at ``as_of``.
+
+    The window is ``lookback_days`` calendar daily log returns ending at
+    ``as_of``. Both the coin and BTC need a 00:00 sample exactly at
+    ``as_of``. Fewer than ``min_pairs`` finite pairs is NaN.
+    """
+    coin_px = daily_sample_prices(bars_closed_by(bars, as_of))
+    btc_px = daily_sample_prices(bars_closed_by(btc_bars, as_of))
+    if as_of not in coin_px.index or as_of not in btc_px.index:
+        return float("nan")
+    coin_r = daily_log_returns(coin_px)
+    btc_r = daily_log_returns(btc_px)
+    window = pd.date_range(as_of - pd.Timedelta(days=lookback_days - 1), as_of, freq="D", tz="UTC")
+    y = coin_r.reindex(window)
+    x = btc_r.reindex(window)
+    mask = y.notna() & x.notna()
+    if int(mask.sum()) < min_pairs:
+        return float("nan")
+    return ols_slope(y[mask].to_numpy(dtype="float64"), x[mask].to_numpy(dtype="float64"))
+
+
+def btc_beta_scores(
+    bars_by_symbol: dict[str, pd.DataFrame],
+    as_of: pd.Timestamp,
+    config: CellConfig,
+) -> pd.Series:
+    """One BTC beta per alt. BTCUSDT itself is not a score."""
+    btc = bars_by_symbol.get("BTCUSDT")
+    if btc is None:
+        return pd.Series(dtype="float64", name="score")
+    scores: dict[str, float] = {}
+    for symbol, bars in bars_by_symbol.items():
+        if symbol == "BTCUSDT" or symbol in config.exclude_symbols:
+            continue
+        scores[symbol] = btc_beta_at(
+            bars,
+            btc,
+            as_of,
+            lookback_days=config.beta_lookback_days,
+            min_pairs=config.beta_min_pairs,
+        )
+    return pd.Series(scores, dtype="float64", name="score")
+
+
 def market_cap_scores(
     bars_by_symbol: dict[str, pd.DataFrame],
     as_of: pd.Timestamp,
@@ -126,6 +224,7 @@ def market_cap_scores(
 
 SIGNALS = {
     "realized_skew": realized_skew_scores,
+    "btc_beta": btc_beta_scores,
     "market_cap": market_cap_scores,
 }
 

@@ -23,6 +23,7 @@ from research.xs_spread import PACKAGE_DIR
 #: Engine that produces weights, paths, weekly spread returns, trades, turnover, costs.
 HARNESS_FILES: tuple[str, ...] = (
     "HOLDOUT_LOCK",
+    "bab.py",
     "book.py",
     "cells.py",
     "costs.py",

@@ -1,4 +1,4 @@
-"""Dollar-neutral weekly cross-sectional spread research harness.
+"""Weekly cross-sectional spread research harness.
 
 Paper only. Live stays off. This package does not register a sleeve, does
 not read ``config/approved_strategies.json``, and does not place an order.

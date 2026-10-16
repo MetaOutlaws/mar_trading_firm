@@ -290,6 +290,10 @@ def scores_at(
         for symbol in names
         if symbol in panel
     }
+    # Beta needs BTC's daily returns. BTC is not a ranked name, and it still
+    # has to be visible to the signal when the membership row is present.
+    if config.signal_name == "btc_beta" and "BTCUSDT" in panel and "BTCUSDT" not in sliced:
+        sliced["BTCUSDT"] = bars_closed_by(panel["BTCUSDT"], t)
     signal = get_signal(config.signal_name)
     if not sliced:
         return pd.Series(dtype="float64", name="score")
@@ -517,48 +521,113 @@ def ensure_membership(membership: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def _path_row(t: pd.Timestamp, symbol: str, path: NamePath) -> dict[str, object]:
+    return {
+        "rebalance_time": t,
+        "symbol": symbol,
+        "entry_time": path.entry_time,
+        "entry_open": path.entry_open,
+        "long_reason": path.long.reason,
+        "long_exit_time": path.long.exit_time,
+        "long_exit_price": path.long.exit_price,
+        "long_return": path.long.underlying_return,
+        "short_reason": path.short.reason,
+        "short_exit_time": path.short.exit_time,
+        "short_exit_price": path.short.exit_price,
+        "short_return": path.short.underlying_return,
+    }
+
+
 def run_book(
     panel: dict[str, pd.DataFrame],
     membership: pd.DataFrame,
     config: CellConfig,
     window: str,
+    funding: dict[str, pd.Series] | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Full engine pass for one window. No profit factor and no random book."""
+    """Full engine pass for one window. No profit factor and no random book.
+
+    ``funding`` is required when the cell includes funding. A missing print
+    drops that name for the week. It is not replaced with zero.
+    """
     if not config.runnable:
         raise NotImplementedError(config.note)
     if abs(config.leg_cost_rate - LEG_COST_RATE) > 1e-15:
         raise ValueError(
             f"{config.name} leg cost {config.leg_cost_rate} != pinned rate {LEG_COST_RATE}"
         )
+    if config.funding_included and funding is None:
+        raise RuntimeError(
+            f"{config.name} includes funding on both legs and will not zero-fill a missing tape"
+        )
+    beta_book = config.weighting == "beta_neutral"
+    if beta_book and config.proxy_leg_cost_rate is None:
+        raise ValueError(f"{config.name} is missing the report-only cost level")
     panel = normalize_panel(panel)
     membership = ensure_membership(membership)
+    if beta_book and "BTCUSDT" not in panel:
+        raise RuntimeError("BTCUSDT bars are required to estimate beta and are not a traded leg")
     times = rebalance_times(window)
     weight_rows: list[dict[str, object]] = []
     path_rows: list[dict[str, object]] = []
+    score_rows: list[dict[str, object]] = []
+    if beta_book:
+        from research.xs_spread.bab import (
+            apply_beta_schedule,
+            beta_neutral_weights,
+            funding_rate_sum,
+            leg_sets_from_scores,
+            regime_at,
+        )
     for t in times:
         t_next = t + pd.Timedelta(days=config.hold_days)
         scores = scores_at(panel, membership, t, config)
         scores.index = scores.index.map(str)
         finite = scores.replace([np.inf, -np.inf], np.nan).dropna()
-        raw = tercile_weights(finite, long_side=config.long_side)
+        if not beta_book:
+            # Skew path. Same terciles, same paths, same equal-weight renormalize.
+            raw = tercile_weights(finite, long_side=config.long_side)
+            paths = build_paths(panel, list(finite.index.astype(str)), t, t_next, config.stop_pct)
+            weights = renormalize(raw, set(paths))
+            for symbol, path in paths.items():
+                path_rows.append(_path_row(t, symbol, path))
+            for symbol, weight in weights.items():
+                weight_rows.append(
+                    {
+                        "rebalance_time": t,
+                        "symbol": symbol,
+                        "side": _side_of(float(weight)),
+                        "weight": float(weight),
+                        "score": float(finite.loc[symbol]),
+                    }
+                )
+            continue
         paths = build_paths(panel, list(finite.index.astype(str)), t, t_next, config.stop_pct)
-        weights = renormalize(raw, set(paths))
+        funded: dict[str, tuple[NamePath, float, float]] = {}
+        series = funding or {}
         for symbol, path in paths.items():
-            path_rows.append(
-                {
-                    "rebalance_time": t,
-                    "symbol": symbol,
-                    "entry_time": path.entry_time,
-                    "entry_open": path.entry_open,
-                    "long_reason": path.long.reason,
-                    "long_exit_time": path.long.exit_time,
-                    "long_exit_price": path.long.exit_price,
-                    "long_return": path.long.underlying_return,
-                    "short_reason": path.short.reason,
-                    "short_exit_time": path.short.exit_time,
-                    "short_exit_price": path.short.exit_price,
-                    "short_return": path.short.underlying_return,
-                }
+            rates = series.get(symbol)
+            long_sum = funding_rate_sum(rates, path.entry_time, path.long.exit_time)
+            short_sum = funding_rate_sum(rates, path.entry_time, path.short.exit_time)
+            if not np.isfinite(long_sum) or not np.isfinite(short_sum):
+                continue
+            funded[symbol] = (path, long_sum, short_sum)
+        scored = finite[finite.index.isin(funded)]
+        long_symbols, short_symbols = leg_sets_from_scores(scored, long_side=config.long_side)
+        weights = beta_neutral_weights(
+            scored,
+            long_symbols,
+            short_symbols,
+            leverage_cap=config.leverage_cap,
+        )
+        regime = regime_at(panel["BTCUSDT"], t)
+        for symbol, (path, long_sum, short_sum) in funded.items():
+            row = _path_row(t, symbol, path)
+            row["long_funding_sum"] = long_sum
+            row["short_funding_sum"] = short_sum
+            path_rows.append(row)
+            score_rows.append(
+                {"rebalance_time": t, "symbol": symbol, "score": float(scored.loc[symbol])}
             )
         for symbol, weight in weights.items():
             weight_rows.append(
@@ -567,7 +636,8 @@ def run_book(
                     "symbol": symbol,
                     "side": _side_of(float(weight)),
                     "weight": float(weight),
-                    "score": float(finite.loc[symbol]),
+                    "score": float(scored.loc[symbol]),
+                    "regime": regime if regime is not None else "",
                 }
             )
     weight_cols = ["rebalance_time", "symbol", "side", "weight", "score"]
@@ -585,7 +655,29 @@ def run_book(
         "short_exit_price",
         "short_return",
     ]
+    if beta_book:
+        weight_cols = [*weight_cols, "regime"]
+        path_cols = [*path_cols, "long_funding_sum", "short_funding_sum"]
     weights_frame = pd.DataFrame(weight_rows, columns=weight_cols)
     paths_frame = pd.DataFrame(path_rows, columns=path_cols)
+    if beta_book:
+        weekly, trades = apply_beta_schedule(
+            weights_frame,
+            paths_frame,
+            proxy_rate=float(config.proxy_leg_cost_rate),
+        )
+        tables = {
+            "weights": weights_frame,
+            "name_paths": paths_frame,
+            "weekly_returns": weekly,
+            "leg_trades": trades,
+            "scores": pd.DataFrame(score_rows, columns=["rebalance_time", "symbol", "score"]),
+        }
+        return tables
     weekly, trades = apply_schedule(weights_frame, paths_frame)
-    return {"weights": weights_frame, "name_paths": paths_frame, "weekly_returns": weekly, "leg_trades": trades}
+    return {
+        "weights": weights_frame,
+        "name_paths": paths_frame,
+        "weekly_returns": weekly,
+        "leg_trades": trades,
+    }

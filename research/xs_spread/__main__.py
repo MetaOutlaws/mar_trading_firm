@@ -102,6 +102,11 @@ def main(argv: list[str] | None = None) -> int:
         main_output_dir=args.main_output_dir,
     )
     panel, membership, tape_report = load_tape(args.tape, check_pins=cell.check_tape_pins)
+    funding = None
+    if cell.funding_included:
+        from research.xs_spread.tape import load_funding
+
+        funding = load_funding(args.tape)
     result = run_window(
         panel,
         membership,
@@ -111,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         main_output_hash=args.main_output_hash,
         main_output_dir=args.main_output_dir,
         tape_report=tape_report,
+        funding=funding,
     )
     print(f"weeks {result['n_weeks']}")
     print(f"book_sha256 {result['output_sha256']}")
