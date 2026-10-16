@@ -244,6 +244,10 @@ def record_proposal(
         return int(proposal.id)
 
 
+# Status for a dismissed (read) informational scan summary.
+INFORMATIONAL_READ_STATUS = "read"
+
+
 def decide_proposal(
     proposal_id: int,
     approved: bool,
@@ -268,11 +272,19 @@ def decide_proposal(
         # expire them into a path the pipeline can consume.
         payload = proposal.payload if isinstance(proposal.payload, dict) else {}
         if proposal.kind == ProposalKind.INFORMATIONAL.value or payload.get("informational"):
-            logger.info(
-                "Proposal %d is informational; it has no approve or reject.",
-                proposal_id,
-            )
-            return False
+            if approved:
+                logger.info(
+                    "Proposal %d is informational; it has no approve.",
+                    proposal_id,
+                )
+                return False
+            # Dismiss marks the FYI read. It is never APPROVED/REJECTED, so the
+            # pipeline and decided-gate lookups never consume it.
+            proposal.status = INFORMATIONAL_READ_STATUS
+            proposal.decided_by = decided_by
+            proposal.decided_at = utcnow()
+            proposal.decision_reason = reason
+            return True
 
         if proposal.expires_at and proposal.expires_at < utcnow():
             proposal.status = ProposalStatus.EXPIRED.value
@@ -425,6 +437,8 @@ def pending_proposals(limit: int = 50) -> list[dict[str, Any]]:
         rows = session.scalars(
             select(Proposal)
             .where(Proposal.status == ProposalStatus.PENDING.value)
+            # Scan summaries are auto-read FYIs: never in the decision inbox.
+            .where(Proposal.kind != ProposalKind.INFORMATIONAL.value)
             .order_by(Proposal.created_at.desc())
             .limit(limit)
         )
