@@ -41,9 +41,10 @@ HOUR = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 def _pending_summaries() -> list[dict]:
     """Informational diary rows still stored as pending.
 
-    The decision inbox no longer lists these (they are auto-read FYIs). Listing
-    the inbox still prunes an expired summary, so this helper does that read
-    and then loads the diary from the table. Content tests keep seeing the card.
+    The decision inbox no longer lists these (they are auto-read FYIs). The
+    first inbox read in a minute prunes an expired summary, so this helper
+    does that read and then loads the diary from the table. Content tests
+    keep seeing the card.
     """
     memory.pending_proposals(limit=50)
     with session_scope() as session:
@@ -167,11 +168,14 @@ def test_ttl_expiry_prunes_summaries_and_leaves_other_proposals(firm_db) -> None
         leftover = session.query(Proposal).filter(Proposal.kind == "informational").count()
         assert leftover == 0
 
-    # Listing the Inbox uses the same prune, so a stale diary cannot sit there.
+    # The inbox read prunes at most once a minute, and this test already
+    # listed the inbox above. Backdating after that prune is cleared by
+    # the same function publish uses, not by a second read.
     publish_book_notes([_book("ETHUSDT|1h|SHORT|sleeve", bar, "no_signal")], now=HOUR)
     with session_scope() as session:
         row = session.query(Proposal).filter(Proposal.kind == "informational").one()
         row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    expire_and_prune_scan_summaries()
     assert _pending_summaries() == []
 
 
