@@ -181,6 +181,43 @@ def test_allowed_exact_match(
             "100644",
             "1e76aaa07bc5f59b7347d494e4e4753b3eb9c410",
         ),
+        ".env.example": ("100644", "9afdf09c808e1a87178c0eebca826698d75f68db"),
+        ".gitignore": ("100644", "cef30f2b9a9fa4603eb869871e431662957e4b65"),
+        "deploy/caddy/Caddyfile": ("100644", "8814676372bbe8a71b84bdb04c544306046a1e60"),
+        "deploy/caddy/entrypoint.sh": (
+            "100755",
+            "32cbcd8f84796147bd870a04d864330f2c651cbe",
+        ),
+        "deploy/status/Dockerfile": ("100644", "9493f6fb6313cacff399b496b285fad418729c2c"),
+        "deploy/status/docker-compose.sgp1.yml": (
+            "100644",
+            "b20ec3cbdd68b376d3903a7af024c51f00afbc4f",
+        ),
+        "docker-compose.status.yml": (
+            "100644",
+            "a3a2987d5c6943d256721d676b2ff632bcae0cd9",
+        ),
+        "docs/runbooks/status_page.md": (
+            "100644",
+            "d6c8de14708addf25a9a8ad3db2283297323124e",
+        ),
+        "pyproject.toml": ("100644", "92461189518d51ddf24a5f0eba7fc4df96e2e142"),
+        "research/coding_inbox/NOW.md": (
+            "100644",
+            "b02167b0a4426cf53e264375823055992530f47f",
+        ),
+        "tests/test_blotter_strategy.py": (
+            "100644",
+            "97cdc4fe10dce3652faa8224716abfd3aa3db45d",
+        ),
+        "tests/test_dashboard_desk.py": (
+            "100644",
+            "49e06a20dec148a9738227bc5e80905a9d15f36c",
+        ),
+        "tests/test_status_page.py": (
+            "100644",
+            "66625e60d366ac49c957c6cd1df7a6c8ec721c6f",
+        ),
     }
     assert set(FINDINGS_BLOB_PREFIXES) < set(guard.ALLOWED_OVERLAY)
     prefixes = {
@@ -205,11 +242,25 @@ def test_allowed_exact_match(
         "tests/test_scan_fill_counts.py": "f0520d2e",
         "tests/test_scan_inbox.py": "8e61d1b2",
         "tests/test_why_no_trade.py": "1e76aaa0",
+        ".env.example": "9afdf09c",
+        ".gitignore": "cef30f2b",
+        "deploy/caddy/Caddyfile": "88146763",
+        "deploy/caddy/entrypoint.sh": "32cbcd8f",
+        "deploy/status/Dockerfile": "9493f6fb",
+        "deploy/status/docker-compose.sgp1.yml": "b20ec3cb",
+        "docker-compose.status.yml": "a3a2987d",
+        "docs/runbooks/status_page.md": "d6c8de14",
+        "pyproject.toml": "92461189",
+        "research/coding_inbox/NOW.md": "b02167b0",
+        "tests/test_blotter_strategy.py": "97cdc4fe",
+        "tests/test_dashboard_desk.py": "49e06a20",
+        "tests/test_status_page.py": "66625e60",
     }
     assert set(prefixes) == set(guard.ALLOWED_OVERLAY)
     for path, prefix in prefixes.items():
         mode, blob = guard.ALLOWED_OVERLAY[path]
         executable = path in {
+            "deploy/caddy/entrypoint.sh",
             "scripts/status_cert_fingerprint.sh",
             "scripts/ufw_status_443.sh",
         }
@@ -402,6 +453,135 @@ def test_regular_file_requires_100644(
     assert err == "clean-tree guard: dirty path(s): api/app.py\n"
 
 
+def test_disk_mode_normalizes_and_paths_missing_from_head_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Disk mode 600 is git 100644 and 700 is git 100755.
+
+    The guard compares the executable bit, not the rest of the permission
+    bits. A path that HEAD does not contain still passes when both the index
+    and the worktree are the pinned blob at that git mode.
+    """
+    repo = _init(tmp_path)
+    regular = "deploy/status/docker-compose.sgp1.yml"
+    script = "deploy/caddy/entrypoint.sh"
+    regular_bytes = b"services: {}\n"
+    script_bytes = b"#!/bin/sh\nexit 0\n"
+    monkeypatch.setattr(
+        guard,
+        "ALLOWED_OVERLAY",
+        {
+            regular: ("100644", _blob(regular_bytes)),
+            script: ("100755", _blob(script_bytes)),
+        },
+    )
+
+    def place(path: str, data: bytes, disk_mode: int) -> None:
+        file = repo / path
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_bytes(data)
+        file.chmod(disk_mode)
+        _git(repo, "add", "--", path)
+
+    # Neither path is in the base commit. They exist only after git add.
+    listed = subprocess.run(
+        ["git", "-C", str(repo), "ls-tree", "HEAD", "--", regular, script],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert listed.stdout == ""
+
+    place(regular, regular_bytes, 0o600)
+    place(script, script_bytes, 0o700)
+    assert guard._worktree_git_mode(repo, regular) == "100644"
+    assert guard._worktree_git_mode(repo, script) == "100755"
+    regular_index = guard._index_blob(repo, regular)
+    script_index = guard._index_blob(repo, script)
+    assert regular_index is not None and regular_index[0] == "100644"
+    assert script_index is not None and script_index[0] == "100755"
+    code, err = _run(repo, capsys)
+    assert code == 0 and err == ""
+
+    # Staged as a normal git mode, then the disk mode is tightened. 600 stays
+    # 100644 and 700 stays 100755, so the pins still match.
+    place(regular, regular_bytes, 0o644)
+    (repo / regular).chmod(0o600)
+    place(script, script_bytes, 0o755)
+    (repo / script).chmod(0o700)
+    assert guard._worktree_git_mode(repo, regular) == "100644"
+    assert guard._worktree_git_mode(repo, script) == "100755"
+    code, err = _run(repo, capsys)
+    assert code == 0 and err == ""
+
+    # 700 sets the execute bit, so it does not satisfy a 100644 pin.
+    (repo / regular).chmod(0o700)
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == f"clean-tree guard: dirty path(s): {regular}\n"
+
+    # 600 clears the execute bit, so it does not satisfy a 100755 pin.
+    (repo / regular).chmod(0o600)
+    (repo / script).chmod(0o600)
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == f"clean-tree guard: dirty path(s): {script}\n"
+
+
+def test_status_overlay_new_paths_accept_normalized_disk_modes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The status-page pins pass at disk mode 600 or 700 when absent from HEAD.
+
+    ``research/coding_inbox/NOW.md`` stays an id-only pin when its blob is not
+    in this clone. Every other new path is staged from the pinned blob.
+    """
+    repo = _init(tmp_path)
+    disk_mode_for = {
+        "deploy/caddy/entrypoint.sh": 0o700,
+    }
+    staged = {
+        ".env.example",
+        ".gitignore",
+        "deploy/caddy/Caddyfile",
+        "deploy/caddy/entrypoint.sh",
+        "deploy/status/Dockerfile",
+        "deploy/status/docker-compose.sgp1.yml",
+        "docker-compose.status.yml",
+        "docs/runbooks/status_page.md",
+        "pyproject.toml",
+        "tests/test_blotter_strategy.py",
+        "tests/test_dashboard_desk.py",
+        "tests/test_status_page.py",
+    }
+    assert guard.ALLOWED_OVERLAY["research/coding_inbox/NOW.md"] == (
+        "100644",
+        "b02167b0a4426cf53e264375823055992530f47f",
+    )
+    for path in sorted(staged):
+        mode, sha = guard.ALLOWED_OVERLAY[path]
+        blob = subprocess.run(
+            ["git", "-C", str(ROOT), "cat-file", "blob", sha],
+            capture_output=True,
+        )
+        assert blob.returncode == 0 and blob.stdout, path
+        file = repo / path
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_bytes(blob.stdout)
+        file.chmod(disk_mode_for.get(path, 0o600))
+        _git(repo, "add", "--", path)
+        # The fixture commit does not contain these paths.
+        missing = subprocess.run(
+            ["git", "-C", str(repo), "cat-file", "-e", f"HEAD:{path}"],
+            capture_output=True,
+        )
+        assert missing.returncode != 0
+        assert guard._worktree_git_mode(repo, path) == mode
+        assert guard._index_blob(repo, path) == (mode, sha)
+    code, err = _run(repo, capsys)
+    assert code == 0 and err == ""
+
+
 def test_scan_inbox_overlay_pin_fails_closed(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -536,6 +716,8 @@ def test_deploy_preflight_allows_exact_overlay(tmp_path: Path) -> None:
                 "api/why_no_trade.py",
                 "tests/test_dashboard_ux.py",
                 "tests/test_why_no_trade.py",
+                # Id-only SGP1 pin. The blob is not in this clone.
+                "research/coding_inbox/NOW.md",
             }:
                 continue
             pytest.skip("overlay blobs are not in this clone")

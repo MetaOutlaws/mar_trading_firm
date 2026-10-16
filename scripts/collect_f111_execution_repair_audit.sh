@@ -7,7 +7,7 @@ test "$(hostname)" = "mo-paper-vm-sgp1"
 test "$(git -C /data/app rev-parse HEAD)" = "b00c4f73147f8319bc9c227c4f4ffb147fc87154"
 # Tolerate only the overlay paths pinned in the helper. Each one passes only
 # when the index and the worktree both hold that blob at that path's pinned
-# mode (100755 for the two status shell scripts, 100644 for every other pin).
+# mode (100755 for the executable pins, 100644 for every other pin).
 # Any other dirty or staged path fails. Different bytes fail.
 # The helper sits next to this script; extract both. A missing helper fails closed.
 helper="$(cd "$(dirname "$0")" && pwd)/f111_repair_clean_tree.py"

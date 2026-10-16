@@ -5,25 +5,33 @@ from the pinned repair commit ``b00c4f73``. The allowlist is the 2026-10-16
 SGP1 overlay, the ``firm/memory.py`` hot fix, the eight files #135 changes at
 ``3424c265``, ``firm/scan_inbox.py`` at ``8fe9688f`` (#138),
 ``tests/test_scan_inbox.py`` at ``8e61d1b2`` (#136, replacing ``456b0c8e``),
-and the later dashboard pins ``api/desk_status.py``, ``api/observer_status.py``,
+the dashboard pins ``api/desk_status.py``, ``api/observer_status.py``,
 ``api/static/index.html``, ``api/dashboard_cache.py``,
-``tests/test_dashboard_ux.py``, plus the read-side caches
-``firm/read_cache.py``, ``firm/integrity.py``, ``firm/orchestrator.py``,
-``firm/research_catalog.py``, and ``core/strategy/spec_sleeve.py``. Those
-paths are applied on the server as an overlay on ``b00c4f73``. Nothing else
-may stay staged. The cache module is part of that overlay: the desk panels
-import it, and an unpinned copy would fail this guard once it is tracked. The
-why-no-trade panel is part of this overlay: ``api/why_no_trade.py`` and
-``tests/test_why_no_trade.py`` stay the 9caf785 blobs, and the desk, observer,
-and page pins include that panel plus the 60s poll and 4s observers timeout.
+``api/why_no_trade.py``, ``tests/test_dashboard_ux.py``, and
+``tests/test_why_no_trade.py``, the read-side caches ``firm/read_cache.py``,
+``firm/integrity.py``, ``firm/orchestrator.py``, ``firm/research_catalog.py``,
+and ``core/strategy/spec_sleeve.py``, and the status-page overlay
+(``.env.example``, ``.gitignore``, ``docker-compose.status.yml``,
+``docs/runbooks/status_page.md``, ``pyproject.toml``,
+``research/coding_inbox/NOW.md``, ``tests/test_blotter_strategy.py``,
+``tests/test_dashboard_desk.py``, ``tests/test_status_page.py``,
+``deploy/caddy/Caddyfile``, ``deploy/caddy/entrypoint.sh``,
+``deploy/status/Dockerfile``, and ``deploy/status/docker-compose.sgp1.yml``).
+Those paths are applied on the server as an overlay on ``b00c4f73``. Nothing
+else may stay staged. The cache module is part of that overlay: the desk
+panels import it. The why-no-trade panel is included: the why modules stay
+the 9caf785 blobs, and the desk, observer, and page pins add that panel on
+top of the 60s poll, the in-flight guard, and the 4s observers timeout.
 
 A path is allowed only when it is one of those paths and both the index and
 the worktree are the pinned git blob at that path's pinned mode. The two
-status shell scripts are 100755, matching the commits that added them. Every
-other pinned path is 100644. Any other staged or unstaged tracked path fails.
-An allowed path also fails when its bytes differ or either copy has the other
-mode. Untracked files stay out of scope, matching the previous
-``git diff HEAD`` check, which never saw them.
+status shell scripts and ``deploy/caddy/entrypoint.sh`` are 100755. Every
+other pinned path is 100644. Worktree modes are git's executable bit, so disk
+mode 600 counts as 100644 and 700 as 100755. A path that is in the index but
+missing from HEAD still passes when it is pinned. Any other staged or
+unstaged tracked path fails. An allowed path also fails when its bytes differ
+or either copy has the other mode. Untracked files stay out of scope,
+matching the previous ``git diff HEAD`` check, which never saw them.
 """
 
 from __future__ import annotations
@@ -37,10 +45,11 @@ from pathlib import Path
 
 # (mode, blob). FINDINGS abbreviations and the later short ids are in the
 # comments. Each short id names one blob; the value is that full git blob id,
-# not a raw sha256. Mode is what the adding commit recorded: 100755 for the
-# two status shell scripts, 100644 for every other path. Both the index and
-# the worktree must match both fields. firm/memory.py and the later dashboard
-# pins are SGP1 hash-object ids; those blobs do not have to be in this clone.
+# not a raw sha256. Mode is the git mode: 100755 for the two status shell
+# scripts and deploy/caddy/entrypoint.sh, 100644 for every other path. Both
+# the index and the worktree must match both fields. firm/memory.py, the later
+# dashboard pins, and research/coding_inbox/NOW.md are SGP1 hash-object ids;
+# those blobs do not have to be in this clone.
 ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),  # c9b9f03f
     # Desk cache. The panels import this; it is not a trading module.
@@ -122,6 +131,47 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
         "100644",
         "1e76aaa07bc5f59b7347d494e4e4753b3eb9c410",
     ),  # 1e76aaa0
+    # SGP1 status-page overlay on b00c4f73. entrypoint.sh is the only 100755
+    # path in this block. research/coding_inbox/NOW.md is an id-only pin.
+    # Several of these paths are absent from HEAD; they still pass when the
+    # index and the worktree are the pinned blob at the pinned git mode.
+    ".env.example": ("100644", "9afdf09c808e1a87178c0eebca826698d75f68db"),  # 9afdf09c
+    ".gitignore": ("100644", "cef30f2b9a9fa4603eb869871e431662957e4b65"),  # cef30f2b
+    "deploy/caddy/Caddyfile": ("100644", "8814676372bbe8a71b84bdb04c544306046a1e60"),  # 88146763
+    "deploy/caddy/entrypoint.sh": (
+        "100755",
+        "32cbcd8f84796147bd870a04d864330f2c651cbe",
+    ),  # 32cbcd8f
+    "deploy/status/Dockerfile": ("100644", "9493f6fb6313cacff399b496b285fad418729c2c"),  # 9493f6fb
+    "deploy/status/docker-compose.sgp1.yml": (
+        "100644",
+        "b20ec3cbdd68b376d3903a7af024c51f00afbc4f",
+    ),  # b20ec3cb
+    "docker-compose.status.yml": (
+        "100644",
+        "a3a2987d5c6943d256721d676b2ff632bcae0cd9",
+    ),  # a3a2987d
+    "docs/runbooks/status_page.md": (
+        "100644",
+        "d6c8de14708addf25a9a8ad3db2283297323124e",
+    ),  # d6c8de14
+    "pyproject.toml": ("100644", "92461189518d51ddf24a5f0eba7fc4df96e2e142"),  # 92461189
+    "research/coding_inbox/NOW.md": (
+        "100644",
+        "b02167b0a4426cf53e264375823055992530f47f",
+    ),  # b02167b0
+    "tests/test_blotter_strategy.py": (
+        "100644",
+        "97cdc4fe10dce3652faa8224716abfd3aa3db45d",
+    ),  # 97cdc4fe
+    "tests/test_dashboard_desk.py": (
+        "100644",
+        "49e06a20dec148a9738227bc5e80905a9d15f36c",
+    ),  # 49e06a20
+    "tests/test_status_page.py": (
+        "100644",
+        "66625e60d366ac49c957c6cd1df7a6c8ec721c6f",
+    ),  # 66625e60
 }
 
 
@@ -145,7 +195,8 @@ def changed_tracked_paths(repo: Path) -> set[str]:
     """Tracked paths that differ from HEAD in the worktree or only in the index.
 
     ``git diff HEAD`` misses a staged edit whose worktree was put back to HEAD.
-    The index diff is what makes a staged-only file fail.
+    The index diff is what makes a staged-only file fail. A path added to the
+    index and absent from HEAD is included, so a pinned new file can pass.
     """
     worktree = _git(repo, "diff", "--name-only", "-z", "HEAD", ok=(0, 1))
     staged = _git(repo, "diff", "--name-only", "--cached", "-z", "HEAD", ok=(0, 1))
@@ -179,8 +230,10 @@ def _worktree_blob(repo: Path, path: str) -> str | None:
 def _worktree_git_mode(repo: Path, path: str) -> str | None:
     """Return git's 100644 or 100755 for a regular file.
 
-    Git records 100755 when any execute bit is set. Symlinks and missing
-    paths return None so they cannot satisfy either pinned mode.
+    Git records 100755 when any execute bit is set and 100644 otherwise.
+    Disk mode 600 therefore counts as 100644, and 700 as 100755. The other
+    permission bits are not compared. Symlinks and missing paths return
+    None so they cannot satisfy either pinned mode.
     """
     candidate = repo / path
     if candidate.is_symlink() or not candidate.is_file():
