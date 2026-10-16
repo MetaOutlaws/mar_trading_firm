@@ -1,0 +1,32 @@
+{
+  "task": "Deploy and reconcile the reviewed L01/F111 paper execution repair",
+  "repository": "MetaOutlaws/mar_trading_firm",
+  "branch": "codex/f111-execution-repair-20261014",
+  "deploy_commit": "b00c4f73147f8319bc9c227c4f4ffb147fc87154",
+  "tested_tree": "256259ab7bc94680df5749b83a8155cd181f6a21",
+  "expected_prior_commit": "868f1c9a7a34c240dd81fb0c4b2f25b02455d4a4",
+  "new_configuration_sha256": "3b0972e83ba4e698a88c4f4681852bfd5f8fa3945f0187420d4b49e852908b5d",
+  "prior_configuration_sha256": "07c6427e07b0bd1a757c735151391a494c447d346ac27f7c98c0e4d4e42c13fb",
+  "host": "mo-paper-vm-sgp1",
+  "repository_path": "/data/app",
+  "containers": [
+    "mo-paper-paper-1",
+    "mo-paper-api-1"
+  ],
+  "context_timer": "mar-l01-context.timer",
+  "status": "download_observed_deployment_unconfirmed",
+  "deployment_attempt_observation": "Owner screenshot: git fetch completed; SSH then closed before backup/restart confirmation. Silent preflight failure is suspected, exact check unknown. Prior container status in screenshot is not fresh post-attempt evidence.",
+  "owner_delegation": "Owner asked on 2026-10-15 Asia/Dubai to hand server work to Grokbot while Codex continues research. Execute within existing paper-only scope; do not merge PRs or introduce another worker.",
+  "success_required": [
+    "actual Git commit and both deployed SHA markers match pinned repair",
+    "paper-only and L01 marker digest match",
+    "same existing worker and API running; API healthy",
+    "worker-owned startup/scan evidence has new run ID and config hash",
+    "192 sleeve registry check, context coverage and unavailable reasons recorded",
+    "pre/post positions and stops reconciled, including legitimate fills/closes during interval",
+    "cash journal and durable DB events reconcile with trade fees/funding and closed net PnL",
+    "funding incomplete-at-exit cases explicitly enumerated",
+    "existing four-hour context timer observed without duplication"
+  ],
+  "data_scope": "Repository contains compact validation and saved path evidence, not raw candles, credentials or server database backups. Historical parity is conditional on documented research adapters. No fresh deployment claim."
+}

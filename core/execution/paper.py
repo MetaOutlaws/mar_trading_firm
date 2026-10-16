@@ -30,6 +30,7 @@ stop slippage, ``max_holding_bars``).
 from __future__ import annotations
 
 import logging
+import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -101,6 +102,11 @@ class PaperPosition:
     #: Funding already taken from cash for this hold (CostModel.funding_cost
     #: from opened_at through the last accrue). Close realises the total.
     funding_accrued: float = 0.0
+    observed_funding_only: bool = False
+    funding_asof: datetime | None = None
+    funding_source: str | None = None
+    funding_complete: bool = False
+    funding_settlements: dict = field(default_factory=dict)
 
     def unrealised_pnl(self, mark_price: float) -> float:
         direction = 1.0 if self.side == "LONG" else -1.0
@@ -197,6 +203,7 @@ class PaperBroker(Broker):
                 opened_at=opened if isinstance(opened, datetime) else datetime.now(timezone.utc),
                 entry_fee=float(getattr(row, "entry_fee", 0.0) or 0.0),
                 funding_accrued=float(self._open_funding.get(symbol, 0.0)),
+                observed_funding_only=(getattr(row, "strategy", "") == "mar_f111_r12_extension_latefloor_v1"),
             )
             restored += 1
         if restored:
@@ -336,6 +343,10 @@ class PaperBroker(Broker):
         now = now or self._now()
         cash_delta = 0.0
         for position in self._positions.values():
+            if position.observed_funding_only:
+                # F111 supplies an observed cumulative cash target. Missing
+                # observations never fall back to an elapsed-time estimate.
+                continue
             target = self._funding_cost(position, now)
             step = target - position.funding_accrued
             if abs(step) < 1e-12:
@@ -354,6 +365,34 @@ class PaperBroker(Broker):
             )
         return cash_delta
 
+    def record_observed_funding(
+        self, symbol: str, amount: float, *, asof: datetime, source: str
+    ) -> None:
+        """Journal one cumulative observed balance, then apply its cash delta.
+
+        Entry-exclusive settlements are valued by the caller. Retrying the
+        same observation or restoring the journal cannot double-charge it.
+        """
+        position = self._positions[symbol]
+        if not math.isfinite(amount):
+            raise ValueError("observed funding must be finite")
+        position.observed_funding_only = True
+        if position.funding_asof is not None and asof < position.funding_asof:
+            raise ValueError("observed funding cannot move backwards")
+        delta = amount - position.funding_accrued
+        if abs(delta) >= 1e-12:
+            self._record_cash_event({
+                "kind": KIND_FUNDING, "symbol": symbol, "amount": delta,
+                "event_id": f"observed-funding:{symbol}:{position.opened_at.isoformat()}:{asof.isoformat()}:{amount:.17g}",
+                "cash_after": self._cash - delta, "funding_accrued": amount,
+                "source": source, "asof": asof.isoformat(),
+            })
+            self._cash -= delta
+        position.funding_accrued = amount
+        position.funding_asof = asof
+        position.funding_source = source
+        position.funding_complete = True
+
     # -- orders ------------------------------------------------------------
     def place_market_order(
         self,
@@ -362,12 +401,14 @@ class PaperBroker(Broker):
         quantity: float,
         expected_price: float,
         reduce_only: bool = False,
+        *,
+        quoted_price: float | None = None,
     ) -> OrderResult:
         """Simulate a market fill with slippage and fees."""
         direction = self._normalise_side(side)
-        price = self.get_price(symbol)
+        price = self.get_price(symbol) if quoted_price is None else quoted_price
 
-        if price is None:
+        if price is None or not math.isfinite(price) or price <= 0:
             return OrderResult(
                 success=False,
                 symbol=symbol,
@@ -420,6 +461,9 @@ class PaperBroker(Broker):
         expected_price: float,
         notional: float,
     ) -> OrderResult:
+        # Seed before the first debit. Seeding from _record_cash_event after
+        # the fee was applied would reset that first fee out of RAM cash.
+        self._seed_starting_capital()
         if symbol in self._positions:
             raise InvalidOrder(f"already holding {symbol}; close it before reopening")
 
@@ -444,6 +488,8 @@ class PaperBroker(Broker):
         )
         self._cash -= fee
         self.total_fees += fee
+        # The ledger id does not exist yet. ``stamp_open_cash_event`` adds it
+        # later, on this same row, so the fee is not journaled twice.
         self._record_cash_event(
             {
                 "kind": KIND_OPEN,
@@ -518,12 +564,14 @@ class PaperBroker(Broker):
         fee = costs.fee_for(position.quantity * fill_price)
         return self._quote_close(symbol, position.quantity, fill_price, fee, expected_price)
 
-    def quote_market_close(self, symbol: str) -> QuotedClose | None:
+    def quote_market_close(self, symbol: str, *, quoted_price: float | None = None) -> QuotedClose | None:
         """Target and timeout quote: one exit-slippage tick on the live mark."""
         position = self._positions.get(symbol)
         if position is None:
             return None
-        price = self.get_price(symbol) or position.entry_price
+        price = (self.get_price(symbol) or position.entry_price) if quoted_price is None else quoted_price
+        if not math.isfinite(price) or price <= 0:
+            return None
         costs = self.costs_for(symbol)
         fill_price = costs.exit_price(price, position.side)
         fee = costs.fee_for(position.quantity * fill_price)
@@ -562,6 +610,13 @@ class PaperBroker(Broker):
             "total_fees": self.total_fees + quoted.fee,
             "total_funding": self.total_funding + quoted.funding,
         }
+        position = self._positions.get(quoted.symbol)
+        if position is not None and position.observed_funding_only:
+            payload["funding_source"] = position.funding_source
+            payload["funding_observed_through"] = (
+                position.funding_asof.isoformat() if position.funding_asof else None
+            )
+            payload["funding_status"] = "observed_through_timestamp" if position.funding_complete else "incomplete_at_exit"
         if event_id:
             payload["event_id"] = event_id
         if position_id is not None:
@@ -891,6 +946,46 @@ class PaperBroker(Broker):
         # A fill before hydrate still needs a capital event to replay.
         self._seed_starting_capital()
         self._cash_store.record(event)
+
+    def stamp_open_cash_event(self, symbol: str, position_id: int) -> dict | None:
+        """Put ``position_id`` on the latest open event for ``symbol``.
+
+        Updates that row in place. Does not append, and does not move cash.
+        Returns the stamped payload so it can be mirrored, or None when this
+        broker has no journal or no matching open.
+        """
+        if self._cash_store is None:
+            return None
+        events = self._cash_store.events()
+        chosen: int | None = None
+        for index in range(len(events) - 1, -1, -1):
+            event = events[index]
+            if str(event.get("kind") or "") != KIND_OPEN:
+                continue
+            if str(event.get("symbol") or "") != symbol:
+                continue
+            existing = event.get("position_id")
+            if existing in (None, ""):
+                chosen = index
+                break
+            try:
+                if int(existing) == int(position_id):
+                    chosen = index
+                    break
+            except (TypeError, ValueError):
+                continue
+        if chosen is None:
+            return None
+        stamped = dict(events[chosen])
+        event_id = str(stamped.get("event_id") or f"paper-open:{int(position_id)}:{symbol}")
+        stamped["event_id"] = event_id
+        stamped["position_id"] = int(position_id)
+        stamped["kind"] = KIND_OPEN
+        if stamped != events[chosen]:
+            # JSON first. A durable copy of the same event_id then cannot be
+            # replayed as a second fee if this process dies in between.
+            self._cash_store.replace_event(chosen, stamped)
+        return stamped
 
     # -- helpers -----------------------------------------------------------
     @staticmethod

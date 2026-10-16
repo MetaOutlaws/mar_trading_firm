@@ -2498,18 +2498,39 @@ def family_blocked_from_replenish(
     return primary_clocks_failed(jobs, family)
 
 
+# Parsed ranking file, keyed on mtime_ns and size. ``remaining_hypotheses``
+# asks for the retired set once per family. Callers receive a shallow copy
+# so a later ``overlay["ranks"] = ...`` does not poison the next read.
+_ranking_cache: tuple[tuple[int, int], dict[str, Any]] | None = None
+
+
+def clear_ranking_overlay_cache() -> None:
+    """Drop the parsed ranking file. A new mtime also misses on its own."""
+    global _ranking_cache
+    _ranking_cache = None
+
+
 def _ranking_overlay() -> dict[str, Any]:
     """Post-mortems write ranks here so a reject mutates order without a git edit."""
+    global _ranking_cache
     path = CATALOG_RANKING_PATH
-    if not path.exists():
+    try:
+        st = path.stat()
+    except OSError:
         return {}
+    token = (int(st.st_mtime_ns), int(st.st_size))
+    cached = _ranking_cache
+    if cached is not None and cached[0] == token:
+        return dict(cached[1])
     import json
 
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
-    return raw if isinstance(raw, dict) else {}
+    data = raw if isinstance(raw, dict) else {}
+    _ranking_cache = (token, data)
+    return dict(data)
 
 
 def ranked_hypotheses() -> list[dict[str, Any]]:

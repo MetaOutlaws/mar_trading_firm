@@ -117,7 +117,8 @@ def test_upgrade_cancels_only_unfiltered_pending_longs_preserving_positions(tmp_
     new=runtime(tmp_path);new.state_path=old.state_path;new.restore()
     assert new.pending[0]['status']=='rejected'
     assert new.pending[1]['status']=='watching'
-    assert new.protection==saved
+    assert {k: new.protection['ETHUSDT'][k] for k in saved['ETHUSDT']} == saved['ETHUSDT']
+    assert new.protection['ETHUSDT']['last_protection_minute'] == T0.isoformat()
     assert new.pending[0]['source_signal_id'] in new.seen_signals
 
 

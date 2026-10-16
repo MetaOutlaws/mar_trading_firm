@@ -1,0 +1,38 @@
+{
+  "repair_local_status": "PASS",
+  "deployed_saved_path_parity": "UNVERIFIED",
+  "base_commit": "868f1c9a7a34c240dd81fb0c4b2f25b02455d4a4",
+  "configuration_sha256": "3b0972e83ba4e698a88c4f4681852bfd5f8fa3945f0187420d4b49e852908b5d",
+  "gate_signals": 1026,
+  "historical_paths": 374,
+  "admitted_runtime_paths": 370,
+  "observed_funding_paths": 374,
+  "independent_cash_identities": 1480,
+  "regression": {
+    "tests": 177,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  "strategy_configuration_preserved": true,
+  "historical_2026_opened": false,
+  "remote_execution_performed": false,
+  "source_files_frozen": 459,
+  "scope": "Offline research-input parity uses quantity one, synthetic instrument metadata, locked research costs and supplied funding. The production funding adapter separately matches retained settlement observations on all 374 paths. Worker/quote/SQLite interfaces are covered by local fixtures. Live API coverage, Singapore deployment and actual forward fills are not certified.",
+  "regression_command": "python -m pytest -q tests/test_f111_execution_repair.py tests/test_f111_paper.py tests/test_l01_paper.py tests/test_f03_fee_funding.py tests/test_paper_cash_hydrate.py tests/test_ledger_labels.py tests/test_execution.py tests/test_paper_bar_eval.py",
+  "skip_explanation": "One inherited placeholder requires a private research archive; the separate retained-data replay completed all 374 paths.",
+  "source_sha256": {
+    "core/execution/paper.py": "c3cec3d20f46a45644195c05bc0e45a335c5bd2dc2f109585e7e5d2352c69792",
+    "core/execution/f111_funding.py": "2654de6a4827fc59f105aa3216c3a47c42b55a4b1356fac6c7f2e56fc5f80159",
+    "core/execution/engine.py": "5c08e8db2e0a699ab651ffcc10e467fc6230201c165b5aadec9dfe684304bde5",
+    "core/execution/f111_paper.py": "63ea687fee3fdc92733b9e796e662a6c8e4ecb3c30e02780d7c1b7f5325ecde3",
+    "core/ledger/store.py": "6d620ab334ffd3b2b501d20ba47a6d08f8fbd6994281bf63b9b12bc11ced7bda",
+    "core/risk/engine.py": "24418d0945403e61c423594ece26c0b27347a15ed71431e1cb3fc6939e7d9841",
+    "scripts/enable_l01_paper.py": "d3c046900248a270a681c87010f6c44e0d89361ddc9ea81bdf583746dc7a0db7",
+    "scripts/enable_f111_paper.py": "9d889280c42173dfb739daaf374c0a7591b629c49afa9cf95cc0a8f55af0fb5e",
+    "scripts/verify_l01_paper.py": "a95c73dd5caeb37ba6bcccbb6b5963d5da6fee66703e4aed78ef867db5933bd5",
+    "scripts/deploy_f111_execution_repair.sh": "eaff811485c4a46b6395454fa8d0228c8781e88d56abde13babe7576ee11ca6d",
+    "scripts/upgrade_f111_execution.py": "78aa802748ead2dc8a4bb0d500929a00fe2dc419d2c3053fdb56cf16144e50cb",
+    "research/engine.py": "ae40ec4d04f2d5b2898c8309782662cddefea36d14f5e41ec74eba1310e197f6"
+  }
+}

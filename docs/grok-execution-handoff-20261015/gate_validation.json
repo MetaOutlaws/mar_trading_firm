@@ -1,0 +1,34 @@
+{
+  "status": "pass",
+  "signals": 1026,
+  "tokens": 96,
+  "long_signals": 572,
+  "short_signals": 454,
+  "ema_and_slope_comparisons": 1144,
+  "stale_context_rejections_in_saved_sample": 0,
+  "research_seed_records_verified": 96,
+  "seed_sha256": "77e3ce7e500c59ef6b2f01e8cfb72a6970575de164328c59289090277ace49b3",
+  "admission_replays": [
+    {
+      "slippage_per_side": 0.002,
+      "all96_trades": 185,
+      "additional93_longs": 57,
+      "additional93_shorts": 126
+    },
+    {
+      "slippage_per_side": 0.003,
+      "all96_trades": 185,
+      "additional93_longs": 57,
+      "additional93_shorts": 126
+    }
+  ],
+  "input_sha256": {
+    "mar_structure_entry_20261014/causal_features.parquet": "0609f4e3661a3c26cd76032fde041c286487acb1ed473a2f9386e74286db72db",
+    "mar_protection_surface_20261010/sources.parquet": "ab0e6a5779a0a820767556d3c3d1f23844b48e7500a01d5d2c09a35dcd2ec869",
+    "mar_protection_surface_20261010/entries.parquet": "a195cbfaf7319a23911a2f1f47847e2f395a1c3026f5391da8a6e8c946a1c580",
+    "mar_protection_surface_20261010/results/opportunities.parquet": "b082b62d48c9271479df578d7ced9fd9cf64b9a2e650697bafb225e6d007827b"
+  },
+  "historical_2026_backtest_opened": false,
+  "runtime_activation_verified": false,
+  "scope": "L01 context/gate parity and saved-path admission replay; inherited forward engine path parity remains UNVERIFIED"
+}

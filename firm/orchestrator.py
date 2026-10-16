@@ -299,6 +299,19 @@ class Orchestrator:
         return advice
 
     def floor_snapshot(self) -> dict[str, Any]:
+        """Employee Floor payload, one build per 30 seconds.
+
+        The browser hits this with the other desk routes. Building it
+        certifies the book and walks the catalog, which was most of the
+        API process. A poll inside the TTL gets that build. The paper
+        cycle does not call this method; ``advice_for_engine`` still
+        reads proposals when the engine asks.
+        """
+        from firm.read_cache import floor_cache
+
+        return floor_cache.fetch("floor", ("floor",), self._floor_snapshot_uncached)
+
+    def _floor_snapshot_uncached(self) -> dict[str, Any]:
         """Everything the Employee Floor dashboard needs in one payload."""
         from firm.llm import llm_seats_enabled
 
