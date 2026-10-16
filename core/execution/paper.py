@@ -488,6 +488,8 @@ class PaperBroker(Broker):
         )
         self._cash -= fee
         self.total_fees += fee
+        # The ledger id does not exist yet. ``stamp_open_cash_event`` adds it
+        # later, on this same row, so the fee is not journaled twice.
         self._record_cash_event(
             {
                 "kind": KIND_OPEN,
@@ -944,6 +946,46 @@ class PaperBroker(Broker):
         # A fill before hydrate still needs a capital event to replay.
         self._seed_starting_capital()
         self._cash_store.record(event)
+
+    def stamp_open_cash_event(self, symbol: str, position_id: int) -> dict | None:
+        """Put ``position_id`` on the latest open event for ``symbol``.
+
+        Updates that row in place. Does not append, and does not move cash.
+        Returns the stamped payload so it can be mirrored, or None when this
+        broker has no journal or no matching open.
+        """
+        if self._cash_store is None:
+            return None
+        events = self._cash_store.events()
+        chosen: int | None = None
+        for index in range(len(events) - 1, -1, -1):
+            event = events[index]
+            if str(event.get("kind") or "") != KIND_OPEN:
+                continue
+            if str(event.get("symbol") or "") != symbol:
+                continue
+            existing = event.get("position_id")
+            if existing in (None, ""):
+                chosen = index
+                break
+            try:
+                if int(existing) == int(position_id):
+                    chosen = index
+                    break
+            except (TypeError, ValueError):
+                continue
+        if chosen is None:
+            return None
+        stamped = dict(events[chosen])
+        event_id = str(stamped.get("event_id") or f"paper-open:{int(position_id)}:{symbol}")
+        stamped["event_id"] = event_id
+        stamped["position_id"] = int(position_id)
+        stamped["kind"] = KIND_OPEN
+        if stamped != events[chosen]:
+            # JSON first. A durable copy of the same event_id then cannot be
+            # replayed as a second fee if this process dies in between.
+            self._cash_store.replace_event(chosen, stamped)
+        return stamped
 
     # -- helpers -----------------------------------------------------------
     @staticmethod
