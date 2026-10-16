@@ -1,4 +1,4 @@
-"""Collector clean-tree guard for the SGP1 overlay plus the #135 file blobs.
+"""Collector clean-tree guard for the SGP1 overlay, the #135 blobs, and #138.
 
 The contract: those paths pass only when both the index and the worktree are
 the pinned blob at that path's pinned mode, a different byte fails, and any
@@ -25,8 +25,9 @@ DEPLOY = ROOT / "scripts" / "deploy_f111_execution_repair.sh"
 # one full blob id each abbreviation names.
 FINDINGS_BLOB_PREFIXES = {
     "api/app.py": "c9b9f03f",
-    "api/desk_status.py": "0ebd3b44",
-    "api/static/index.html": "e5649287",
+    # desk_status and index.html were replaced by the later SGP1 overlay.
+    "api/desk_status.py": "4814d209",
+    "api/static/index.html": "1d13fd9d",
     "api/status_app.py": "ad4de7a2",
     "api/status_auth.py": "28a9ccd9",
     "api/status_snapshot.py": "9fe475f6",
@@ -116,12 +117,13 @@ def test_allowed_exact_match(
     """A clean tree passes, and so does the overlay when every blob matches."""
     assert guard.ALLOWED_OVERLAY == {
         "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),
-        "api/desk_status.py": ("100644", "0ebd3b44a5bf36ff5287780e11090d72bbb83b12"),
-        "api/observer_status.py": ("100644", "28713d3bc4a18806b6dfbbe1675c9108afb5594e"),
-        "api/static/index.html": ("100644", "e5649287f0122def78d7b3ecab7ddce4c2adec44"),
+        "api/desk_status.py": ("100644", "4814d2096e6b06c4d98d86f39c61938cb4d178ad"),
+        "api/observer_status.py": ("100644", "152a6df71e67097128a49cc13f35c16f73102f6e"),
+        "api/static/index.html": ("100644", "1d13fd9d414bf6872f14a655a39d6c5ddd494406"),
         "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),
         "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),
         "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),
+        "api/why_no_trade.py": ("100644", "1ee0e13f313adca20c43018a6ec804ccde23c207"),
         "config/settings.py": ("100644", "9c02305f6e855960410daa9761abc4a849c97a1a"),
         "core/execution/engine.py": ("100644", "fd6a6b8e4238312502e830d41ef7ae29f382a0d4"),
         "core/execution/f111_paper.py": ("100644", "ab390d3f2b98d6977574d2a40f265e7a2154a8fe"),
@@ -133,12 +135,20 @@ def test_allowed_exact_match(
         "core/execution/paper_cash.py": ("100644", "fde5e49bc1e72261ce258a182aee2e7913fb8f52"),
         "core/execution/paper_settle.py": ("100644", "830b3c5b9e408c726bd6f2c9714347cf61b8d3b3"),
         "firm/memory.py": ("100644", "fba54b57a7c07c2540dc2246b83ca16913179bfa"),
+        "firm/scan_inbox.py": (
+            "100644",
+            "8fe9688f6c7001d6dcddfa75b942cde105284a1b",
+        ),
         "scripts/run_status_page.py": ("100644", "b2f130fd36fda79a3d23d987c56ad3484f7e7767"),
         "scripts/status_cert_fingerprint.sh": (
             "100755",
             "94c8b4126490d57ef728d258567dd294e098f0f4",
         ),
         "scripts/ufw_status_443.sh": ("100755", "f9ef5d0f510b19421d88f6f249d1c8fb37f92824"),
+        "tests/test_dashboard_ux.py": (
+            "100644",
+            "78398fb6d6b35cc2f309780912365f7f918801c9",
+        ),
         "tests/test_f111_execution_repair.py": (
             "100644",
             "162c2620ea20ae7c24e09b08a96e46cbb5fcf913",
@@ -147,20 +157,33 @@ def test_allowed_exact_match(
             "100644",
             "f0520d2ea966389b521b5cd962a0cdd150696d53",
         ),
+        "tests/test_scan_inbox.py": (
+            "100644",
+            "3cc0e6e47d4f967be2182843a91595d12d454894",
+        ),
+        "tests/test_why_no_trade.py": (
+            "100644",
+            "1e76aaa07bc5f59b7347d494e4e4753b3eb9c410",
+        ),
     }
     assert set(FINDINGS_BLOB_PREFIXES) < set(guard.ALLOWED_OVERLAY)
     prefixes = {
         **FINDINGS_BLOB_PREFIXES,
-        "api/observer_status.py": "28713d3b",
+        "api/observer_status.py": "152a6df7",
+        "api/why_no_trade.py": "1ee0e13f",
         "firm/memory.py": "fba54b57",
+        "firm/scan_inbox.py": "8fe9688f",
         "core/execution/engine.py": "fd6a6b8e",
         "core/execution/f111_paper.py": "ab390d3f",
         "core/execution/paper.py": "c73ead0f",
         "core/execution/paper_bar_eval.py": "5374ab24",
         "core/execution/paper_cash.py": "fde5e49b",
         "core/execution/paper_settle.py": "830b3c5b",
+        "tests/test_dashboard_ux.py": "78398fb6",
         "tests/test_f111_execution_repair.py": "162c2620",
         "tests/test_scan_fill_counts.py": "f0520d2e",
+        "tests/test_scan_inbox.py": "3cc0e6e4",
+        "tests/test_why_no_trade.py": "1e76aaa0",
     }
     assert set(prefixes) == set(guard.ALLOWED_OVERLAY)
     for path, prefix in prefixes.items():
@@ -201,16 +224,29 @@ def test_allowed_exact_match(
         mode, _kind, blob = meta.split()
         assert name == path
         assert guard.ALLOWED_OVERLAY[path] == (mode, blob)
-    observer = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-tree", "ee994abe", "--", "api/observer_status.py"],
-        capture_output=True,
-        text=True,
-    )
-    if observer.returncode == 0 and observer.stdout.strip():
-        meta, name = observer.stdout.strip().split("\t", 1)
+    # Blobs of these paths at 5dff9454, which SGP1 overlays on b00c4f73.
+    # tests/test_scan_inbox.py replaces 456b0c8e from that server HEAD.
+    scan_commit = "5dff9454a5dce55e861aeea86eec84779e809ba3"
+    for path, expected in {
+        "firm/scan_inbox.py": ("100644", "8fe9688f6c7001d6dcddfa75b942cde105284a1b"),
+        "tests/test_scan_inbox.py": ("100644", "3cc0e6e47d4f967be2182843a91595d12d454894"),
+    }.items():
+        listed = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-tree", scan_commit, "--", path],
+            capture_output=True,
+            text=True,
+        )
+        assert listed.returncode == 0 and listed.stdout.strip()
+        meta, name = listed.stdout.strip().split("\t", 1)
         mode, _kind, blob = meta.split()
-        assert name == "api/observer_status.py"
-        assert guard.ALLOWED_OVERLAY[name] == (mode, blob)
+        assert name == path
+        assert (mode, blob) == expected
+        assert guard.ALLOWED_OVERLAY[path] == (mode, blob)
+    # Later dashboard pins are ids. They stay pinned when the blob is absent,
+    # and they are not the older ee994abe or FINDINGS objects.
+    assert guard.ALLOWED_OVERLAY["api/observer_status.py"][1] != (
+        "28713d3bc4a18806b6dfbbe1675c9108afb5594e"
+    )
     collector = COLLECTOR.read_text(encoding="utf-8")
     assert "f111_repair_clean_tree.py" in collector
     assert 'test -f "$helper"' in collector
@@ -340,6 +376,49 @@ def test_regular_file_requires_100644(
     assert err == "clean-tree guard: dirty path(s): api/app.py\n"
 
 
+def test_scan_inbox_overlay_pin_fails_closed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The SGP1 scan_inbox overlay passes only as the pinned 100644 blob.
+
+    Server HEAD stays ``b00c4f73``. This path is allowed only when both the
+    index and the worktree are blob ``8fe9688f`` at mode 100644. Different
+    bytes, or the same bytes with the executable mode, fail closed.
+    """
+    path = "firm/scan_inbox.py"
+    mode, sha = guard.ALLOWED_OVERLAY[path]
+    assert (mode, sha) == ("100644", "8fe9688f6c7001d6dcddfa75b942cde105284a1b")
+    blob = subprocess.run(
+        ["git", "-C", str(ROOT), "cat-file", "blob", sha],
+        capture_output=True,
+    )
+    assert blob.returncode == 0 and blob.stdout
+
+    repo = _init(tmp_path)
+    _stage(repo, path, blob.stdout, mode="100644")
+    code, err = _run(repo, capsys)
+    assert code == 0 and err == ""
+
+    # Different bytes on the allowed path are still dirty.
+    _stage(repo, path, blob.stdout + b"\n", mode="100644")
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): firm/scan_inbox.py\n"
+
+    # The pin is 100644. An executable copy of the same bytes fails.
+    _stage(repo, path, blob.stdout, mode="100755")
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): firm/scan_inbox.py\n"
+
+    # A 100644 index with an executable worktree still fails.
+    _stage(repo, path, blob.stdout, mode="100644")
+    (repo / path).chmod(0o755)
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): firm/scan_inbox.py\n"
+
+
 def _parity_tree(dest: Path, *, deployed: str, remote: bool, flip_runtime: bool) -> None:
     """Copy the real parity artifacts and optionally break one admitted row."""
     src = ROOT / "docs" / "grok-execution-handoff-20261015"
@@ -421,8 +500,16 @@ def test_deploy_preflight_allows_exact_overlay(tmp_path: Path) -> None:
             capture_output=True,
         )
         if blob.returncode != 0:
-            # The SGP1 memory hot-fix blob is pinned by id and is not in this clone.
-            if path == "firm/memory.py":
+            # Id-only SGP1 pins. Absence is allowed; a present object is staged.
+            if path in {
+                "firm/memory.py",
+                "api/desk_status.py",
+                "api/observer_status.py",
+                "api/static/index.html",
+                "api/why_no_trade.py",
+                "tests/test_dashboard_ux.py",
+                "tests/test_why_no_trade.py",
+            }:
                 continue
             pytest.skip("overlay blobs are not in this clone")
         _stage(repo, path, blob.stdout, mode=mode)

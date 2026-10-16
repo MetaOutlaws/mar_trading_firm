@@ -2,9 +2,14 @@
 
 The collector refuses to read a Singapore checkout whose tracked files differ
 from the pinned repair commit ``b00c4f73``. The allowlist is the 2026-10-16
-SGP1 overlay, the ``firm/memory.py`` hot fix, ``api/observer_status.py`` from
-``ee994abe``, and the eight files #135 changes at ``3424c265`` (applied on
-the server as an overlay on ``b00c4f73``). Nothing else may stay staged.
+SGP1 overlay, the ``firm/memory.py`` hot fix, the eight files #135 changes at
+``3424c265``, ``firm/scan_inbox.py`` at ``8fe9688f`` (#138),
+``tests/test_scan_inbox.py`` at ``3cc0e6e4`` (#136, replacing ``456b0c8e``),
+and the later dashboard pins ``api/desk_status.py``, ``api/observer_status.py``,
+``api/static/index.html``, ``api/why_no_trade.py``,
+``tests/test_dashboard_ux.py``, and ``tests/test_why_no_trade.py``. Those
+paths are applied on the server as an overlay on ``b00c4f73``. Nothing else
+may stay staged.
 
 A path is allowed only when it is one of those paths and both the index and
 the worktree are the pinned git blob at that path's pinned mode. The two
@@ -28,16 +33,26 @@ from pathlib import Path
 # comments. Each short id names one blob; the value is that full git blob id,
 # not a raw sha256. Mode is what the adding commit recorded: 100755 for the
 # two status shell scripts, 100644 for every other path. Both the index and
-# the worktree must match both fields. firm/memory.py is the SGP1 hash-object
-# id; that blob does not have to be in this clone.
+# the worktree must match both fields. firm/memory.py and the later dashboard
+# pins are SGP1 hash-object ids; those blobs do not have to be in this clone.
 ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),  # c9b9f03f
-    "api/desk_status.py": ("100644", "0ebd3b44a5bf36ff5287780e11090d72bbb83b12"),  # 0ebd3b44
-    "api/observer_status.py": ("100644", "28713d3bc4a18806b6dfbbe1675c9108afb5594e"),  # 28713d3b
-    "api/static/index.html": ("100644", "e5649287f0122def78d7b3ecab7ddce4c2adec44"),  # e5649287
+    # Later SGP1 dashboard overlay. Replaces 0ebd3b44.
+    "api/desk_status.py": ("100644", "4814d2096e6b06c4d98d86f39c61938cb4d178ad"),  # 4814d209
+    # Replaces 28713d3b. The pin is this id, not the blob at ee994abe.
+    "api/observer_status.py": (
+        "100644",
+        "152a6df71e67097128a49cc13f35c16f73102f6e",
+    ),  # 152a6df7
+    # Replaces e5649287.
+    "api/static/index.html": (
+        "100644",
+        "1d13fd9d414bf6872f14a655a39d6c5ddd494406",
+    ),  # 1d13fd9d
     "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),  # ad4de7a2
     "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),  # 28a9ccd9
     "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),  # 9fe475f6
+    "api/why_no_trade.py": ("100644", "1ee0e13f313adca20c43018a6ec804ccde23c207"),  # 1ee0e13f
     "config/settings.py": ("100644", "9c02305f6e855960410daa9761abc4a849c97a1a"),  # 9c02305f
     # Blobs of these paths at 3424c265 (#135), overlaid on b00c4f73.
     "core/execution/engine.py": ("100644", "fd6a6b8e4238312502e830d41ef7ae29f382a0d4"),
@@ -47,6 +62,11 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     "core/execution/paper_cash.py": ("100644", "fde5e49bc1e72261ce258a182aee2e7913fb8f52"),
     "core/execution/paper_settle.py": ("100644", "830b3c5b9e408c726bd6f2c9714347cf61b8d3b3"),
     "firm/memory.py": ("100644", "fba54b57a7c07c2540dc2246b83ca16913179bfa"),  # fba54b57
+    # Blob of this path at 5dff9454 (#138), overlaid on b00c4f73.
+    "firm/scan_inbox.py": (
+        "100644",
+        "8fe9688f6c7001d6dcddfa75b942cde105284a1b",
+    ),  # 8fe9688f
     "scripts/run_status_page.py": (
         "100644",
         "b2f130fd36fda79a3d23d987c56ad3484f7e7767",
@@ -56,8 +76,21 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
         "94c8b4126490d57ef728d258567dd294e098f0f4",
     ),  # 94c8b412
     "scripts/ufw_status_443.sh": ("100755", "f9ef5d0f510b19421d88f6f249d1c8fb37f92824"),  # f9ef5d0f
+    "tests/test_dashboard_ux.py": (
+        "100644",
+        "78398fb6d6b35cc2f309780912365f7f918801c9",
+    ),  # 78398fb6
     "tests/test_f111_execution_repair.py": ("100644", "162c2620ea20ae7c24e09b08a96e46cbb5fcf913"),
     "tests/test_scan_fill_counts.py": ("100644", "f0520d2ea966389b521b5cd962a0cdd150696d53"),
+    # Current file at 5dff9454 (#136). Replaces 456b0c8e from b00c4f73.
+    "tests/test_scan_inbox.py": (
+        "100644",
+        "3cc0e6e47d4f967be2182843a91595d12d454894",
+    ),  # 3cc0e6e4
+    "tests/test_why_no_trade.py": (
+        "100644",
+        "1e76aaa07bc5f59b7347d494e4e4753b3eb9c410",
+    ),  # 1e76aaa0
 }
 
 
