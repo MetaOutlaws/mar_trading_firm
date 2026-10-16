@@ -26,8 +26,9 @@ DEPLOY = ROOT / "scripts" / "deploy_f111_execution_repair.sh"
 FINDINGS_BLOB_PREFIXES = {
     "api/app.py": "c9b9f03f",
     # desk_status and index.html were replaced by the later SGP1 overlay.
-    "api/desk_status.py": "4814d209",
-    "api/static/index.html": "1d13fd9d",
+    "api/dashboard_cache.py": "c6b8f663",
+    "api/desk_status.py": "3347d45e",
+    "api/static/index.html": "219d908c",
     "api/status_app.py": "ad4de7a2",
     "api/status_auth.py": "28a9ccd9",
     "api/status_snapshot.py": "9fe475f6",
@@ -117,9 +118,10 @@ def test_allowed_exact_match(
     """A clean tree passes, and so does the overlay when every blob matches."""
     assert guard.ALLOWED_OVERLAY == {
         "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),
-        "api/desk_status.py": ("100644", "4814d2096e6b06c4d98d86f39c61938cb4d178ad"),
-        "api/observer_status.py": ("100644", "152a6df71e67097128a49cc13f35c16f73102f6e"),
-        "api/static/index.html": ("100644", "1d13fd9d414bf6872f14a655a39d6c5ddd494406"),
+        "api/dashboard_cache.py": ("100644", "c6b8f663df4e199b3cd907bd95c0b393591345cb"),
+        "api/desk_status.py": ("100644", "3347d45eac23d031d4dc5169910bad24702a518a"),
+        "api/observer_status.py": ("100644", "b982b1baef176fb4f67bf0bb613477a769df75db"),
+        "api/static/index.html": ("100644", "219d908c3c62994447d60c77a2e5beed53902715"),
         "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),
         "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),
         "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),
@@ -169,7 +171,7 @@ def test_allowed_exact_match(
     assert set(FINDINGS_BLOB_PREFIXES) < set(guard.ALLOWED_OVERLAY)
     prefixes = {
         **FINDINGS_BLOB_PREFIXES,
-        "api/observer_status.py": "152a6df7",
+        "api/observer_status.py": "b982b1ba",
         "api/why_no_trade.py": "1ee0e13f",
         "firm/memory.py": "fba54b57",
         "firm/scan_inbox.py": "8fe9688f",
@@ -503,6 +505,7 @@ def test_deploy_preflight_allows_exact_overlay(tmp_path: Path) -> None:
             # Id-only SGP1 pins. Absence is allowed; a present object is staged.
             if path in {
                 "firm/memory.py",
+                "api/dashboard_cache.py",
                 "api/desk_status.py",
                 "api/observer_status.py",
                 "api/static/index.html",

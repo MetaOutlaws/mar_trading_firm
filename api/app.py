@@ -303,10 +303,44 @@ def f111_status() -> dict[str, Any]:
     """F111 census, gate reasons, and open retest/protection counts.
 
     Read-only. Does not scan, place an order, or write telemetry.
+    The builder caches the panel for one scan; this route does not
+    recompute it.
     """
     from api.desk_status import f111_status as build_f111_status
 
     return build_f111_status()
+
+
+@app.get("/api/observers")
+def observers() -> dict[str, Any]:
+    """F111 and BL8 cards plus deskbar pulses.
+
+    Read-only, same exposure as ``/api/f111``. Does not scan, order, or
+    write either book. BL8 stays out of the hourly blotter. The card
+    build is cached with the F111 panel.
+    """
+    from api.observer_status import list_observers
+
+    return list_observers()
+
+
+@app.get("/api/observers/{observer_id}")
+def observer(observer_id: str) -> dict[str, Any]:
+    """One isolated observer. GET only; unknown ids are 404."""
+    from api.observer_status import observer_status
+
+    try:
+        return observer_status(observer_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown observer") from None
+
+
+@app.get("/api/bl8")
+def bl8_status() -> dict[str, Any]:
+    """BL8 observer card. Alias of ``/api/observers/bl8``. Read-only."""
+    from api.observer_status import observer_status
+
+    return observer_status("bl8")
 
 
 def _strategy_name_from_record(record: dict[str, Any]) -> str:

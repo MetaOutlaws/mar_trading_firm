@@ -140,6 +140,37 @@ a { color: inherit; }
   line-height: 1.4;
 }
 .deskbar strong { color: var(--ink); font-weight: 500; }
+.deskbar button.pulse {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.deskbar button.pulse:hover { border-color: var(--paper); color: var(--ink); }
+.deskbar button.pulse.warn { color: var(--warn); border-color: rgba(240, 180, 41, 0.45); }
+.deskbar button.pulse.bad { color: var(--bad); border-color: rgba(255, 106, 92, 0.45); }
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-2);
+  width: fit-content;
+}
+.seg button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+.seg button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .btn {
   border: 1px solid var(--line-strong);
   background: var(--surface);
@@ -241,6 +272,14 @@ td.why {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Blotter strategy label can be a sleeve id plus an L01 version. Wrap it
+   instead of shoving the last column off the card. */
+td.strategy, th.strategy {
+  min-width: 12rem;
+  max-width: 22rem;
+  white-space: normal;
+  word-break: break-word;
 }
 tr:hover td { background: rgba(255,255,255,0.015); }
 tr.job-group td {
@@ -437,6 +476,25 @@ tr.fam-child td:first-child { color: var(--faint); padding-left: 22px; }
   border-radius: 10px;
   padding: 8px 10px;
 }
+.expansion-filters { flex-wrap: nowrap; }
+.exp-filter { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.exp-filter .field { width: auto; max-width: 160px; }
+.exp-filter .exp-num { width: 64px; }
+.expansion-scroll { overflow-x: auto; }
+.expansion-table { min-width: 1280px; }
+button.sort-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+button.sort-btn:hover { color: var(--ink); }
 .feed { display: grid; gap: 10px; padding-right: 4px; }
 .scroll-list { padding-right: 4px; }
 .stamp { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; color: var(--muted); white-space: nowrap; }
@@ -726,7 +784,7 @@ const RESET_PHRASE = "I HAVE INVESTIGATED THE CAUSE";
 const VIEWS = [
   ["overview", "Overview"],
   ["health", "Health"],
-  ["f111", "F111"],
+  ["observers", "Observers"],
   ["floor", "Floor"],
   ["blotter", "Blotter"],
   ["positions", "Positions"],
@@ -740,23 +798,52 @@ const VIEWS = [
 const KICKERS = {
   overview: "Daily standup — where we are, what needs you, what is next",
   health: "Keys, last cycle, and why the blotter is quiet",
-  f111: "F111 paper scan — 192 sleeves, census, and gate reasons. Display only.",
+  observers: "Isolated paper observers — F111 and BL8. Not the hourly live book.",
   floor: "Ten employees, trust ladder, and current work",
   blotter: "Closed round trips with costs and attribution",
   positions: "Open book — mark, open P&L, stop, and target",
   strategies: "Research-approved (live gate) vs operator paper vetoes vs rejects",
   inbox: "Proposals that need a human, plus open escalations",
-  research: "Ranked next tests (clock/side follow-ups), then finished family verdicts",
+  research: "Token expansion batch, then ranked next tests and finished family verdicts",
   sentiment: "Luke CT snapshot — L1 display only; no trade calls",
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
 };
-let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, f111: {}, regime: {} };
+let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, observers: { observers: [], pulses: [] }, regime: {}, expansion: { rows: [], active_strategies: [] } };
 let lastError = "";
 
 function viewName() {
-  const hash = (location.hash || "#overview").slice(1);
+  // #f111 bookmarks land on Observers. The chip select is handled beside this.
+  let hash = (location.hash || "#overview").slice(1);
+  if (hash === "f111") hash = "observers";
   return VIEWS.some(([id]) => id === hash) ? hash : "overview";
+}
+const OBSERVER_KEY = "deskObserver";
+const OBSERVER_CHIPS = [["f111", "F111"], ["bl8", "BL8"]];
+function observerChip() {
+  const raw = (location.hash || "").replace(/^#/, "");
+  if (raw === "f111") return "f111";
+  const saved = localStorage.getItem(OBSERVER_KEY);
+  return saved === "bl8" ? "bl8" : "f111";
+}
+function setObserverChip(id) {
+  if (id !== "f111" && id !== "bl8") return;
+  localStorage.setItem(OBSERVER_KEY, id);
+  if ((location.hash || "").replace(/^#/, "") === "f111") {
+    location.hash = "observers";
+    return;
+  }
+  render({ keepScroll: true, force: true });
+}
+function openObserver(id) {
+  const chip = id === "bl8" ? "bl8" : "f111";
+  localStorage.setItem(OBSERVER_KEY, chip);
+  go("observers");
+}
+function pulseClass(tone) {
+  if (tone === "bad" || tone === "unavailable") return "bad";
+  if (tone === "warn" || tone === "stale" || tone === "degraded") return "warn";
+  return "";
 }
 function token() { return localStorage.getItem("firmApiToken") || ""; }
 async function ensureLocalToken() {
@@ -821,11 +908,25 @@ function renderDeskbar() {
   const cycleAge = cycle.age_seconds != null ? ageLabel(cycle.age_seconds) + " old" : "no cycle";
   const sokoLabel = soko.label || "—";
   const sokoWhen = soko.as_of ? ("as of " + stamp(soko.as_of) + " · " + ageLabel(soko.age_seconds)) : "no as_of";
+  const loaded = (state.observers && state.observers.pulses) || [];
+  // Always show both pulses. Before the poll, and if the call fails, the
+  // counts stay blank rather than a guessed book.
+  const pulses = loaded.length ? loaded : [
+    { id: "f111", label: "F111", mode: "paper", coverage_text: "—", open_positions: null },
+    { id: "bl8", label: "BL8", mode: "paper", coverage_text: "—", open_positions: null },
+  ];
+  const pulseHtml = pulses.map(p => {
+    const pos = p.open_positions == null ? "—" : (p.open_positions + " pos");
+    const label = (p.label || "Observer") + " · " + (p.mode || "paper") + " · " + (p.coverage_text || "—") + " · " + pos;
+    const id = p.id === "bl8" ? "bl8" : "f111";
+    return `<button type="button" class="pulse ${pulseClass(p.tone || p.health)}" onclick="openObserver('${id}')">${esc(label)}</button>`;
+  }).join("");
   el.innerHTML = `
     <span title="${esc(git.sha || "")}">sha <strong class="num">${esc(git.short || "—")}</strong></span>
     <span>cycle <strong>${esc(cycleWhen)}</strong> <span class="muted">${esc(cycleAge)}</span></span>
     <span>soko <strong>${esc(sokoLabel)}</strong> <span class="muted">${esc(sokoWhen)}</span></span>
     <span>bar close <strong class="num">${esc(barBits)}</strong></span>
+    ${pulseHtml}
   `;
 }
 function rel(iso) {
@@ -858,7 +959,12 @@ const FILTER_IDS = [
   "stratStatus", "stratFamily", "stratWhen", "stratQ",
   "inboxQ", "inboxWhen", "escalQ", "escalWhen", "escalSev",
   "paperFamQ",
+  "expansionWrMainMin", "expansionPfMainMin", "expansionWr2026Min", "expansionPf2026Min",
 ];
+const EXPANSION_FILTER_IDS = [
+  "expansionWrMainMin", "expansionPfMainMin", "expansionWr2026Min", "expansionPf2026Min",
+];
+let expansionSort = { key: "", dir: "asc" };
 function snapshotFilters() {
   const out = {};
   for (const id of FILTER_IDS) {
@@ -889,6 +995,7 @@ const PAGE_SIZES = {
   hypotheses: 10,
   positions: 10,
   nextTests: 5,
+  expansion: 15,
 };
 function pageSize(id) {
   return PAGE_SIZES[id] || 10;
@@ -898,7 +1005,7 @@ const VIEW_PAGE_KEYS = {
   strategies: ["strat", "integrity"],
   blotter: ["blotter", "rejects"],
   inbox: ["inbox", "escal"],
-  research: ["jobs", "backlog", "hypotheses", "nextTests"],
+  research: ["jobs", "backlog", "hypotheses", "nextTests", "expansion"],
   positions: ["positions"],
   floor: ["activity", "jobs"],
 };
@@ -1591,7 +1698,7 @@ function renderBlotter() {
   const trades = state.trades || [];
   const filters = `
     <div class="toolbar">
-      <input class="field" id="blotterQ" placeholder="Filter symbol or reason" oninput="onFilterChange()"/>
+      <input class="field" id="blotterQ" placeholder="Filter symbol, strategy, or reason" oninput="onFilterChange()"/>
       <select class="field" id="blotterSide" onchange="onFilterChange()">
         <option value="">All sides</option><option>LONG</option><option>SHORT</option>
       </select>
@@ -1604,7 +1711,11 @@ function renderBlotter() {
   const q = (document.getElementById("blotterQ")?.value || "").toLowerCase();
   const side = document.getElementById("blotterSide")?.value || "";
   const rows = trades.filter(t => {
-    const hay = (t.symbol + " " + (t.exit_reason || "") + " " + (t.strategy || "")).toLowerCase();
+    const hay = (
+      t.symbol + " " + (t.exit_reason || "") + " " + (t.strategy || "") + " "
+      + (t.strategy_label || "") + " " + (t.sleeve || "") + " " + (t.strategy_id || "")
+      + " " + (t.strategy_version || "")
+    ).toLowerCase();
     return (!q || hay.includes(q)) && (!side || t.side === side);
   });
   const sliced = pageSlice("blotter", rows);
@@ -1615,7 +1726,7 @@ function renderBlotter() {
     <table>
       <thead><tr>
         <th>Closed</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th>
-        <th>Gross</th><th>Fees</th><th>Net</th><th>Return</th><th>Why</th><th>Slip</th><th>Agents</th>
+        <th>Gross</th><th>Fees</th><th>Net</th><th>Return</th><th>Why</th><th>Slip</th><th class="strategy">Strategy</th>
       </tr></thead>
       <tbody>${sliced.items.map(tradeRow).join("") || `<tr><td colspan="13">${empty("No rows match", "Clear the filter to see the full blotter.")}</td></tr>`}</tbody>
     </table>
@@ -1639,8 +1750,15 @@ function tradeRow(t) {
     <td class="num ${pnlClass(t.return_pct)}">${pct(t.return_pct)}</td>
     <td>${esc(prettyReason(t.exit_reason))}</td>
     <td class="num muted">${t.entry_slippage_bps != null ? Number(t.entry_slippage_bps).toFixed(1) + " / " + Number(t.exit_slippage_bps || 0).toFixed(1) : "—"}</td>
-    <td class="muted">${esc((t.agents || []).join(", ") || "—")}</td>
+    <td class="muted strategy">${esc(blotterStrategy(t))}</td>
   </tr>`;
+}
+
+function blotterStrategy(t) {
+  // Display only. /api/trades already joined the ledger strategy_id, sleeve,
+  // and L01 strategy_version into strategy_label. Blank stays an em dash.
+  const label = t && t.strategy_label != null ? String(t.strategy_label).trim() : "";
+  return label || "—";
 }
 
 function prettyReason(r) {
@@ -1839,6 +1957,202 @@ function renderInbox() {
   </div>`;
 }
 
+// Token-expansion verdicts that must not show on the Strategies table.
+// PENDING is the default when the verdict file is missing. PF is not a verdict.
+function expansionBlocked(verdict) {
+  const v = String(verdict || "PENDING").toUpperCase();
+  return v === "FAIL" || v === "VETO" || v === "PENDING";
+}
+function expansionPairBlocked(pair) {
+  const marked = pair.source === "token_expansion" || pair.expansion_batch || pair.batch === "C1" || pair.batch === "token_expansion";
+  return !!(marked && expansionBlocked(pair.verdict));
+}
+function expansionVerdictClass(verdict) {
+  const v = String(verdict || "PENDING").toUpperCase();
+  if (v === "PASS") return "ok";
+  if (v === "FAIL") return "bad";
+  if (v === "VETO") return "warn";
+  return "";
+}
+function expansionPf(value) {
+  if (value == null || value === "" || value === "nan") return "—";
+  if (value === "inf") return "inf";
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : esc(value);
+}
+// Win rate is a fraction. Blank when the results file has no winrate field.
+function expansionWr(value) {
+  if (value == null || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return (n * 100).toFixed(1) + "%";
+}
+function expansionNumber(value) {
+  if (value == null || value === "" || value === "nan" || value === "inf") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function expansionMetric(row, key) {
+  if (key === "pf_2026") {
+    return expansionNumber(row.pf_2026 != null && row.pf_2026 !== "" ? row.pf_2026 : row.pf_exploratory);
+  }
+  if (key === "trades_2026") {
+    const raw = row.trades_2026 != null && row.trades_2026 !== "" ? row.trades_2026 : row.trades_exploratory;
+    return expansionNumber(raw);
+  }
+  if (key === "winrate_main" || key === "winrate_holdout" || key === "winrate_2026" || key.indexOf("pf_") === 0 || key.indexOf("trades_") === 0) {
+    return expansionNumber(row[key]);
+  }
+  const text = row[key];
+  if (text == null || text === "") return null;
+  return String(text).toUpperCase();
+}
+function expansionBound(raw) {
+  if (raw == null || String(raw).trim() === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+// An empty minimum keeps every row, including nulls. A set minimum drops nulls.
+function expansionPassesMin(value, minRaw, scale) {
+  const min = expansionBound(minRaw);
+  if (min == null) return true;
+  if (value == null) return false;
+  const scaled = scale ? value * scale : value;
+  return scaled >= min;
+}
+function expansionNum(id, label, current) {
+  return `<label class="exp-filter">${esc(label)} <input class="field exp-num" id="${id}" type="number" step="any" placeholder="min" value="${esc(current)}" oninput="onFilterChange()"/></label>`;
+}
+function expansionHeader(key, label, title) {
+  const active = expansionSort.key === key;
+  const caret = active ? (expansionSort.dir === "asc" ? " \u25B2" : " \u25BC") : "";
+  return `<th title="${esc(title)}"><button type="button" class="sort-btn" onclick="sortExpansion('${key}')">${esc(label)}${caret}</button></th>`;
+}
+// Display only. Does not write active_strategies or the Strategies table.
+function sortExpansion(key) {
+  if (expansionSort.key === key) {
+    expansionSort.dir = expansionSort.dir === "asc" ? "desc" : "asc";
+  } else {
+    expansionSort.key = key;
+    expansionSort.dir = "asc";
+  }
+  pages.expansion = 1;
+  render({ keepScroll: true, force: true });
+}
+function resetExpansionFilters() {
+  expansionSort = { key: "", dir: "asc" };
+  pages.expansion = 1;
+  for (const id of EXPANSION_FILTER_IDS) {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  }
+  render({ keepScroll: true, force: true });
+}
+function expansionFilteredRows(rows) {
+  const kept = rows.filter(row => {
+    if (!expansionPassesMin(expansionMetric(row, "winrate_main"), filterVal("expansionWrMainMin", ""), 100)) return false;
+    if (!expansionPassesMin(expansionMetric(row, "pf_main"), filterVal("expansionPfMainMin", ""))) return false;
+    if (!expansionPassesMin(expansionMetric(row, "winrate_2026"), filterVal("expansionWr2026Min", ""), 100)) return false;
+    if (!expansionPassesMin(expansionMetric(row, "pf_2026"), filterVal("expansionPf2026Min", ""))) return false;
+    return true;
+  });
+  if (!expansionSort.key) return kept;
+  const key = expansionSort.key;
+  const dir = expansionSort.dir === "desc" ? -1 : 1;
+  return kept.slice().sort((a, b) => {
+    const av = expansionMetric(a, key);
+    const bv = expansionMetric(b, key);
+    // Nulls stay last in both directions.
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    let cmp = 0;
+    if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
+    else cmp = String(av).localeCompare(String(bv));
+    return cmp * dir;
+  });
+}
+function shortSeal(value) {
+  const text = String(value || "");
+  return text ? text.slice(0, 12) : "—";
+}
+function renderTokenExpansion() {
+  const doc = state.expansion || {};
+  const rows = Array.isArray(doc.rows) ? doc.rows : [];
+  const active = Array.isArray(doc.active_strategies) ? doc.active_strategies : [];
+  const counts = doc.counts || {};
+  // Local to this card. Not written onto state.strategies or active_strategies.
+  const filtered = expansionFilteredRows(rows);
+  const sliced = pageSlice("expansion", filtered);
+  const seal = (rows[0] && rows[0].seal_sha) || {};
+  const error = doc.ok === false ? (doc.error || "Batch file unavailable. No rows shown.") : "";
+  const pfTitle = "PF = gross profit / gross loss";
+  const nTitle = "N = trade count";
+  const wrTitle = "WR = winning trades / N";
+  const holdTitle = "Holdout = H2 2025, scored once";
+  const yTitle = "2026 = exploratory, veto-only";
+  const headers = [
+    expansionHeader("verdict", "Status", "Verdict from the optional verdict file"),
+    expansionHeader("rule", "Rule", "Rule"),
+    expansionHeader("side", "Side", "Side"),
+    expansionHeader("clock", "Clock", "Clock"),
+    expansionHeader("token", "Token", "Token"),
+    expansionHeader("pf_main", "Main PF", pfTitle),
+    expansionHeader("trades_main", "Main N", nTitle),
+    expansionHeader("winrate_main", "Main WR", wrTitle),
+    expansionHeader("pf_holdout", "Holdout PF", pfTitle + ". " + holdTitle),
+    expansionHeader("trades_holdout", "Holdout N", nTitle + ". " + holdTitle),
+    expansionHeader("winrate_holdout", "Holdout WR", wrTitle + ". " + holdTitle),
+    expansionHeader("pf_2026", "2026 PF", pfTitle + ". " + yTitle),
+    expansionHeader("trades_2026", "2026 N", nTitle + ". " + yTitle),
+    expansionHeader("winrate_2026", "2026 WR", wrTitle + ". " + yTitle),
+  ].join("");
+  const body = error
+    ? `<div class="warn">${esc(error)}</div>`
+    : (rows.length ? `<div id="expansionPane" class="expansion-scroll" data-page-list="expansion">
+        <table class="table-fixed expansion-table">
+          <thead><tr>${headers}</tr></thead>
+          <tbody>${sliced.items.map(row => {
+            const verdict = String(row.verdict || "PENDING").toUpperCase();
+            const pf2026 = row.pf_2026 != null && row.pf_2026 !== "" ? row.pf_2026 : row.pf_exploratory;
+            const n2026 = row.trades_2026 != null && row.trades_2026 !== "" ? row.trades_2026 : row.trades_exploratory;
+            return `<tr>
+              <td><span class="badge ${expansionVerdictClass(verdict)}">${esc(verdict)}</span></td>
+              <td title="${esc(row.rule)}"><strong>${esc(row.rule)}</strong></td>
+              <td>${esc(row.side || "—")}</td>
+              <td class="muted">${esc(row.clock || "—")}</td>
+              <td title="${esc(row.token)}"><strong>${esc(row.token)}</strong></td>
+              <td class="num">${expansionPf(row.pf_main)}</td>
+              <td class="num">${esc(row.trades_main ?? "—")}</td>
+              <td class="num">${expansionWr(row.winrate_main)}</td>
+              <td class="num">${expansionPf(row.pf_holdout)}</td>
+              <td class="num">${esc(row.trades_holdout ?? "—")}</td>
+              <td class="num">${expansionWr(row.winrate_holdout)}</td>
+              <td class="num">${expansionPf(pf2026)}</td>
+              <td class="num">${esc(n2026 ?? "—")}</td>
+              <td class="num">${expansionWr(row.winrate_2026)}</td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table>
+      </div>${pagerHtml("expansion", sliced, "rows")}` : `<div class="muted">No token-expansion rows in the sealed file.</div>`);
+  const filters = `<div class="toolbar filters expansion-filters">
+        ${expansionNum("expansionWrMainMin", "Main WR %", filterVal("expansionWrMainMin", ""))}
+        ${expansionNum("expansionPfMainMin", "Main PF", filterVal("expansionPfMainMin", ""))}
+        ${expansionNum("expansionWr2026Min", "2026 WR %", filterVal("expansionWr2026Min", ""))}
+        ${expansionNum("expansionPf2026Min", "2026 PF", filterVal("expansionPf2026Min", ""))}
+        <button class="btn" type="button" onclick="resetExpansionFilters()">Reset</button>
+        <span class="filter-count">showing ${filtered.length} of ${rows.length} rows</span>
+      </div>`;
+  return `<div class="card">
+      <h2>Token expansion</h2>
+      <p class="muted">Display only. Status comes from the optional verdict file. If that file is missing, every row stays PENDING. Profit factor is not a verdict. Win rate is blank when the file has no winrate fields. FAIL, VETO, and PENDING never join the Strategies table. Filters and sorting stay on this card. Live stays off.</p>
+      <div class="muted" style="margin-bottom:8px">${esc(doc.batch || "C1")} · ${esc(doc.cost_view || "")} · ${esc(counts.rows != null ? counts.rows : rows.length)} rows · ${esc(counts.pending != null ? counts.pending : rows.filter(r => String(r.verdict || "PENDING").toUpperCase() === "PENDING").length)} pending · ${esc(active.length)} on the active list, not copied onto Strategies · verdict file ${doc.verdict_file_found ? "loaded" : "not loaded"}</div>
+      ${rows.length ? `<div class="muted" style="margin-bottom:8px">Seals main ${esc(shortSeal(seal.main))} · holdout ${esc(shortSeal(seal.holdout))} · 2026 ${esc(shortSeal(seal.exploratory))}</div>` : ""}
+      ${filters}
+      ${body}
+    </div>`;
+}
+
 function renderResearch() {
   const plan = state.floor.research_plan || {};
   const nextTests = plan.next_tests || [];
@@ -1976,7 +2290,7 @@ function renderResearch() {
         ${pagerHtml("hypotheses", hypSliced, "hypotheses")}
       </div>`
     : `<div class="card">${empty("No hypotheses yet", "The quant researcher writes here after a cycle. The catalog above is the plan it must follow.")}</div>`;
-  return pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
+  return renderTokenExpansion() + pipelineCard() + planBanner + toCodeCards + novelReadyCard + nextCards + lessonCard + familyCards + backlogTable + list;
 }
 
 function sentimentDesk() {
@@ -2152,42 +2466,234 @@ function reasonRows(counts) {
     entries.map(([reason, count]) => `<tr><td>${esc(reason)}</td><td class="num">${esc(count)}</td></tr>`).join("")
   }</tbody></table>`;
 }
-function renderF111() {
-  const f = state.f111 || {};
-  const reg = f.registry || {};
-  const rej = f.rejections || {};
+function observerById(id) {
+  const rows = (state.observers && state.observers.observers) || [];
+  return rows.find(row => row && row.id === id) || null;
+}
+function observerCoverageLabel(card) {
+  const c = card.coverage || {};
+  if (card.health === "unavailable") return "—";
+  const shown = c.available != null ? c.available : c.scanned;
+  if (shown == null && c.expected == null) return "—";
+  if (c.expected == null) return String(shown);
+  if (shown == null) return "—/" + c.expected;
+  return shown + "/" + c.expected;
+}
+function observerPnl(card) {
+  const p = card.paper_pnl || {};
+  if (p.equity_usdt != null) return { text: money(p.equity_usdt), hint: "equity · " + (p.basis || "isolated book") };
+  if (p.cash_usdt != null) return { text: money(p.cash_usdt), hint: "cash · " + (p.basis || "isolated book") };
+  if (p.realized_usdt != null) return { text: money(p.realized_usdt), hint: "realised · " + (p.basis || "isolated book") };
+  return { text: "—", hint: p.basis || "no P&L stored" };
+}
+function observerScanRow(card) {
+  const scan = card.scan;
+  if (!scan) return "";
+  const chip = scan.complete === true
+    ? `<span class="badge ok">scan complete</span>`
+    : scan.complete === false
+      ? `<span class="badge bad">scan incomplete</span>`
+      : `<span class="badge">scan unknown</span>`;
+  const rate = scan.rate_limit_errors == null ? "—" : String(scan.rate_limit_errors);
+  const errors = scan.error_count == null ? "—" : String(scan.error_count);
+  const codes = Object.entries(scan.retcodes || {}).map(([code, n]) => code + " " + n).join(" · ");
+  return `<div class="meta-row">
+    ${chip}
+    <span class="badge ${Number(scan.rate_limit_errors) > 0 ? "warn" : ""}">rate limit ${esc(rate)}</span>
+    <span class="muted">errors ${esc(errors)}${codes ? " · " + esc(codes) : ""}</span>
+    <span class="muted">Bybit retCode 10006 leaves the scan incomplete.</span>
+  </div>`;
+}
+function observerPositions(rows) {
+  if (!Array.isArray(rows)) return empty("Positions unavailable", "This observer's state was not readable. No open count is filled in.");
+  if (!rows.length) return empty("No open paper positions", "This observer's own book is flat.");
+  return `<table>
+    <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Mark</th><th>Open P&amp;L</th><th>Stop</th><th>Target</th></tr></thead>
+    <tbody>${rows.map(p => `<tr>
+      <td><strong>${esc(p.symbol)}</strong></td>
+      <td>${esc(p.side || "—")}</td>
+      <td class="num">${esc(fmtQty(p.quantity))}</td>
+      <td class="num">${esc(fmtPx(p.entry_price))}</td>
+      <td class="num">${esc(fmtPx(p.mark_price))}</td>
+      <td class="num ${pnlClass(p.unrealised_pnl)}">${money(p.unrealised_pnl)}</td>
+      <td class="num">${esc(fmtPx(p.stop))}</td>
+      <td class="num">${esc(fmtPx(p.target))}</td>
+    </tr>`).join("")}</tbody>
+  </table>`;
+}
+function whyTokens(rows) {
+  const list = rows || [];
+  if (!list.length) return "";
+  return list.map(row => {
+    const who = (row.token || row.symbol || "—") + (row.side ? " " + row.side : "");
+    return row.detail ? who + " (" + row.detail + ")" : who;
+  }).join(", ");
+}
+function whyNoTrade(card) {
+  const why = card && card.why_no_trade;
+  if (!why) return "";
+  if (why.ok === false && !(why.funnel || []).length) {
+    return `<section class="card"><h2>Why no trade</h2>${empty("No scan explanation", why.summary || "The latest scan was not readable.")}</section>`;
+  }
+  const funnel = why.funnel || [];
+  const notes = funnel.map(step => step.note).filter(Boolean);
+  const funnelTable = funnel.length ? `<table>
+      <thead><tr><th>Step</th><th>Still in</th><th>Drop-off</th><th>Who failed</th></tr></thead>
+      <tbody>${funnel.map(step => {
+        const extra = step.failed_count > (step.failed || []).length ? " · +" + (step.failed_count - step.failed.length) + " more" : "";
+        const who = whyTokens(step.failed);
+        return `<tr>
+          <td>${esc(step.label || step.id || "")}</td>
+          <td class="num">${esc(step.count)}</td>
+          <td class="num${step.drop_off ? " bad" : ""}">${esc(step.drop_off)}</td>
+          <td class="muted">${who || extra ? esc(who) + esc(extra) : "—"}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>${notes.length ? `<p class="muted">${esc(notes.join(" "))}</p>` : ""}` : empty("No funnel", "This scan did not record steps.");
+  const misses = why.closest_misses || [];
+  const missTable = misses.length ? `<table>
+      <thead><tr><th>Token</th><th>Side</th><th>Gate</th><th>Actual</th><th>Threshold</th><th>Gap</th></tr></thead>
+      <tbody>${misses.map(row => `<tr>
+        <td><strong>${esc(row.token || row.symbol || "—")}</strong></td>
+        <td>${esc(row.side || "—")}</td>
+        <td>${esc(row.gate_label || row.gate || "—")}</td>
+        <td class="num">${esc(row.value == null ? "—" : row.value)}</td>
+        <td class="num">${esc(row.threshold == null ? "—" : row.threshold)}</td>
+        <td>${esc(row.gap_text || "—")}</td>
+      </tr>`).join("")}</tbody>
+    </table>` : `<div class="muted">No measured near miss on this scan.</div>`;
+  const attempts = why.attempts || [];
+  const attemptTable = attempts.length ? `<table>
+      <thead><tr><th>Token</th><th>Side</th><th>Blocked by</th><th>Detail</th></tr></thead>
+      <tbody>${attempts.map(row => `<tr>
+        <td><strong>${esc(row.token || row.symbol || "—")}</strong></td>
+        <td>${esc(row.side || "—")}</td>
+        <td>${esc(row.reason || "—")}</td>
+        <td class="muted">${esc(row.detail || "")}</td>
+      </tr>`).join("")}</tbody>
+    </table>` : `<div class="muted">No signalled entry was blocked, and this scan recorded no error.</div>`;
+  const unavailable = why.unavailable || [];
+  const count = why.unavailable_count == null ? unavailable.length : why.unavailable_count;
+  const unavailTable = unavailable.length ? `<table>
+      <thead><tr><th>Token</th><th>Side</th><th>Status</th></tr></thead>
+      <tbody>${unavailable.map(row => `<tr>
+        <td><strong>${esc(row.token || row.symbol || "—")}</strong></td>
+        <td>${esc(row.side || "—")}</td>
+        <td>${esc(row.status || "—")}</td>
+      </tr>`).join("")}</tbody>
+    </table>` : `<div class="muted">No unavailable markets on this scan.</div>`;
+  return `<section class="card">
+    <h2>Why no trade</h2>
+    <p>${esc(why.summary || "")}</p>
+    <p class="muted">Latest scan only. Read from this observer's rows.</p>
+    <h2 style="margin-top:14px">Funnel</h2>
+    ${funnelTable}
+    <h2 style="margin-top:14px">Closest misses</h2>
+    ${missTable}
+    <h2 style="margin-top:14px">Attempts</h2>
+    ${attemptTable}
+    <h2 style="margin-top:14px">Unavailable</h2>
+    <p class="muted">${esc(count)} on this scan.</p>
+    ${unavailTable}
+  </section>`;
+}
+function observerBlotter(rows) {
+  if (!Array.isArray(rows)) return empty("Blotter unavailable", "This observer's ledger was not readable. Nothing was copied into the hourly blotter.");
+  const list = rows;
+  if (!list.length) return empty("No closed paper trades", "Exits on this observer show up here. They are not copied into the hourly blotter.");
+  return `<table>
+    <thead><tr><th>Closed</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th><th>Net</th><th>Why</th></tr></thead>
+    <tbody>${list.map(t => `<tr>
+      <td class="muted">${esc(when(t.closed_at))}</td>
+      <td><strong>${esc(t.symbol)}</strong></td>
+      <td>${esc(t.side || "—")}</td>
+      <td class="num">${esc(fmtQty(t.quantity))}</td>
+      <td class="num">${esc(fmtPx(t.entry_price))}</td>
+      <td class="num">${esc(fmtPx(t.exit_price))}</td>
+      <td class="num ${pnlClass(t.net_pnl)}">${money(t.net_pnl)}</td>
+      <td>${esc(prettyReason(t.reason))}</td>
+    </tr>`).join("")}</tbody>
+  </table>`;
+}
+function observerPanel(card) {
+  const banner = card.banner || {};
+  const tone = banner.tone === "ok" || banner.tone === "bad" || banner.tone === "warn" ? banner.tone : "warn";
+  const census = card.census || {};
+  const closed = census.closed_by_reason || {};
+  const rej = card.rejections || {};
   const hour = rej.latest_hour || {};
   const day = rej.last_24h || {};
-  const closed = reg.closed_by_reason || {};
+  const pnl = observerPnl(card);
+  const pending = card.detail ? card.detail.pending_retests : null;
+  const extras = (card.extras || []).map(item => kpi(
+    esc(item.label || ""),
+    item.value == null ? "—" : esc(item.value),
+    esc(item.hint || "")
+  )).join("");
+  const paths = card.paths || {};
+  const pathBits = [paths.telemetry, paths.state, paths.status, paths.database].filter(Boolean);
+  const ageHint = card.last_scan
+    ? (card.last_scan_age_seconds != null ? ageLabel(card.last_scan_age_seconds) : rel(card.last_scan))
+    : "no scan yet";
   return `
-    <div class="banner ${reg.evaluated === f.expected_sleeves ? "ok" : "warn"}">
-      <strong>${esc(f.expected_sleeves ?? "—")} sleeves</strong>
-      <div class="muted" style="margin-top:6px">Latest census evaluated ${esc(reg.evaluated ?? 0)}. Available ${esc(reg.available ?? 0)} · closed ${esc(reg.closed ?? 0)}. Display only — this panel does not scan or order.</div>
+    <div class="banner ${tone}">
+      <strong>${esc(banner.title || card.label || "Observer")}</strong>
+      <div class="muted" style="margin-top:6px">${esc(banner.body || "")}</div>
+      <div class="muted" style="margin-top:4px">${esc(card.health_hint || "")}</div>
     </div>
+    ${observerScanRow(card)}
     <section class="kpis">
-      ${kpi("Available", String(reg.available ?? "—"), "trading on the latest census")}
-      ${kpi("Closed", String(reg.closed ?? "—"), "unavailable, with a reason")}
-      ${kpi("Last bar close", f.last_bar_close_evaluation ? stamp(f.last_bar_close_evaluation) : "—", f.last_bar_close_evaluation ? rel(f.last_bar_close_evaluation) : "no gate row yet")}
-      ${kpi("Pending retests", String(f.pending_retests ?? "—"), "watching or scheduled")}
-      ${kpi("Protection", String(f.protection ?? "—"), "open floors")}
+      ${kpi("Coverage", esc(observerCoverageLabel(card)), "available / expected")}
+      ${kpi("Last scan", card.last_scan ? esc(stamp(card.last_scan)) : "—", esc(ageHint))}
+      ${kpi("Open positions", card.open_positions_count == null ? "—" : esc(card.open_positions_count), "this observer only")}
+      ${kpi("Paper P&L", pnl.text, esc(pnl.hint))}
+      ${kpi("Sizing", esc(card.sizing_policy || "—"), "policy badge")}
+      ${kpi("Release", esc(card.release_short || "—"), esc(card.release_sha || "no pin published"))}
+      ${extras}
     </section>
     <section class="grid-2">
       <div class="card">
-        <h2>Closed sleeves by reason</h2>
-        <p class="muted">Latest registry census. Closed means the instrument was unavailable (exchange Closed, missing, mismatch, or unreachable) — not a closed trade.</p>
-        ${reasonRows(closed)}
+        <h2>Census</h2>
+        <p class="muted">Closed by reason on the latest pass. Closed means the instrument was unavailable — not a closed trade. Evaluated ${esc(census.evaluated ?? "—")} · available ${esc(census.available ?? "—")} · closed ${esc(census.closed ?? "—")}.</p>
+        ${card.health === "unavailable" ? empty("Census unavailable", "The observer files are not mounted on this process.") : reasonRows(closed)}
       </div>
       <div class="card">
-        <h2>Gate rejections</h2>
-        <p class="muted">Latest hour${hour.hour_start ? " starting " + esc(stamp(hour.hour_start)) : ""} · ${esc(hour.rows ?? 0)} rows. Last 24h · ${esc(day.rows ?? 0)} rows.</p>
+        <h2>Gate, sit-out, and rejection reasons</h2>
+        ${card.health === "unavailable"
+          ? empty("Reasons unavailable", "The observer files are not mounted on this process.")
+          : `<p class="muted">Latest hour${hour.hour_start ? " starting " + esc(stamp(hour.hour_start)) : ""} · ${esc(hour.rows ?? 0)} rows. Last 24h · ${esc(day.rows ?? 0)} rows.${pending != null ? " Pending retests " + esc(pending) + "." : ""}</p>
         <h2 style="margin-top:12px">Latest hour</h2>
         ${reasonRows(hour.by_reason)}
         <h2 style="margin-top:12px">Last 24h</h2>
-        ${reasonRows(day.by_reason)}
+        ${reasonRows(day.by_reason)}`}
       </div>
     </section>
-    <div class="muted">Telemetry ${esc(f.telemetry_path || "—")} · state ${esc(f.state_path || "—")}${f.state_error && f.state_error !== "missing" ? " · state " + esc(f.state_error) : ""}</div>
+    <section class="grid-2">
+      <div class="card">
+        <h2>Open positions</h2>
+        <div class="meta-row" style="margin-bottom:8px"><span class="badge warn">Isolated · not in live book</span></div>
+        ${observerPositions(card.open_positions)}
+      </div>
+      <div class="card">
+        <h2>Mini blotter</h2>
+        <div class="meta-row" style="margin-bottom:8px"><span class="badge warn">Isolated · not in live book</span></div>
+        ${observerBlotter(card.blotter)}
+      </div>
+    </section>
+    ${whyNoTrade(card)}
+    <div class="muted">${esc(pathBits.join(" · ") || "no paths configured")}${card.degraded_reason ? " · " + esc(card.degraded_reason) : ""}</div>
   `;
+}
+function renderObservers() {
+  const chip = observerChip();
+  const switcher = `<div class="seg" role="tablist" aria-label="Observers">
+    ${OBSERVER_CHIPS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${chip === id ? "true" : "false"}" class="${chip === id ? "active" : ""}" onclick="setObserverChip('${id}')">${label}</button>`).join("")}
+  </div>`;
+  const card = observerById(chip);
+  if (!card) {
+    return switcher + `<div class="card">${empty("Observer not loaded", "The desk polls /api/observers. Until that returns, this chip stays empty.")}</div>`;
+  }
+  return switcher + observerPanel(card);
 }
 function renderHealth() {
   const llm = state.llm || {};
@@ -2395,7 +2901,9 @@ function testedNamesPanel(s, names) {
 
 function renderStrategies() {
   const s = state.strategies || {};
-  const pairs = s.pairs || [];
+  // Expansion FAIL / VETO / PENDING rows are not this table, even if a caller
+  // attached them. Live-book rows have no expansion mark and stay.
+  const pairs = (s.pairs || []).filter(p => !expansionPairBlocked(p));
   const approved = pairs.filter(p => p.approved).length;
   const paperN = pairs.filter(p => p.paper_override).length;
   const legend = s.legend || {};
@@ -2592,13 +3100,13 @@ function viewFingerprint(name) {
   const slices = {
     overview: { eq: state.equity, risk: state.risk, standup: floor.standup, pipeline: floor.pipeline, inboxN: (floor.inbox || []).length, golive: state.golive, paperN: (state.strategies || {}).paper_override_count, approvedN: (state.strategies || {}).approved_count, regime: state.regime, scan: (state.cycle || {}).scan_counts },
     health: { cycle: state.cycle, llm: state.llm, risk: state.risk },
-    f111: { f111: state.f111 },
+    observers: { observers: state.observers, chip: observerChip() },
     floor: { employees: floor.employees, activity: floor.activity, org: floor.org },
     blotter: { trades: state.trades, rejections: state.rejections },
     positions: { pos: (state.risk || {}).open_positions, eq: state.equity },
     strategies: { strategies: state.strategies, integrity: floor.integrity },
     inbox: { inbox: floor.inbox, escalations: floor.escalations, near: (state.nearMisses || {}).count },
-    research: { pipeline: floor.pipeline, research: floor.research, plan: floor.research_plan },
+    research: { pipeline: floor.pipeline, research: floor.research, plan: floor.research_plan, expansion: state.expansion },
     sentiment: { sentiment: floor.sentiment, regime: floor.regime },
     gates: { golive: state.golive },
     controls: { llm: state.llm, budget: floor.budget },
@@ -2627,7 +3135,7 @@ function render(opts) {
   const renderers = {
     overview: renderOverview,
     health: renderHealth,
-    f111: renderF111,
+    observers: renderObservers,
     floor: renderFloor,
     blotter: renderBlotter,
     positions: renderPositions,
@@ -2783,10 +3291,51 @@ async function wakeFloor() {
   }
 }
 
+// F111, observers, and the why-no-trade panel are one payload. They walk
+// the latest scan, so they refresh once a minute, not with the 15s desk
+// poll. A hidden tab does not start a request. A request still in flight
+// is not started again.
+const OBSERVERS_POLL_MS = 60000;
+let observersInflight = null;
+let observersTimer = 0;
+
+function observersHidden() {
+  return document.visibilityState === "hidden";
+}
+
+function loadObservers(manual) {
+  if (!manual && observersHidden()) return Promise.resolve(state.observers);
+  if (observersInflight) return observersInflight;
+  observersInflight = get("/api/observers")
+    .catch(err => ({ ok: false, error: String(err.message || err), observers: [], pulses: [] }))
+    .then(payload => {
+      state.observers = payload || { observers: [], pulses: [] };
+      return state.observers;
+    })
+    .finally(() => { observersInflight = null; });
+  return observersInflight;
+}
+
+function armObservers() {
+  clearTimeout(observersTimer);
+  if (observersHidden()) return;
+  observersTimer = setTimeout(async () => {
+    if (!observersHidden()) {
+      await loadObservers(false);
+      render({ keepScroll: true });
+    }
+    armObservers();
+  }, OBSERVERS_POLL_MS);
+}
+
 async function load(manual) {
   try {
     await ensureLocalToken();
-    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime, nearMisses] = await Promise.all([
+    // First paint and an explicit refresh pull observers once. The 15s
+    // loop below does not. loadObservers shares one in-flight promise.
+    const heavy = (manual || !load.observersBooted) ? loadObservers(!!manual) : null;
+    load.observersBooted = true;
+    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, regime, nearMisses, expansion] = await Promise.all([
       get("/api/floor"),
       get("/api/risk"),
       get("/api/trades?limit=100"),
@@ -2797,11 +3346,14 @@ async function load(manual) {
       get("/api/strategies"),
       get("/api/cycle"),
       get("/api/desk"),
-      get("/api/f111"),
       get("/api/regime"),
       get("/api/near-misses").catch(() => ({ count: 0, rows: [] })),
+      // A seal error must not blank the rest of the desk, and must not
+      // invent rows. The Research section shows the error instead.
+      get("/api/research/expansion").catch(err => ({ ok: false, error: String(err.message || err), rows: [], active_strategies: [] })),
     ]);
-    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime: regime || {}, nearMisses, llmPing: state.llmPing };
+    if (heavy) await heavy;
+    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, observers: state.observers || { observers: [], pulses: [] }, regime: regime || {}, nearMisses, expansion: expansion || { ok: false, rows: [], active_strategies: [] }, llmPing: state.llmPing };
     lastError = "";
     render({ keepScroll: true, force: !!manual });
   } catch (err) {
@@ -2816,11 +3368,27 @@ async function load(manual) {
 function tickClock() {
   document.getElementById("clock").textContent = new Date().toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
-window.addEventListener("hashchange", () => render({ keepScroll: false, force: true }));
+window.addEventListener("hashchange", () => {
+  if ((location.hash || "").replace(/^#/, "") === "f111") {
+    localStorage.setItem(OBSERVER_KEY, "f111");
+    location.hash = "observers";
+    return;
+  }
+  render({ keepScroll: false, force: true });
+});
 window.addEventListener("resize", drawSpark);
+document.addEventListener("visibilitychange", () => {
+  clearTimeout(observersTimer);
+  if (observersHidden()) return;
+  loadObservers(false).then(() => {
+    render({ keepScroll: true });
+    armObservers();
+  });
+});
 tickClock();
 setInterval(tickClock, 1000);
 load();
+armObservers();
 setInterval(load, 15000);
 </script>
 </body>

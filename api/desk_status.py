@@ -591,7 +591,102 @@ def _hour_floor(stamp: datetime) -> datetime:
     return stamp.replace(minute=0, second=0, microsecond=0)
 
 
+def _number(value: Any) -> float | None:
+    """Finite JSON number. Booleans are not counts or prices."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if isinstance(value, float) and value != value:
+        return None
+    return float(value)
+
+
+def _f111_open_positions(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Open F111 floors from the paper state file. Not the hourly ledger."""
+    if not isinstance(payload, dict):
+        return []
+    held = payload.get("protection") or {}
+    if not isinstance(held, dict):
+        return []
+    rows: list[dict[str, Any]] = []
+    for symbol, row in held.items():
+        item = row if isinstance(row, dict) else {}
+        side = item.get("side_name")
+        if not isinstance(side, str) or not side.strip():
+            sign = item.get("side")
+            if sign == 1:
+                side = "LONG"
+            elif sign == -1:
+                side = "SHORT"
+            else:
+                side = None
+        rows.append(
+            {
+                "symbol": item.get("symbol") or str(symbol),
+                "side": side,
+                "quantity": _number(item.get("quantity")),
+                "entry_price": _number(item.get("entry_price")),
+                "mark_price": None,
+                "stop": _number(item.get("initial_stop")),
+                "target": _number(item.get("target")),
+                "opened_at": item.get("opened_at") if isinstance(item.get("opened_at"), str) else None,
+                "unrealised_pnl": None,
+                "reason": None,
+            }
+        )
+    return rows
+
+
+def _f111_blotter(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Closed F111 paper exits recorded on telemetry. Display only."""
+    closed: list[dict[str, Any]] = []
+    for row in rows:
+        if row.get("record_kind") == "registry" or row.get("deploy_marker"):
+            continue
+        realised = _number(row.get("realised_net_profit"))
+        if realised is None:
+            continue
+        closed.append(
+            {
+                "symbol": row.get("symbol"),
+                "side": row.get("side"),
+                "quantity": _number(row.get("quantity")),
+                "entry_price": _number(row.get("entry_price")),
+                "exit_price": _number(row.get("simulated_fill")),
+                "closed_at": row.get("quote_time") or row.get("source_signal_time"),
+                "net_pnl": realised,
+                "reason": row.get("rejection_reason") if isinstance(row.get("rejection_reason"), str) else None,
+            }
+        )
+    return closed
+
+
 def f111_status(
+    *,
+    now: datetime | None = None,
+    telemetry_path: Path | None = None,
+    state_path: Path | None = None,
+) -> dict[str, Any]:
+    """F111 panel, served from the short desk cache when the scan is unchanged.
+
+    The build still reads telemetry and scores why-no-trade. A second
+    request with the same book and scan id returns that build, including
+    ``computed_at`` and ``age``, instead of walking the file again.
+    """
+    from api.dashboard_cache import f111_cache_key, panel_cache
+
+    key = f111_cache_key(telemetry_path, state_path)
+    return panel_cache.fetch(
+        "f111",
+        key,
+        lambda: _f111_status_uncached(
+            now=now,
+            telemetry_path=telemetry_path,
+            state_path=state_path,
+        ),
+    )
+
+
+def _f111_status_uncached(
     *,
     now: datetime | None = None,
     telemetry_path: Path | None = None,
@@ -602,7 +697,8 @@ def f111_status(
     Source files are the configured state and telemetry paths
     (``data/f111_paper_state.json`` and ``data/f111_telemetry.jsonl``).
     On SGP1 those live under the state mount, typically
-    ``/data/state/data/...``.
+    ``/data/state/data/...``. Why-no-trade is display only and is built
+    once per cache fill, not once per poll.
     """
     from core.strategy.f111_config import STATE_PATH, TELEMETRY_PATH, load_f111_config
 
@@ -610,12 +706,16 @@ def f111_status(
     telemetry = Path(telemetry_path) if telemetry_path is not None else TELEMETRY_PATH
     state = Path(state_path) if state_path is not None else STATE_PATH
     expected = 192
+    config: dict[str, Any] = {}
+    digest: str | None = None
     config_error = None
     try:
-        config, _digest = load_f111_config()
+        config, digest = load_f111_config()
         expected = int(config.get("expected_scan_sleeves") or 192)
     except (OSError, RuntimeError, ValueError, TypeError) as exc:
         config_error = str(exc)
+        config = {}
+        digest = None
 
     rows = _read_jsonl(telemetry)
     census = _latest_registry_block(rows)
@@ -660,6 +760,7 @@ def f111_status(
     pending_retests = 0
     protection = 0
     state_error = None
+    state_payload: dict[str, Any] | None = None
     if state.exists():
         try:
             payload = _read_json(state)
@@ -667,6 +768,7 @@ def f111_status(
             payload = None
             state_error = str(exc)
         if isinstance(payload, dict):
+            state_payload = payload
             pending = payload.get("pending") or []
             if isinstance(pending, list):
                 pending_retests = sum(
@@ -682,6 +784,17 @@ def f111_status(
             state_error = "state is not a JSON object"
     else:
         state_error = "missing"
+
+    from api.why_no_trade import build_f111_why
+
+    blotter = _f111_blotter(rows)
+    why_no_trade = build_f111_why(rows, census)
+    realised_values = [row["net_pnl"] for row in blotter if _number(row.get("net_pnl")) is not None]
+    sizing_policy = None
+    strategy_version = None
+    if config_error is None and config:
+        strategy_version = config.get("strategy_version")
+        sizing_policy = config.get("sizing_policy") or strategy_version
 
     return {
         "expected_sleeves": expected,
@@ -708,6 +821,25 @@ def f111_status(
             },
         },
         "last_bar_close_evaluation": bar_close.isoformat() if bar_close else None,
+        "last_scan_age_seconds": _age_seconds(bar_close, moment),
         "pending_retests": pending_retests,
         "protection": protection,
+        # Observer card reads these. They are this sleeve's own state file,
+        # not a query against the hourly blotter.
+        "open_positions": _f111_open_positions(state_payload),
+        "blotter": blotter[-30:],
+        "paper_pnl": {
+            "cash_usdt": None,
+            "equity_usdt": None,
+            "unrealized_usdt": None,
+            "realized_usdt": sum(realised_values) if realised_values else None,
+            "basis": "sum of realised_net_profit on F111 telemetry exits"
+            if realised_values
+            else "no realised F111 exits in telemetry",
+        },
+        "configuration_sha256": digest,
+        "sizing_policy": sizing_policy,
+        "strategy_version": strategy_version,
+        "telemetry_present": telemetry.exists(),
+        "why_no_trade": why_no_trade,
     }

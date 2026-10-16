@@ -6,10 +6,11 @@ SGP1 overlay, the ``firm/memory.py`` hot fix, the eight files #135 changes at
 ``3424c265``, ``firm/scan_inbox.py`` at ``8fe9688f`` (#138),
 ``tests/test_scan_inbox.py`` at ``3cc0e6e4`` (#136, replacing ``456b0c8e``),
 and the later dashboard pins ``api/desk_status.py``, ``api/observer_status.py``,
-``api/static/index.html``, ``api/why_no_trade.py``,
+``api/static/index.html``, ``api/why_no_trade.py``, ``api/dashboard_cache.py``,
 ``tests/test_dashboard_ux.py``, and ``tests/test_why_no_trade.py``. Those
 paths are applied on the server as an overlay on ``b00c4f73``. Nothing else
-may stay staged.
+may stay staged. The cache module is part of that overlay: the desk panels
+import it, and an unpinned copy would fail this guard once it is tracked.
 
 A path is allowed only when it is one of those paths and both the index and
 the worktree are the pinned git blob at that path's pinned mode. The two
@@ -37,18 +38,23 @@ from pathlib import Path
 # pins are SGP1 hash-object ids; those blobs do not have to be in this clone.
 ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),  # c9b9f03f
-    # Later SGP1 dashboard overlay. Replaces 0ebd3b44.
-    "api/desk_status.py": ("100644", "4814d2096e6b06c4d98d86f39c61938cb4d178ad"),  # 4814d209
-    # Replaces 28713d3b. The pin is this id, not the blob at ee994abe.
+    # Desk cache. The panels import this; it is not a trading module.
+    "api/dashboard_cache.py": (
+        "100644",
+        "c6b8f663df4e199b3cd907bd95c0b393591345cb",
+    ),  # c6b8f663
+    # Cached F111 panel. Replaces the 9caf785 pin 4814d209.
+    "api/desk_status.py": ("100644", "3347d45eac23d031d4dc5169910bad24702a518a"),  # 3347d45e
+    # Cached observers list. Replaces the 9caf785 pin 152a6df7.
     "api/observer_status.py": (
         "100644",
-        "152a6df71e67097128a49cc13f35c16f73102f6e",
-    ),  # 152a6df7
-    # Replaces e5649287.
+        "b982b1baef176fb4f67bf0bb613477a769df75db",
+    ),  # b982b1ba
+    # 60s observers poll. Replaces the 9caf785 pin 1d13fd9d.
     "api/static/index.html": (
         "100644",
-        "1d13fd9d414bf6872f14a655a39d6c5ddd494406",
-    ),  # 1d13fd9d
+        "219d908c3c62994447d60c77a2e5beed53902715",
+    ),  # 219d908c
     "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),  # ad4de7a2
     "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),  # 28a9ccd9
     "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),  # 9fe475f6
