@@ -30,6 +30,7 @@ packages = [
     "research",
     "research.token_expansion",
     "research.xs_spread",
+    "research.new_listing_drift",
 ]
 
 [tool.setuptools.package-data]
@@ -37,6 +38,11 @@ packages = [
     "schema/*.json",
     "fixtures/*.json",
     "data/*.json",
+]
+"research.new_listing_drift" = [
+    "*.md",
+    "HOLDOUT_LOCK",
+    "data/*.csv",
 ]
 
 [tool.pytest.ini_options]

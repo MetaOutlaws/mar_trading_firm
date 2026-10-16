@@ -1,0 +1,1 @@
+LOCKED. The H2 2025 holdout and the 2026 veto refuse to run until --main-output-hash matches the sha256 of the main run SHA256SUMS file and the main verdict is PASS. One look, and only after main is hashed. 2026 is veto-only. Live off.
