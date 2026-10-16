@@ -464,11 +464,45 @@ def _latest_context(db: sqlite3.Connection) -> list[tuple[datetime | None, dict[
     return out
 
 
+def _run_start_ms(
+    db: sqlite3.Connection,
+    *,
+    started_ms: float | None,
+    release: str | None,
+) -> float | None:
+    """Start of the release in ``status.json``.
+
+    The isolated ledger keeps every prior pin. A startup row records that
+    pin's release. Rate-limit rows from an earlier pin stay in the table and
+    must not be counted as this run.
+    """
+    matched: float | None = None
+    wanted = release.strip() if isinstance(release, str) else ""
+    for row in _query_bl8(
+        db,
+        "SELECT t, payload FROM observations WHERE kind = 'startup' ORDER BY id",
+    ):
+        payload = _json_object(row["payload"]) or {}
+        stamp = _number(row["t"])
+        pinned = payload.get("release")
+        if stamp is None or not isinstance(pinned, str) or not wanted:
+            continue
+        if pinned.strip() != wanted:
+            continue
+        matched = stamp if matched is None else max(matched, stamp)
+    if started_ms is not None and matched is not None:
+        return max(started_ms, matched)
+    if started_ms is not None:
+        return started_ms
+    return matched
+
+
 def _read_bl8_db(
     path: Path,
     *,
     now: datetime,
     started_ms: float | None,
+    release: str | None = None,
 ) -> dict[str, Any]:
     """Open the BL8 ledger read-only. A lock or a missing table degrades."""
     result: dict[str, Any] = {
@@ -477,6 +511,7 @@ def _read_bl8_db(
         "contexts": [],
         "rejections": [],
         "errors": [],
+        "run_started_ms": None,
         "open_positions": [],
         "blotter": [],
         "cash_usdt": None,
@@ -502,12 +537,22 @@ def _read_bl8_db(
         if absent:
             result["error"] = "missing tables " + ", ".join(absent)
             return result
-        since_ms = (now - timedelta(hours=24)).timestamp() * 1000.0
+        # Sit-out and gate rows stay on the rolling day. Rate-limit counts do
+        # not: the same book holds the previous pin's 10006 burst.
+        day_ms = (now - timedelta(hours=24)).timestamp() * 1000.0
+        rejection_since = day_ms
         if started_ms is not None:
-            since_ms = min(since_ms, started_ms)
+            rejection_since = min(day_ms, started_ms)
+        run_start = _run_start_ms(db, started_ms=started_ms, release=release)
+        result["run_started_ms"] = run_start
         result["contexts"] = _latest_context(db)
-        result["rejections"] = _rejection_events(db, since_ms=since_ms)
-        result["errors"] = _error_events(db, since_ms=since_ms)
+        result["rejections"] = _rejection_events(db, since_ms=rejection_since)
+        if started_ms is None and not (isinstance(release, str) and release.strip()):
+            result["errors"] = _error_events(db, since_ms=day_ms)
+        elif run_start is None:
+            result["errors"] = []
+        else:
+            result["errors"] = _error_events(db, since_ms=run_start)
         result["open_positions"] = _position_rows(db, "open")
         result["blotter"] = _closed_blotter(db)
         cash = db.execute("SELECT coalesce(sum(amount), 0) FROM events").fetchone()
@@ -684,7 +729,12 @@ def _census_from_context(
     }
 
 
-def _scan_block(errors: list[dict[str, Any]], complete: bool | None) -> dict[str, Any]:
+def _scan_block(
+    errors: list[dict[str, Any]],
+    complete: bool | None,
+    *,
+    run_started_at: str | None = None,
+) -> dict[str, Any]:
     retcodes: dict[str, int] = {}
     rate_limit = 0
     for row in errors:
@@ -708,6 +758,8 @@ def _scan_block(errors: list[dict[str, Any]], complete: bool | None) -> dict[str
         "retcodes": dict(sorted(retcodes.items(), key=lambda item: (-item[1], item[0]))),
         "recent_errors": recent,
         "truncated": len(errors) >= _ERROR_ROW_CAP,
+        # Errors in this block are from this release's run, not earlier pins.
+        "run_started_at": run_started_at,
     }
 
 
@@ -729,7 +781,13 @@ def bl8_observer(
     status, status_error = _read_status_file(status_file)
     config, config_error = _load_bl8_config(config_file if isinstance(config_file, Path) else None)
     started_ms = _number((status or {}).get("started_ms")) if status else None
-    db_view = _read_bl8_db(database, now=moment, started_ms=started_ms)
+    release_pin = status.get("release") if status and isinstance(status.get("release"), str) else None
+    db_view = _read_bl8_db(
+        database,
+        now=moment,
+        started_ms=started_ms,
+        release=release_pin,
+    )
 
     missing: list[str] = []
     if status is None and status_error == "missing":
@@ -778,10 +836,17 @@ def bl8_observer(
         blotter = db_view["blotter"]
         errors = db_view["errors"]
 
+    # Latest scan flag from the running process. Historical 10006 rows do not
+    # change it.
     complete = status.get("universe_scan_complete") if status else None
     if not isinstance(complete, bool):
         complete = None
-    scan = _scan_block(errors, complete) if (status is not None or db_view.get("ok")) else _scan_block([], None)
+    run_started_at = _iso(_ms_to_dt(db_view.get("run_started_ms"))) if db_view.get("ok") else None
+    scan = (
+        _scan_block(errors, complete, run_started_at=run_started_at)
+        if (status is not None or db_view.get("ok"))
+        else _scan_block([], None)
+    )
     if not db_view.get("ok"):
         # An unread ledger cannot report a zero error count.
         scan["rate_limit_errors"] = None

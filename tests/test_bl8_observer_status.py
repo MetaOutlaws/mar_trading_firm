@@ -248,6 +248,136 @@ def test_bl8_card_reads_scan_pnl_and_rate_limits_without_writing(tmp_path) -> No
     assert "mar-bl8-shadow.service" in card["health_hint"]
 
 
+OLD_RELEASE = "5c29472b335b2776e5d6e63acce99f0b31693f05"
+CURRENT_RELEASE = "190ad181760744688db66306c8f19f3f113e6ed9"
+
+
+def test_prior_pin_rate_limits_do_not_inflate_the_current_banner(tmp_path) -> None:
+    """A 10006 burst from the previous pin stays in the book and off this banner.
+
+    An error at this release's startup still counts. Scan completeness still
+    comes from the running process, not from those rows.
+    """
+    status = tmp_path / "status.json"
+    database = tmp_path / "paper.db"
+    current_start = NOW - timedelta(minutes=2)
+    status.write_text(
+        json.dumps(
+            {
+                "heartbeat_ms": _ms(NOW),
+                "started_ms": _ms(NOW - timedelta(hours=3)),
+                "release": CURRENT_RELEASE,
+                "paper_only": True,
+                "universe_scan_complete": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    db = _init_db(database)
+    db.execute(
+        "INSERT INTO observations(t, kind, payload) VALUES (?, 'startup', ?)",
+        (
+            _ms(NOW - timedelta(hours=3)),
+            json.dumps({"release": OLD_RELEASE, "paper_only": True}),
+        ),
+    )
+    db.execute(
+        "INSERT INTO observations(t, kind, payload) VALUES (?, 'startup', ?)",
+        (
+            _ms(current_start),
+            json.dumps({"release": CURRENT_RELEASE, "paper_only": True}),
+        ),
+    )
+    prior = NOW - timedelta(hours=1)
+    for index in range(30):
+        db.execute(
+            "INSERT INTO observations(t, kind, payload) VALUES (?, 'error', ?)",
+            (
+                _ms(prior + timedelta(milliseconds=index)),
+                json.dumps(
+                    {
+                        "operation": "context",
+                        "identity": f"S{index}USDT",
+                        "error": "RateLimited: HTTP 200 retCode 10006 after 5 attempts",
+                    }
+                ),
+            ),
+        )
+    db.execute(
+        "INSERT INTO observations(t, kind, payload) VALUES (?, 'error', ?)",
+        (
+            _ms(prior + timedelta(seconds=1)),
+            json.dumps(
+                {
+                    "operation": "context",
+                    "identity": "OLD18USDT",
+                    "error": "RateLimited: HTTP 200 retCode 10018 after 5 attempts",
+                }
+            ),
+        ),
+    )
+    db.execute(
+        "INSERT INTO observations(t, kind, payload) VALUES (?, 'error', ?)",
+        (
+            _ms(prior + timedelta(seconds=2)),
+            json.dumps(
+                {
+                    "operation": "context",
+                    "identity": "OLD429USDT",
+                    "error": "HTTPError: HTTP 429 too many requests",
+                }
+            ),
+        ),
+    )
+    db.execute(
+        "INSERT INTO observations(t, kind, payload) VALUES (?, 'error', ?)",
+        (
+            _ms(current_start),
+            json.dumps(
+                {
+                    "operation": "context",
+                    "identity": "NOWUSDT",
+                    "error": "RateLimited: HTTP 200 retCode 10006 after 5 attempts",
+                }
+            ),
+        ),
+    )
+    db.execute(
+        "INSERT INTO observations(t, kind, payload) VALUES (?, 'entry_rejected', ?)",
+        (
+            _ms(prior),
+            json.dumps({"uid": "OLD|1", "reason": "below_min_notional"}),
+        ),
+    )
+    db.execute(
+        "INSERT INTO observations(t, kind, payload) VALUES (?, 'context', ?)",
+        (
+            _ms(NOW),
+            json.dumps({"symbol": "AAAUSDT", "reason": "no_signal", "instrument": {"status": "Trading"}}),
+        ),
+    )
+    db.commit()
+    db.close()
+
+    card = bl8_observer(now=NOW, status_path=status, db_path=database)
+
+    assert card["release_sha"] == CURRENT_RELEASE
+    assert card["scan"]["complete"] is True
+    assert card["scan"]["label"] == "complete"
+    assert card["scan"]["run_started_at"] == current_start.isoformat()
+    # The one error on this release counts. The earlier pin's 30 do not.
+    assert card["scan"]["rate_limit_errors"] == 1
+    assert card["scan"]["error_count"] == 1
+    assert card["scan"]["retcodes"] == {"10006": 1}
+    assert [row["symbol"] for row in card["scan"]["recent_errors"]] == ["NOWUSDT"]
+    assert "Rate-limit errors 1." in card["banner"]["body"]
+    assert "Rate-limit errors 30" not in card["banner"]["body"]
+    assert "Rate-limit errors 31" not in card["banner"]["body"]
+    assert card["banner"]["tone"] == "ok"
+    # Gate reasons stay on the rolling day. This filter is the error banner only.
+    assert card["rejections"]["last_24h"]["by_reason"]["below_min_notional"] == 1
+
+
 def test_complete_scan_with_no_errors_reports_a_real_zero(tmp_path) -> None:
     status = tmp_path / "status.json"
     database = tmp_path / "paper.db"
