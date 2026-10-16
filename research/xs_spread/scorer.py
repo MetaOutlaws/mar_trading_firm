@@ -585,6 +585,12 @@ def _score_bab_book(
             atol=1e-12,
         ):
             raise RuntimeError("recomputed BAB proxy net does not match weekly_returns.csv")
+        if "funding_gap_count" in weekly.columns and "funding_gap_count" in recomputed.columns:
+            if not np.array_equal(
+                recomputed["funding_gap_count"].to_numpy(dtype="int64"),
+                weekly["funding_gap_count"].to_numpy(dtype="int64"),
+            ):
+                raise RuntimeError("recomputed funding gap count does not match weekly_returns.csv")
         children = np.random.SeedSequence(seed).spawn(n_perm)
         means = np.empty(n_perm, dtype="float64")
         for i, child in enumerate(children):
@@ -605,6 +611,8 @@ def _score_bab_book(
     else:
         metrics = score_weekly(weekly, window=window, random_means=means, n_bootstrap=n_bootstrap)
     metrics["cell"] = manifest.get("cell")
+    if "funding_gap_count" in weekly.columns:
+        metrics["funding_gap_count"] = int(weekly["funding_gap_count"].sum())
     metrics["n_permutations"] = int(means.size) if means.size else 0
     metrics["random_seed"] = seed
     metrics["score_profile"] = "bab"

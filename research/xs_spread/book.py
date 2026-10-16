@@ -547,8 +547,10 @@ def run_book(
 ) -> dict[str, pd.DataFrame]:
     """Full engine pass for one window. No profit factor and no random book.
 
-    ``funding`` is required when the cell includes funding. A missing print
-    drops that name for the week. It is not replaced with zero.
+    ``funding`` is required when the cell includes funding. A name is
+    dropped only when the 8h before its entry open has no print. A gap
+    during the hold keeps the name. Only observed prints are summed, and
+    each missing settlement is counted. Missing prints are not zero-filled.
     """
     if not config.runnable:
         raise NotImplementedError(config.note)
@@ -575,7 +577,8 @@ def run_book(
         from research.xs_spread.bab import (
             apply_beta_schedule,
             beta_neutral_weights,
-            funding_rate_sum,
+            funding_accrual,
+            funding_print_before_entry,
             leg_sets_from_scores,
             regime_at,
         )
@@ -603,15 +606,15 @@ def run_book(
                 )
             continue
         paths = build_paths(panel, list(finite.index.astype(str)), t, t_next, config.stop_pct)
-        funded: dict[str, tuple[NamePath, float, float]] = {}
+        funded: dict[str, tuple[NamePath, float, float, int, int]] = {}
         series = funding or {}
         for symbol, path in paths.items():
             rates = series.get(symbol)
-            long_sum = funding_rate_sum(rates, path.entry_time, path.long.exit_time)
-            short_sum = funding_rate_sum(rates, path.entry_time, path.short.exit_time)
-            if not np.isfinite(long_sum) or not np.isfinite(short_sum):
+            if not funding_print_before_entry(rates, path.entry_time):
                 continue
-            funded[symbol] = (path, long_sum, short_sum)
+            long_sum, long_gaps = funding_accrual(rates, path.entry_time, path.long.exit_time)
+            short_sum, short_gaps = funding_accrual(rates, path.entry_time, path.short.exit_time)
+            funded[symbol] = (path, long_sum, short_sum, long_gaps, short_gaps)
         scored = finite[finite.index.isin(funded)]
         long_symbols, short_symbols = leg_sets_from_scores(scored, long_side=config.long_side)
         weights = beta_neutral_weights(
@@ -621,10 +624,12 @@ def run_book(
             leverage_cap=config.leverage_cap,
         )
         regime = regime_at(panel["BTCUSDT"], t)
-        for symbol, (path, long_sum, short_sum) in funded.items():
+        for symbol, (path, long_sum, short_sum, long_gaps, short_gaps) in funded.items():
             row = _path_row(t, symbol, path)
             row["long_funding_sum"] = long_sum
             row["short_funding_sum"] = short_sum
+            row["long_funding_gaps"] = long_gaps
+            row["short_funding_gaps"] = short_gaps
             path_rows.append(row)
             score_rows.append(
                 {"rebalance_time": t, "symbol": symbol, "score": float(scored.loc[symbol])}
@@ -657,7 +662,13 @@ def run_book(
     ]
     if beta_book:
         weight_cols = [*weight_cols, "regime"]
-        path_cols = [*path_cols, "long_funding_sum", "short_funding_sum"]
+        path_cols = [
+            *path_cols,
+            "long_funding_sum",
+            "short_funding_sum",
+            "long_funding_gaps",
+            "short_funding_gaps",
+        ]
     weights_frame = pd.DataFrame(weight_rows, columns=weight_cols)
     paths_frame = pd.DataFrame(path_rows, columns=path_cols)
     if beta_book:

@@ -6,3 +6,5 @@ Overlap ruling: the btc_shock gate Jaccard of 0.454 is under 0.50, so it PASSES.
 Further disclosures: low-IVOL outcomes (Munha aa19efc8, -0.05%/wk) were viewed on main; that's a different factor (J 0.26, rho 0.20), so no contamination ruling, but it's disclosed. The legs aren't dollar-neutral (3x per-side cap), so net exposure, BTC funding and costs must be in the P&L. Grade is capped at B, and the prior is ~10%.
 Gates unchanged: PF>=1.15, cluster CI excludes 0, beats-random (turnover-matched), >=50% of folds profitable, no losing regime, DD<25%. Funding is included and never zero-filled. 2026 is veto-only.
 Next: Munha writes the prereg, Brian gives a CEO YES for the harness, Chiremba hashes it for my ACK, then main, hash, holdout. Live off.
+
+ERRATUM (see 2026-10-16_garwe_countersign_munha_preregs_listing_bab.md): aa19efc8 is pre-main only; no main outcomes were viewed.

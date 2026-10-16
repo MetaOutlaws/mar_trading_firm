@@ -13,11 +13,14 @@ from research.xs_spread.bab import (
     apply_beta_schedule,
     beta_neutral_weights,
     classify_ema_band,
+    funding_accrual,
+    funding_print_before_entry,
     funding_rate_sum,
     regime_at,
     settlement_times,
 )
 from research.xs_spread.cells import (
+    BAB_COUNTERSIGN_MEMO,
     BAB_LOCK_SHA256,
     BAB_PREREG_SHA256,
     XS_BAB_BTC_WEEKLY,
@@ -104,6 +107,8 @@ def _path_row(symbol: str, t: str, long_return: float, short_return: float, fund
         "short_return": short_return,
         "long_funding_sum": funding,
         "short_funding_sum": funding,
+        "long_funding_gaps": 0,
+        "short_funding_gaps": 0,
     }
 
 
@@ -111,7 +116,10 @@ def test_prereg_and_lock_bytes() -> None:
     assert sha256_file(PACKAGE / "PREREG.md") == BAB_PREREG_SHA256
     assert sha256_file(PACKAGE / "SPEC.md") == BAB_LOCK_SHA256
     assert BAB_PREREG_SHA256.startswith("bf736a50")
-    assert BAB_LOCK_SHA256.startswith("76da2e9e")
+    assert BAB_LOCK_SHA256.startswith("08ef0df6")
+    assert BAB_COUNTERSIGN_MEMO == "97911533"
+    text = (PACKAGE / "SPEC.md").read_text(encoding="utf-8")
+    assert "aa19efc8 is pre-main only; no main outcomes were viewed." in text
     assert XS_BAB_BTC_WEEKLY.mde_d == pytest.approx(0.262)
     assert XS_BAB_BTC_WEEKLY.mde_weeks == 90
     assert XS_BAB_BTC_WEEKLY.leg_cost_rate == pytest.approx(0.0031)
@@ -244,14 +252,32 @@ def test_missing_funding_is_not_zero_filled() -> None:
     exit_time = _utc("2024-01-08")
     expected = settlement_times(entry, exit_time)
     assert len(expected) == 21
-    rates = pd.Series(0.0001, index=expected)
+    before = entry - pd.Timedelta(hours=8)
+    rates = pd.Series(0.0001, index=expected.insert(0, before))
+    assert funding_print_before_entry(rates, entry) is True
     assert funding_rate_sum(rates, entry, exit_time) == pytest.approx(0.0021)
-    # An observed zero is a print.
-    rates.iloc[0] = 0.0
-    assert funding_rate_sum(rates, entry, exit_time) == pytest.approx(0.0020)
-    # A hole is not a zero.
+    total, gaps = funding_accrual(rates, entry, exit_time)
+    assert total == pytest.approx(0.0021)
+    assert gaps == 0
+    # An observed zero is a print, not a gap and not a fill.
+    zeroed = rates.copy()
+    zeroed.loc[expected[0]] = 0.0
+    assert funding_rate_sum(zeroed, entry, exit_time) == pytest.approx(0.0020)
+    total, gaps = funding_accrual(zeroed, entry, exit_time)
+    assert total == pytest.approx(0.0020)
+    assert gaps == 0
+    # An in-hold hole stays out of the sum and is counted. It does not drop the name.
     gapped = rates.drop(expected[3])
-    assert np.isnan(funding_rate_sum(gapped, entry, exit_time))
+    total, gaps = funding_accrual(gapped, entry, exit_time)
+    assert total == pytest.approx(0.0020)
+    assert gaps == 1
+    assert funding_rate_sum(gapped, entry, exit_time) == pytest.approx(0.0020)
+    # Ex-ante window is [entry-8h, entry). The entry print itself is not before entry.
+    at_entry = rates.drop(before)
+    at_entry.loc[entry] = 0.0001
+    assert funding_print_before_entry(at_entry, entry) is False
+    assert funding_print_before_entry(rates.drop(before), entry) is False
+    assert funding_print_before_entry(pd.Series(0.0001, index=pd.DatetimeIndex([before])), entry) is True
 
 
 def test_regime_band_and_gate() -> None:
@@ -344,15 +370,75 @@ def test_pit_membership_excludes_btc_and_scores_both_costs(tmp_path: Path) -> No
     assert manifest["cost"]["measured_rt_binds_gates"] is False
     assert manifest["cost"]["measured_rt_label"] == "proxy, alts unmeasured"
     assert manifest["documents"]["prereg_sha256"] == BAB_PREREG_SHA256
-    # Remove one funding print on LOW over a week it is held and it leaves the book.
+    assert manifest["documents"]["lock_sha256"] == BAB_LOCK_SHA256
+    assert manifest["prereg_countersigned"] is True
+    assert manifest["countersign_memo"] == "97911533"
+    assert manifest["documents"]["countersign_memo"] == "97911533"
+    assert manifest["funding_gap_count"] == 0
+    assert int(weekly["funding_gap_count"].sum()) == 0
+
+
+def test_ex_ante_drop_and_in_hold_gap_is_counted(tmp_path: Path) -> None:
+    rng = np.random.default_rng(2)
+    btc_r = rng.normal(0.0, 0.02, size=160)
+    start = "2023-08-01"
+    last = "2024-01-08"
+    panel = {"BTCUSDT": _bars_from_midnight(_midnight_prices(start, 160, btc_r, price0=200.0))}
+    for name, beta in {"LOW": 0.4, "MID": 1.0, "HIGH": 1.8}.items():
+        panel[name] = _bars_from_midnight(_midnight_prices(start, 160, beta * btc_r, price0=20.0))
+    membership = _membership(
+        [_listed(symbol, start + "T00:00:00Z", last + "T00:00:00Z") for symbol in panel]
+    )
+    funding = _funding(list(panel), "2023-07-01", "2024-02-01", rate=0.0001)
+    clean = run_window(panel, membership, XS_BAB_BTC_WEEKLY, "main", tmp_path / "clean", funding=funding)
+    weekly = clean["tables"]["weekly_returns"]
     held = weekly["rebalance_time"].iloc[0]
-    hole = funding["LOW"].index[funding["LOW"].index > held][0]
-    funding["LOW"] = funding["LOW"].drop(hole)
-    again = tmp_path / "bab-hole"
-    rerun = run_window(panel, membership, XS_BAB_BTC_WEEKLY, "main", again, funding=funding)
-    punched = rerun["tables"]["weights"]
-    punched = punched[punched["rebalance_time"] == held]
-    assert "LOW" not in set(punched["symbol"])
+    entry = held
+    rate = 0.0001
+
+    # A gap during the hold keeps LOW. Funding uses the prints that remain.
+    in_hold = {symbol: series.copy() for symbol, series in funding.items()}
+    hole = in_hold["LOW"].index[in_hold["LOW"].index > entry][0]
+    assert hole == entry + pd.Timedelta(hours=8)
+    in_hold["LOW"] = in_hold["LOW"].drop(hole)
+    kept = run_window(panel, membership, XS_BAB_BTC_WEEKLY, "main", tmp_path / "gap", funding=in_hold)
+    kept_weights = kept["tables"]["weights"]
+    kept_week = kept_weights[kept_weights["rebalance_time"] == held]
+    assert set(kept_week.loc[kept_week["side"] == "long", "symbol"]) == {"LOW"}
+    paths = kept["tables"]["name_paths"]
+    low = paths[(paths["rebalance_time"] == held) & (paths["symbol"] == "LOW")].iloc[0]
+    assert int(low["long_funding_gaps"]) == 1
+    assert int(low["short_funding_gaps"]) == 1
+    assert float(low["long_funding_sum"]) == pytest.approx(21 * rate - rate)
+    kept_weekly = kept["tables"]["weekly_returns"]
+    kept_row = kept_weekly[kept_weekly["rebalance_time"] == held].iloc[0]
+    clean_row = weekly[weekly["rebalance_time"] == held].iloc[0]
+    w_long = float(kept_week.loc[kept_week["side"] == "long", "weight"].sum())
+    assert int(kept_row["funding_gap_count"]) == int(clean_row["funding_gap_count"]) + 1
+    assert float(kept_row["funding"]) == pytest.approx(float(clean_row["funding"]) + w_long * rate)
+    kept_manifest = json.loads((tmp_path / "gap" / "manifest.json").read_text(encoding="utf-8"))
+    assert kept_manifest["funding_gap_count"] == int(kept_weekly["funding_gap_count"].sum())
+    assert kept_manifest["funding_gap_count"] == 1
+    assert kept_manifest["funding_zero_filled"] is False
+
+    # No print in the 8h before the entry open drops LOW for that week only.
+    ex_ante = {symbol: series.copy() for symbol, series in funding.items()}
+    before = entry - pd.Timedelta(hours=8)
+    assert before in ex_ante["LOW"].index
+    ex_ante["LOW"] = ex_ante["LOW"].drop(before)
+    dropped = run_window(
+        panel, membership, XS_BAB_BTC_WEEKLY, "main", tmp_path / "ex-ante", funding=ex_ante
+    )
+    dropped_weights = dropped["tables"]["weights"]
+    dropped_week = dropped_weights[dropped_weights["rebalance_time"] == held]
+    assert "LOW" not in set(dropped_week["symbol"])
+    later = dropped_weights[dropped_weights["rebalance_time"] > held]
+    assert "LOW" in set(later["symbol"])
+    dropped_weekly = dropped["tables"]["weekly_returns"]
+    if held in set(dropped_weekly["rebalance_time"]):
+        assert int(dropped_weekly.loc[dropped_weekly["rebalance_time"] == held, "funding_gap_count"].iloc[0]) == 0
+    dropped_manifest = json.loads((tmp_path / "ex-ante" / "manifest.json").read_text(encoding="utf-8"))
+    assert dropped_manifest["funding_gap_count"] == int(dropped_weekly["funding_gap_count"].sum())
 
 
 def test_sign_veto_does_not_rescue_and_random_book_matches_churn(tmp_path: Path) -> None:

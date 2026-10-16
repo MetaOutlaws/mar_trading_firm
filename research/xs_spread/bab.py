@@ -11,9 +11,10 @@ P&L per week, per $1 average gross per side::
 
 ``price`` already contains the net dollar exposure ``(w_L - w_H)`` when
 both legs move together. Funding is the sum of observed 8h prints on each
-leg. A missing print is not filled with zero: the name is not tradable
-that week. Official cost is 0.31% of traded notional and is the only cost
-the gates see. The 0.181% SOL proxy is a second column.
+leg. A name is dropped only when the 8h before the entry open has no
+print. A gap during the hold keeps the name: missing settlements are
+counted and are not filled. Official cost is 0.31% of traded notional
+and is the only cost the gates see. The 0.181% SOL proxy is a second column.
 """
 
 from __future__ import annotations
@@ -100,28 +101,73 @@ def settlement_times(entry: pd.Timestamp, exit_time: pd.Timestamp) -> pd.Datetim
     return pd.to_datetime(stamps, utc=True)
 
 
-def funding_rate_sum(rates: pd.Series | None, entry: pd.Timestamp, exit_time: pd.Timestamp) -> float:
-    """Sum of observed funding rates over the hold.
+def _as_utc(stamp: pd.Timestamp) -> pd.Timestamp:
+    stamp = pd.Timestamp(stamp)
+    if stamp.tzinfo is None:
+        return stamp.tz_localize("UTC")
+    return stamp.tz_convert("UTC")
 
-    Returns NaN when any expected 8h settlement has no print. An observed
-    rate of zero is a print and is summed. It is not a fill for a hole.
-    A hold that contains no settlement returns 0.
-    """
-    expected = settlement_times(entry, exit_time)
-    if len(expected) == 0:
-        return 0.0
-    if rates is None or len(rates) == 0:
-        return float("nan")
+
+def _rates_utc(rates: pd.Series) -> pd.Series:
     index = rates.index
-    if index.tz is None:
+    if getattr(index, "tz", None) is None:
         index = index.tz_localize("UTC")
     else:
         index = index.tz_convert("UTC")
-    aligned = pd.Series(rates.to_numpy(dtype="float64"), index=index)
-    present = aligned.reindex(expected)
-    if present.isna().any() or not np.isfinite(present.to_numpy(dtype="float64")).all():
-        return float("nan")
-    return float(present.sum())
+    return pd.Series(rates.to_numpy(dtype="float64"), index=index)
+
+
+def funding_print_before_entry(rates: pd.Series | None, entry: pd.Timestamp) -> bool:
+    """True when a finite print exists in the 8h before the entry open.
+
+    The window is ``[entry - 8h, entry)``. A print exactly 8h earlier
+    counts. A print at the entry open does not: it is not before entry.
+    """
+    if rates is None or len(rates) == 0:
+        return False
+    entry = _as_utc(entry)
+    aligned = _rates_utc(rates)
+    start = entry - FUNDING_STEP
+    window = aligned[(aligned.index >= start) & (aligned.index < entry)]
+    if window.empty:
+        return False
+    return bool(np.isfinite(window.to_numpy(dtype="float64")).any())
+
+
+def funding_accrual(
+    rates: pd.Series | None,
+    entry: pd.Timestamp,
+    exit_time: pd.Timestamp,
+) -> tuple[float, int]:
+    """Observed funding sum and the number of missing in-hold settlements.
+
+    Expected settlements are the 8h UTC boundaries strictly after entry
+    and at or before exit. A missing print is omitted from the sum and
+    counted. An observed rate of zero is a print. A hold with no
+    settlement returns ``(0.0, 0)``.
+    """
+    expected = settlement_times(entry, exit_time)
+    n_expected = len(expected)
+    if n_expected == 0:
+        return 0.0, 0
+    if rates is None or len(rates) == 0:
+        return 0.0, n_expected
+    present = _rates_utc(rates).reindex(expected)
+    values = present.to_numpy(dtype="float64")
+    finite = np.isfinite(values)
+    observed = float(values[finite].sum()) if bool(finite.any()) else 0.0
+    return observed, int(n_expected - int(finite.sum()))
+
+
+def funding_rate_sum(rates: pd.Series | None, entry: pd.Timestamp, exit_time: pd.Timestamp) -> float:
+    """Sum of observed funding rates over the hold.
+
+    Missing settlements are left out of the sum. They are counted by
+    ``funding_accrual`` and are not a reason to drop the name. An observed
+    rate of zero is a print. A hold that contains no settlement returns 0.
+    """
+    total, _gaps = funding_accrual(rates, entry, exit_time)
+    return total
 
 
 def four_hour_closes(bars: pd.DataFrame) -> pd.Series:
@@ -211,6 +257,7 @@ def apply_beta_schedule(
         next_group = None if terminal else weight_groups[times[i + 1]]
         price = 0.0
         funding = 0.0
+        funding_gaps = 0
         cost = 0.0
         cost_proxy = 0.0
         n_entries = n_exits = n_stops = n_delist = n_rebalance = 0
@@ -237,6 +284,8 @@ def apply_beta_schedule(
             fsum = float(path_row["long_funding_sum" if side == "long" else "short_funding_sum"])
             if not np.isfinite(fsum):
                 raise ValueError(f"{symbol} funding is missing at {t}; refusing to zero-fill")
+            gap_column = "long_funding_gaps" if side == "long" else "short_funding_gaps"
+            gaps = int(path_row[gap_column]) if gap_column in path_row.index and pd.notna(path_row[gap_column]) else 0
             prev = still_open.get(str(symbol))
             same_side = prev is not None and prev[0] == side
             continues = False
@@ -283,6 +332,7 @@ def apply_beta_schedule(
                     n_exits += 1
             price += weight * underlying
             funding += -weight * fsum
+            funding_gaps += gaps
             if reason == "hold" and not terminal:
                 next_open[str(symbol)] = (side, weight)
 
@@ -306,6 +356,7 @@ def apply_beta_schedule(
                 "net_exposure": w_long - w_short,
                 "gross_spread": price,
                 "funding": funding,
+                "funding_gap_count": funding_gaps,
                 "cost": cost,
                 "net_spread": price + funding - cost,
                 "cost_proxy": cost_proxy,
@@ -340,6 +391,7 @@ def _empty_weekly() -> pd.DataFrame:
             "net_exposure",
             "gross_spread",
             "funding",
+            "funding_gap_count",
             "cost",
             "net_spread",
             "cost_proxy",

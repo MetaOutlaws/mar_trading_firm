@@ -103,10 +103,11 @@ SIZE_FACTOR_WEEKLY_CAP = CellConfig(
 )
 
 # xs_bab_btc_weekly. Documents live beside this package and are not part of
-# the skew document pins. Garwe has not countersigned, so the source hashes
-# stay provisional.
-BAB_LOCK_SHA256 = "76da2e9e677579305bb61fc36f17eaa6f37e67efb878bb92787bc46dfeaecdc6"
+# the skew document pins. Prereg bf736a50 is countersigned in memo 97911533.
+# Harness and scorer hashes stay provisional until Garwe ACKs them.
+BAB_LOCK_SHA256 = "08ef0df60c012418cca646fe6339e7510af35231fbc4c900db382dbe101b57ba"
 BAB_PREREG_SHA256 = "bf736a50def884170f515f1457b4864a94b19ba4dfb0fa05be58c63c77662a28"
+BAB_COUNTERSIGN_MEMO = "97911533"
 BAB_PROPOSAL_SHA256 = "1ca85938af74ab45811089325fcae03ce4b0032bab7ccdbdd0f12cc2e7075a10"
 BAB_PRESTATED_SHA256 = "12dd3ae0709fdbfc2674e524fc313bebda490c566d1f12c5c8aa80def335b7d1"
 # Official gate rate, and the report-only SOL p90 proxy from the frozen prereg.
@@ -134,7 +135,9 @@ XS_BAB_BTC_WEEKLY = CellConfig(
         "with each side's leverage capped at 3 before that normalisation. "
         "Official cost is 0.31% per traded notional and binds the gates. "
         "0.181% is the report-only SOL proxy. Funding is included and never "
-        "zero-filled. Holdout and 2026 stay behind the lock."
+        "zero-filled. A name is dropped only when the 8h before its entry "
+        "open has no funding print; an in-hold gap is kept and counted. "
+        "Holdout and 2026 stay behind the lock."
     ),
     weighting="beta_neutral",
     funding_included=True,

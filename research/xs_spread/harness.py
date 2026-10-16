@@ -193,6 +193,7 @@ def run_window(
     if config.weighting == "beta_neutral":
         from research.xs_spread.cells import (
             BAB_BTC_SAMPLER_RT,
+            BAB_COUNTERSIGN_MEMO,
             BAB_LOCK_SHA256,
             BAB_PREREG_SHA256,
             BAB_PROPOSAL_SHA256,
@@ -202,11 +203,16 @@ def run_window(
 
         manifest["score_profile"] = "bab"
         manifest["hashes_provisional"] = True
-        manifest["countersign"] = None
+        manifest["countersign_memo"] = BAB_COUNTERSIGN_MEMO
+        manifest["prereg_countersigned"] = True
         manifest["weighting"] = "beta_neutral, 3x cap, $1 average gross per side"
         manifest["mde_d"] = config.mde_d
         manifest["mde_weeks"] = config.mde_weeks
         manifest["funding_zero_filled"] = False
+        if "funding_gap_count" in weekly.columns and len(weekly):
+            manifest["funding_gap_count"] = int(weekly["funding_gap_count"].sum())
+        else:
+            manifest["funding_gap_count"] = 0
         manifest["cost"] = {
             **cost_snapshot(),
             "rates_per_leg_trade": list(cost_rates(config)),
@@ -224,6 +230,8 @@ def run_window(
             "lock_sha256": BAB_LOCK_SHA256,
             "prereg_sha256": BAB_PREREG_SHA256,
             "countersign_sha256": None,
+            "countersign_memo": BAB_COUNTERSIGN_MEMO,
+            "prereg_countersigned": True,
         }
     output_hash = write_outputs(Path(output_dir), tables, manifest)
     return {
