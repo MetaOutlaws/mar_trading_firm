@@ -2,9 +2,9 @@
 
 The collector refuses to read a Singapore checkout whose tracked files differ
 from the pinned repair commit ``b00c4f73``. The allowlist is the 2026-10-16
-SGP1 overlay, ``api/observer_status.py`` from ``ee994abe``, and the eight
-files #135 changes at ``3424c265`` (applied on the server as an overlay on
-``b00c4f73``). Nothing else may stay staged.
+SGP1 overlay, the ``firm/memory.py`` hot fix, ``api/observer_status.py`` from
+``ee994abe``, and the eight files #135 changes at ``3424c265`` (applied on
+the server as an overlay on ``b00c4f73``). Nothing else may stay staged.
 
 A path is allowed only when it is one of those paths and both the index and
 the worktree are the pinned git blob at that path's pinned mode. The two
@@ -28,9 +28,8 @@ from pathlib import Path
 # comments. Each short id names one blob; the value is that full git blob id,
 # not a raw sha256. Mode is what the adding commit recorded: 100755 for the
 # two status shell scripts, 100644 for every other path. Both the index and
-# the worktree must match both fields.
-# firm/memory.py short id fba54b57 is not an object in this repository, so it
-# is not pinned here.
+# the worktree must match both fields. firm/memory.py is the SGP1 hash-object
+# id; that blob does not have to be in this clone.
 ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),  # c9b9f03f
     "api/desk_status.py": ("100644", "0ebd3b44a5bf36ff5287780e11090d72bbb83b12"),  # 0ebd3b44
@@ -47,6 +46,7 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     "core/execution/paper_bar_eval.py": ("100644", "5374ab24628ef9e330dbf4b6f433461cc1f299e5"),
     "core/execution/paper_cash.py": ("100644", "fde5e49bc1e72261ce258a182aee2e7913fb8f52"),
     "core/execution/paper_settle.py": ("100644", "830b3c5b9e408c726bd6f2c9714347cf61b8d3b3"),
+    "firm/memory.py": ("100644", "fba54b57a7c07c2540dc2246b83ca16913179bfa"),  # fba54b57
     "scripts/run_status_page.py": (
         "100644",
         "b2f130fd36fda79a3d23d987c56ad3484f7e7767",

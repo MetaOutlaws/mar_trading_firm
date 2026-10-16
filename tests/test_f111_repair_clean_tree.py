@@ -132,6 +132,7 @@ def test_allowed_exact_match(
         ),
         "core/execution/paper_cash.py": ("100644", "fde5e49bc1e72261ce258a182aee2e7913fb8f52"),
         "core/execution/paper_settle.py": ("100644", "830b3c5b9e408c726bd6f2c9714347cf61b8d3b3"),
+        "firm/memory.py": ("100644", "fba54b57a7c07c2540dc2246b83ca16913179bfa"),
         "scripts/run_status_page.py": ("100644", "b2f130fd36fda79a3d23d987c56ad3484f7e7767"),
         "scripts/status_cert_fingerprint.sh": (
             "100755",
@@ -148,10 +149,10 @@ def test_allowed_exact_match(
         ),
     }
     assert set(FINDINGS_BLOB_PREFIXES) < set(guard.ALLOWED_OVERLAY)
-    assert "firm/memory.py" not in guard.ALLOWED_OVERLAY
     prefixes = {
         **FINDINGS_BLOB_PREFIXES,
         "api/observer_status.py": "28713d3b",
+        "firm/memory.py": "fba54b57",
         "core/execution/engine.py": "fd6a6b8e",
         "core/execution/f111_paper.py": "ab390d3f",
         "core/execution/paper.py": "c73ead0f",
@@ -420,6 +421,9 @@ def test_deploy_preflight_allows_exact_overlay(tmp_path: Path) -> None:
             capture_output=True,
         )
         if blob.returncode != 0:
+            # The SGP1 memory hot-fix blob is pinned by id and is not in this clone.
+            if path == "firm/memory.py":
+                continue
             pytest.skip("overlay blobs are not in this clone")
         _stage(repo, path, blob.stdout, mode=mode)
     allowed = _deploy_preflight(repo)
