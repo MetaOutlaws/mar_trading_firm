@@ -793,6 +793,16 @@ class F111Runtime:
                 max_holding_bars=0,
                 opened_at=observed,
             )
+        if position_id is not None:
+            try:
+                from core.execution.paper_settle import link_entry_cash_event
+
+                link_entry_cash_event(self.broker, self.ledger, symbol, int(position_id))
+            except Exception:
+                logger.exception(
+                    "Entry cash event was not linked to position %s; the fill stands",
+                    position_id,
+                )
         brackets.update(
             {
                 "entry_case": pending.get("entry_case", "F111"),
@@ -1025,6 +1035,10 @@ class F111Runtime:
             # Recover by the exact position identity, never a new market quote.
             if position_id is not None:
                 for saved in reversed(load_durable_close_payloads()):
+                    # Entry rows share the position id. Only a close payload
+                    # is safe to replay onto RAM cash.
+                    if str(saved.get("kind") or "close") != "close":
+                        continue
                     if saved.get("position_id") == position_id and saved.get("symbol") == symbol:
                         return broker.apply_journal_close(saved)
             return OrderResult(success=False, symbol=symbol, error="open ledger position missing")

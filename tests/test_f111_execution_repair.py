@@ -256,10 +256,16 @@ def test_worker_step_enters_protects_persists_and_closes(tmp_path,firm_db,monkey
     assert ledger.find_open_position(SYMBOL).stop_loss_price==pytest.approx(b._positions[SYMBOL].stop_loss)
     data.price=101.5;clock[0]=T0+timedelta(minutes=4,seconds=15)
     f111_paper.run_attached_minute_step(engine,data=data,now=clock[0])
-    assert not b._positions and ledger.find_open_position(SYMBOL) is None and counts()==(1,1)
+    assert not b._positions and ledger.find_open_position(SYMBOL) is None
+    # The entry is mirrored. The close is still the only trade, and cash is
+    # the round trip, not the entry fee a second time.
+    assert counts()==(1,2)
     with session_scope() as s:
         trade=s.scalar(select(TradeRecord))
+        events=list(s.scalars(select(PaperCashEvent).order_by(PaperCashEvent.id)))
         assert trade.net_pnl==pytest.approx(b.cash-10000.)
+        assert [event.kind for event in events]==["open","close"]
+        assert trade.cash_event_id==events[1].event_id
     assert not __import__('json').loads(rt.state_path.read_text())['protection']
 
 
