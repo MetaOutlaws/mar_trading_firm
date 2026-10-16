@@ -4,9 +4,9 @@ set -euo pipefail
 umask 077
 
 # Same helper as the collector. While HEAD is still the L01 base (868f1c9a),
-# only the ten pinned overlay paths may differ, and only when both the index
-# and the worktree are that blob at that path's pinned mode. Any other dirty
-# path fails.
+# only the pinned overlay paths may differ, and only when both the index and
+# the worktree are that blob at that path's pinned mode. Any other dirty path
+# fails.
 # A missing helper fails closed.
 f111_deploy_clean_preflight() {
   local repo=$1

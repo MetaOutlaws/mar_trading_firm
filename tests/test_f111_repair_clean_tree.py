@@ -1,4 +1,4 @@
-"""Collector clean-tree guard for the ten SGP1 overlay blobs recorded 2026-10-16.
+"""Collector clean-tree guard for the SGP1 overlay plus the #135 file blobs.
 
 The contract: those paths pass only when both the index and the worktree are
 the pinned blob at that path's pinned mode, a different byte fails, and any
@@ -117,20 +117,52 @@ def test_allowed_exact_match(
     assert guard.ALLOWED_OVERLAY == {
         "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),
         "api/desk_status.py": ("100644", "0ebd3b44a5bf36ff5287780e11090d72bbb83b12"),
+        "api/observer_status.py": ("100644", "28713d3bc4a18806b6dfbbe1675c9108afb5594e"),
         "api/static/index.html": ("100644", "e5649287f0122def78d7b3ecab7ddce4c2adec44"),
         "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),
         "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),
         "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),
         "config/settings.py": ("100644", "9c02305f6e855960410daa9761abc4a849c97a1a"),
+        "core/execution/engine.py": ("100644", "fd6a6b8e4238312502e830d41ef7ae29f382a0d4"),
+        "core/execution/f111_paper.py": ("100644", "ab390d3f2b98d6977574d2a40f265e7a2154a8fe"),
+        "core/execution/paper.py": ("100644", "c73ead0f9dc5a2373f17da76cb2b1c9d11804381"),
+        "core/execution/paper_bar_eval.py": (
+            "100644",
+            "5374ab24628ef9e330dbf4b6f433461cc1f299e5",
+        ),
+        "core/execution/paper_cash.py": ("100644", "fde5e49bc1e72261ce258a182aee2e7913fb8f52"),
+        "core/execution/paper_settle.py": ("100644", "830b3c5b9e408c726bd6f2c9714347cf61b8d3b3"),
         "scripts/run_status_page.py": ("100644", "b2f130fd36fda79a3d23d987c56ad3484f7e7767"),
         "scripts/status_cert_fingerprint.sh": (
             "100755",
             "94c8b4126490d57ef728d258567dd294e098f0f4",
         ),
         "scripts/ufw_status_443.sh": ("100755", "f9ef5d0f510b19421d88f6f249d1c8fb37f92824"),
+        "tests/test_f111_execution_repair.py": (
+            "100644",
+            "162c2620ea20ae7c24e09b08a96e46cbb5fcf913",
+        ),
+        "tests/test_scan_fill_counts.py": (
+            "100644",
+            "f0520d2ea966389b521b5cd962a0cdd150696d53",
+        ),
     }
-    assert set(guard.ALLOWED_OVERLAY) == set(FINDINGS_BLOB_PREFIXES)
-    for path, prefix in FINDINGS_BLOB_PREFIXES.items():
+    assert set(FINDINGS_BLOB_PREFIXES) < set(guard.ALLOWED_OVERLAY)
+    assert "firm/memory.py" not in guard.ALLOWED_OVERLAY
+    prefixes = {
+        **FINDINGS_BLOB_PREFIXES,
+        "api/observer_status.py": "28713d3b",
+        "core/execution/engine.py": "fd6a6b8e",
+        "core/execution/f111_paper.py": "ab390d3f",
+        "core/execution/paper.py": "c73ead0f",
+        "core/execution/paper_bar_eval.py": "5374ab24",
+        "core/execution/paper_cash.py": "fde5e49b",
+        "core/execution/paper_settle.py": "830b3c5b",
+        "tests/test_f111_execution_repair.py": "162c2620",
+        "tests/test_scan_fill_counts.py": "f0520d2e",
+    }
+    assert set(prefixes) == set(guard.ALLOWED_OVERLAY)
+    for path, prefix in prefixes.items():
         mode, blob = guard.ALLOWED_OVERLAY[path]
         executable = path in {
             "scripts/status_cert_fingerprint.sh",
@@ -146,6 +178,38 @@ def test_allowed_exact_match(
         )
         if found.returncode == 0 and found.stdout.strip():
             assert found.stdout.split() == [blob]
+    # The #135 pins are the blobs in 3424c265, which SGP1 overlays on b00c4f73.
+    repair = "3424c2650930ddc493bc0faca3be0016e7568823"
+    for path in (
+        "core/execution/engine.py",
+        "core/execution/f111_paper.py",
+        "core/execution/paper.py",
+        "core/execution/paper_bar_eval.py",
+        "core/execution/paper_cash.py",
+        "core/execution/paper_settle.py",
+        "tests/test_f111_execution_repair.py",
+        "tests/test_scan_fill_counts.py",
+    ):
+        listed = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-tree", repair, "--", path],
+            capture_output=True,
+            text=True,
+        )
+        assert listed.returncode == 0 and listed.stdout.strip()
+        meta, name = listed.stdout.strip().split("\t", 1)
+        mode, _kind, blob = meta.split()
+        assert name == path
+        assert guard.ALLOWED_OVERLAY[path] == (mode, blob)
+    observer = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-tree", "ee994abe", "--", "api/observer_status.py"],
+        capture_output=True,
+        text=True,
+    )
+    if observer.returncode == 0 and observer.stdout.strip():
+        meta, name = observer.stdout.strip().split("\t", 1)
+        mode, _kind, blob = meta.split()
+        assert name == "api/observer_status.py"
+        assert guard.ALLOWED_OVERLAY[name] == (mode, blob)
     collector = COLLECTOR.read_text(encoding="utf-8")
     assert "f111_repair_clean_tree.py" in collector
     assert 'test -f "$helper"' in collector
