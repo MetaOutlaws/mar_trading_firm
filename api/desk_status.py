@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -60,10 +61,37 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# Parsed telemetry keyed by path, mtime_ns, and size. An append changes
+# both mtime and size, so the next read parses again. The rows are
+# treated as read-only; the panel copies the fields it returns.
+_JSONL_CACHE: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
+_JSONL_LOCK = threading.Lock()
+
+
+def clear_jsonl_cache() -> None:
+    """Drop parsed telemetry. Tests use this so a rewritten file is not required."""
+    with _JSONL_LOCK:
+        _JSONL_CACHE.clear()
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    """Telemetry is append-only. A bad line is skipped, not a failed panel."""
+    """Telemetry is append-only. A bad line is skipped, not a failed panel.
+
+    The same mtime and size returns the parsed rows. ``/api/f111`` and the
+    F111 observer both walk this file, and the full parse was stacking on
+    the dashboard thread pool.
+    """
     if not path.exists():
         return []
+    try:
+        st = path.stat()
+    except OSError:
+        return []
+    token = (str(path), int(st.st_mtime_ns), int(st.st_size))
+    with _JSONL_LOCK:
+        cached = _JSONL_CACHE.get(token)
+        if cached is not None:
+            return cached
     rows: list[dict[str, Any]] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -75,6 +103,11 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
             continue
         if isinstance(payload, dict):
             rows.append(payload)
+    with _JSONL_LOCK:
+        # A handful of paths is enough. Tests use a new file each case.
+        if len(_JSONL_CACHE) > 8:
+            _JSONL_CACHE.clear()
+        _JSONL_CACHE[token] = rows
     return rows
 
 

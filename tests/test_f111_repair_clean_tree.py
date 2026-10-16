@@ -26,8 +26,8 @@ DEPLOY = ROOT / "scripts" / "deploy_f111_execution_repair.sh"
 FINDINGS_BLOB_PREFIXES = {
     "api/app.py": "c9b9f03f",
     # desk_status and index.html were replaced by the later SGP1 overlay.
-    "api/dashboard_cache.py": "c6b8f663",
-    "api/desk_status.py": "fc4a9a75",
+    "api/dashboard_cache.py": "77f83d56",
+    "api/desk_status.py": "dbe90dba",
     "api/static/index.html": "c12e3e53",
     "api/status_app.py": "ad4de7a2",
     "api/status_auth.py": "28a9ccd9",
@@ -118,8 +118,8 @@ def test_allowed_exact_match(
     """A clean tree passes, and so does the overlay when every blob matches."""
     assert guard.ALLOWED_OVERLAY == {
         "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),
-        "api/dashboard_cache.py": ("100644", "c6b8f663df4e199b3cd907bd95c0b393591345cb"),
-        "api/desk_status.py": ("100644", "fc4a9a75d7d0c0c9594fcf86165949ecc2b28aa2"),
+        "api/dashboard_cache.py": ("100644", "77f83d566ab03c176dea46904db361d5e074cadb"),
+        "api/desk_status.py": ("100644", "dbe90dba9aca406bd9a5d16cd8b20cba0e428809"),
         "api/observer_status.py": ("100644", "a3813379faa22c2449d288aa2953f6318d095ba2"),
         "api/static/index.html": ("100644", "c12e3e53fddc7b130a5f9986fb9f11a369667600"),
         "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),
@@ -136,7 +136,21 @@ def test_allowed_exact_match(
         ),
         "core/execution/paper_cash.py": ("100644", "fde5e49bc1e72261ce258a182aee2e7913fb8f52"),
         "core/execution/paper_settle.py": ("100644", "830b3c5b9e408c726bd6f2c9714347cf61b8d3b3"),
-        "firm/memory.py": ("100644", "fba54b57a7c07c2540dc2246b83ca16913179bfa"),
+        "core/strategy/spec_sleeve.py": (
+            "100644",
+            "0b9496b0152d32df23313f220129985dd71a104b",
+        ),
+        "firm/integrity.py": ("100644", "fa4ee9e9e2b33f752d4a964cd5d333f78383c0dd"),
+        "firm/memory.py": ("100644", "c5885e60bf784a9f98832a5c825a0af211692ba2"),
+        "firm/orchestrator.py": (
+            "100644",
+            "1ced376e5718b670453d37859c4790651a00231d",
+        ),
+        "firm/read_cache.py": ("100644", "a878bcfe633347928b02c071b5ba2a69eae75fbf"),
+        "firm/research_catalog.py": (
+            "100644",
+            "fceddead19de1f6f2cfb25e3427eedd98099c88d",
+        ),
         "firm/scan_inbox.py": (
             "100644",
             "8fe9688f6c7001d6dcddfa75b942cde105284a1b",
@@ -161,7 +175,7 @@ def test_allowed_exact_match(
         ),
         "tests/test_scan_inbox.py": (
             "100644",
-            "3cc0e6e47d4f967be2182843a91595d12d454894",
+            "8e61d1b20b853076111341536d7d1d9936251331",
         ),
         "tests/test_why_no_trade.py": (
             "100644",
@@ -173,7 +187,12 @@ def test_allowed_exact_match(
         **FINDINGS_BLOB_PREFIXES,
         "api/observer_status.py": "a3813379",
         "api/why_no_trade.py": "1ee0e13f",
-        "firm/memory.py": "fba54b57",
+        "core/strategy/spec_sleeve.py": "0b9496b0",
+        "firm/integrity.py": "fa4ee9e9",
+        "firm/memory.py": "c5885e60",
+        "firm/orchestrator.py": "1ced376e",
+        "firm/read_cache.py": "a878bcfe",
+        "firm/research_catalog.py": "fceddead",
         "firm/scan_inbox.py": "8fe9688f",
         "core/execution/engine.py": "fd6a6b8e",
         "core/execution/f111_paper.py": "ab390d3f",
@@ -184,7 +203,7 @@ def test_allowed_exact_match(
         "tests/test_dashboard_ux.py": "477cf0da",
         "tests/test_f111_execution_repair.py": "162c2620",
         "tests/test_scan_fill_counts.py": "f0520d2e",
-        "tests/test_scan_inbox.py": "3cc0e6e4",
+        "tests/test_scan_inbox.py": "8e61d1b2",
         "tests/test_why_no_trade.py": "1e76aaa0",
     }
     assert set(prefixes) == set(guard.ALLOWED_OVERLAY)
@@ -226,24 +245,29 @@ def test_allowed_exact_match(
         mode, _kind, blob = meta.split()
         assert name == path
         assert guard.ALLOWED_OVERLAY[path] == (mode, blob)
-    # Blobs of these paths at 5dff9454, which SGP1 overlays on b00c4f73.
-    # tests/test_scan_inbox.py replaces 456b0c8e from that server HEAD.
+    # firm/scan_inbox.py is still the 5dff9454 blob. The inbox test at that
+    # commit was 3cc0e6e4; the allowlist now carries the once-a-minute prune.
     scan_commit = "5dff9454a5dce55e861aeea86eec84779e809ba3"
-    for path, expected in {
-        "firm/scan_inbox.py": ("100644", "8fe9688f6c7001d6dcddfa75b942cde105284a1b"),
-        "tests/test_scan_inbox.py": ("100644", "3cc0e6e47d4f967be2182843a91595d12d454894"),
-    }.items():
-        listed = subprocess.run(
-            ["git", "-C", str(ROOT), "ls-tree", scan_commit, "--", path],
-            capture_output=True,
-            text=True,
-        )
-        assert listed.returncode == 0 and listed.stdout.strip()
-        meta, name = listed.stdout.strip().split("\t", 1)
-        mode, _kind, blob = meta.split()
-        assert name == path
-        assert (mode, blob) == expected
-        assert guard.ALLOWED_OVERLAY[path] == (mode, blob)
+    listed = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-tree", scan_commit, "--", "firm/scan_inbox.py"],
+        capture_output=True,
+        text=True,
+    )
+    assert listed.returncode == 0 and listed.stdout.strip()
+    meta, name = listed.stdout.strip().split("\t", 1)
+    mode, _kind, blob = meta.split()
+    assert name == "firm/scan_inbox.py"
+    assert (mode, blob) == ("100644", "8fe9688f6c7001d6dcddfa75b942cde105284a1b")
+    assert guard.ALLOWED_OVERLAY["firm/scan_inbox.py"] == (mode, blob)
+    old_inbox_test = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-tree", scan_commit, "--", "tests/test_scan_inbox.py"],
+        capture_output=True,
+        text=True,
+    )
+    assert old_inbox_test.returncode == 0 and old_inbox_test.stdout.strip()
+    old_blob = old_inbox_test.stdout.split()[2]
+    assert old_blob == "3cc0e6e47d4f967be2182843a91595d12d454894"
+    assert guard.ALLOWED_OVERLAY["tests/test_scan_inbox.py"][1] != old_blob
     # Later dashboard pins are ids. They stay pinned when the blob is absent,
     # and they are not the older ee994abe or FINDINGS objects.
     assert guard.ALLOWED_OVERLAY["api/observer_status.py"][1] != (

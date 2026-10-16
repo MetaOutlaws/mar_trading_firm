@@ -4,13 +4,15 @@ The collector refuses to read a Singapore checkout whose tracked files differ
 from the pinned repair commit ``b00c4f73``. The allowlist is the 2026-10-16
 SGP1 overlay, the ``firm/memory.py`` hot fix, the eight files #135 changes at
 ``3424c265``, ``firm/scan_inbox.py`` at ``8fe9688f`` (#138),
-``tests/test_scan_inbox.py`` at ``3cc0e6e4`` (#136, replacing ``456b0c8e``),
+``tests/test_scan_inbox.py`` at ``8e61d1b2`` (#136, replacing ``456b0c8e``),
 and the later dashboard pins ``api/desk_status.py``, ``api/observer_status.py``,
-``api/static/index.html``, ``api/dashboard_cache.py``, and
-``tests/test_dashboard_ux.py``. Those paths are applied on the server as an
-overlay on ``b00c4f73``. Nothing else may stay staged. The cache module is
-part of that overlay: the desk panels import it, and an unpinned copy would
-fail this guard once it is tracked. ``api/why_no_trade.py`` and
+``api/static/index.html``, ``api/dashboard_cache.py``,
+``tests/test_dashboard_ux.py``, plus the read-side caches
+``firm/read_cache.py``, ``firm/integrity.py``, ``firm/orchestrator.py``,
+``firm/research_catalog.py``, and ``core/strategy/spec_sleeve.py``. Those
+paths are applied on the server as an overlay on ``b00c4f73``. Nothing else
+may stay staged. The cache module is part of that overlay: the desk panels
+import it, and an unpinned copy would fail this guard once it is tracked. ``api/why_no_trade.py`` and
 ``tests/test_why_no_trade.py`` stay pinned at the 9caf785 blobs so a leftover
 panel file is still allowed. This overlay does not ship that panel.
 
@@ -43,10 +45,10 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     # Desk cache. The panels import this; it is not a trading module.
     "api/dashboard_cache.py": (
         "100644",
-        "c6b8f663df4e199b3cd907bd95c0b393591345cb",
-    ),  # c6b8f663
-    # Cached F111 panel on the pre-panel handler. Replaces 3347d45e.
-    "api/desk_status.py": ("100644", "fc4a9a75d7d0c0c9594fcf86165949ecc2b28aa2"),  # fc4a9a75
+        "77f83d566ab03c176dea46904db361d5e074cadb",
+    ),  # 77f83d56
+    # Cached F111 panel. Telemetry parse is reused on mtime and size.
+    "api/desk_status.py": ("100644", "dbe90dba9aca406bd9a5d16cd8b20cba0e428809"),  # dbe90dba
     # Cached observers list on the pre-panel handler. Replaces b982b1ba.
     "api/observer_status.py": (
         "100644",
@@ -69,7 +71,26 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     "core/execution/paper_bar_eval.py": ("100644", "5374ab24628ef9e330dbf4b6f433461cc1f299e5"),
     "core/execution/paper_cash.py": ("100644", "fde5e49bc1e72261ce258a182aee2e7913fb8f52"),
     "core/execution/paper_settle.py": ("100644", "830b3c5b9e408c726bd6f2c9714347cf61b8d3b3"),
-    "firm/memory.py": ("100644", "fba54b57a7c07c2540dc2246b83ca16913179bfa"),  # fba54b57
+    # Spec JSON is read once per directory mtime. Replaces 55048d05.
+    "core/strategy/spec_sleeve.py": (
+        "100644",
+        "0b9496b0152d32df23313f220129985dd71a104b",
+    ),  # 0b9496b0
+    # Book certificate is computed once per book sha. Replaces 9dbd11c1.
+    "firm/integrity.py": ("100644", "fa4ee9e9e2b33f752d4a964cd5d333f78383c0dd"),  # fa4ee9e9
+    # Inbox prune and escalation expiry run at most once a minute on read.
+    "firm/memory.py": ("100644", "c5885e60bf784a9f98832a5c825a0af211692ba2"),  # c5885e60
+    # /api/floor single-flight, 30s. Replaces d64b6dc3.
+    "firm/orchestrator.py": (
+        "100644",
+        "1ced376e5718b670453d37859c4790651a00231d",
+    ),  # 1ced376e
+    "firm/read_cache.py": ("100644", "a878bcfe633347928b02c071b5ba2a69eae75fbf"),  # a878bcfe
+    # Ranking file is read once per mtime. Replaces a3cb6239.
+    "firm/research_catalog.py": (
+        "100644",
+        "fceddead19de1f6f2cfb25e3427eedd98099c88d",
+    ),  # fceddead
     # Blob of this path at 5dff9454 (#138), overlaid on b00c4f73.
     "firm/scan_inbox.py": (
         "100644",
@@ -91,11 +112,11 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     ),  # 477cf0da
     "tests/test_f111_execution_repair.py": ("100644", "162c2620ea20ae7c24e09b08a96e46cbb5fcf913"),
     "tests/test_scan_fill_counts.py": ("100644", "f0520d2ea966389b521b5cd962a0cdd150696d53"),
-    # Current file at 5dff9454 (#136). Replaces 456b0c8e from b00c4f73.
+    # Inbox read prunes at most once a minute. Replaces 3cc0e6e4.
     "tests/test_scan_inbox.py": (
         "100644",
-        "3cc0e6e47d4f967be2182843a91595d12d454894",
-    ),  # 3cc0e6e4
+        "8e61d1b20b853076111341536d7d1d9936251331",
+    ),  # 8e61d1b2
     "tests/test_why_no_trade.py": (
         "100644",
         "1e76aaa07bc5f59b7347d494e4e4753b3eb9c410",

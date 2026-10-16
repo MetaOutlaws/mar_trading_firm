@@ -24,11 +24,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# A desk poll used to be 15s. 45s is inside the requested 30-60s window:
-# long enough that a hidden-tab pause and a slow build still serve the
-# last snapshot, short enough that a scan id we failed to read shows up
-# within a minute.
-DEFAULT_TTL_SECONDS = 45.0
+# The live desk poll is 60s. 30s is short of that interval, so a quiet
+# tab still refreshes every poll, and a burst of overlapping polls shares
+# one build instead of stacking on the AnyIO thread pool.
+DEFAULT_TTL_SECONDS = 30.0
 
 # Tail window for the latest telemetry line. A gate row is under 1KB;
 # 16KB still covers a long feature payload without reading the file.
