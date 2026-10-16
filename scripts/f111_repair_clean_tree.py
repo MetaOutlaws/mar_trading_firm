@@ -3,8 +3,10 @@
 The collector refuses to read a Singapore checkout whose tracked files differ
 from the pinned repair commit ``b00c4f73``. The allowlist is the 2026-10-16
 SGP1 overlay, the ``firm/memory.py`` hot fix, ``api/observer_status.py`` from
-``ee994abe``, and the eight files #135 changes at ``3424c265`` (applied on
-the server as an overlay on ``b00c4f73``). Nothing else may stay staged.
+``ee994abe``, the eight files #135 changes at ``3424c265``, and
+``firm/scan_inbox.py`` at ``8fe9688f`` (#138). The #135 files and
+``firm/scan_inbox.py`` are applied on the server as an overlay on
+``b00c4f73``. Nothing else may stay staged.
 
 A path is allowed only when it is one of those paths and both the index and
 the worktree are the pinned git blob at that path's pinned mode. The two
@@ -47,6 +49,11 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     "core/execution/paper_cash.py": ("100644", "fde5e49bc1e72261ce258a182aee2e7913fb8f52"),
     "core/execution/paper_settle.py": ("100644", "830b3c5b9e408c726bd6f2c9714347cf61b8d3b3"),
     "firm/memory.py": ("100644", "fba54b57a7c07c2540dc2246b83ca16913179bfa"),  # fba54b57
+    # Blob of this path at 5dff9454 (#138), overlaid on b00c4f73.
+    "firm/scan_inbox.py": (
+        "100644",
+        "8fe9688f6c7001d6dcddfa75b942cde105284a1b",
+    ),  # 8fe9688f
     "scripts/run_status_page.py": (
         "100644",
         "b2f130fd36fda79a3d23d987c56ad3484f7e7767",

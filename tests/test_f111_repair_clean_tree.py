@@ -1,4 +1,4 @@
-"""Collector clean-tree guard for the SGP1 overlay plus the #135 file blobs.
+"""Collector clean-tree guard for the SGP1 overlay, the #135 blobs, and #138.
 
 The contract: those paths pass only when both the index and the worktree are
 the pinned blob at that path's pinned mode, a different byte fails, and any
@@ -133,6 +133,10 @@ def test_allowed_exact_match(
         "core/execution/paper_cash.py": ("100644", "fde5e49bc1e72261ce258a182aee2e7913fb8f52"),
         "core/execution/paper_settle.py": ("100644", "830b3c5b9e408c726bd6f2c9714347cf61b8d3b3"),
         "firm/memory.py": ("100644", "fba54b57a7c07c2540dc2246b83ca16913179bfa"),
+        "firm/scan_inbox.py": (
+            "100644",
+            "8fe9688f6c7001d6dcddfa75b942cde105284a1b",
+        ),
         "scripts/run_status_page.py": ("100644", "b2f130fd36fda79a3d23d987c56ad3484f7e7767"),
         "scripts/status_cert_fingerprint.sh": (
             "100755",
@@ -153,6 +157,7 @@ def test_allowed_exact_match(
         **FINDINGS_BLOB_PREFIXES,
         "api/observer_status.py": "28713d3b",
         "firm/memory.py": "fba54b57",
+        "firm/scan_inbox.py": "8fe9688f",
         "core/execution/engine.py": "fd6a6b8e",
         "core/execution/f111_paper.py": "ab390d3f",
         "core/execution/paper.py": "c73ead0f",
@@ -201,6 +206,19 @@ def test_allowed_exact_match(
         mode, _kind, blob = meta.split()
         assert name == path
         assert guard.ALLOWED_OVERLAY[path] == (mode, blob)
+    # firm/scan_inbox.py is the #138 blob SGP1 overlays on b00c4f73.
+    scan_commit = "5dff9454a5dce55e861aeea86eec84779e809ba3"
+    listed = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-tree", scan_commit, "--", "firm/scan_inbox.py"],
+        capture_output=True,
+        text=True,
+    )
+    assert listed.returncode == 0 and listed.stdout.strip()
+    meta, name = listed.stdout.strip().split("\t", 1)
+    mode, _kind, blob = meta.split()
+    assert name == "firm/scan_inbox.py"
+    assert (mode, blob) == ("100644", "8fe9688f6c7001d6dcddfa75b942cde105284a1b")
+    assert guard.ALLOWED_OVERLAY[name] == (mode, blob)
     observer = subprocess.run(
         ["git", "-C", str(ROOT), "ls-tree", "ee994abe", "--", "api/observer_status.py"],
         capture_output=True,
@@ -338,6 +356,49 @@ def test_regular_file_requires_100644(
     code, err = _run(repo, capsys)
     assert code == 1
     assert err == "clean-tree guard: dirty path(s): api/app.py\n"
+
+
+def test_scan_inbox_overlay_pin_fails_closed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The SGP1 scan_inbox overlay passes only as the pinned 100644 blob.
+
+    Server HEAD stays ``b00c4f73``. This path is allowed only when both the
+    index and the worktree are blob ``8fe9688f`` at mode 100644. Different
+    bytes, or the same bytes with the executable mode, fail closed.
+    """
+    path = "firm/scan_inbox.py"
+    mode, sha = guard.ALLOWED_OVERLAY[path]
+    assert (mode, sha) == ("100644", "8fe9688f6c7001d6dcddfa75b942cde105284a1b")
+    blob = subprocess.run(
+        ["git", "-C", str(ROOT), "cat-file", "blob", sha],
+        capture_output=True,
+    )
+    assert blob.returncode == 0 and blob.stdout
+
+    repo = _init(tmp_path)
+    _stage(repo, path, blob.stdout, mode="100644")
+    code, err = _run(repo, capsys)
+    assert code == 0 and err == ""
+
+    # Different bytes on the allowed path are still dirty.
+    _stage(repo, path, blob.stdout + b"\n", mode="100644")
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): firm/scan_inbox.py\n"
+
+    # The pin is 100644. An executable copy of the same bytes fails.
+    _stage(repo, path, blob.stdout, mode="100755")
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): firm/scan_inbox.py\n"
+
+    # A 100644 index with an executable worktree still fails.
+    _stage(repo, path, blob.stdout, mode="100644")
+    (repo / path).chmod(0o755)
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): firm/scan_inbox.py\n"
 
 
 def _parity_tree(dest: Path, *, deployed: str, remote: bool, flip_runtime: bool) -> None:
