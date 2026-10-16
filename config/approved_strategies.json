@@ -62585,5 +62585,295 @@
     "blocked_regimes": [],
     "regime_activation_filter": [],
     "live_authorized": false
+  },
+  "monday_range_sweep_reversal:XLMUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "monday_range_sweep_reversal",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "trade_start": 8.0,
+      "trade_end": 21.0,
+      "max_sweep_pct": 0.015
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "monday_range_sweep_reversal:DYDXUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "monday_range_sweep_reversal",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "trade_start": 8.0,
+      "trade_end": 21.0,
+      "max_sweep_pct": 0.015
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "monday_range_sweep_reversal:ICPUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "monday_range_sweep_reversal",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "trade_start": 8.0,
+      "trade_end": 21.0,
+      "max_sweep_pct": 0.015
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "monday_range_sweep_reversal:DOGEUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "monday_range_sweep_reversal",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "trade_start": 8.0,
+      "trade_end": 21.0,
+      "max_sweep_pct": 0.015
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "monday_range_sweep_reversal:ATOMUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "monday_range_sweep_reversal",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "trade_start": 8.0,
+      "trade_end": 21.0,
+      "max_sweep_pct": 0.015
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "week_open_reclaim:XLMUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "week_open_reclaim",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "min_wrong_closes": 3,
+      "vol_lookback": 20
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "week_open_reclaim:ATOMUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "week_open_reclaim",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "min_wrong_closes": 3,
+      "vol_lookback": 20
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "week_open_reclaim:LINKUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "week_open_reclaim",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "min_wrong_closes": 3,
+      "vol_lookback": 20
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "double_top_neckline_break:ADAUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "double_top_neckline_break",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "lookback": 40,
+      "atr_tol": 0.15
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "double_top_neckline_break:CHZUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "double_top_neckline_break",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "lookback": 40,
+      "atr_tol": 0.15
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "double_top_neckline_break:XLMUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "double_top_neckline_break",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "lookback": 40,
+      "atr_tol": 0.15
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "double_top_neckline_break:LINKUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "double_top_neckline_break",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "lookback": 40,
+      "atr_tol": 0.15
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "fib_extension_break:UNIUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "fib_extension_break",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "pivot_left": 3,
+      "fib_ratio": 1.618,
+      "skip_bull": false,
+      "skip_bear": false
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "range_compression_volume_thrust:FILUSDT:SHORT:4h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:48:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; the results JSON has no params field. No re-optimisation.",
+    "timeframe": "4h",
+    "strategy": "range_compression_volume_thrust",
+    "params": {
+      "take_profit_pct": 0.04,
+      "stop_loss_pct": 0.02,
+      "max_holding_bars": 96,
+      "atr_period": 20,
+      "compress_lookback": 100,
+      "compress_pct": 0.3,
+      "thrust_mult": 1.5,
+      "vol_lookback": 20
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
   }
 }

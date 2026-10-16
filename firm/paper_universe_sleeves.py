@@ -22,10 +22,14 @@ from typing import Any, Mapping
 from config.settings import PROJECT_ROOT
 from config.universe import approval_record_key, parse_approval_key
 from core.strategy.ema_adx_trend import EmaAdxParams, EmaAdxTrendStrategy
+from core.strategy.double_top_neckline_break import DoubleTopNecklineBreakParams
+from core.strategy.fib_extension_break import FibExtensionBreakParams
+from core.strategy.monday_range_sweep_reversal import MondayRangeSweepReversalParams
 from core.strategy.range_compression_volume_thrust import (
     RangeCompressionVolumeThrustParams,
     RangeCompressionVolumeThrustStrategy,
 )
+from core.strategy.week_open_reclaim import WeekOpenReclaimParams
 from firm.research_catalog import RESEARCH_HYPOTHESES
 from firm.research_jobs import CLOCK_BY_FAMILY
 
@@ -537,6 +541,196 @@ def apply_to_path(path: Path = BOOK_PATH) -> dict[str, Any]:
         ),
         "skipped": decision["skipped"],
         "excluded": decision["excluded"],
+        "unchanged": after == before,
+    }
+    summary["risk_limits_sha256"] = book_sha256(RISK_LIMITS_PATH.read_bytes())
+    return summary
+
+
+# Brian YES 2026-10-16 09:48 GST. Fourteen C1/C2 paper rows, append-only.
+# The results artifact's row keys are batch, rule, side, clock, token, and
+# the sealed metrics. There is no params field (the schema sets
+# additionalProperties false). Clocks below are those result rows.
+# Params are the HEAD dataclass defaults — the same freeze already written
+# on the C1 thrust paper rows — not a per-symbol walk-forward pick.
+C1C2_PAPER_OVERRIDE_AT = "2026-10-16T05:48:00+00:00"
+C1C2_PAPER_OVERRIDE_REASON = (
+    "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. "
+    "Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; "
+    "the results JSON has no params field. No re-optimisation."
+)
+# (strategy, symbol, side, timeframe). Timeframe is the JSON clock.
+C1C2_ROWS: tuple[tuple[str, str, str, str], ...] = (
+    ("monday_range_sweep_reversal", "XLMUSDT", "SHORT", "4h"),
+    ("monday_range_sweep_reversal", "DYDXUSDT", "SHORT", "4h"),
+    ("monday_range_sweep_reversal", "ICPUSDT", "SHORT", "4h"),
+    ("monday_range_sweep_reversal", "DOGEUSDT", "SHORT", "4h"),
+    ("monday_range_sweep_reversal", "ATOMUSDT", "SHORT", "4h"),
+    ("week_open_reclaim", "XLMUSDT", "SHORT", "4h"),
+    ("week_open_reclaim", "ATOMUSDT", "SHORT", "4h"),
+    ("week_open_reclaim", "LINKUSDT", "SHORT", "4h"),
+    ("double_top_neckline_break", "ADAUSDT", "SHORT", "1h"),
+    ("double_top_neckline_break", "CHZUSDT", "SHORT", "1h"),
+    ("double_top_neckline_break", "XLMUSDT", "SHORT", "1h"),
+    ("double_top_neckline_break", "LINKUSDT", "SHORT", "1h"),
+    ("fib_extension_break", "UNIUSDT", "SHORT", "4h"),
+    ("range_compression_volume_thrust", "FILUSDT", "SHORT", "4h"),
+)
+_C1C2_PARAM_CLASS = {
+    "monday_range_sweep_reversal": MondayRangeSweepReversalParams,
+    "week_open_reclaim": WeekOpenReclaimParams,
+    "double_top_neckline_break": DoubleTopNecklineBreakParams,
+    "fib_extension_break": FibExtensionBreakParams,
+    "range_compression_volume_thrust": RangeCompressionVolumeThrustParams,
+}
+# Outside the 96-symbol SGP1 list. Included only when the engine can plan them.
+C1C2_OUTSIDE_UNIVERSE = frozenset({"UNIUSDT", "FILUSDT"})
+
+
+def c1c2_default_params(family: str) -> dict[str, Any]:
+    """Dataclass defaults except ``side``. Thrust matches ``frozen_params``.
+
+    The C1/C2 results file does not carry a params object. Omitted fields
+    would stay at these defaults inside ``_named_strategy`` anyway.
+    """
+    if family == "range_compression_volume_thrust":
+        return frozen_params(family)
+    params_cls = _C1C2_PARAM_CLASS.get(family)
+    if params_cls is None:
+        raise KeyError(family)
+    params = params_cls()
+    out: dict[str, Any] = {}
+    for item in fields(params):
+        if item.name == "side":
+            continue
+        out[item.name] = getattr(params, item.name)
+    return out
+
+
+def outside_universe_block(symbol: str) -> str | None:
+    """Why ``build_plan`` would drop this symbol, or None when it can plan it.
+
+    Paper ``build_plan`` walks ``paper_override_records``. It does not consult
+    the SGP1 96-list. ``_entry_from_record`` emits a row when the family is
+    registered and the record has a timeframe. ``KNOWN_INVALID_SYMBOLS`` is
+    not applied on that path; a symbol on that denylist is still refused here
+    so a bad ticker is not appended.
+    """
+    from config.universe import KNOWN_INVALID_SYMBOLS
+
+    if symbol in KNOWN_INVALID_SYMBOLS:
+        return f"{symbol} is in KNOWN_INVALID_SYMBOLS"
+    return None
+
+
+def c1c2_sleeve_record(family: str, timeframe: str, params: Mapping[str, Any]) -> dict[str, Any]:
+    """One paper-only C1/C2 row. ``approved`` is false. Live plan skips it."""
+    return {
+        "approved": False,
+        "paper_override": True,
+        "paper_override_at": C1C2_PAPER_OVERRIDE_AT,
+        "paper_override_by": PAPER_OVERRIDE_BY,
+        "paper_override_reason": C1C2_PAPER_OVERRIDE_REASON,
+        "timeframe": timeframe,
+        "strategy": family,
+        "params": dict(params),
+        "activation_mode": "unrestricted",
+        "blocked_regimes": [],
+        "regime_activation_filter": [],
+        "live_authorized": False,
+    }
+
+
+def plan_c1c2_sleeves(book: Mapping[str, Any]) -> dict[str, Any]:
+    """The fourteen named rows. Skip a key that already exists.
+
+    A family with no registered module is skipped, not coded. UNIUSDT and
+    FILUSDT are outside the 96-list and are added only when
+    ``outside_universe_block`` is empty.
+    """
+    from core.strategy.registry import get_strategy
+
+    present = existing_combinations(book)
+    universe = set(sgp1_paper_universe())
+    added: dict[str, dict[str, Any]] = {}
+    skipped: list[dict[str, str]] = []
+    params_by_family: dict[str, dict[str, Any]] = {}
+    for family, symbol, side, timeframe in C1C2_ROWS:
+        identity = {
+            "strategy": family,
+            "symbol": symbol,
+            "side": side,
+            "timeframe": timeframe,
+        }
+        try:
+            get_strategy(family)
+        except KeyError:
+            skipped.append({**identity, "reason": f"no strategy module registered for {family}"})
+            continue
+        if symbol not in universe:
+            block = outside_universe_block(symbol)
+            if block:
+                skipped.append({**identity, "reason": block})
+                continue
+        key = approval_record_key(family, symbol, side, timeframe)
+        if (family, symbol, side, timeframe) in present or key in book:
+            skipped.append(
+                {**identity, "reason": "rule+symbol+side+timeframe already in the book"}
+            )
+            continue
+        if family not in params_by_family:
+            params_by_family[family] = c1c2_default_params(family)
+        added[key] = c1c2_sleeve_record(family, timeframe, params_by_family[family])
+    return {
+        "added": added,
+        "skipped": skipped,
+        "params": params_by_family,
+    }
+
+
+def append_c1c2_sleeves(raw: bytes) -> tuple[bytes, dict[str, Any]]:
+    """Splice the C1/C2 paper rows. Idempotent once applied."""
+    book = json.loads(raw)
+    if not isinstance(book, dict):
+        raise ValueError("approval book must be a JSON object")
+    decision = plan_c1c2_sleeves(book)
+    updated = splice_records(raw, decision["added"])
+    parsed = json.loads(updated)
+    for key, value in book.items():
+        if parsed.get(key) != value:
+            raise ValueError(f"append changed existing row {key}")
+    for key, value in decision["added"].items():
+        if parsed.get(key) != value:
+            raise ValueError(f"appended row {key} did not round-trip")
+        if value.get("approved") is True or value.get("live_authorized") is True:
+            raise ValueError(f"{key} must not be approved or live")
+    return updated, decision
+
+
+def apply_c1c2_to_path(path: Path = BOOK_PATH) -> dict[str, Any]:
+    """Splice the C1/C2 paper sleeves onto ``path``. Returns a summary."""
+    before = path.read_bytes()
+    after, decision = append_c1c2_sleeves(before)
+    if after != before:
+        path.write_bytes(after)
+    parsed_after = json.loads(path.read_bytes())
+    summary = {
+        "path": str(path),
+        "old_sha256": book_sha256(before),
+        "new_sha256": book_sha256(path.read_bytes()),
+        "sleeves_added": len(decision["added"]),
+        "rows_before": sum(1 for key in json.loads(before) if parse_approval_key(key) is not None),
+        "rows_after": sum(1 for key in parsed_after if parse_approval_key(key) is not None),
+        "approved_after": sum(
+            1
+            for key, value in parsed_after.items()
+            if parse_approval_key(key) is not None
+            and isinstance(value, dict)
+            and value.get("approved") is True
+        ),
+        "added": sorted(decision["added"]),
+        "skipped": decision["skipped"],
+        "params": decision["params"],
         "unchanged": after == before,
     }
     summary["risk_limits_sha256"] = book_sha256(RISK_LIMITS_PATH.read_bytes())

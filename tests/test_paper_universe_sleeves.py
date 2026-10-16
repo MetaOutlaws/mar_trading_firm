@@ -20,18 +20,24 @@ from core.strategy.range_compression_volume_thrust import (
 from core.strategy.doji_star_reversal import DojiStarParams
 from firm.paper_universe_sleeves import (
     BOOK_PATH,
+    C1C2_OUTSIDE_UNIVERSE,
+    C1C2_ROWS,
     CLOSED_REASON,
     DOJI_SOURCE_KEY,
     EXCHANGE_STATUS_BY_SYMBOL,
     RISK_LIMITS_PATH,
+    append_c1c2_sleeves,
     append_doji_sleeves,
     append_sleeves,
     approved_doji_params,
     book_sha256,
+    c1c2_default_params,
     closed_exclusions,
     feature_exclusions,
     frozen_params,
     frozen_timeframe,
+    outside_universe_block,
+    plan_c1c2_sleeves,
     plan_doji_sleeves,
     plan_sleeves,
     required_complete_bars,
@@ -222,7 +228,15 @@ def test_committed_book_old_rows_are_byte_identical() -> None:
         assert new[key] == value
     added_keys = [key for key in new if key not in old]
     assert added_keys
-    assert all(key.split(":")[0] in (*RULES, "doji_star_reversal") for key in added_keys)
+    allowed_families = {
+        *RULES,
+        "doji_star_reversal",
+        "monday_range_sweep_reversal",
+        "week_open_reclaim",
+        "double_top_neckline_break",
+        "fib_extension_break",
+    }
+    assert all(key.split(":")[0] in allowed_families for key in added_keys)
     assert all(new[key]["approved"] is False for key in added_keys)
     assert all(new[key]["paper_override"] is True for key in added_keys)
     assert all(
@@ -278,8 +292,15 @@ def test_skipped_majors_and_added_count() -> None:
         for key in new
         if key not in historical and key.split(":")[0] == "doji_star_reversal"
     ]
+    c1c2_added = [
+        key
+        for key in new
+        if key not in historical
+        and key not in decision["added"]
+        and key.split(":")[0] != "doji_star_reversal"
+    ]
     assert old_rows == 1812
-    assert new_rows == old_rows + len(decision["added"]) + len(doji_added)
+    assert new_rows == old_rows + len(decision["added"]) + len(doji_added) + len(c1c2_added)
     assert book_sha256(current) != OLD_BOOK_SHA256
 
 
@@ -413,8 +434,13 @@ def test_doji_append_keeps_c69ac33f_and_skips_existing_1h() -> None:
     assert all(key.split(":")[1] not in excluded for key in decision["added"])
     old_rows = sum(1 for key in historical if parse_approval_key(key) is not None)
     new_rows = sum(1 for key in new if parse_approval_key(key) is not None)
+    later = [
+        key
+        for key in new
+        if key not in historical and key not in decision["added"]
+    ]
     assert old_rows == 2107
-    assert new_rows == old_rows + len(decision["added"])
+    assert new_rows == old_rows + len(decision["added"]) + len(later)
     approved = sum(
         1
         for key, value in new.items()
@@ -456,3 +482,118 @@ def test_live_plan_does_not_select_new_doji_rows(monkeypatch) -> None:
     # Existing rejected 1h rows were not promoted.
     assert ("doji_star_reversal", "BTCUSDT", "LONG", "1h") not in paper_ids
     assert ("doji_star_reversal", "MATICUSDT", "SHORT", "1h") not in paper_ids
+
+
+# SHA-256 of the book after the doji append (#137) and before the C1/C2 rows.
+DOJI_BOOK_SHA256 = (
+    "a6140daf5d6d996d22fab79fc3fe0f8d97a7814d58b7cd90546253c3fa60b643"
+)
+DOJI_BOOK_LEN = 1908603
+
+
+def _book_before_c1c2(current: bytes) -> bytes:
+    """Recover the a6140daf file from the C1/C2 splice."""
+    assert len(current) >= DOJI_BOOK_LEN
+    comma_at = DOJI_BOOK_LEN - len(OLD_BOOK_CLOSER)
+    assert current[comma_at : comma_at + 1] == b","
+    restored = current[:comma_at] + OLD_BOOK_CLOSER
+    assert len(restored) == DOJI_BOOK_LEN
+    assert book_sha256(restored) == DOJI_BOOK_SHA256
+    return restored
+
+
+def test_c1c2_families_are_registered_and_outside_symbols_are_planable() -> None:
+    """No new strategy code. UNI and FIL are outside the 96 and still planable."""
+    from core.strategy.registry import get_strategy
+
+    families = {row[0] for row in C1C2_ROWS}
+    for family in families:
+        assert get_strategy(family).name == family
+    universe = set(sgp1_paper_universe())
+    assert C1C2_OUTSIDE_UNIVERSE.isdisjoint(universe)
+    assert outside_universe_block("UNIUSDT") is None
+    assert outside_universe_block("FILUSDT") is None
+    assert outside_universe_block("SHIB1000USDT") == "SHIB1000USDT is in KNOWN_INVALID_SYMBOLS"
+
+
+def test_c1c2_append_keeps_a6140daf_and_adds_fourteen() -> None:
+    """Clocks are the C1/C2 result rows. Params are the dataclass defaults."""
+    current = BOOK_PATH.read_bytes()
+    historical_raw = _book_before_c1c2(current)
+    historical = json.loads(historical_raw)
+    decision = plan_c1c2_sleeves(historical)
+    assert decision["skipped"] == []
+    assert list(decision["added"]) == [
+        f"{family}:{symbol}:{side}:{timeframe}" for family, symbol, side, timeframe in C1C2_ROWS
+    ]
+    assert len(decision["added"]) == 14
+    params = decision["params"]
+    assert params["monday_range_sweep_reversal"]["max_sweep_pct"] == 0.015
+    assert params["monday_range_sweep_reversal"]["take_profit_pct"] == 0.04
+    assert params["monday_range_sweep_reversal"]["stop_loss_pct"] == 0.02
+    assert params["week_open_reclaim"]["min_wrong_closes"] == 3
+    assert params["week_open_reclaim"]["vol_lookback"] == 20
+    assert params["double_top_neckline_break"]["lookback"] == 40
+    assert params["double_top_neckline_break"]["atr_tol"] == 0.15
+    assert params["fib_extension_break"]["fib_ratio"] == 1.618
+    assert params["fib_extension_break"]["skip_bull"] is False
+    assert params["fib_extension_break"]["skip_bear"] is False
+    assert params["range_compression_volume_thrust"] == frozen_params(
+        "range_compression_volume_thrust"
+    )
+    for family in params:
+        assert params[family] == c1c2_default_params(family)
+        assert "side" not in params[family]
+    new = json.loads(current)
+    assert set(decision["added"]) <= set(new)
+    ada = new["range_compression_volume_thrust:ADAUSDT:SHORT:4h"]["params"]
+    assert new["range_compression_volume_thrust:FILUSDT:SHORT:4h"]["params"] == ada
+    for key in decision["added"]:
+        row = new[key]
+        assert row["approved"] is False
+        assert row["paper_override"] is True
+        assert row["live_authorized"] is False
+        assert row["activation_mode"] == "unrestricted"
+        assert row["params"] == params[key.split(":")[0]]
+        assert row["timeframe"] == key.split(":")[3]
+    old_rows = sum(1 for key in historical if parse_approval_key(key) is not None)
+    new_rows = sum(1 for key in new if parse_approval_key(key) is not None)
+    assert old_rows == 2256
+    assert new_rows == 2270
+    approved = sum(
+        1
+        for key, value in new.items()
+        if parse_approval_key(key) is not None and value.get("approved") is True
+    )
+    assert approved == 12
+    again, second = append_c1c2_sleeves(current)
+    assert again == current
+    assert second["added"] == {}
+
+
+def test_live_plan_does_not_select_c1c2_rows(monkeypatch) -> None:
+    from config.universe import Universe
+    from core.execution.engine import build_plan
+
+    book = json.loads(BOOK_PATH.read_text(encoding="utf-8"))
+    universe = Universe(approvals={k: v for k, v in book.items() if isinstance(v, dict)})
+    monkeypatch.setattr("core.execution.engine.get_universe", lambda: universe)
+    monkeypatch.setattr("core.data.soko_trend.read_live_soko_trend", lambda: "chop")
+    expected = {
+        (family, symbol, side, timeframe) for family, symbol, side, timeframe in C1C2_ROWS
+    }
+    live = build_plan(require_approval=True)
+    live_ids = {
+        (entry.strategy.name, entry.symbol, entry.side.value, entry.timeframe)
+        for entry in live.entries
+    }
+    assert expected.isdisjoint(live_ids)
+    # Pre-existing approvals stay on the live plan.
+    assert ("monday_range_sweep_reversal", "BNBUSDT", "SHORT", "4h") in live_ids
+    assert ("fib_extension_break", "BTCUSDT", "SHORT", "4h") in live_ids
+    paper = build_plan(require_approval=False)
+    paper_ids = {
+        (entry.strategy.name, entry.symbol, entry.side.value, entry.timeframe)
+        for entry in paper.entries
+    }
+    assert expected <= paper_ids
