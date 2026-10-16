@@ -59903,5 +59903,2687 @@
     "blocked_regimes": [],
     "regime_activation_filter": [],
     "live_authorized": false
+  },
+  "doji_star_reversal:1000BONKUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:1000BONKUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:1000FLOKIUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:1000FLOKIUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:1000PEPEUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:1000PEPEUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:1000RATSUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:1000RATSUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:AAVEUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:AAVEUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ADAUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ADAUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:APEUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:APEUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:APTUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:APTUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ARBUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ARBUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ARPAUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ARPAUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ATOMUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ATOMUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:AUCTIONUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:AUCTIONUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:AVAXUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:AXSUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:AXSUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:BCHUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:BCHUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:BLURUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:BLURUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:BNBUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:CFXUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:CFXUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:CHZUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:CHZUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:COMPUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:COMPUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:CRVUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:CRVUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:DOGEUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:DOGEUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:DOTUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:DOTUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:DYDXUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:DYDXUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ENAUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ENAUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ETCUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ETCUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:FARTCOINUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:FARTCOINUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:GALAUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:GALAUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:GMTUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:GMTUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:HBARUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:HBARUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:HYPEUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:HYPEUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ICPUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ICPUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:INJUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:INJUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:JASMYUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:JASMYUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:JUPUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:JUPUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:KNCUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:KNCUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LDOUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LDOUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LINKUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LINKUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LPTUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LPTUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LTCUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LTCUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LUNA2USDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:LUNA2USDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:MASKUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:MASKUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:MNTUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:MNTUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:MOODENGUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:MOODENGUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:NEARUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:NEARUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:NOTUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:NOTUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ONDOUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ONDOUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:OPUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:OPUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ORDIUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ORDIUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:PENGUUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:PENGUUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:PEOPLEUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:PEOPLEUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:POPCATUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:POPCATUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:PUMPFUNUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:PUMPFUNUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:RAREUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:RAREUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:RUNEUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:RUNEUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SANDUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SANDUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SEIUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SEIUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SHIB1000USDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SHIB1000USDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SPXUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SPXUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:STRKUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:STRKUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:STXUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:STXUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SUIUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SUIUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SUSHIUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:SUSHIUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:TIAUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:TIAUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:TRBUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:TRBUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:TRUMPUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:TRUMPUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:TRXUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:TRXUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:VIRTUALUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:VIRTUALUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:WAVESUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:WAVESUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:WIFUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:WIFUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:WLDUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:WLDUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:XLMUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:XLMUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:XRPUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:YGGUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:YGGUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ZECUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ZECUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ZILUSDT:LONG:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
+  },
+  "doji_star_reversal:ZILUSDT:SHORT:1h": {
+    "approved": false,
+    "paper_override": true,
+    "paper_override_at": "2026-10-16T05:39:00+00:00",
+    "paper_override_by": "operator",
+    "paper_override_reason": "Brian YES 2026-10-16 09:39 GST: paper sleeve only. Live stays off. Clock and params copied from doji_star_reversal:SOLUSDT:SHORT:1h. No re-optimisation.",
+    "timeframe": "1h",
+    "strategy": "doji_star_reversal",
+    "params": {
+      "run_bars": 3,
+      "take_profit_pct": 0.05,
+      "stop_loss_pct": 0.03
+    },
+    "activation_mode": "unrestricted",
+    "blocked_regimes": [],
+    "regime_activation_filter": [],
+    "live_authorized": false
   }
 }
