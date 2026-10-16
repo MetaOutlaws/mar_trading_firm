@@ -29,6 +29,7 @@ packages = [
     "firm.employees",
     "research",
     "research.token_expansion",
+    "research.xs_spread",
 ]
 
 [tool.setuptools.package-data]
