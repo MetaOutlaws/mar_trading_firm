@@ -30,6 +30,7 @@ HARNESS_FILES: tuple[str, ...] = (
     "hashing.py",
     "signals.py",
     "tape.py",
+    "tk.py",
 )
 
 #: Metrics and the turnover-matched random book. Hashed on its own.
