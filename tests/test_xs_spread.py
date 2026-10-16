@@ -50,7 +50,7 @@ from research.xs_spread.scorer import (
     turnover_matched_schedule,
 )
 from research.xs_spread.signals import market_cap_scores, realized_skew, realized_skew_at
-from research.xs_spread.tape import TapeIntegrityError, verify_sums
+from research.xs_spread.tape import TapeIntegrityError, load_tape, normalize_membership, verify_sums
 
 PACKAGE = Path("research/xs_spread")
 T0 = pd.Timestamp("2024-01-01T00:00:00Z")
@@ -744,3 +744,132 @@ def test_score_synthetic_book_writes_metrics(tmp_path: Path) -> None:
     assert veto["verdict"] in {"VETO", "NO_VETO", "REPORT_ONLY"}
     assert veto["verdict"] != "PASS"
     assert veto["can_rescue_a_fail"] is False
+
+
+# Tape C perp_1h.parquet, as reported by the box, and membership_pit.csv.
+TAPE_C_PERP_COLUMNS = (
+    "symbol",
+    "bar_open_ts_ms",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "turnover",
+)
+TAPE_C_MEMBERSHIP_COLUMNS = (
+    "symbol",
+    "status_now",
+    "in_79_tradable",
+    "launchTime",
+    "delistTime",
+    "first_bar",
+    "last_bar",
+    "perp_bars",
+    "perp_missing",
+    "perp_gap_count",
+    "first_funding",
+    "last_funding",
+    "funding_n",
+    "spot_pair_listed_now",
+    "spot_first",
+    "spot_last",
+    "spot_bars",
+    "spot_missing",
+    "spot_gap_count",
+    "spot_mapped_symbol",
+    "spot_mapped_first",
+    "spot_mapped_last",
+    "spot_mapped_bars",
+    "flags",
+)
+
+
+def test_tape_c_column_names_and_funding_flag(tmp_path: Path) -> None:
+    """Load a fixture that uses Tape C's column names, and record funding off.
+
+    ``bar_open_ts_ms`` is milliseconds. A value of 1_704_067_200_000 is
+    2024-01-01 00:00 UTC, not a nanosecond stamp. Membership uses the
+    attached membership_pit.csv header, including an empty delistTime.
+    """
+    open_ms = 1_704_067_200_000
+    hours = 3
+    perp = pd.DataFrame(
+        {
+            "symbol": ["BTCUSDT"] * hours + ["GONEUSDT"] * hours,
+            "bar_open_ts_ms": [open_ms + i * 3_600_000 for i in range(hours)] * 2,
+            "open": [100.0, 101.0, 102.0, 50.0, 51.0, 49.0],
+            "high": [101.0, 102.0, 103.0, 51.0, 52.0, 50.0],
+            "low": [99.0, 100.0, 101.0, 49.0, 50.0, 48.0],
+            "close": [101.0, 102.0, 103.0, 51.0, 49.0, 48.0],
+            "volume": [1.0] * (hours * 2),
+            "turnover": [100.0] * (hours * 2),
+        }
+    )
+    assert tuple(perp.columns) == TAPE_C_PERP_COLUMNS
+    listed = {
+        "symbol": "BTCUSDT",
+        "status_now": "Trading",
+        "in_79_tradable": True,
+        "launchTime": "2023-01-06T02:10Z",
+        "delistTime": "",
+        "first_bar": "2023-01-06T09:00Z",
+        "last_bar": "2026-10-16T05:00Z",
+        "perp_bars": 3,
+        "perp_missing": 0,
+        "perp_gap_count": 0,
+        "first_funding": "2023-01-06T08:00Z",
+        "last_funding": "2026-10-16T04:00Z",
+        "funding_n": 1,
+        "spot_pair_listed_now": False,
+        "spot_first": "",
+        "spot_last": "",
+        "spot_bars": 0,
+        "spot_missing": "",
+        "spot_gap_count": 0,
+        "spot_mapped_symbol": "",
+        "spot_mapped_first": "",
+        "spot_mapped_last": "",
+        "spot_mapped_bars": "",
+        "flags": "",
+    }
+    closed = {
+        **listed,
+        "symbol": "GONEUSDT",
+        "status_now": "Closed",
+        "in_79_tradable": False,
+        "launchTime": "2023-02-24T08:56Z",
+        "delistTime": "2024-06-01T00:00Z",
+        "first_bar": "2023-02-24T11:00Z",
+        "last_bar": "2024-06-01T00:00Z",
+    }
+    membership_raw = pd.DataFrame([listed, closed])
+    assert tuple(membership_raw.columns) == TAPE_C_MEMBERSHIP_COLUMNS
+
+    tape = tmp_path / "tape"
+    tape.mkdir()
+    perp.to_parquet(tape / "perp_1h.parquet", index=False)
+    membership_raw.to_parquet(tape / "membership_pit.parquet", index=False)
+    membership_raw.to_csv(tape / "membership_pit.csv", index=False)
+    write_sha256sums(tape)
+
+    panel, membership, report = load_tape(tape, check_pins=False)
+    assert report["n_files"] == 3
+    btc = panel["BTCUSDT"]
+    assert list(btc.columns) == ["open", "high", "low", "close"]
+    assert btc.index[0] == pd.Timestamp("2024-01-01T00:00:00Z")
+    assert btc.index[1] == pd.Timestamp("2024-01-01T01:00:00Z")
+    # The csv header, not only the parquet, has to normalize.
+    from_csv = normalize_membership(pd.read_csv(tape / "membership_pit.csv"))
+    assert from_csv.loc["BTCUSDT", "launch_time"] == pd.Timestamp("2023-01-06T02:10:00Z")
+    assert pd.isna(from_csv.loc["BTCUSDT", "delist_time"])
+    assert from_csv.loc["BTCUSDT", "first_bar"] == pd.Timestamp("2023-01-06T09:00:00Z")
+    assert membership.loc["GONEUSDT", "delist_time"] == pd.Timestamp("2024-06-01T00:00:00Z")
+    assert is_listed(membership.loc["BTCUSDT"], pd.Timestamp("2024-01-01T00:00:00Z"))
+    assert not is_listed(membership.loc["GONEUSDT"], pd.Timestamp("2024-06-01T00:00:00Z"))
+
+    output = tmp_path / "book"
+    run_window(panel, membership, XS_REALIZED_SKEW_WEEKLY, "main", output)
+    manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["funding_included"] is False
+    assert manifest["cost"]["funding_included"] is False

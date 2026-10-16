@@ -157,6 +157,7 @@ def run_window(
         "window": window,
         "live": "off",
         "paper_only": True,
+        "funding_included": False,
         "metrics_computed": False,
         "rebalance": "Monday 00:00 UTC",
         "fill": "next_open",

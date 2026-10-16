@@ -24,7 +24,11 @@ from research.xs_spread.cells import (
 )
 from research.xs_spread.hashing import sha256_file
 
+# Tape C perp_1h names the bar open ``bar_open_ts_ms`` (int64 milliseconds).
+# membership_pit (csv and parquet) already uses launchTime, delistTime,
+# first_bar and last_bar, which normalize_membership accepts.
 OPEN_TIME_ALIASES = (
+    "bar_open_ts_ms",
     "open_time_ms",
     "open_time",
     "start",
@@ -33,6 +37,8 @@ OPEN_TIME_ALIASES = (
     "ts",
     "time",
 )
+# The column name is the unit. Do not infer it from the magnitude.
+MS_OPEN_TIME_COLUMNS = frozenset({"bar_open_ts_ms"})
 OHLC = ("open", "high", "low", "close")
 
 
@@ -109,8 +115,18 @@ def _pick_column(columns: list[str], aliases: tuple[str, ...], what: str) -> str
     )
 
 
-def _to_utc(values: pd.Series) -> pd.DatetimeIndex:
-    """Bybit kline times are int milliseconds. ISO strings are accepted too."""
+def _to_utc(values: pd.Series, *, unit: str | None = None) -> pd.DatetimeIndex:
+    """Bybit kline times are int milliseconds. ISO strings are accepted too.
+
+    ``unit`` is set for ``bar_open_ts_ms``, which Tape C defines as
+    milliseconds even when a short fixture would not trip the median check.
+    """
+    if unit is not None:
+        numeric = pd.to_numeric(values, errors="coerce")
+        finite = numeric.to_numpy(dtype="float64")
+        if not np.isfinite(finite).any():
+            raise TapeIntegrityError("open-time column is all null")
+        return pd.DatetimeIndex(pd.to_datetime(numeric, unit=unit, utc=True))
     if np.issubdtype(values.dtype, np.number):
         numeric = values.to_numpy(dtype="float64")
         finite = numeric[np.isfinite(numeric)]
@@ -154,11 +170,12 @@ def load_perp_panel(tape_dir: Path) -> dict[str, pd.DataFrame]:
     frame = _read_table(path)
     symbol_col = _pick_column(list(frame.columns), ("symbol",), "symbol")
     time_col = _pick_column(list(frame.columns), OPEN_TIME_ALIASES, "bar open time")
+    time_unit = "ms" if time_col.lower() in MS_OPEN_TIME_COLUMNS else None
     ohlc_cols = [_pick_column(list(frame.columns), (name,), name) for name in OHLC]
     out: dict[str, pd.DataFrame] = {}
     grouped = frame.groupby(symbol_col, sort=False)
     for symbol, part in grouped:
-        index = _to_utc(part[time_col])
+        index = _to_utc(part[time_col], unit=time_unit)
         bars = pd.DataFrame(
             {name: pd.to_numeric(part[col], errors="coerce").to_numpy() for name, col in zip(OHLC, ohlc_cols)},
             index=index,
