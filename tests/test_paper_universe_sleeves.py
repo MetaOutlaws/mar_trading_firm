@@ -22,6 +22,7 @@ from firm.paper_universe_sleeves import (
     BOOK_PATH,
     C1C2_OUTSIDE_UNIVERSE,
     C1C2_ROWS,
+    C1C2_SOURCE_KEY,
     CLOSED_REASON,
     DOJI_SOURCE_KEY,
     EXCHANGE_STATUS_BY_SYMBOL,
@@ -31,7 +32,6 @@ from firm.paper_universe_sleeves import (
     append_sleeves,
     approved_doji_params,
     book_sha256,
-    c1c2_default_params,
     closed_exclusions,
     feature_exclusions,
     frozen_params,
@@ -517,7 +517,7 @@ def test_c1c2_families_are_registered_and_outside_symbols_are_planable() -> None
 
 
 def test_c1c2_append_keeps_a6140daf_and_adds_fourteen() -> None:
-    """Clocks are the C1/C2 result rows. Params are the dataclass defaults."""
+    """Clocks are the C1/C2 result rows. Params are the approved survivor's."""
     current = BOOK_PATH.read_bytes()
     historical_raw = _book_before_c1c2(current)
     historical = json.loads(historical_raw)
@@ -528,34 +528,60 @@ def test_c1c2_append_keeps_a6140daf_and_adds_fourteen() -> None:
     ]
     assert len(decision["added"]) == 14
     params = decision["params"]
-    assert params["monday_range_sweep_reversal"]["max_sweep_pct"] == 0.015
-    assert params["monday_range_sweep_reversal"]["take_profit_pct"] == 0.04
-    assert params["monday_range_sweep_reversal"]["stop_loss_pct"] == 0.02
-    assert params["week_open_reclaim"]["min_wrong_closes"] == 3
-    assert params["week_open_reclaim"]["vol_lookback"] == 20
-    assert params["double_top_neckline_break"]["lookback"] == 40
-    assert params["double_top_neckline_break"]["atr_tol"] == 0.15
-    assert params["fib_extension_break"]["fib_ratio"] == 1.618
-    assert params["fib_extension_break"]["skip_bull"] is False
-    assert params["fib_extension_break"]["skip_bear"] is False
-    assert params["range_compression_volume_thrust"] == frozen_params(
+    assert decision["sources"] == C1C2_SOURCE_KEY
+    for family, source_key in C1C2_SOURCE_KEY.items():
+        source = historical[source_key]
+        assert source["approved"] is True
+        assert list(params[family]) == list(source["params"])
+        assert params[family] == source["params"]
+        assert "side" not in params[family]
+    # Exact approved-row params. Omitted dataclass fields stay omitted.
+    assert params["monday_range_sweep_reversal"] == {
+        "max_sweep_pct": 0.01,
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.03,
+    }
+    assert params["week_open_reclaim"] == {
+        "min_wrong_closes": 3,
+        "vol_lookback": 20,
+        "take_profit_pct": 0.03,
+        "stop_loss_pct": 0.03,
+    }
+    assert params["double_top_neckline_break"] == {
+        "lookback": 30,
+        "atr_tol": 0.15,
+        "take_profit_pct": 0.03,
+        "stop_loss_pct": 0.03,
+    }
+    assert params["fib_extension_break"] == {
+        "fib_ratio": 1.618,
+        "take_profit_pct": 0.05,
+        "stop_loss_pct": 0.02,
+    }
+    assert "skip_bull" not in params["fib_extension_break"]
+    assert params["range_compression_volume_thrust"] == {
+        "compress_pct": 0.3,
+        "thrust_mult": 1.5,
+        "take_profit_pct": 0.03,
+        "stop_loss_pct": 0.03,
+    }
+    assert params["range_compression_volume_thrust"] != frozen_params(
         "range_compression_volume_thrust"
     )
-    for family in params:
-        assert params[family] == c1c2_default_params(family)
-        assert "side" not in params[family]
     new = json.loads(current)
     assert set(decision["added"]) <= set(new)
-    ada = new["range_compression_volume_thrust:ADAUSDT:SHORT:4h"]["params"]
-    assert new["range_compression_volume_thrust:FILUSDT:SHORT:4h"]["params"] == ada
+    for source_key in C1C2_SOURCE_KEY.values():
+        assert new[source_key] == historical[source_key]
     for key in decision["added"]:
         row = new[key]
+        family = key.split(":")[0]
         assert row["approved"] is False
         assert row["paper_override"] is True
         assert row["live_authorized"] is False
         assert row["activation_mode"] == "unrestricted"
-        assert row["params"] == params[key.split(":")[0]]
+        assert row["params"] == params[family]
         assert row["timeframe"] == key.split(":")[3]
+        assert C1C2_SOURCE_KEY[family] in row["paper_override_reason"]
     old_rows = sum(1 for key in historical if parse_approval_key(key) is not None)
     new_rows = sum(1 for key in new if parse_approval_key(key) is not None)
     assert old_rows == 2256

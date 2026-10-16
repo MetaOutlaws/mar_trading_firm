@@ -548,17 +548,21 @@ def apply_to_path(path: Path = BOOK_PATH) -> dict[str, Any]:
 
 
 # Brian YES 2026-10-16 09:48 GST. Fourteen C1/C2 paper rows, append-only.
-# The results artifact's row keys are batch, rule, side, clock, token, and
-# the sealed metrics. There is no params field (the schema sets
-# additionalProperties false). Clocks below are those result rows.
-# Params are the HEAD dataclass defaults — the same freeze already written
-# on the C1 thrust paper rows — not a per-symbol walk-forward pick.
+# research/token_expansion/ingest.py builds rows from sealed trade lists.
+# The schema allows batch, rule, side, clock, token, verdict, seal, and the
+# pf/trades/winrate fields only. There is no params field, and the repo has
+# no token-expansion scoring brief, config, or runner. Brian: the batch
+# replicated the approved row of each family onto new tokens. Params are
+# copied from that approved row, the same way the doji sleeves copy SOL.
 C1C2_PAPER_OVERRIDE_AT = "2026-10-16T05:48:00+00:00"
-C1C2_PAPER_OVERRIDE_REASON = (
-    "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. "
-    "Clock is the C1/C2 results row. Params are the HEAD dataclass defaults; "
-    "the results JSON has no params field. No re-optimisation."
-)
+# Approved survivor each family replicated. Side is SHORT on every source.
+C1C2_SOURCE_KEY = {
+    "monday_range_sweep_reversal": "monday_range_sweep_reversal:BNBUSDT:SHORT:4h",
+    "week_open_reclaim": "week_open_reclaim:XRPUSDT:SHORT:4h",
+    "double_top_neckline_break": "double_top_neckline_break:BTCUSDT:SHORT:1h",
+    "fib_extension_break": "fib_extension_break:BTCUSDT:SHORT:4h",
+    "range_compression_volume_thrust": "range_compression_volume_thrust:XRPUSDT:SHORT:4h",
+}
 # (strategy, symbol, side, timeframe). Timeframe is the JSON clock.
 C1C2_ROWS: tuple[tuple[str, str, str, str], ...] = (
     ("monday_range_sweep_reversal", "XLMUSDT", "SHORT", "4h"),
@@ -588,11 +592,7 @@ C1C2_OUTSIDE_UNIVERSE = frozenset({"UNIUSDT", "FILUSDT"})
 
 
 def c1c2_default_params(family: str) -> dict[str, Any]:
-    """Dataclass defaults except ``side``. Thrust matches ``frozen_params``.
-
-    The C1/C2 results file does not carry a params object. Omitted fields
-    would stay at these defaults inside ``_named_strategy`` anyway.
-    """
+    """Dataclass defaults except ``side``. Used only when no approved row exists."""
     if family == "range_compression_volume_thrust":
         return frozen_params(family)
     params_cls = _C1C2_PARAM_CLASS.get(family)
@@ -605,6 +605,41 @@ def c1c2_default_params(family: str) -> dict[str, Any]:
             continue
         out[item.name] = getattr(params, item.name)
     return out
+
+
+def c1c2_replication_params(
+    book: Mapping[str, Any], family: str
+) -> tuple[dict[str, Any], str]:
+    """Params from the approved survivor, key order preserved.
+
+    Returns ``(params, source_key)``. A missing or unapproved source falls
+    back to the dataclass defaults and an empty source key. ``side`` is not
+    part of the params dict. Fields the approved row omits are not added.
+    """
+    source_key = C1C2_SOURCE_KEY[family]
+    record = book.get(source_key)
+    params = record.get("params") if isinstance(record, dict) else None
+    if (
+        isinstance(record, dict)
+        and record.get("approved") is True
+        and isinstance(params, dict)
+        and params
+    ):
+        return dict(params), source_key
+    return c1c2_default_params(family), ""
+
+
+def c1c2_reason(source_key: str) -> str:
+    """Paper-only stamp. Cites the approved row the params were copied from."""
+    if source_key:
+        copied = f"Params copied from approved {source_key}."
+    else:
+        copied = "No approved source row; params are the HEAD dataclass defaults."
+    return (
+        "Brian YES 2026-10-16 09:48 GST: paper sleeve only. Live stays off. "
+        "Clock is the C1/C2 results row. "
+        f"{copied} No re-optimisation."
+    )
 
 
 def outside_universe_block(symbol: str) -> str | None:
@@ -623,14 +658,19 @@ def outside_universe_block(symbol: str) -> str | None:
     return None
 
 
-def c1c2_sleeve_record(family: str, timeframe: str, params: Mapping[str, Any]) -> dict[str, Any]:
+def c1c2_sleeve_record(
+    family: str,
+    timeframe: str,
+    params: Mapping[str, Any],
+    source_key: str,
+) -> dict[str, Any]:
     """One paper-only C1/C2 row. ``approved`` is false. Live plan skips it."""
     return {
         "approved": False,
         "paper_override": True,
         "paper_override_at": C1C2_PAPER_OVERRIDE_AT,
         "paper_override_by": PAPER_OVERRIDE_BY,
-        "paper_override_reason": C1C2_PAPER_OVERRIDE_REASON,
+        "paper_override_reason": c1c2_reason(source_key),
         "timeframe": timeframe,
         "strategy": family,
         "params": dict(params),
@@ -655,6 +695,7 @@ def plan_c1c2_sleeves(book: Mapping[str, Any]) -> dict[str, Any]:
     added: dict[str, dict[str, Any]] = {}
     skipped: list[dict[str, str]] = []
     params_by_family: dict[str, dict[str, Any]] = {}
+    source_by_family: dict[str, str] = {}
     for family, symbol, side, timeframe in C1C2_ROWS:
         identity = {
             "strategy": family,
@@ -679,12 +720,17 @@ def plan_c1c2_sleeves(book: Mapping[str, Any]) -> dict[str, Any]:
             )
             continue
         if family not in params_by_family:
-            params_by_family[family] = c1c2_default_params(family)
-        added[key] = c1c2_sleeve_record(family, timeframe, params_by_family[family])
+            params, source_key = c1c2_replication_params(book, family)
+            params_by_family[family] = params
+            source_by_family[family] = source_key
+        added[key] = c1c2_sleeve_record(
+            family, timeframe, params_by_family[family], source_by_family[family]
+        )
     return {
         "added": added,
         "skipped": skipped,
         "params": params_by_family,
+        "sources": source_by_family,
     }
 
 
