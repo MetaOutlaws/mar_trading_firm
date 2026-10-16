@@ -46,6 +46,23 @@ class CellConfig:
     runnable: bool
     check_tape_pins: bool
     note: str
+    # Dollar-neutral terciles are the skew book and the TK book.
+    # Defaults keep the skew cell on its original path.
+    weighting: str = "dollar_neutral"
+    funding_included: bool = False
+    # Report-only second cost. None means the cell has one level.
+    proxy_leg_cost_rate: float | None = None
+    proxy_cost_label: str = ""
+    btc_sampler_rt: float | None = None
+    sol_sampler_rt: float | None = None
+    mde_d: float | None = None
+    mde_weeks: int | None = None
+    # Daily feature window. The skew cell does not read these.
+    lookback_days: int = 60
+    min_daily_returns: int = 50
+    # Cell document, relative to the package. Empty means this cell does
+    # not hash a countersign at run time (the skew cell pins its own).
+    countersign_relative: str = ""
 
 
 XS_REALIZED_SKEW_WEEKLY = CellConfig(
@@ -87,10 +104,71 @@ SIZE_FACTOR_WEEKLY_CAP = CellConfig(
     ),
 )
 
+# xs_prospect_value_weekly. Documents live beside this package and are not
+# part of the skew document pins. Prereg 2afe8b36 is countersigned in
+# xs_prospect_value_weekly/COUNTERSIGN.md (dfc6180d). The run hashes that
+# file; it does not trust this constant alone.
+TK_LOCK_SHA256 = "a712319ac9175e2e41befbbcae4c0dee7d18a3d077e14f3fa1e1bae38d702c15"
+TK_PREREG_SHA256 = "2afe8b36b22a25ab4b46884795435520a24fb1bf621034dc2cfe63fd86d236d9"
+TK_PROPOSAL_SHA256 = "b815ed4db98f8b72e17803742434d51cbb4437278f2d5ddfb42f060bda783d2e"
+TK_PRESTATED_SHA256 = "62e906ffd6a2f359559c1b8dde525d4778419cd8fc0ce9f81409b3b9ce6f8f73"
+TK_COUNTERSIGN_SHA256 = "dfc6180dc774e40f4d216bc1cde4157a97831171a46d975fd360402d51e6e95b"
+TK_COUNTERSIGN_RELATIVE = "xs_prospect_value_weekly/COUNTERSIGN.md"
+# Official gate rate is 0.31%. The report-only proxy is the mean of the
+# BTC 0.135% and SOL 0.181% measured round trips. Alts are unmeasured.
+TK_BTC_SAMPLER_RT = 0.00135
+TK_SOL_SAMPLER_RT = 0.00181
+TK_PROXY_LEG_COST = (TK_BTC_SAMPLER_RT + TK_SOL_SAMPLER_RT) / 2.0
+
+XS_PROSPECT_VALUE_WEEKLY = CellConfig(
+    name="xs_prospect_value_weekly",
+    signal_name="prospect_value",
+    long_side="bottom",
+    stop_pct=0.12,
+    leg_cost_rate=0.0031,
+    min_history_days=31,
+    lookback_bars=60,
+    min_bars=50,
+    hold_days=7,
+    runnable=True,
+    check_tape_pins=True,
+    note=(
+        "TK value of the past 60 daily 00:00 UTC log returns, minimum 50. "
+        "Each observation has probability 1/n. Value alpha 0.88, lambda 2.25. "
+        "Cumulative decision weights use gamma+ 0.61 and gamma- 0.69. "
+        "BTCUSDT is included. Long the bottom tercile, short the top, "
+        "equal-weight, dollar-neutral. Official cost is 0.31% per traded "
+        "notional and binds the gates. 0.158% is the report-only measured "
+        "proxy (mean of BTC 0.135% and SOL 0.181%) and a sign flip vetoes. "
+        "Funding is included and never zero-filled. A name is dropped only "
+        "when the 8h before its entry open has no funding print; an in-hold "
+        "gap is kept and counted. Holdout and 2026 stay behind the lock."
+    ),
+    weighting="dollar_neutral",
+    funding_included=True,
+    proxy_leg_cost_rate=TK_PROXY_LEG_COST,
+    proxy_cost_label="proxy, alts unmeasured",
+    btc_sampler_rt=TK_BTC_SAMPLER_RT,
+    sol_sampler_rt=TK_SOL_SAMPLER_RT,
+    mde_d=0.262,
+    mde_weeks=90,
+    lookback_days=60,
+    min_daily_returns=50,
+    countersign_relative=TK_COUNTERSIGN_RELATIVE,
+)
+
 CELLS: dict[str, CellConfig] = {
     XS_REALIZED_SKEW_WEEKLY.name: XS_REALIZED_SKEW_WEEKLY,
     SIZE_FACTOR_WEEKLY_CAP.name: SIZE_FACTOR_WEEKLY_CAP,
+    XS_PROSPECT_VALUE_WEEKLY.name: XS_PROSPECT_VALUE_WEEKLY,
 }
+
+
+def cost_rates(config: CellConfig) -> tuple[float, ...]:
+    """Official rate first. Extra rates are report-only."""
+    if config.proxy_leg_cost_rate is None:
+        return (config.leg_cost_rate,)
+    return (config.leg_cost_rate, float(config.proxy_leg_cost_rate))
 
 
 def get_cell(name: str) -> CellConfig:

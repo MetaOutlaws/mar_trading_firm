@@ -12,6 +12,14 @@ hashes, is::
 That writes the book and then the scorer. It does not touch
 ``config/approved_strategies.json``. Live stays off.
 
+The prospect-value cell, after the same ACK, is::
+
+    python -m research.xs_spread run \\
+      --cell xs_prospect_value_weekly \\
+      --tape /workspace/research/universe96_full_history_20261016 \\
+      --window main \\
+      --output /workspace/research/xs_spread_runs/xs_prospect_value_weekly_main
+
 ``harness`` stops before the scorer. ``hash`` prints the source digests
 and reads no tape. The holdout adds ``--main-output-dir`` and
 ``--main-output-hash`` (the sha256 of the main run's SHA256SUMS) and
@@ -34,6 +42,14 @@ MAIN_COMMAND = (
     "--tape /workspace/research/universe96_full_history_20261016 "
     "--window main "
     "--output /workspace/research/xs_spread_runs/xs_realized_skew_weekly_main"
+)
+
+TK_MAIN_COMMAND = (
+    "python -m research.xs_spread run "
+    "--cell xs_prospect_value_weekly "
+    "--tape /workspace/research/universe96_full_history_20261016 "
+    "--window main "
+    "--output /workspace/research/xs_spread_runs/xs_prospect_value_weekly_main"
 )
 
 
@@ -88,20 +104,28 @@ def main(argv: list[str] | None = None) -> int:
         print(f"output_sha256 {metrics['output_sha256']}")
         return 0
 
-    from research.xs_spread.harness import assert_holdout_allowed, run_window
+    from research.xs_spread.harness import assert_holdout_allowed, require_countersign, run_window
 
     cell = get_cell(args.cell)
     if not cell.runnable:
         raise NotImplementedError(cell.note)
     # The holdout lock runs before the tape is opened, so a missing hash
-    # never reads a bar.
+    # never reads a bar. A cell that hashes COUNTERSIGN.md refuses here too,
+    # before a bar is read, when that file is missing.
     assert_holdout_allowed(
         args.window,
         cell_name=cell.name,
         main_output_hash=args.main_output_hash,
         main_output_dir=args.main_output_dir,
     )
+    if cell.countersign_relative:
+        require_countersign(cell)
     panel, membership, tape_report = load_tape(args.tape, check_pins=cell.check_tape_pins)
+    funding = None
+    if cell.funding_included:
+        from research.xs_spread.tape import load_funding
+
+        funding = load_funding(args.tape)
     result = run_window(
         panel,
         membership,
@@ -111,6 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         main_output_hash=args.main_output_hash,
         main_output_dir=args.main_output_dir,
         tape_report=tape_report,
+        funding=funding,
     )
     print(f"weeks {result['n_weeks']}")
     print(f"book_sha256 {result['output_sha256']}")

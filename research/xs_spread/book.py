@@ -517,49 +517,144 @@ def ensure_membership(membership: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def _path_row(t: pd.Timestamp, symbol: str, path: NamePath) -> dict[str, object]:
+    return {
+        "rebalance_time": t,
+        "symbol": symbol,
+        "entry_time": path.entry_time,
+        "entry_open": path.entry_open,
+        "long_reason": path.long.reason,
+        "long_exit_time": path.long.exit_time,
+        "long_exit_price": path.long.exit_price,
+        "long_return": path.long.underlying_return,
+        "short_reason": path.short.reason,
+        "short_exit_time": path.short.exit_time,
+        "short_exit_price": path.short.exit_price,
+        "short_return": path.short.underlying_return,
+    }
+
+
 def run_book(
     panel: dict[str, pd.DataFrame],
     membership: pd.DataFrame,
     config: CellConfig,
     window: str,
+    funding: dict[str, pd.Series] | None = None,
 ) -> dict[str, pd.DataFrame]:
-    """Full engine pass for one window. No profit factor and no random book."""
+    """Full engine pass for one window. No profit factor and no random book.
+
+    ``funding`` is required when the cell includes funding. A name is
+    dropped only when the 8h before its entry open has no print. A gap
+    during the hold keeps the name. Only observed prints are summed, and
+    each missing settlement is counted. Missing prints are not zero-filled.
+
+    The skew cell leaves ``funding`` empty and takes the original
+    equal-weight path. Its columns do not change.
+    """
     if not config.runnable:
         raise NotImplementedError(config.note)
     if abs(config.leg_cost_rate - LEG_COST_RATE) > 1e-15:
         raise ValueError(
             f"{config.name} leg cost {config.leg_cost_rate} != pinned rate {LEG_COST_RATE}"
         )
+    if config.funding_included and funding is None:
+        raise RuntimeError(
+            f"{config.name} includes funding on both legs and will not zero-fill a missing tape"
+        )
+    tk_book = config.signal_name == "prospect_value"
+    if tk_book and config.proxy_leg_cost_rate is None:
+        raise ValueError(f"{config.name} is missing the report-only cost level")
     panel = normalize_panel(panel)
     membership = ensure_membership(membership)
     times = rebalance_times(window)
     weight_rows: list[dict[str, object]] = []
     path_rows: list[dict[str, object]] = []
+    score_rows: list[dict[str, object]] = []
     for t in times:
         t_next = t + pd.Timedelta(days=config.hold_days)
-        scores = scores_at(panel, membership, t, config)
-        scores.index = scores.index.map(str)
-        finite = scores.replace([np.inf, -np.inf], np.nan).dropna()
-        raw = tercile_weights(finite, long_side=config.long_side)
-        paths = build_paths(panel, list(finite.index.astype(str)), t, t_next, config.stop_pct)
-        weights = renormalize(raw, set(paths))
-        for symbol, path in paths.items():
-            path_rows.append(
+        if not tk_book:
+            # Skew path. Same terciles, same paths, same equal-weight renormalize.
+            scores = scores_at(panel, membership, t, config)
+            scores.index = scores.index.map(str)
+            finite = scores.replace([np.inf, -np.inf], np.nan).dropna()
+            raw = tercile_weights(finite, long_side=config.long_side)
+            paths = build_paths(panel, list(finite.index.astype(str)), t, t_next, config.stop_pct)
+            weights = renormalize(raw, set(paths))
+            for symbol, path in paths.items():
+                path_rows.append(_path_row(t, symbol, path))
+            for symbol, weight in weights.items():
+                weight_rows.append(
+                    {
+                        "rebalance_time": t,
+                        "symbol": symbol,
+                        "side": _side_of(float(weight)),
+                        "weight": float(weight),
+                        "score": float(finite.loc[symbol]),
+                    }
+                )
+            continue
+        from research.xs_spread.signals import prospect_at
+        from research.xs_spread.tk import (
+            apply_tk_schedule,
+            forward_open_return,
+            funding_accrual,
+            funding_print_before_entry,
+            regime_at,
+        )
+
+        names = eligible_symbols(membership, t, config.min_history_days)
+        feature_rows: dict[str, tuple[float, float]] = {}
+        for symbol in names:
+            bars = panel.get(symbol)
+            if bars is None:
+                continue
+            tk_score, ret60 = prospect_at(
+                bars,
+                t,
+                lookback_days=config.lookback_days,
+                min_returns=config.min_daily_returns,
+            )
+            if not np.isfinite(tk_score) or not np.isfinite(ret60):
+                continue
+            feature_rows[symbol] = (float(tk_score), float(ret60))
+            score_rows.append(
                 {
                     "rebalance_time": t,
                     "symbol": symbol,
-                    "entry_time": path.entry_time,
-                    "entry_open": path.entry_open,
-                    "long_reason": path.long.reason,
-                    "long_exit_time": path.long.exit_time,
-                    "long_exit_price": path.long.exit_price,
-                    "long_return": path.long.underlying_return,
-                    "short_reason": path.short.reason,
-                    "short_exit_time": path.short.exit_time,
-                    "short_exit_price": path.short.exit_price,
-                    "short_return": path.short.underlying_return,
+                    "score": float(tk_score),
+                    "ret60": float(ret60),
+                    "forward_return": forward_open_return(bars, t, t_next),
                 }
             )
+        paths = build_paths(panel, list(feature_rows), t, t_next, config.stop_pct)
+        series = funding or {}
+        funded: dict[str, tuple[NamePath, float, float, int, int]] = {}
+        for symbol, path in paths.items():
+            rates = series.get(symbol)
+            if not funding_print_before_entry(rates, path.entry_time):
+                continue
+            long_sum, long_gap = funding_accrual(rates, path.entry_time, path.long.exit_time)
+            short_sum, short_gap = funding_accrual(rates, path.entry_time, path.short.exit_time)
+            funded[symbol] = (path, long_sum, short_sum, long_gap, short_gap)
+        scored = pd.Series(
+            {symbol: feature_rows[symbol][0] for symbol in funded},
+            dtype="float64",
+            name="score",
+        )
+        raw = tercile_weights(scored, long_side=config.long_side)
+        weights = renormalize(raw, set(funded))
+        regime = ""
+        btc = panel.get("BTCUSDT")
+        if btc is not None:
+            label = regime_at(btc, t)
+            regime = label if isinstance(label, str) else ""
+        for symbol, (path, long_sum, short_sum, long_gap, short_gap) in funded.items():
+            row = _path_row(t, symbol, path)
+            row["long_funding_sum"] = long_sum
+            row["short_funding_sum"] = short_sum
+            row["long_funding_gaps"] = long_gap
+            row["short_funding_gaps"] = short_gap
+            path_rows.append(row)
         for symbol, weight in weights.items():
             weight_rows.append(
                 {
@@ -567,7 +662,8 @@ def run_book(
                     "symbol": symbol,
                     "side": _side_of(float(weight)),
                     "weight": float(weight),
-                    "score": float(finite.loc[symbol]),
+                    "score": float(scored.loc[symbol]),
+                    "regime": regime,
                 }
             )
     weight_cols = ["rebalance_time", "symbol", "side", "weight", "score"]
@@ -585,7 +681,34 @@ def run_book(
         "short_exit_price",
         "short_return",
     ]
+    if tk_book:
+        weight_cols = [*weight_cols, "regime"]
+        path_cols = [
+            *path_cols,
+            "long_funding_sum",
+            "short_funding_sum",
+            "long_funding_gaps",
+            "short_funding_gaps",
+        ]
     weights_frame = pd.DataFrame(weight_rows, columns=weight_cols)
     paths_frame = pd.DataFrame(path_rows, columns=path_cols)
+    if tk_book:
+        from research.xs_spread.tk import apply_tk_schedule
+
+        weekly, trades = apply_tk_schedule(
+            weights_frame,
+            paths_frame,
+            proxy_rate=float(config.proxy_leg_cost_rate),
+        )
+        return {
+            "weights": weights_frame,
+            "name_paths": paths_frame,
+            "weekly_returns": weekly,
+            "leg_trades": trades,
+            "scores": pd.DataFrame(
+                score_rows,
+                columns=["rebalance_time", "symbol", "score", "ret60", "forward_return"],
+            ),
+        }
     weekly, trades = apply_schedule(weights_frame, paths_frame)
     return {"weights": weights_frame, "name_paths": paths_frame, "weekly_returns": weekly, "leg_trades": trades}

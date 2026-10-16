@@ -29,6 +29,7 @@ from research.xs_spread.cells import (
     PREREG_SHA256,
     PROPOSAL_SHA256,
     CellConfig,
+    cost_rates,
 )
 from research.xs_spread.costs import cost_snapshot
 from research.xs_spread.hashing import sha256_file, source_hashes, write_sha256sums
@@ -38,6 +39,30 @@ HOLDOUT_LOCK_MARKER = "LOCKED"
 
 class HoldoutLockedError(RuntimeError):
     """The H2 2025 holdout was asked to run without a matching main hash."""
+
+
+def countersign_path(config: CellConfig) -> Path:
+    """Path of the cell's COUNTERSIGN.md. Empty means the cell has none."""
+    if not config.countersign_relative:
+        raise FileNotFoundError("COUNTERSIGN.md is missing; refusing to run")
+    return PACKAGE_DIR / config.countersign_relative
+
+
+def require_countersign(config: CellConfig) -> str:
+    """Sha256 of COUNTERSIGN.md. Missing file refuses the run.
+
+    The digest is computed from the file bytes. A hardcoded constant is not
+    a substitute, and a null hash is not written.
+    """
+    path = countersign_path(config)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"COUNTERSIGN.md is missing at {path}; refusing to run without countersign_sha256"
+        )
+    digest = sha256_file(path)
+    if not isinstance(digest, str) or len(digest) != 64:
+        raise FileNotFoundError("COUNTERSIGN.md sha256 is missing; refusing to run")
+    return digest
 
 
 def _marker_text() -> str:
@@ -60,9 +85,18 @@ def assert_holdout_allowed(
     """
     if not _marker_text().startswith(HOLDOUT_LOCK_MARKER):
         raise HoldoutLockedError("HOLDOUT_LOCK marker is not LOCKED")
-    if window != "holdout":
+    # The H2 holdout is always shut. xs_prospect_value_weekly also keeps the
+    # 2026 veto shut until that same main hash is on file. The skew veto
+    # window is not shut that way.
+    prospect_veto = cell_name == "xs_prospect_value_weekly" and window == "veto"
+    if window != "holdout" and not prospect_veto:
         return None
     if not main_output_hash or main_output_dir is None:
+        if prospect_veto:
+            raise HoldoutLockedError(
+                "2026 veto is locked. Refusing to run until --main-output-hash is "
+                "supplied and matches the sha256 of the main run's SHA256SUMS."
+            )
         raise HoldoutLockedError(
             "Holdout is locked. Refusing to run until --main-output-hash is "
             "supplied and matches the sha256 of the main run's SHA256SUMS."
@@ -117,7 +151,10 @@ def write_outputs(
             f"{output_dir} already has SHA256SUMS; refusing to overwrite a hashed run"
         )
     output_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("weights", "name_paths", "weekly_returns", "leg_trades"):
+    names = ["weights", "name_paths", "weekly_returns", "leg_trades"]
+    if "scores" in tables:
+        names.append("scores")
+    for name in names:
         _frame_for_csv(tables[name]).to_csv(
             output_dir / f"{name}.csv",
             index=False,
@@ -141,6 +178,7 @@ def run_window(
     main_output_hash: str | None = None,
     main_output_dir: Path | None = None,
     tape_report: dict[str, object] | None = None,
+    funding: dict | None = None,
 ) -> dict[str, object]:
     """Run the engine for one window and write the book. No metrics."""
     unlock = assert_holdout_allowed(
@@ -149,7 +187,12 @@ def run_window(
         main_output_hash=main_output_hash,
         main_output_dir=main_output_dir,
     )
-    tables = run_book(panel, membership, config, window)
+    countersign_sha: str | None = None
+    if config.countersign_relative:
+        countersign_sha = require_countersign(config)
+        if not countersign_sha:
+            raise FileNotFoundError("COUNTERSIGN.md sha256 is missing; refusing to run")
+    tables = run_book(panel, membership, config, window, funding=funding)
     hashes = source_hashes()
     weekly = tables["weekly_returns"]
     manifest: dict[str, object] = {
@@ -157,7 +200,7 @@ def run_window(
         "window": window,
         "live": "off",
         "paper_only": True,
-        "funding_included": False,
+        "funding_included": config.funding_included,
         "metrics_computed": False,
         "rebalance": "Monday 00:00 UTC",
         "fill": "next_open",
@@ -178,6 +221,64 @@ def run_window(
         "tape": tape_report,
         "holdout_unlocked_with_main_hash": unlock,
     }
+    if config.signal_name == "prospect_value":
+        from research.xs_spread.cells import (
+            TK_BTC_SAMPLER_RT,
+            TK_LOCK_SHA256,
+            TK_PREREG_SHA256,
+            TK_PRESTATED_SHA256,
+            TK_PROPOSAL_SHA256,
+            TK_PROXY_LEG_COST,
+            TK_SOL_SAMPLER_RT,
+        )
+
+        if not countersign_sha:
+            raise FileNotFoundError(
+                "COUNTERSIGN.md is missing; refusing to run without countersign_sha256"
+            )
+        weekly_gaps = weekly["funding_gap_count"] if "funding_gap_count" in weekly.columns else None
+        manifest["score_profile"] = "prospect_value"
+        manifest["countersign_sha256"] = countersign_sha
+        manifest["prereg_countersigned"] = True
+        manifest["weighting"] = "equal-weight, dollar-neutral"
+        manifest["mde_d"] = config.mde_d
+        manifest["mde_weeks"] = config.mde_weeks
+        manifest["mde_binds_gates"] = False
+        manifest["grade_cap"] = "B"
+        manifest["funding_zero_filled"] = False
+        manifest["funding_gap_count"] = int(weekly_gaps.sum()) if weekly_gaps is not None and len(weekly) else 0
+        if "long_funding_gap_count" in weekly.columns and len(weekly):
+            manifest["long_funding_gap_count"] = int(weekly["long_funding_gap_count"].sum())
+            manifest["short_funding_gap_count"] = int(weekly["short_funding_gap_count"].sum())
+        else:
+            manifest["long_funding_gap_count"] = 0
+            manifest["short_funding_gap_count"] = 0
+        manifest["cost"] = {
+            **cost_snapshot(),
+            "rates_per_leg_trade": list(cost_rates(config)),
+            "official_rate_per_leg_trade": config.leg_cost_rate,
+            "official_binds_gates": True,
+            "measured_rt_rate_per_leg_trade": TK_PROXY_LEG_COST,
+            "measured_rt_label": config.proxy_cost_label,
+            "measured_rt_binds_gates": False,
+            "measured_rt_sign_flip_is_a_veto": True,
+            "btc_sampler_rt": TK_BTC_SAMPLER_RT,
+            "sol_sampler_rt": TK_SOL_SAMPLER_RT,
+            "funding_included": True,
+            "funding_source": (
+                "observed 8h prints on each leg; a missing print is counted "
+                "and is not zero-filled. CostModel.include_funding stays off "
+                "so the fee does not add a default funding rate."
+            ),
+        }
+        manifest["documents"] = {
+            "proposal_sha256": TK_PROPOSAL_SHA256,
+            "lock_sha256": TK_LOCK_SHA256,
+            "prereg_sha256": TK_PREREG_SHA256,
+            "prestated_sha256": TK_PRESTATED_SHA256,
+            "countersign_sha256": countersign_sha,
+        }
+        manifest["ret60_partial"] = "report-only, scored later, not a gate"
     output_hash = write_outputs(Path(output_dir), tables, manifest)
     return {
         "output_dir": str(output_dir),
@@ -193,7 +294,10 @@ def load_book(output_dir: Path) -> dict[str, pd.DataFrame]:
     """Read a harness directory back. Used by the scorer and by tests."""
     output_dir = Path(output_dir)
     tables = {}
-    for name in ("weights", "name_paths", "weekly_returns", "leg_trades"):
+    names = ["weights", "name_paths", "weekly_returns", "leg_trades"]
+    if (output_dir / "scores.csv").is_file():
+        names.append("scores")
+    for name in names:
         path = output_dir / f"{name}.csv"
         frame = pd.read_csv(path)
         for column in frame.columns:

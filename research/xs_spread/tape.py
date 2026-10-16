@@ -226,6 +226,42 @@ def load_membership(tape_dir: Path) -> pd.DataFrame:
     raise TapeIntegrityError("membership_pit.parquet and membership_pit.csv are both missing")
 
 
+def load_funding(tape_dir: Path) -> dict[str, pd.Series]:
+    """Funding prints keyed by symbol. ``funding_ts_ms`` is milliseconds.
+
+    A missing file is an error. Callers must not replace a hole with zero.
+    An observed rate of zero is kept; it is a real print.
+    """
+    path = Path(tape_dir) / "funding.parquet"
+    if not path.is_file():
+        raise TapeIntegrityError(
+            "funding.parquet is missing; funding is included and is not zero-filled"
+        )
+    frame = _read_table(path)
+    symbol_col = _pick_column(list(frame.columns), ("symbol",), "symbol")
+    time_col = _pick_column(
+        list(frame.columns),
+        ("funding_ts_ms", "funding_time_ms"),
+        "funding time",
+    )
+    rate_col = _pick_column(list(frame.columns), ("funding_rate", "rate"), "funding rate")
+    if time_col.lower() != "funding_ts_ms":
+        raise TapeIntegrityError(f"funding time column {time_col} is not funding_ts_ms")
+    out: dict[str, pd.Series] = {}
+    for symbol, part in frame.groupby(symbol_col, sort=False):
+        index = _to_utc(part[time_col], unit="ms")
+        rates = pd.Series(
+            pd.to_numeric(part[rate_col], errors="coerce").to_numpy(dtype="float64"),
+            index=index,
+            dtype="float64",
+        )
+        rates = rates[~rates.index.duplicated(keep="last")].sort_index()
+        out[str(symbol)] = rates
+    if not out:
+        raise TapeIntegrityError("funding.parquet has no symbols")
+    return out
+
+
 def load_tape(tape_dir: Path, *, check_pins: bool) -> tuple[dict[str, pd.DataFrame], pd.DataFrame, dict[str, object]]:
     """Verify SUMS, then load the perp panel and the membership table."""
     report = verify_sums(tape_dir, check_pins=check_pins)

@@ -57,6 +57,18 @@ def charge_leg(notional: float, model: CostModel | None = None) -> float:
     return float(charging.fee_for(notional, maker=False))
 
 
+def charge_leg_at(notional: float, rate: float) -> float:
+    """Same wrap at a report-only rate. Slippage stays off the fill."""
+    model = CostModel(
+        taker_fee=rate,
+        maker_fee=rate,
+        slippage=0.0,
+        include_funding=False,
+        default_funding_rate=DEFAULT_COSTS.default_funding_rate,
+    )
+    return float(model.fee_for(notional, maker=False))
+
+
 def cost_snapshot() -> dict[str, object]:
     """What a run charged, and the pinned schedule it did not apply to fills."""
     return {
