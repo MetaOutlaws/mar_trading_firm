@@ -189,6 +189,7 @@ def _shell(
     scan: dict[str, Any] | None = None,
     extras: list[dict[str, Any]] | None = None,
     detail: dict[str, Any] | None = None,
+    why_no_trade: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     # None means the book was not readable. An empty list is a real flat book.
     count = None if open_positions is None else len(open_positions)
@@ -218,6 +219,7 @@ def _shell(
         "blotter": shown_blotter,
         "banner": banner,
         "scan": scan,
+        "why_no_trade": why_no_trade,
         "extras": extras or [],
         "paths": paths,
         "detail": detail or {},
@@ -331,6 +333,7 @@ def f111_observer(
             "state_error": state_error,
             "closed_by_reason": (registry.get("closed_by_reason") or {}),
         },
+        why_no_trade=panel.get("why_no_trade"),
     )
 
 
@@ -554,7 +557,10 @@ def _read_bl8_db(
         else:
             result["errors"] = _error_events(db, since_ms=run_start)
         result["open_positions"] = _position_rows(db, "open")
+        result["closed_positions"] = _position_rows(db, "closed")
         result["blotter"] = _closed_blotter(db)
+        result["entry_rejected"] = _entry_rejected_rows(db)
+        result["signals"] = _signal_rows(db)
         cash = db.execute("SELECT coalesce(sum(amount), 0) FROM events").fetchone()
         result["cash_usdt"] = _number(cash[0]) if cash is not None else None
         result["ok"] = True
@@ -618,6 +624,38 @@ def _error_events(db: sqlite3.Connection, *, since_ms: float) -> list[dict[str, 
                 "error": str(payload.get("error") or "")[:240],
                 "rate_limit": code is not None,
                 "ret_code": code,
+            }
+        )
+    return out
+
+
+def _entry_rejected_rows(db: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = _query_bl8(
+        db,
+        "SELECT t, payload FROM observations WHERE kind = 'entry_rejected'",
+    )
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        payload = _json_object(row["payload"])
+        if payload is None:
+            continue
+        out.append({"t": _number(row["t"]), "payload": payload})
+    return out
+
+
+def _signal_rows(db: sqlite3.Connection) -> list[dict[str, Any]]:
+    try:
+        rows = _query_bl8(db, "SELECT symbol, status, payload FROM signals")
+    except sqlite3.Error:
+        return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        payload = _json_object(row["payload"]) or {}
+        out.append(
+            {
+                "symbol": row["symbol"],
+                "status": row["status"],
+                "payload": payload,
             }
         )
     return out
@@ -854,6 +892,19 @@ def bl8_observer(
         scan["retcodes"] = {}
         scan["recent_errors"] = []
 
+    from api.why_no_trade import build_bl8_why, unavailable_why
+
+    if db_view.get("ok"):
+        why_no_trade = build_bl8_why(
+            db_view.get("contexts") or [],
+            entry_rejected=db_view.get("entry_rejected") or [],
+            errors=errors,
+            signals=db_view.get("signals") or [],
+            positions=(db_view.get("open_positions") or []) + (db_view.get("closed_positions") or []),
+        )
+    else:
+        why_no_trade = unavailable_why("This observer's scan was not readable.")
+
     heartbeat = _ms_to_dt(status.get("heartbeat_ms")) if status else None
     heartbeat_age_ms = None
     if heartbeat is not None:
@@ -967,6 +1018,7 @@ def bl8_observer(
             "entries_disabled": paused,
             "config_error": None if config_error == "not configured" else config_error,
         },
+        why_no_trade=why_no_trade,
     )
 
 
@@ -1021,6 +1073,19 @@ def _failed_card(observer_id: str, exc: BaseException) -> dict[str, Any]:
         banner={"tone": "bad", "title": f"{label} unavailable", "body": reason},
         paths={"missing": [reason]},
         scan=scan,
+        why_no_trade={
+            "ok": False,
+            "reason": reason,
+            "summary": reason,
+            "scan_at": None,
+            "funnel": [],
+            "closest_misses": [],
+            "attempts": [],
+            "unavailable": [],
+            "unavailable_count": None,
+            "attempts_truncated": False,
+            "unavailable_truncated": False,
+        },
     )
 
 
