@@ -34,6 +34,7 @@ from research.new_listing_drift.cells import (
     PREREG_SHA256,
     RANDOM_SEED,
     TAPE_SUMS_SHA256,
+    NEW_LISTING_DRIFT_SHORT,
 )
 from research.new_listing_drift.costs import (
     MEASURED_BTC_LEG_RATE,
@@ -46,12 +47,14 @@ from research.new_listing_drift.costs import (
 from research.new_listing_drift.engine import (
     eligible_random_opens,
     find_entry,
+    settlement_times,
     simulate_spread,
     spread_return,
 )
 from research.new_listing_drift.harness import (
     HoldoutLockedError,
     assert_closed_window_allowed,
+    manifest_of,
     run_window,
     write_outputs,
 )
@@ -104,6 +107,22 @@ def _funding(stamps: list[str], rate: float) -> pd.Series:
     return pd.Series(np.full(len(index), rate), index=index, name="funding_rate")
 
 
+def _grid_funding(index: pd.DatetimeIndex, rate: float = 0.0) -> pd.Series:
+    """Observed prints on the 8h UTC grid the bars cover. A rate of 0 is a print."""
+    step = pd.Timedelta(hours=8)
+    first = (int(index[0].value) // int(step.value)) * int(step.value)
+    last = int(index[-1].value)
+    stamps = pd.to_datetime(np.arange(first, last + 1, int(step.value), dtype="int64"), utc=True)
+    return pd.Series(np.full(len(stamps), rate), index=stamps, dtype="float64")
+
+
+def _sim(listing: pd.DataFrame, btc: pd.DataFrame, **kwargs: object):
+    """Price-path simulation with an observed funding print before entry."""
+    kwargs.setdefault("listing_funding", _grid_funding(listing.index))
+    kwargs.setdefault("btc_funding", _grid_funding(btc.index))
+    return simulate_spread(listing, btc, **kwargs)
+
+
 def _expected_entry() -> pd.Timestamp:
     """First bar at or after launch whose close is at or after launch+24h, then the next open."""
     signal, entry = find_entry(_hourly(BAR_START, 80), LAUNCH)
@@ -115,7 +134,7 @@ def _expected_entry() -> pd.Timestamp:
 def test_entry_is_next_open_after_launch_plus_24h():
     entry = _expected_entry()
     listing, btc = _flat_pair()
-    trade = simulate_spread(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
+    trade = _sim(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
     assert trade["exit_reason"] != "no_trade"
     assert trade["entry_time"] == entry
     assert trade["signal_open"] == pd.Timestamp("2024-01-02T00:00:00Z")
@@ -137,7 +156,7 @@ def test_entry_ignores_bars_that_open_before_launch():
 
 def test_no_lookahead_entry_does_not_use_future_prices():
     listing, btc = _flat_pair()
-    base = simulate_spread(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
+    base = _sim(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
     entry = base["entry_time"]
     scrambled = listing.copy()
     # Every close, and every open after the fill, is noise. The fill open stays.
@@ -149,7 +168,7 @@ def test_no_lookahead_entry_does_not_use_future_prices():
     scrambled.loc[after, "open"] = rng.uniform(10.0, 500.0, int(after.sum()))
     # The entry bar's own close is after the decision. It must not move the fill.
     scrambled.at[entry, "close"] = 999.0
-    again = simulate_spread(scrambled, btc, symbol="NEWUSDT", launch=LAUNCH)
+    again = _sim(scrambled, btc, symbol="NEWUSDT", launch=LAUNCH)
     assert again["entry_time"] == base["entry_time"]
     assert again["listing_entry"] == base["listing_entry"]
     assert again["signal_open"] == base["signal_open"]
@@ -167,7 +186,7 @@ def test_stop_fills_next_open_and_ignores_the_wick():
     # Close at 113 is (100-113)/100 = -13% on the short, BTC unchanged.
     listing.at[trigger, "close"] = 113.0
     listing.at[fill, "open"] = 130.0
-    trade = simulate_spread(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
+    trade = _sim(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
     assert trade["exit_reason"] == "stop"
     assert trade["exit_time"] == fill
     assert trade["stop_trigger_open"] == trigger
@@ -185,7 +204,7 @@ def test_delivery_skips_the_zero_volume_bar():
     settlement = pd.Timestamp("2024-01-04T02:00:00Z")
     listing.at[settlement, "volume"] = 0.0
     listing.at[settlement, "open"] = 50.0
-    trade = simulate_spread(
+    trade = _sim(
         listing,
         btc,
         symbol="NEWUSDT",
@@ -202,7 +221,7 @@ def test_delivery_skips_the_zero_volume_bar():
 def test_delist_uses_the_last_tradable_bar():
     listing, btc = _flat_pair()
     deadline = pd.Timestamp("2024-01-05T00:30:00Z")
-    trade = simulate_spread(
+    trade = _sim(
         listing,
         btc,
         symbol="OLDUSDT",
@@ -221,7 +240,7 @@ def test_tape_that_ends_early_is_truncated_not_a_stop():
     # Last bar close would be a stop if we were allowed to fill it. There
     # is no next open, so the exit stays the last open and is a truncation.
     listing.iloc[-1, listing.columns.get_loc("close")] = 180.0
-    trade = simulate_spread(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
+    trade = _sim(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
     assert trade["exit_reason"] == "truncated"
     assert trade["truncated"] is True
     assert trade["exit_time"] == listing.index[-1]
@@ -229,15 +248,20 @@ def test_tape_that_ends_early_is_truncated_not_a_stop():
     assert trade["listing_exit"] == float(listing.iloc[-1]["open"])
 
 
+def _hold_funding(entry: pd.Timestamp, exit_time: pd.Timestamp, rate: float, *, pre: pd.Timestamp) -> pd.Series:
+    """Pre-entry print plus every settlement the hold owes, on the engine's grid."""
+    expected = settlement_times(entry, exit_time, pd.Timedelta(hours=8))
+    stamps = expected.insert(0, pre)
+    return pd.Series(rate, index=stamps)
+
+
 def test_funding_both_legs_and_no_zero_fill():
     listing, btc = _flat_pair()
     entry = _expected_entry()
     exit_time = entry + pd.Timedelta(hours=336)
-    # A complete 8h grid. A hole in it would be a missing settlement, not a zero.
-    grid = pd.date_range(entry + pd.Timedelta(hours=8), exit_time, freq="8h", tz="UTC")
-    grid = grid[grid <= exit_time]
-    listing_funding = pd.Series(0.001, index=grid)
-    btc_funding = pd.Series(0.004, index=grid)
+    pre = entry - pd.Timedelta(hours=1)
+    listing_funding = _hold_funding(entry, exit_time, 0.001, pre=pre)
+    btc_funding = _hold_funding(entry, exit_time, 0.004, pre=pre)
     trade = simulate_spread(
         listing,
         btc,
@@ -246,10 +270,14 @@ def test_funding_both_legs_and_no_zero_fill():
         listing_funding=listing_funding,
         btc_funding=btc_funding,
     )
+    hold_prints = settlement_times(entry, exit_time, pd.Timedelta(hours=8))
     assert trade["funding_missing"] is False
     assert trade["funding_zero_filled"] is False
-    assert trade["funding_listing"] == pytest.approx(0.001 * len(grid))
-    assert trade["funding_btc"] == pytest.approx(0.004 * len(grid))
+    assert trade["funding_gaps"] == 0
+    assert trade["funding_ex_ante_skip"] is False
+    # The pre-entry print is not part of the hold.
+    assert trade["funding_listing"] == pytest.approx(0.001 * len(hold_prints))
+    assert trade["funding_btc"] == pytest.approx(0.004 * len(hold_prints))
     # Short receives the listing rate. Long pays the BTC rate.
     assert trade["funding_r"] == pytest.approx(trade["funding_listing"] - trade["funding_btc"])
     assert trade["funding_r"] < 0.0
@@ -259,31 +287,214 @@ def test_funding_both_legs_and_no_zero_fill():
     assert trade["net_measured"] == pytest.approx(
         trade["gross_r"] + trade["funding_r"] - measured_spread_cost()
     )
-
-    missing = simulate_spread(
+    # An observed zero during the hold is a print. It is summed and it is not a gap.
+    zero_at = hold_prints[3]
+    listing_funding.loc[zero_at] = 0.0
+    observed_zero = simulate_spread(
         listing,
         btc,
         symbol="NEWUSDT",
         launch=LAUNCH,
-        listing_funding=pd.Series(dtype="float64"),
+        listing_funding=listing_funding,
         btc_funding=btc_funding,
     )
-    assert missing["funding_missing"] is True
-    assert missing["funding_zero_filled"] is False
-    assert np.isnan(missing["funding_listing"])
-    assert np.isnan(missing["net_official"])
-    assert np.isnan(missing["net_measured"])
-    # The zero-fill number would be gross minus cost. That number is not stored.
-    zero_fill = missing["gross_r"] - official_spread_cost()
-    assert np.isnan(missing["net_official"])
-    assert zero_fill == pytest.approx(-official_spread_cost())
-    assert not np.isnan(zero_fill)
-    flagged = pd.DataFrame([missing])
+    assert observed_zero["funding_gaps"] == 0
+    assert observed_zero["funding_listing"] == pytest.approx(0.001 * (len(hold_prints) - 1))
+
+
+def test_missing_print_before_entry_skips_only_ex_ante():
+    listing, btc = _flat_pair()
+    entry = _expected_entry()
+    exit_time = entry + pd.Timedelta(hours=336)
+    hold = settlement_times(entry, exit_time, pd.Timedelta(hours=8))
+    # In-hold prints are complete. They must not rescue a missing lookback,
+    # and they must not be read in order to decide the skip.
+    listing_hold = pd.Series(0.001, index=hold)
+    btc_full = _hold_funding(entry, exit_time, 0.004, pre=entry - pd.Timedelta(hours=1))
+    skipped = simulate_spread(
+        listing,
+        btc,
+        symbol="NEWUSDT",
+        launch=LAUNCH,
+        listing_funding=listing_hold,
+        btc_funding=btc_full,
+    )
+    assert skipped["exit_reason"] == "no_trade"
+    assert skipped["funding_ex_ante_skip"] is True
+    assert skipped["entry_time"] == entry
+    assert pd.isna(skipped["exit_time"])
+    assert skipped["no_trade_reason"] == "no funding print in the 8h before the entry open: listing"
+    assert skipped["funding_gaps"] == 0
+    assert skipped["funding_zero_filled"] is False
+    assert np.isnan(skipped["net_official"])
+    flagged = pd.DataFrame([skipped])
     scored = score_trades(flagged, window="main", random_means=np.array([0.0]), n_bootstrap=20)
-    assert scored["verdict"] == "INCOMPLETE"
-    assert scored["passed"] is False
-    assert scored["funding_zero_filled"] is False
     assert scored["n_spread_trades"] == 0
+    assert scored["n_funding_gaps"] == 0
+    assert scored["funding_zero_filled"] is False
+    assert scored["incomplete_funding"] is False
+
+    # Exactly 8h before the open is inside the window. The open itself is not.
+    on_the_boundary = _hold_funding(entry, exit_time, 0.001, pre=entry - pd.Timedelta(hours=8))
+    taken = simulate_spread(
+        listing,
+        btc,
+        symbol="NEWUSDT",
+        launch=LAUNCH,
+        listing_funding=on_the_boundary,
+        btc_funding=btc_full,
+    )
+    assert taken["exit_reason"] == "hold_14d"
+    assert taken["funding_ex_ante_skip"] is False
+    assert taken["funding_gaps"] == 0
+
+    at_the_open = listing_hold.copy()
+    at_the_open.loc[entry] = 0.001
+    at_open = simulate_spread(
+        listing,
+        btc,
+        symbol="NEWUSDT",
+        launch=LAUNCH,
+        listing_funding=at_the_open,
+        btc_funding=btc_full,
+    )
+    assert at_open["funding_ex_ante_skip"] is True
+    assert at_open["exit_reason"] == "no_trade"
+
+    too_early = _hold_funding(
+        entry, exit_time, 0.001, pre=entry - pd.Timedelta(hours=8, minutes=1)
+    )
+    early = simulate_spread(
+        listing,
+        btc,
+        symbol="NEWUSDT",
+        launch=LAUNCH,
+        listing_funding=too_early,
+        btc_funding=btc_full,
+    )
+    assert early["funding_ex_ante_skip"] is True
+    assert "listing" in early["no_trade_reason"]
+
+    listing_full = _hold_funding(entry, exit_time, 0.001, pre=entry - pd.Timedelta(hours=1))
+    btc_hold_only = pd.Series(0.004, index=hold)
+    btc_skip = simulate_spread(
+        listing,
+        btc,
+        symbol="NEWUSDT",
+        launch=LAUNCH,
+        listing_funding=listing_full,
+        btc_funding=btc_hold_only,
+    )
+    assert btc_skip["funding_ex_ante_skip"] is True
+    assert btc_skip["no_trade_reason"] == "no funding print in the 8h before the entry open: btc"
+    assert pd.isna(btc_skip["exit_time"])
+
+
+def test_in_hold_funding_gap_keeps_the_position_and_is_counted(tmp_path: Path):
+    listing, btc = _flat_pair()
+    entry = _expected_entry()
+    exit_time = entry + pd.Timedelta(hours=336)
+    pre = entry - pd.Timedelta(hours=1)
+    full_listing = _hold_funding(entry, exit_time, 0.001, pre=pre)
+    full_btc = _hold_funding(entry, exit_time, 0.004, pre=pre)
+    complete = simulate_spread(
+        listing,
+        btc,
+        symbol="NEWUSDT",
+        launch=LAUNCH,
+        listing_funding=full_listing,
+        btc_funding=full_btc,
+    )
+    hold = settlement_times(entry, exit_time, pd.Timedelta(hours=8))
+    holed = full_listing.drop([hold[1], hold[4]])
+    gapped = simulate_spread(
+        listing,
+        btc,
+        symbol="NEWUSDT",
+        launch=LAUNCH,
+        listing_funding=holed,
+        btc_funding=full_btc,
+    )
+    # The hole does not exit the event and does not move the fill.
+    assert gapped["exit_reason"] == complete["exit_reason"] == "hold_14d"
+    assert gapped["exit_time"] == complete["exit_time"] == exit_time
+    assert gapped["funding_ex_ante_skip"] is False
+    assert gapped["funding_zero_filled"] is False
+    assert gapped["funding_gaps_listing"] == 2
+    assert gapped["funding_gaps_btc"] == 0
+    assert gapped["funding_gaps"] == 2
+    assert gapped["funding_listing"] == pytest.approx(0.001 * (len(hold) - 2))
+    assert gapped["funding_btc"] == pytest.approx(complete["funding_btc"])
+    # The missing slots are not the default rate and not a stored NaN.
+    default_fill = 0.001 * (len(hold) - 2) + DEFAULT_COSTS.default_funding_rate * 2
+    assert gapped["funding_listing"] != pytest.approx(default_fill)
+    assert np.isfinite(gapped["net_official"])
+    assert gapped["net_official"] == pytest.approx(
+        gapped["gross_r"] + gapped["funding_r"] - official_spread_cost()
+    )
+    scored = score_trades(
+        pd.DataFrame([gapped]),
+        window="main",
+        random_means=np.array([0.0]),
+        n_bootstrap=20,
+    )
+    assert scored["verdict"] != "INCOMPLETE"
+    assert scored["incomplete_funding"] is False
+    assert scored["n_spread_trades"] == 1
+    assert scored["n_funding_gaps"] == 2
+    assert scored["funding_zero_filled"] is False
+
+    # No in-hold print at all. The position is still held. The count is the record.
+    pre_only = pd.Series([0.002], index=pd.DatetimeIndex([pre]))
+    empty_hold = simulate_spread(
+        listing,
+        btc,
+        symbol="NEWUSDT",
+        launch=LAUNCH,
+        listing_funding=pre_only,
+        btc_funding=pre_only,
+    )
+    assert empty_hold["exit_reason"] == "hold_14d"
+    assert empty_hold["exit_time"] == exit_time
+    assert empty_hold["funding_listing"] == 0.0
+    assert empty_hold["funding_btc"] == 0.0
+    assert empty_hold["funding_gaps"] == 2 * len(hold)
+    assert empty_hold["funding_zero_filled"] is False
+    assert np.isfinite(empty_hold["net_official"])
+    assert empty_hold["net_official"] == pytest.approx(empty_hold["gross_r"] - official_spread_cost())
+    invented = DEFAULT_COSTS.default_funding_rate * len(hold)
+    assert empty_hold["funding_listing"] != pytest.approx(invented)
+
+    # The same count is on the trade row and in the manifest.
+    _write_gap_tapes(tmp_path)
+    events = pd.DataFrame(
+        [
+            {
+                "symbol": "GAPUSDT",
+                "src": "D",
+                "typ": "",
+                "launch": LAUNCH,
+                "entry": entry,
+                "exit": exit_time,
+                "lag_h": 24.0,
+            }
+        ]
+    )
+    result = run_window(
+        events,
+        {"C": tmp_path / "C", "D": tmp_path / "D", "N": tmp_path / "N"},
+        NEW_LISTING_DRIFT_SHORT,
+        "main",
+        tmp_path / "out",
+    )
+    manifest = manifest_of(tmp_path / "out")
+    written = pd.read_csv(tmp_path / "out" / "trades.csv")
+    assert manifest["n_funding_gaps"] == 1
+    assert manifest["n_funding_ex_ante_skips"] == 0
+    assert manifest["funding_zero_filled"] is False
+    assert int(written.loc[0, "funding_gaps"]) == 1
+    assert written.loc[0, "exit_reason"] == "hold_14d"
+    assert result["n_trades"] == 1
 
 
 def test_cost_per_leg_at_both_levels_does_not_move_the_fill():
@@ -298,7 +509,7 @@ def test_cost_per_leg_at_both_levels_does_not_move_the_fill():
     # The pinned default schedule would move a short fill. The engine does not.
     assert DEFAULT_COSTS.entry_price(100.0, "SHORT") != 100.0
     listing, btc = _flat_pair()
-    trade = simulate_spread(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
+    trade = _sim(listing, btc, symbol="NEWUSDT", launch=LAUNCH)
     assert trade["listing_entry"] == 100.0
     assert trade["listing_exit"] == 100.0
     assert trade["cost_official"] == pytest.approx(0.0062)
@@ -310,7 +521,7 @@ def test_measured_sign_flip_vetoes_and_does_not_rescue():
     entry = _expected_entry()
     # Gross +0.5% sits between the 0.316% proxy and the 0.62% official cost.
     listing.at[pd.Timestamp("2024-01-02T05:00:00Z"), "open"] = 99.5
-    trade = simulate_spread(
+    trade = _sim(
         listing,
         btc,
         symbol="NEWUSDT",
@@ -472,12 +683,18 @@ def test_random_baseline_excludes_the_first_15_days_and_keeps_a_short_tape():
     stopped = listing.loc[[only_start, only_start + pd.Timedelta(hours=1)]].copy()
     stopped.at[only_start, "close"] = 130.0
     stopped.at[only_start + pd.Timedelta(hours=1), "open"] = 140.0
+    pre_print = pd.Series(
+        [0.0],
+        index=pd.DatetimeIndex([only_start - pd.Timedelta(hours=1)]),
+    )
     direct = simulate_spread(
         stopped,
         btc,
         symbol="NEWUSDT",
         launch=only_start - pd.Timedelta(days=15),
         entry_time=only_start,
+        listing_funding=pre_print,
+        btc_funding=pre_print,
         listing_interval=pd.Timedelta(hours=48),
         btc_interval=pd.Timedelta(hours=48),
     )
@@ -486,8 +703,8 @@ def test_random_baseline_excludes_the_first_15_days_and_keeps_a_short_tape():
         "NEWUSDT": {
             "listing": stopped,
             "btc": btc,
-            "listing_funding": pd.Series(dtype="float64"),
-            "btc_funding": pd.Series(dtype="float64"),
+            "listing_funding": pre_print,
+            "btc_funding": pre_print,
             "launch": only_start - pd.Timedelta(days=15),
             "deadline": None,
             "deadline_kind": None,
@@ -689,10 +906,57 @@ def test_sums_verification_and_real_tape_refusal(tmp_path: Path):
         )
 
 
+def _write_gap_tapes(root: Path) -> None:
+    """BTC complete, listing missing exactly one in-hold settlement."""
+    entry = _expected_entry()
+    exit_time = entry + pd.Timedelta(hours=336)
+    index = pd.date_range(BAR_START, periods=400, freq="h", tz="UTC")
+    hold = settlement_times(entry, exit_time, pd.Timedelta(hours=8))
+    pre = entry - pd.Timedelta(hours=1)
+    listing_stamps = hold.delete([0]).insert(0, pre)
+    btc_stamps = hold.insert(0, pre)
+
+    def write(path: Path, symbol: str, price: float, stamps: pd.DatetimeIndex, rate: float) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+        # Timestamp.value is nanoseconds. Index.asi8 follows the index unit.
+        open_ms = [int(pd.Timestamp(stamp).value // 1_000_000) for stamp in index]
+        pd.DataFrame(
+            {
+                "symbol": symbol,
+                "bar_open_ts_ms": open_ms,
+                "open": price,
+                "high": price,
+                "low": price,
+                "close": price,
+                "volume": 1.0,
+            }
+        ).to_csv(path / "perp_1h.csv", index=False)
+        pd.DataFrame(
+            {
+                "symbol": symbol,
+                "funding_ts_ms": [int(pd.Timestamp(stamp).value // 1_000_000) for stamp in stamps],
+                "funding_rate": rate,
+            }
+        ).to_csv(path / "funding.csv", index=False)
+        pd.DataFrame(
+            [
+                {
+                    "symbol": symbol,
+                    "launchTime": int(pd.Timestamp("2023-12-01T00:00:00Z").value // 1_000_000),
+                    "fundingInterval_min": 480,
+                }
+            ]
+        ).to_csv(path / "membership_pit.csv", index=False)
+
+    write(root / "C", "BTCUSDT", 200.0, btc_stamps, 0.004)
+    write(root / "D", "GAPUSDT", 100.0, listing_stamps, 0.001)
+    write(root / "N", "OTHERUSDT", 70.0, btc_stamps, 0.0)
+
+
 def _write_tape(root: Path, symbol: str, price: float, launch_ms: int, delist: str | None = None) -> None:
     root.mkdir(parents=True, exist_ok=True)
     index = pd.date_range("2024-01-01", periods=30, freq="h", tz="UTC")
-    open_ms = (index.asi8 // 1_000_000).astype("int64")
+    open_ms = [int(pd.Timestamp(stamp).value // 1_000_000) for stamp in index]
     bars = pd.DataFrame(
         {
             "symbol": symbol,
@@ -705,12 +969,13 @@ def _write_tape(root: Path, symbol: str, price: float, launch_ms: int, delist: s
         }
     )
     bars.to_csv(root / "perp_1h.csv", index=False)
-    funding_time = index[8]
+    # 00:00 is inside the 8h before a 01:00 entry. 08:00 and 16:00 are the hold.
+    funding_times = [index[0], index[8], index[16]]
     pd.DataFrame(
         {
             "symbol": symbol,
-            "funding_ts_ms": [int(funding_time.value // 1_000_000)],
-            "funding_rate": [0.0],
+            "funding_ts_ms": [int(stamp.value // 1_000_000) for stamp in funding_times],
+            "funding_rate": [0.0, 0.0, 0.0],
         }
     ).to_csv(root / "funding.csv", index=False)
     row = {

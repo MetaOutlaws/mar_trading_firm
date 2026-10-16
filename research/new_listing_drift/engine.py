@@ -24,10 +24,15 @@ have.
 
 Funding is the sum of prints strictly after entry and at or before the
 exit. The short receives the listing rate and the long pays the BTC rate,
-so the funding contribution is listing_sum - btc_sum. A hold long enough
-to contain a settlement, with a missing print, is flagged. The missing
-sum is None. It is not replaced with zero and it is not replaced with
-CostModel's default rate.
+so the funding contribution is listing_sum - btc_sum.
+
+A missing print may skip the event only ex-ante: there is no print in
+the 8 hours before the entry open. That is known before the position
+exists. A gap during the hold does not drop the event and does not
+exit it. The position is kept, funding is the sum of the prints that
+were actually observed, and every missing settlement is counted. A
+missing print is never replaced with zero and never replaced with
+CostModel's default rate. An observed rate of zero is a print.
 """
 
 from __future__ import annotations
@@ -48,6 +53,8 @@ from research.new_listing_drift.costs import measured_spread_cost, official_spre
 HOUR = pd.Timedelta(hours=1)
 HOLD = pd.Timedelta(hours=HOLD_HOURS)
 DELAY = pd.Timedelta(hours=LAUNCH_DELAY_HOURS)
+# Ex-ante only. The hold uses each leg's own settlement interval.
+EX_ANTE_LOOKBACK = pd.Timedelta(hours=8)
 RANDOM_EXCLUSION = pd.Timedelta(days=RANDOM_EXCLUSION_DAYS)
 
 
@@ -221,42 +228,90 @@ def _stop_fill(
     return None
 
 
-def funding_sum(
+def _funding_series(rates: pd.Series | None) -> pd.Series | None:
+    """Finite prints on a UTC index. Anything else is no tape, not a zero."""
+    if rates is None or len(rates) == 0 or not isinstance(rates.index, pd.DatetimeIndex):
+        return None
+    index = rates.index
+    if index.tz is None:
+        index = index.tz_localize("UTC")
+    else:
+        index = index.tz_convert("UTC")
+    values = pd.to_numeric(pd.Series(rates.to_numpy(), index=index), errors="coerce")
+    finite = values[np.isfinite(values.to_numpy(dtype="float64"))]
+    if finite.empty:
+        return None
+    return finite.sort_index()
+
+
+def ex_ante_print_present(rates: pd.Series | None, entry_time: pd.Timestamp) -> bool:
+    """True when some print falls in ``[entry - 8h, entry)``.
+
+    The print at the entry open is not before the entry. A print exactly
+    8h earlier is inside the window. This is the only funding hole that
+    may refuse the trade, and it does not look at the hold.
+    """
+    series = _funding_series(rates)
+    if series is None:
+        return False
+    entry = _as_utc(entry_time)
+    window = series.loc[(series.index >= entry - EX_ANTE_LOOKBACK) & (series.index < entry)]
+    return not window.empty
+
+
+def settlement_times(
+    entry_time: pd.Timestamp,
+    exit_time: pd.Timestamp,
+    interval: pd.Timedelta,
+) -> pd.DatetimeIndex:
+    """UTC grid points strictly after ``entry`` and at or before ``exit``.
+
+    The grid is aligned to the unix epoch at ``interval``, which for 8h
+    is 00:00 / 08:00 / 16:00. A hold that contains no such point owed
+    no settlement.
+    """
+    entry = _as_utc(entry_time)
+    exit_at = _as_utc(exit_time)
+    if exit_at <= entry:
+        return pd.DatetimeIndex([], tz="UTC")
+    step = int(pd.Timedelta(interval).value)
+    if step <= 0:
+        return pd.DatetimeIndex([], tz="UTC")
+    first = (int(entry.value) // step + 1) * step
+    last = int(exit_at.value)
+    if first > last:
+        return pd.DatetimeIndex([], tz="UTC")
+    stamps = np.arange(first, last + 1, step, dtype="int64")
+    return pd.to_datetime(stamps, utc=True)
+
+
+def funding_accrual(
     rates: pd.Series | None,
     entry_time: pd.Timestamp,
     exit_time: pd.Timestamp,
     interval: pd.Timedelta,
-) -> tuple[float | None, bool]:
-    """Sum of funding rates in ``(entry, exit]``.
+) -> tuple[float, int]:
+    """Observed funding over the hold, and the number of missing settlements.
 
-    Returns ``(sum, missing)``. ``missing`` is true when the hold is at
-    least one settlement long and a print that should have fallen inside
-    it is absent. The sum is then None. A short hold with no print is a
-    real zero, not a fill, because no settlement was due.
+    Returns ``(sum, gaps)``. The sum is only prints in ``(entry, exit]``.
+    A grid point in that window with no print is one gap and adds nothing
+    to the sum: not zero as a fabricated print, and not the default rate.
+    An observed zero is a print, so it is summed and it is not a gap.
+    A hold with no grid point returns ``(0.0, 0)`` because nothing was due.
     """
-    if exit_time <= entry_time:
-        return 0.0, False
-    # No prints at all. A short hold did not owe a settlement. A long hold
-    # is missing data, and the sum stays None rather than becoming zero.
-    if rates is None or len(rates) == 0 or not isinstance(rates.index, pd.DatetimeIndex):
-        if exit_time - entry_time < interval:
-            return 0.0, False
-        return None, True
-    series = rates.sort_index()
-    window = series.loc[(series.index > entry_time) & (series.index <= exit_time)]
-    if exit_time - entry_time < interval and window.empty:
-        return 0.0, False
-    if window.empty:
-        return None, True
-    times = list(window.index)
-    if times[0] - entry_time > interval:
-        return None, True
-    for left, right in zip(times, times[1:]):
-        if right - left > interval:
-            return None, True
-    if exit_time - times[-1] > interval:
-        return None, True
-    return float(window.sum()), False
+    expected = settlement_times(entry_time, exit_time, interval)
+    if len(expected) == 0:
+        return 0.0, 0
+    series = _funding_series(rates)
+    if series is None:
+        return 0.0, int(len(expected))
+    entry = _as_utc(entry_time)
+    exit_at = _as_utc(exit_time)
+    observed = series.loc[(series.index > entry) & (series.index <= exit_at)]
+    present = expected.isin(observed.index)
+    gaps = int((~present).sum())
+    total = float(observed.sum()) if len(observed) else 0.0
+    return total, gaps
 
 
 def _blank_trade(symbol: str, launch: pd.Timestamp, reason: str) -> dict[str, Any]:
@@ -278,6 +333,10 @@ def _blank_trade(symbol: str, launch: pd.Timestamp, reason: str) -> dict[str, An
         "funding_r": np.nan,
         "funding_missing": False,
         "funding_zero_filled": False,
+        "funding_gaps": 0,
+        "funding_gaps_listing": 0,
+        "funding_gaps_btc": 0,
+        "funding_ex_ante_skip": False,
         "cost_official": official_spread_cost(),
         "cost_measured": measured_spread_cost(),
         "net_official": np.nan,
@@ -335,6 +394,23 @@ def simulate_spread(
     if listing_entry <= 0.0 or btc_entry <= 0.0 or not np.isfinite(listing_entry) or not np.isfinite(btc_entry):
         return _blank_trade(symbol, launch_ts, "entry open is not a positive price")
 
+    # Ex-ante only. Prints after the entry open are not an input to this skip.
+    missing_legs = [
+        name
+        for name, rates in (("listing", listing_funding), ("btc", btc_funding))
+        if not ex_ante_print_present(rates, entry)
+    ]
+    if missing_legs:
+        trade = _blank_trade(
+            symbol,
+            launch_ts,
+            "no funding print in the 8h before the entry open: " + ",".join(missing_legs),
+        )
+        trade["signal_open"] = signal_open if signal_open is not None else pd.NaT
+        trade["entry_time"] = entry
+        trade["funding_ex_ante_skip"] = True
+        return trade
+
     forced = forced_exit(listing_bars, entry, deadline_ts, deadline_kind)
     if forced is None:
         trade = _blank_trade(symbol, launch_ts, "no exit bar after entry")
@@ -360,23 +436,16 @@ def simulate_spread(
     btc_exit = float(btc_bars.at[exit_time, "open"])
     gross = spread_return(listing_exit, btc_exit, listing_entry, btc_entry)
 
-    listing_sum, listing_missing = funding_sum(
+    listing_sum, listing_gaps = funding_accrual(
         listing_funding, entry, exit_time, listing_interval
     )
-    btc_sum, btc_missing = funding_sum(btc_funding, entry, exit_time, btc_interval)
-    missing = listing_missing or btc_missing
-    # A flagged leg stays None. Adding zero would be the fill this cell forbids.
-    if missing:
-        funding_r = None
-        net_official = None
-        net_measured = None
-    else:
-        assert listing_sum is not None and btc_sum is not None
-        funding_r = float(listing_sum - btc_sum)
-        cost_official = official_spread_cost()
-        cost_measured = measured_spread_cost()
-        net_official = float(gross + funding_r - cost_official)
-        net_measured = float(gross + funding_r - cost_measured)
+    btc_sum, btc_gaps = funding_accrual(btc_funding, entry, exit_time, btc_interval)
+    # Observed prints only. A gap adds nothing and does not blank the net.
+    funding_r = float(listing_sum - btc_sum)
+    cost_official = official_spread_cost()
+    cost_measured = measured_spread_cost()
+    net_official = float(gross + funding_r - cost_official)
+    net_measured = float(gross + funding_r - cost_measured)
 
     return {
         "symbol": symbol,
@@ -391,15 +460,19 @@ def simulate_spread(
         "btc_entry": btc_entry,
         "btc_exit": btc_exit,
         "gross_r": gross,
-        "funding_listing": np.nan if listing_sum is None else listing_sum,
-        "funding_btc": np.nan if btc_sum is None else btc_sum,
-        "funding_r": np.nan if funding_r is None else funding_r,
-        "funding_missing": missing,
+        "funding_listing": listing_sum,
+        "funding_btc": btc_sum,
+        "funding_r": funding_r,
+        "funding_missing": False,
         "funding_zero_filled": False,
-        "cost_official": official_spread_cost(),
-        "cost_measured": measured_spread_cost(),
-        "net_official": np.nan if net_official is None else net_official,
-        "net_measured": np.nan if net_measured is None else net_measured,
+        "funding_gaps": int(listing_gaps + btc_gaps),
+        "funding_gaps_listing": int(listing_gaps),
+        "funding_gaps_btc": int(btc_gaps),
+        "funding_ex_ante_skip": False,
+        "cost_official": cost_official,
+        "cost_measured": cost_measured,
+        "net_official": net_official,
+        "net_measured": net_measured,
         "truncated": reason == "truncated",
         "stop_trigger_open": trigger_open if trigger_open is not None else pd.NaT,
     }

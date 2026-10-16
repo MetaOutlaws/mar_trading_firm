@@ -179,8 +179,15 @@ def profitable_quarter_ratio(trades: pd.DataFrame, column: str = "net_official")
     return float((sums > 0.0).mean())
 
 
+def _gap_count(frame: pd.DataFrame) -> int:
+    """Sum of in-hold funding gaps. Absent column means the book did not count."""
+    if frame.empty or "funding_gaps" not in frame.columns:
+        return 0
+    return int(pd.to_numeric(frame["funding_gaps"], errors="coerce").fillna(0).sum())
+
+
 def _finite_trades(trades: pd.DataFrame) -> pd.DataFrame:
-    """Trades with a real official net. Funding-missing rows are not zeros."""
+    """Trades with a real official net. An ex-ante skip is not a zero."""
     if trades.empty:
         return trades
     taken = trades.loc[trades["exit_reason"] != "no_trade"].copy()
@@ -247,8 +254,9 @@ def random_book_means(
                 entry_time=pick,
             )
             net = sim["net_official"]
-            # A random path with missing funding is not scored as zero.
-            # That name keeps the real trade for this draw.
+            # An ex-ante skip has no net. It is not scored as zero, and
+            # that draw keeps the real trade. An in-hold gap has a finite
+            # net (observed prints only) and is used.
             if net is None or (isinstance(net, float) and not np.isfinite(net)):
                 draw.append(real_net)
             else:
@@ -287,12 +295,15 @@ def score_trades(
     book = _finite_trades(trades)
     missing_funding = 0
     n_truncated = 0
+    n_funding_gaps = 0
     if len(trades):
         taken = trades.loc[trades["exit_reason"] != "no_trade"]
         missing_funding = int(taken["funding_missing"].fillna(False).astype(bool).sum()) if len(taken) else 0
         n_truncated = int(taken["truncated"].fillna(False).astype(bool).sum()) if len(taken) else 0
-    # Funding-missing trades are flagged and left out. They are not zeros,
-    # and a book that still contains one cannot pass.
+        n_funding_gaps = _gap_count(taken)
+    # An in-hold gap stays in the book and does not blank the verdict.
+    # funding_missing is the old refusal flag. The engine no longer sets
+    # it for a counted gap. A row that still carries it cannot pass.
     incomplete = missing_funding > 0
 
     official = book["net_official"].to_numpy(dtype="float64") if len(book) else np.empty(0)
@@ -459,8 +470,13 @@ def score_trades(
         "n_spread_trades": n_trades,
         "n_week_clusters": n_weeks,
         "n_funding_missing": missing_funding,
+        "n_funding_gaps": n_funding_gaps,
         "n_truncated": n_truncated,
         "funding_zero_filled": False,
+        "funding_gap_rule": (
+            "In-hold gaps are counted and accrued from observed prints. "
+            "They do not drop the event. A skip is only the 8h before entry."
+        ),
         "incomplete_funding": incomplete,
         "trades_per_year": _json_float(per_year),
         "max_drawdown": drawdown,

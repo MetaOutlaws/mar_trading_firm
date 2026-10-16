@@ -2,8 +2,8 @@
 
 Outputs, one directory per window:
 
-* ``trades.csv`` — one spread per listing, both cost levels, funding flags
-* ``manifest.json`` — cell, window, cost wrap, source hashes, tape SUMS
+* ``trades.csv`` — one spread per listing, both cost levels, funding gap counts
+* ``manifest.json`` — cell, window, cost wrap, source hashes, tape SUMS, gap count
 * ``SHA256SUMS`` — hash of those files
 
 The sha256 of ``SHA256SUMS`` is the main-output hash. The holdout and the
@@ -234,6 +234,11 @@ def run_window(
         "paper_only": True,
         "funding_included": True,
         "funding_zero_filled": False,
+        "funding_gap_rule": (
+            "A missing print skips the event only when the 8h before the "
+            "entry open has no print. An in-hold gap keeps the position, "
+            "accrues the prints observed, and is counted in n_funding_gaps."
+        ),
         "metrics_computed": False,
         "hash_status": hashes["hash_status"],
         "garwe_ack": hashes["garwe_ack"],
@@ -244,6 +249,12 @@ def run_window(
         "n_events": int(len(trades)),
         "n_trades": int(len(taken)),
         "n_funding_missing": int(taken["funding_missing"].sum()) if len(taken) else 0,
+        "n_funding_gaps": int(pd.to_numeric(taken["funding_gaps"], errors="coerce").fillna(0).sum())
+        if len(taken) and "funding_gaps" in taken.columns
+        else 0,
+        "n_funding_ex_ante_skips": int(trades["funding_ex_ante_skip"].sum())
+        if len(trades) and "funding_ex_ante_skip" in trades.columns
+        else 0,
         "n_truncated": int(taken["truncated"].sum()) if len(taken) else 0,
         "n_catalog_entry_mismatches": int((~taken["entry_matches_catalog"]).sum()) if len(taken) else 0,
         "cost": cost_snapshot(),

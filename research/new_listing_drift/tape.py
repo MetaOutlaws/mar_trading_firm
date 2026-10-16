@@ -248,8 +248,8 @@ def load_symbol_bars(tape_dir: Path, symbol: str) -> pd.DataFrame:
 def load_symbol_funding(tape_dir: Path, symbol: str) -> pd.Series:
     """Funding rates indexed by settlement time. Empty if the symbol has none.
 
-    An empty series is not a zero fill. The engine flags a hold that
-    should have contained a settlement and finds none.
+    An empty series is not a zero fill. The engine skips only when the
+    8h before entry has no print. A hole during the hold is counted.
     """
     tape_dir = Path(tape_dir)
     parquet = tape_dir / "funding.parquet"
