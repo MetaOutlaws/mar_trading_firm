@@ -465,6 +465,122 @@
           "stress_stop_2_net": "-0.054441"
         }
       }
+    },
+    {
+      "id": "token-expansion-c1",
+      "family": "token-expansion C1",
+      "clock": null,
+      "thresholds": {
+        "label": "6,425 main trades. PF —, mean R —, DD —, folds —. 0/12 rows and 0 cells pass."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": null,
+          "target_first_count": null,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": null,
+          "stress_stop_2_net": null
+        },
+        "short": {
+          "n": null,
+          "target_first_count": null,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": null,
+          "stress_stop_2_net": null
+        }
+      }
+    },
+    {
+      "id": "token-expansion-c2",
+      "family": "token-expansion C2",
+      "clock": null,
+      "thresholds": {
+        "label": "6,387 main trades. PF —, mean R —, DD —, folds —. 0/12 rows and 0/120 combos pass."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": null,
+          "target_first_count": null,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": null,
+          "stress_stop_2_net": null
+        },
+        "short": {
+          "n": null,
+          "target_first_count": null,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": null,
+          "stress_stop_2_net": null
+        }
+      }
+    },
+    {
+      "id": "btc_shock_highbeta_alt_short",
+      "family": "btc_shock_highbeta_alt_short",
+      "clock": null,
+      "thresholds": {
+        "label": "trades 703, clusters 86. PF 1.071, mean R +0.001R (trade-level +0.046R), DD 67.6%, folds 5/11."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": null,
+          "target_first_count": null,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": null,
+          "stress_stop_2_net": null
+        },
+        "short": {
+          "n": null,
+          "target_first_count": null,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": null,
+          "stress_stop_2_net": null
+        }
+      }
+    },
+    {
+      "id": "oi_funding_z_positioning",
+      "family": "oi_funding_z_positioning",
+      "clock": null,
+      "thresholds": {
+        "label": "trades 492, clusters 88. PF 0.82, mean R -0.11, DD 58%, folds 3/11."
+      },
+      "verdict": "FAIL",
+      "sides": {
+        "long": {
+          "n": null,
+          "target_first_count": null,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": null,
+          "stress_stop_2_net": null
+        },
+        "short": {
+          "n": null,
+          "target_first_count": null,
+          "target_first_rate": null,
+          "gross": null,
+          "net_after_0_31_rt": null,
+          "same_shell_h18_base_net": null,
+          "stress_stop_2_net": null
+        }
+      }
     }
   ]
 }
