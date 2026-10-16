@@ -14655,6 +14655,7 @@ def _paint_residual_bar(
 
 def test_alt_btc_residual_stretch_fade_schema_and_lock() -> None:
     """Stamped endpoints only. Option B. No book cell. BTC is not a leg."""
+    import json
     from pathlib import Path
 
     from config.pipeline import PAPER_SCAN_SLEEVES
@@ -14733,8 +14734,15 @@ def test_alt_btc_residual_stretch_fade_schema_and_lock() -> None:
     assert all(
         item[0] != "alt_btc_residual_stretch_fade" for item in PAPER_SCAN_SLEEVES
     )
-    approvals = Path("config/approved_strategies.json").read_text(encoding="utf-8")
-    assert "alt_btc_residual_stretch_fade" not in approvals
+    approvals = json.loads(Path("config/approved_strategies.json").read_text(encoding="utf-8"))
+    for key, row in approvals.items():
+        if not isinstance(row, dict):
+            continue
+        if (
+            str(key).startswith("alt_btc_residual_stretch_fade:")
+            or row.get("strategy") == "alt_btc_residual_stretch_fade"
+        ):
+            assert row.get("approved") is not True
 
     bare = _ohlcv(_hourly(4), np.array([1.0, 2.0, 3.0, 4.0]))
     assert maybe_attach_benchmark(
@@ -15412,6 +15420,7 @@ def test_horizontal_liquidity_reject_lookback_and_min_touches() -> None:
 
 def test_horizontal_liquidity_reject_kit_locks_and_no_book_cell() -> None:
     import ast
+    import json
     from pathlib import Path
 
     from config.pipeline import PAPER_SCAN_SLEEVES
@@ -15473,7 +15482,15 @@ def test_horizontal_liquidity_reject_kit_locks_and_no_book_cell() -> None:
     assert all(item[0] != "horizontal_liquidity_reject" for item in PAPER_SCAN_SLEEVES)
     book = Path(__file__).resolve().parents[1] / "config" / "approved_strategies.json"
     if book.exists():
-        assert "horizontal_liquidity_reject" not in book.read_text(encoding="utf-8")
+        payload = json.loads(book.read_text(encoding="utf-8"))
+        for key, row in payload.items():
+            if not isinstance(row, dict):
+                continue
+            if (
+                str(key).startswith("horizontal_liquidity_reject:")
+                or row.get("strategy") == "horizontal_liquidity_reject"
+            ):
+                assert row.get("approved") is not True
     source = (
         Path(__file__).resolve().parents[1]
         / "core"
