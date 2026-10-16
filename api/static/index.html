@@ -1160,8 +1160,10 @@ function showModal(html) {
 }
 function toggleNav() { document.getElementById("sidebar").classList.toggle("open"); }
 
-async function get(path) {
-  const res = await fetch(API + path);
+async function get(path, timeoutMs) {
+  // Observers pass a timeout so a hung scan cannot hold the first paint.
+  const opts = timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {};
+  const res = await fetch(API + path, opts);
   if (!res.ok) throw new Error(path + " " + res.status);
   return res.json();
 }
@@ -2521,6 +2523,82 @@ function observerPositions(rows) {
     </tr>`).join("")}</tbody>
   </table>`;
 }
+function whyTokens(rows) {
+  const list = rows || [];
+  if (!list.length) return "";
+  return list.map(row => {
+    const who = (row.token || row.symbol || "—") + (row.side ? " " + row.side : "");
+    return row.detail ? who + " (" + row.detail + ")" : who;
+  }).join(", ");
+}
+function whyNoTrade(card) {
+  const why = card && card.why_no_trade;
+  if (!why) return "";
+  if (why.ok === false && !(why.funnel || []).length) {
+    return `<section class="card"><h2>Why no trade</h2>${empty("No scan explanation", why.summary || "The latest scan was not readable.")}</section>`;
+  }
+  const funnel = why.funnel || [];
+  const notes = funnel.map(step => step.note).filter(Boolean);
+  const funnelTable = funnel.length ? `<table>
+      <thead><tr><th>Step</th><th>Still in</th><th>Drop-off</th><th>Who failed</th></tr></thead>
+      <tbody>${funnel.map(step => {
+        const extra = step.failed_count > (step.failed || []).length ? " · +" + (step.failed_count - step.failed.length) + " more" : "";
+        const who = whyTokens(step.failed);
+        return `<tr>
+          <td>${esc(step.label || step.id || "")}</td>
+          <td class="num">${esc(step.count)}</td>
+          <td class="num${step.drop_off ? " bad" : ""}">${esc(step.drop_off)}</td>
+          <td class="muted">${who || extra ? esc(who) + esc(extra) : "—"}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>${notes.length ? `<p class="muted">${esc(notes.join(" "))}</p>` : ""}` : empty("No funnel", "This scan did not record steps.");
+  const misses = why.closest_misses || [];
+  const missTable = misses.length ? `<table>
+      <thead><tr><th>Token</th><th>Side</th><th>Gate</th><th>Actual</th><th>Threshold</th><th>Gap</th></tr></thead>
+      <tbody>${misses.map(row => `<tr>
+        <td><strong>${esc(row.token || row.symbol || "—")}</strong></td>
+        <td>${esc(row.side || "—")}</td>
+        <td>${esc(row.gate_label || row.gate || "—")}</td>
+        <td class="num">${esc(row.value == null ? "—" : row.value)}</td>
+        <td class="num">${esc(row.threshold == null ? "—" : row.threshold)}</td>
+        <td>${esc(row.gap_text || "—")}</td>
+      </tr>`).join("")}</tbody>
+    </table>` : `<div class="muted">No measured near miss on this scan.</div>`;
+  const attempts = why.attempts || [];
+  const attemptTable = attempts.length ? `<table>
+      <thead><tr><th>Token</th><th>Side</th><th>Blocked by</th><th>Detail</th></tr></thead>
+      <tbody>${attempts.map(row => `<tr>
+        <td><strong>${esc(row.token || row.symbol || "—")}</strong></td>
+        <td>${esc(row.side || "—")}</td>
+        <td>${esc(row.reason || "—")}</td>
+        <td class="muted">${esc(row.detail || "")}</td>
+      </tr>`).join("")}</tbody>
+    </table>` : `<div class="muted">No signalled entry was blocked, and this scan recorded no error.</div>`;
+  const unavailable = why.unavailable || [];
+  const count = why.unavailable_count == null ? unavailable.length : why.unavailable_count;
+  const unavailTable = unavailable.length ? `<table>
+      <thead><tr><th>Token</th><th>Side</th><th>Status</th></tr></thead>
+      <tbody>${unavailable.map(row => `<tr>
+        <td><strong>${esc(row.token || row.symbol || "—")}</strong></td>
+        <td>${esc(row.side || "—")}</td>
+        <td>${esc(row.status || "—")}</td>
+      </tr>`).join("")}</tbody>
+    </table>` : `<div class="muted">No unavailable markets on this scan.</div>`;
+  return `<section class="card">
+    <h2>Why no trade</h2>
+    <p>${esc(why.summary || "")}</p>
+    <p class="muted">Latest scan only. Read from this observer's rows.</p>
+    <h2 style="margin-top:14px">Funnel</h2>
+    ${funnelTable}
+    <h2 style="margin-top:14px">Closest misses</h2>
+    ${missTable}
+    <h2 style="margin-top:14px">Attempts</h2>
+    ${attemptTable}
+    <h2 style="margin-top:14px">Unavailable</h2>
+    <p class="muted">${esc(count)} on this scan.</p>
+    ${unavailTable}
+  </section>`;
+}
 function observerBlotter(rows) {
   if (!Array.isArray(rows)) return empty("Blotter unavailable", "This observer's ledger was not readable. Nothing was copied into the hourly blotter.");
   const list = rows;
@@ -2604,6 +2682,7 @@ function observerPanel(card) {
         ${observerBlotter(card.blotter)}
       </div>
     </section>
+    ${whyNoTrade(card)}
     <div class="muted">${esc(pathBits.join(" · ") || "no paths configured")}${card.degraded_reason ? " · " + esc(card.degraded_reason) : ""}</div>
   `;
 }
@@ -3216,8 +3295,10 @@ async function wakeFloor() {
 
 // Observers walk the latest scan, so they refresh once a minute, not with
 // the 15s desk poll. A hidden tab does not start a request. A request still
-// in flight is not started again.
+// in flight is not started again. Four seconds is the cap: past that the
+// desk paints without this card and the next minute tries again.
 const OBSERVERS_POLL_MS = 60000;
+const OBSERVERS_TIMEOUT_MS = 4000;
 let observersInflight = null;
 let observersTimer = 0;
 
@@ -3228,7 +3309,7 @@ function observersHidden() {
 function loadObservers(manual) {
   if (!manual && observersHidden()) return Promise.resolve(state.observers);
   if (observersInflight) return observersInflight;
-  observersInflight = get("/api/observers")
+  observersInflight = get("/api/observers", OBSERVERS_TIMEOUT_MS)
     .catch(err => ({ ok: false, error: String(err.message || err), observers: [], pulses: [] }))
     .then(payload => {
       state.observers = payload || { observers: [], pulses: [] };

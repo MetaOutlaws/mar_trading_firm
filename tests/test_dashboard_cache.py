@@ -167,7 +167,10 @@ def test_cached_request_is_under_one_second_on_a_2270_row_book(tmp_path, monkeyp
     assert warm_f_s < 1.0
     assert warm_f["computed_at"] == cold_f["computed_at"]
     assert isinstance(warm_f["age"], int) and warm_f["age"] >= 0
-    assert "why_no_trade" not in warm_f
+    why = warm_f["why_no_trade"]
+    assert why["computed_at"] == warm_f["computed_at"]
+    assert why["age"] == warm_f["age"]
+    assert why["ok"] is True
 
     cold_o = list_observers(
         now=NOW,
@@ -191,7 +194,8 @@ def test_cached_request_is_under_one_second_on_a_2270_row_book(tmp_path, monkeyp
     f111_card = next(card for card in warm_o["observers"] if card["id"] == "f111")
     assert f111_card["computed_at"] == warm_o["computed_at"]
     assert f111_card["age"] == warm_o["age"]
-    assert "why_no_trade" not in f111_card
+    assert f111_card["why_no_trade"]["computed_at"] == warm_o["computed_at"]
+    assert f111_card["why_no_trade"]["ok"] is True
 
 
 def test_cache_invalidates_when_the_book_or_the_scan_changes(tmp_path, monkeypatch) -> None:
@@ -321,14 +325,16 @@ def test_observers_poll_is_slow_and_pauses_while_hidden() -> None:
     """The heavy panel is not on the 15s desk loop."""
     html = (ROOT / "api" / "static" / "index.html").read_text(encoding="utf-8")
     assert "const OBSERVERS_POLL_MS = 60000;" in html
+    assert "const OBSERVERS_TIMEOUT_MS = 4000;" in html
+    assert "AbortSignal.timeout(timeoutMs)" in html
     assert "function observersHidden()" in html
     assert 'document.visibilityState === "hidden"' in html
     assert "observersInflight" in html
-    assert 'get("/api/observers")' in html
+    assert 'get("/api/observers", OBSERVERS_TIMEOUT_MS)' in html
     assert 'get("/api/f111")' not in html
     load = html.split("async function load(", 1)[1].split("function tickClock(", 1)[0]
     # The 15s load must not start this request. The slow poll function does.
-    assert 'get("/api/observers")' not in load
+    assert 'get("/api/observers", OBSERVERS_TIMEOUT_MS)' not in load
     assert "setInterval(load, 15000);" in html
-    assert "function whyNoTrade(" not in html
-    assert "Why no trade" not in html
+    assert "function whyNoTrade(" in html
+    assert "Why no trade" in html

@@ -816,7 +816,12 @@ def _f111_status_uncached(
     else:
         state_error = "missing"
 
+    # Display only. The cache around this function stores the explanation
+    # with the rest of the panel, so a warm poll does not rebuild it.
+    from api.why_no_trade import build_f111_why
+
     blotter = _f111_blotter(rows)
+    why_no_trade = build_f111_why(rows, census)
     realised_values = [row["net_pnl"] for row in blotter if _number(row.get("net_pnl")) is not None]
     sizing_policy = None
     strategy_version = None
@@ -869,4 +874,5 @@ def _f111_status_uncached(
         "sizing_policy": sizing_policy,
         "strategy_version": strategy_version,
         "telemetry_present": telemetry.exists(),
+        "why_no_trade": why_no_trade,
     }

@@ -12,9 +12,10 @@ and the later dashboard pins ``api/desk_status.py``, ``api/observer_status.py``,
 ``firm/research_catalog.py``, and ``core/strategy/spec_sleeve.py``. Those
 paths are applied on the server as an overlay on ``b00c4f73``. Nothing else
 may stay staged. The cache module is part of that overlay: the desk panels
-import it, and an unpinned copy would fail this guard once it is tracked. ``api/why_no_trade.py`` and
-``tests/test_why_no_trade.py`` stay pinned at the 9caf785 blobs so a leftover
-panel file is still allowed. This overlay does not ship that panel.
+import it, and an unpinned copy would fail this guard once it is tracked. The
+why-no-trade panel is part of this overlay: ``api/why_no_trade.py`` and
+``tests/test_why_no_trade.py`` stay the 9caf785 blobs, and the desk, observer,
+and page pins include that panel plus the 60s poll and 4s observers timeout.
 
 A path is allowed only when it is one of those paths and both the index and
 the worktree are the pinned git blob at that path's pinned mode. The two
@@ -47,18 +48,18 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
         "100644",
         "77f83d566ab03c176dea46904db361d5e074cadb",
     ),  # 77f83d56
-    # Cached F111 panel. Telemetry parse is reused on mtime and size.
-    "api/desk_status.py": ("100644", "dbe90dba9aca406bd9a5d16cd8b20cba0e428809"),  # dbe90dba
-    # Cached observers list on the pre-panel handler. Replaces b982b1ba.
+    # Cached F111 panel, including why_no_trade. Replaces dbe90dba.
+    "api/desk_status.py": ("100644", "ffa6095adc4f0885f8bdf8542d5531b6d3cab193"),  # ffa6095a
+    # Cached observers list with the why panel. Replaces a3813379.
     "api/observer_status.py": (
         "100644",
-        "a3813379faa22c2449d288aa2953f6318d095ba2",
-    ),  # a3813379
-    # 60s observers poll on the pre-panel page. Replaces 219d908c.
+        "4eea3afb165ac25200dca5bc21199582fbda8625",
+    ),  # 4eea3afb
+    # Panel page, 60s poll, in-flight guard, 4s observers timeout. Replaces c12e3e53.
     "api/static/index.html": (
         "100644",
-        "c12e3e53fddc7b130a5f9986fb9f11a369667600",
-    ),  # c12e3e53
+        "b88ea34763ca8b4b317b20d75bc505cef6922afb",
+    ),  # b88ea347
     "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),  # ad4de7a2
     "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),  # 28a9ccd9
     "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),  # 9fe475f6
@@ -105,11 +106,11 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
         "94c8b4126490d57ef728d258567dd294e098f0f4",
     ),  # 94c8b412
     "scripts/ufw_status_443.sh": ("100755", "f9ef5d0f510b19421d88f6f249d1c8fb37f92824"),  # f9ef5d0f
-    # Pre-panel UX contract. Replaces the 9caf785 pin 78398fb6.
+    # Panel UX contract plus the 4s observers timeout. Replaces 477cf0da.
     "tests/test_dashboard_ux.py": (
         "100644",
-        "477cf0dad1f9a9397454fa9248e9519986820459",
-    ),  # 477cf0da
+        "8df07e92dc81892b24e3f93bd7ca1a9ea266eb0b",
+    ),  # 8df07e92
     "tests/test_f111_execution_repair.py": ("100644", "162c2620ea20ae7c24e09b08a96e46cbb5fcf913"),
     "tests/test_scan_fill_counts.py": ("100644", "f0520d2ea966389b521b5cd962a0cdd150696d53"),
     # Inbox read prunes at most once a minute. Replaces 3cc0e6e4.

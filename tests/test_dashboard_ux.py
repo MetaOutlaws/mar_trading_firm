@@ -50,6 +50,9 @@ def test_observers_tab_replaces_f111_and_keeps_the_hourly_book():
     html = _html()
     assert "function renderDeskbar(" in html
     assert "function renderObservers(" in html
+    assert "function whyNoTrade(" in html
+    assert "Why no trade" in html
+    assert "Closest misses" in html
     assert "function renderF111(" not in html
     assert '["observers", "Observers"]' in html
     assert '["f111", "F111"]' not in html.split("OBSERVER_CHIPS", 1)[0]
@@ -64,7 +67,8 @@ def test_observers_tab_replaces_f111_and_keeps_the_hourly_book():
     assert "retCode 10006" in html
     assert 'id="deskbar"' in html
     assert "get(\"/api/desk\")" in html
-    assert 'get("/api/observers")' in html
+    assert 'get("/api/observers", OBSERVERS_TIMEOUT_MS)' in html
+    assert "const OBSERVERS_TIMEOUT_MS = 4000;" in html
     assert 'get("/api/f111")' not in html
     assert "Live book" in html
     assert "source_mtime" in html
@@ -85,6 +89,11 @@ def test_observers_tab_replaces_f111_and_keeps_the_hourly_book():
     assert 'get("/api/trades?limit=100")' in html
     blotter = _slice(html, "function renderBlotter(", "function tradeRow(")
     positions = _slice(html, "function renderPositions(", "function positionsTable(")
+    observers = _slice(html, "function observerPanel(", "function renderObservers(")
+    assert "whyNoTrade(card)" in observers
+    assert "Why no trade" not in blotter
+    assert "whyNoTrade" not in blotter
+    assert "whyNoTrade" not in positions
     strategies = _slice(html, "function renderStrategies(", "function renderGates(")
     assert "state.trades" in blotter
     assert "bl8" not in blotter.lower()
