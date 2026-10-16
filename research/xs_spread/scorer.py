@@ -38,7 +38,9 @@ import pandas as pd
 
 from research.significance import bootstrap_expectancy
 from research.validate import DEFAULT_CRITERIA
+from research.xs_spread.bab import apply_beta_schedule, beta_neutral_weights
 from research.xs_spread.book import apply_schedule
+from research.xs_spread.cells import WINDOWS, XS_BAB_BTC_WEEKLY
 from research.xs_spread.harness import HoldoutLockedError, load_book, manifest_of
 from research.xs_spread.hashing import write_sha256sums
 
@@ -370,6 +372,14 @@ def score_book(
     """
     output_dir = Path(output_dir)
     manifest = manifest_of(output_dir)
+    if manifest.get("score_profile") == "bab":
+        return _score_bab_book(
+            output_dir,
+            manifest,
+            n_perm=n_perm,
+            n_bootstrap=n_bootstrap,
+            seed=seed,
+        )
     window = str(manifest.get("window"))
     if window == "holdout" and not manifest.get("holdout_unlocked_with_main_hash"):
         raise HoldoutLockedError(
@@ -419,6 +429,249 @@ def score_book(
             "Each mean is a turnover-matched random tercile book. Rebalance "
             "churn matches the realized number of new names on each leg. "
             "Stop costs follow that book's own paths and are not forced equal."
+        ),
+    }
+    (output_dir / "random_book.json").write_text(
+        json.dumps(random_payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    sums_path = output_dir / "SHA256SUMS"
+    if sums_path.is_file():
+        sums_path.unlink()
+    output_hash = write_sha256sums(output_dir)
+    metrics["output_sha256"] = output_hash
+    return metrics
+
+
+def turnover_matched_beta_schedule(
+    weights: pd.DataFrame,
+    paths: pd.DataFrame,
+    scores: pd.DataFrame,
+    rng: np.random.Generator,
+    *,
+    leverage_cap: float,
+) -> pd.DataFrame:
+    """Random rank-split with the realized churn and the random legs' betas.
+
+    The draw matches the skew null: same k, carried book, realized n_new.
+    Weights then use ``1/mean beta`` of the names actually drawn, the same
+    3x cap, and the same $1 average gross.
+    """
+    path_times = pd.to_datetime(paths["rebalance_time"], utc=True)
+    score_times = pd.to_datetime(scores["rebalance_time"], utc=True)
+    weeks = _week_sets(weights)
+    prev_realized_long: set[str] = set()
+    prev_realized_short: set[str] = set()
+    prev_random_long: set[str] = set()
+    prev_random_short: set[str] = set()
+    rows: list[dict[str, object]] = []
+    for t, long, short in weeks:
+        pool = sorted(set(paths.loc[path_times == t, "symbol"].astype(str)))
+        n_new_long = len(long - prev_realized_long)
+        n_new_short = len(short - prev_realized_short)
+        random_long = draw_leg(prev_random_long, pool, len(long), n_new_long, set(), rng)
+        random_short = draw_leg(
+            prev_random_short, pool, len(short), n_new_short, random_long, rng
+        )
+        part = scores.loc[score_times == t]
+        beta = pd.Series(
+            part["score"].to_numpy(dtype="float64"),
+            index=part["symbol"].astype(str),
+        )
+        scaled = beta_neutral_weights(
+            beta,
+            sorted(random_long),
+            sorted(random_short),
+            leverage_cap=leverage_cap,
+        )
+        if scaled.empty:
+            raise RuntimeError(
+                f"random BAB book at {t} has a non-positive mean beta; not zero-filled"
+            )
+        for symbol, weight in scaled.items():
+            rows.append(
+                {
+                    "rebalance_time": t,
+                    "symbol": str(symbol),
+                    "side": "long" if float(weight) > 0 else "short",
+                    "weight": float(weight),
+                    "score": float(beta.loc[str(symbol)]),
+                }
+            )
+        prev_realized_long, prev_realized_short = long, short
+        prev_random_long, prev_random_short = random_long, random_short
+    return pd.DataFrame(rows)
+
+
+def _regime_gate(weekly: pd.DataFrame) -> dict[str, object]:
+    """LOCK: a regime with at least 5 weeks and a negative mean fails.
+
+    Fewer than 5 weeks is report-only. Unlabelled weeks are not a regime.
+    """
+    if "regime" not in weekly.columns or weekly.empty:
+        return {"pass": True, "regimes": {}, "failing": []}
+    report: dict[str, object] = {}
+    failing: list[str] = []
+    labelled = weekly[weekly["regime"].isin(["BULL", "BEAR", "CHOP"])]
+    for regime, part in labelled.groupby("regime", sort=True):
+        mean = float(part["net_spread"].mean())
+        n = int(len(part))
+        if n < 5:
+            status = "report_only"
+        elif mean < 0.0:
+            status = "fail"
+            failing.append(str(regime))
+        else:
+            status = "pass"
+        report[str(regime)] = {"n_weeks": n, "mean_net_spread": mean, "status": status}
+    return {"pass": len(failing) == 0, "regimes": report, "failing": failing}
+
+
+def bab_main_verdict(*, official_pass: bool, sign_veto: bool) -> tuple[str, bool]:
+    """The proxy column can veto a pass. It cannot turn a fail into a pass."""
+    if sign_veto and official_pass:
+        return "VETO", False
+    if not official_pass:
+        return "FAIL", False
+    return "PASS", True
+
+
+def _leg_trades_per_year(n_leg_trades: int, window: str) -> float:
+    start, end = WINDOWS[window]
+    years = (pd.Timestamp(end) - pd.Timestamp(start)).days / 365.25
+    if years <= 0:
+        return 0.0
+    return float(n_leg_trades) / years
+
+
+def _score_bab_book(
+    output_dir: Path,
+    manifest: dict[str, object],
+    *,
+    n_perm: int,
+    n_bootstrap: int,
+    seed: int,
+) -> dict[str, object]:
+    """Score BAB at 0.31%. The SOL proxy is reported and can only veto."""
+    window = str(manifest.get("window"))
+    if window == "holdout" and not manifest.get("holdout_unlocked_with_main_hash"):
+        raise HoldoutLockedError(
+            "Refusing to score a holdout book that does not record a main-output hash."
+        )
+    tables = load_book(output_dir)
+    weights = tables["weights"]
+    paths = tables["name_paths"]
+    weekly = tables["weekly_returns"]
+    scores = tables.get("scores")
+    if scores is None:
+        scores = pd.read_csv(output_dir / "scores.csv")
+    proxy_rate = float(XS_BAB_BTC_WEEKLY.proxy_leg_cost_rate or 0.0)
+    cap = float(XS_BAB_BTC_WEEKLY.leverage_cap)
+    if len(weights) == 0 or len(weekly) == 0:
+        means = np.array([], dtype="float64")
+    else:
+        recomputed, _trades = apply_beta_schedule(weights, paths, proxy_rate=proxy_rate)
+        if len(recomputed) != len(weekly) or not np.allclose(
+            recomputed["net_spread"].to_numpy(dtype="float64"),
+            weekly["net_spread"].to_numpy(dtype="float64"),
+            rtol=0.0,
+            atol=1e-12,
+        ):
+            raise RuntimeError("recomputed BAB net spread does not match weekly_returns.csv")
+        if not np.allclose(
+            recomputed["net_spread_proxy"].to_numpy(dtype="float64"),
+            weekly["net_spread_proxy"].to_numpy(dtype="float64"),
+            rtol=0.0,
+            atol=1e-12,
+        ):
+            raise RuntimeError("recomputed BAB proxy net does not match weekly_returns.csv")
+        if "funding_gap_count" in weekly.columns and "funding_gap_count" in recomputed.columns:
+            if not np.array_equal(
+                recomputed["funding_gap_count"].to_numpy(dtype="int64"),
+                weekly["funding_gap_count"].to_numpy(dtype="int64"),
+            ):
+                raise RuntimeError("recomputed funding gap count does not match weekly_returns.csv")
+        children = np.random.SeedSequence(seed).spawn(n_perm)
+        means = np.empty(n_perm, dtype="float64")
+        for i, child in enumerate(children):
+            rng = np.random.default_rng(child)
+            random_weights = turnover_matched_beta_schedule(
+                weights, paths, scores, rng, leverage_cap=cap
+            )
+            random_weekly, _ = apply_beta_schedule(
+                random_weights, paths, proxy_rate=proxy_rate
+            )
+            means[i] = float(random_weekly["net_spread"].mean()) if len(random_weekly) else float("nan")
+    if means.size == 0:
+        metrics = score_weekly(weekly, window=window, random_means=np.array([0.0]), n_bootstrap=n_bootstrap)
+        metrics["verdict"] = "FAIL" if window != "veto" else "REPORT_ONLY"
+        metrics["passed"] = False
+        metrics["beats_random_p"] = None
+        metrics["empty_book"] = True
+    else:
+        metrics = score_weekly(weekly, window=window, random_means=means, n_bootstrap=n_bootstrap)
+    metrics["cell"] = manifest.get("cell")
+    if "funding_gap_count" in weekly.columns:
+        metrics["funding_gap_count"] = int(weekly["funding_gap_count"].sum())
+    metrics["n_permutations"] = int(means.size) if means.size else 0
+    metrics["random_seed"] = seed
+    metrics["score_profile"] = "bab"
+    metrics["hashes_provisional"] = True
+    metrics["mde"] = {
+        "d": XS_BAB_BTC_WEEKLY.mde_d,
+        "n_weeks": XS_BAB_BTC_WEEKLY.mde_weeks,
+        "alpha": 0.05,
+        "power": 0.80,
+        "binds_gates": False,
+    }
+    official_mean = float(weekly["net_spread"].mean()) if len(weekly) else float("nan")
+    proxy_mean = float(weekly["net_spread_proxy"].mean()) if len(weekly) else float("nan")
+    sign_veto = bool(
+        np.isfinite(official_mean) and np.isfinite(proxy_mean) and official_mean * proxy_mean < 0.0
+    )
+    metrics["measured_rt"] = {
+        "rate_per_leg_trade": proxy_rate,
+        "label": XS_BAB_BTC_WEEKLY.proxy_cost_label,
+        "btc_sampler_rt": XS_BAB_BTC_WEEKLY.btc_sampler_rt,
+        "sol_sampler_rt": proxy_rate,
+        "mean_net_spread": _json_float(proxy_mean),
+        "binds_gates": False,
+        "sign_veto": sign_veto,
+        "rescues_fail": False,
+    }
+    if window == "main":
+        per_year = _leg_trades_per_year(int(metrics["n_leg_trades"]), window)
+        per_year_ok = per_year >= 100.0
+        regime = _regime_gate(weekly)
+        metrics["gates"]["leg_trades_per_year"] = {
+            "threshold": 100.0,
+            "value": per_year,
+            "pass": per_year_ok,
+        }
+        metrics["gates"]["no_losing_regime"] = {
+            "threshold": "regime with >= 5 weeks has mean net >= 0",
+            "pass": bool(regime["pass"]),
+            "regimes": regime["regimes"],
+        }
+        official_pass = bool(metrics["passed"]) and per_year_ok and bool(regime["pass"])
+        verdict, passed = bab_main_verdict(official_pass=official_pass, sign_veto=sign_veto)
+        metrics["verdict"] = verdict
+        metrics["passed"] = passed
+        metrics["gates_applied"] = list(metrics["gates"])
+    (output_dir / "metrics.json").write_text(
+        json.dumps(metrics, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    random_payload = {
+        "seed": seed,
+        "n_permutations": int(means.size),
+        "means": [float(v) for v in means],
+        "leverage_cap": cap,
+        "note": (
+            "Turnover-matched random rank-split. Same k per leg, same 3x cap, "
+            "weights from the random legs' mean betas. Funding and the 12% stop "
+            "follow each name's path. Cost is 0.31% of traded notional. "
+            "The 0.181% proxy is not the null."
         ),
     }
     (output_dir / "random_book.json").write_text(

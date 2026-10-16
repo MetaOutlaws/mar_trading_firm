@@ -60,9 +60,17 @@ def assert_holdout_allowed(
     """
     if not _marker_text().startswith(HOLDOUT_LOCK_MARKER):
         raise HoldoutLockedError("HOLDOUT_LOCK marker is not LOCKED")
-    if window != "holdout":
+    # The H2 holdout is always shut. xs_bab also keeps the 2026 veto shut
+    # until that same main hash is on file. The skew veto window is not.
+    bab_veto = cell_name == "xs_bab_btc_weekly" and window == "veto"
+    if window != "holdout" and not bab_veto:
         return None
     if not main_output_hash or main_output_dir is None:
+        if bab_veto:
+            raise HoldoutLockedError(
+                "2026 veto is locked. Refusing to run until --main-output-hash is "
+                "supplied and matches the sha256 of the main run's SHA256SUMS."
+            )
         raise HoldoutLockedError(
             "Holdout is locked. Refusing to run until --main-output-hash is "
             "supplied and matches the sha256 of the main run's SHA256SUMS."
@@ -117,7 +125,10 @@ def write_outputs(
             f"{output_dir} already has SHA256SUMS; refusing to overwrite a hashed run"
         )
     output_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("weights", "name_paths", "weekly_returns", "leg_trades"):
+    names = ["weights", "name_paths", "weekly_returns", "leg_trades"]
+    if "scores" in tables:
+        names.append("scores")
+    for name in names:
         _frame_for_csv(tables[name]).to_csv(
             output_dir / f"{name}.csv",
             index=False,
@@ -141,6 +152,7 @@ def run_window(
     main_output_hash: str | None = None,
     main_output_dir: Path | None = None,
     tape_report: dict[str, object] | None = None,
+    funding: dict | None = None,
 ) -> dict[str, object]:
     """Run the engine for one window and write the book. No metrics."""
     unlock = assert_holdout_allowed(
@@ -149,7 +161,7 @@ def run_window(
         main_output_hash=main_output_hash,
         main_output_dir=main_output_dir,
     )
-    tables = run_book(panel, membership, config, window)
+    tables = run_book(panel, membership, config, window, funding=funding)
     hashes = source_hashes()
     weekly = tables["weekly_returns"]
     manifest: dict[str, object] = {
@@ -157,7 +169,7 @@ def run_window(
         "window": window,
         "live": "off",
         "paper_only": True,
-        "funding_included": False,
+        "funding_included": config.funding_included,
         "metrics_computed": False,
         "rebalance": "Monday 00:00 UTC",
         "fill": "next_open",
@@ -178,6 +190,49 @@ def run_window(
         "tape": tape_report,
         "holdout_unlocked_with_main_hash": unlock,
     }
+    if config.weighting == "beta_neutral":
+        from research.xs_spread.cells import (
+            BAB_BTC_SAMPLER_RT,
+            BAB_COUNTERSIGN_MEMO,
+            BAB_LOCK_SHA256,
+            BAB_PREREG_SHA256,
+            BAB_PROPOSAL_SHA256,
+            BAB_PROXY_LEG_COST,
+            cost_rates,
+        )
+
+        manifest["score_profile"] = "bab"
+        manifest["hashes_provisional"] = True
+        manifest["countersign_memo"] = BAB_COUNTERSIGN_MEMO
+        manifest["prereg_countersigned"] = True
+        manifest["weighting"] = "beta_neutral, 3x cap, $1 average gross per side"
+        manifest["mde_d"] = config.mde_d
+        manifest["mde_weeks"] = config.mde_weeks
+        manifest["funding_zero_filled"] = False
+        if "funding_gap_count" in weekly.columns and len(weekly):
+            manifest["funding_gap_count"] = int(weekly["funding_gap_count"].sum())
+        else:
+            manifest["funding_gap_count"] = 0
+        manifest["cost"] = {
+            **cost_snapshot(),
+            "rates_per_leg_trade": list(cost_rates(config)),
+            "official_rate_per_leg_trade": config.leg_cost_rate,
+            "official_binds_gates": True,
+            "measured_rt_rate_per_leg_trade": BAB_PROXY_LEG_COST,
+            "measured_rt_label": config.proxy_cost_label,
+            "measured_rt_binds_gates": False,
+            "measured_rt_sign_flip_is_a_veto": True,
+            "btc_sampler_rt": BAB_BTC_SAMPLER_RT,
+            "sol_sampler_rt": BAB_PROXY_LEG_COST,
+        }
+        manifest["documents"] = {
+            "proposal_sha256": BAB_PROPOSAL_SHA256,
+            "lock_sha256": BAB_LOCK_SHA256,
+            "prereg_sha256": BAB_PREREG_SHA256,
+            "countersign_sha256": None,
+            "countersign_memo": BAB_COUNTERSIGN_MEMO,
+            "prereg_countersigned": True,
+        }
     output_hash = write_outputs(Path(output_dir), tables, manifest)
     return {
         "output_dir": str(output_dir),

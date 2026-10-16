@@ -119,6 +119,38 @@ def _listed_row(symbol: str, first: str = "2023-12-01T00:00:00Z", last: str = "2
     }
 
 
+def test_skew_book_bytes_are_unchanged() -> None:
+    """The shared engine still writes the skew book byte for byte.
+
+    Captured before the BAB cost list, funding and beta scaling. A change
+    to weights, paths, weekly nets or leg-trades fails this hash.
+    """
+    import hashlib
+    import io
+
+    from research.xs_spread.harness import _frame_for_csv
+
+    names = ["A", "B", "C", "D", "E", "F"]
+    panel = {
+        name: _flat_from(_constant_bars("2023-12-01", 24 * 40, log_ret), "2024-03-01")
+        for name, log_ret in zip(names, [-0.002, -0.001, -0.0003, 0.0003, 0.001, 0.002])
+    }
+    membership = _membership([_listed_row(name, last="2024-03-01T00:00:00Z") for name in names])
+    tables = run_book(panel, membership, XS_REALIZED_SKEW_WEEKLY, "main")
+    digest = hashlib.sha256()
+    for name in ("weights", "name_paths", "weekly_returns", "leg_trades"):
+        buf = io.StringIO()
+        _frame_for_csv(tables[name]).to_csv(
+            buf, index=False, lineterminator="\n", float_format="%.17g"
+        )
+        digest.update(name.encode())
+        digest.update(b"\0")
+        digest.update(buf.getvalue().encode())
+        digest.update(b"\0")
+    assert digest.hexdigest() == "5fa484fed30696b93a8b73f053ac6be368c9835aff8b79cac646740430d694e9"
+    assert "scores" not in tables
+
+
 def test_documents_match_the_pinned_digests() -> None:
     """SPEC, the prereg and the countersign are the verbatim attachments."""
     assert sha256_file(PACKAGE / "SPEC.md") == LOCK_SHA256
