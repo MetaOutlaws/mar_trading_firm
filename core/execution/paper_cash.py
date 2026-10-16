@@ -12,7 +12,9 @@ What is persisted (``data/paper_cash.json``)
 * ``events`` — append-only cash journal. Kinds:
     - ``capital``: external contribution or withdrawal. Not P&L.
     - ``open``:   entry fill; cash falls by the entry fee only (paper does
-                  not reserve notional).
+                  not reserve notional). A later stamp may add ``position_id``
+                  and ``event_id`` on this same row. Those fields are identity,
+                  not a second fee.
     - ``funding``: 8h funding step (F03). ``amount`` positive means paid;
                   cash falls by ``amount``. Not realised until close.
     - ``close``:  exit fill; cash changes by ``gross_pnl - fee`` (exit fee).
@@ -214,6 +216,17 @@ class PaperCashStore:
             return
         payload.setdefault("ts", _utcnow_iso())
         self._events.append(payload)
+        self._persist()
+
+    def replace_event(self, index: int, event: dict[str, Any]) -> None:
+        """Rewrite one existing event. Does not append a second row.
+
+        Identity fields such as ``position_id`` and ``event_id`` do not
+        change the replay. Callers must not use this to add a fee.
+        """
+        if index < 0 or index >= len(self._events):
+            raise IndexError(index)
+        self._events[index] = dict(event)
         self._persist()
 
     def _load(self) -> None:
