@@ -157,6 +157,10 @@ def test_allowed_exact_match(
             "100644",
             "f0520d2ea966389b521b5cd962a0cdd150696d53",
         ),
+        "tests/test_scan_inbox.py": (
+            "100644",
+            "3cc0e6e47d4f967be2182843a91595d12d454894",
+        ),
         "tests/test_why_no_trade.py": (
             "100644",
             "1e76aaa07bc5f59b7347d494e4e4753b3eb9c410",
@@ -178,6 +182,7 @@ def test_allowed_exact_match(
         "tests/test_dashboard_ux.py": "78398fb6",
         "tests/test_f111_execution_repair.py": "162c2620",
         "tests/test_scan_fill_counts.py": "f0520d2e",
+        "tests/test_scan_inbox.py": "3cc0e6e4",
         "tests/test_why_no_trade.py": "1e76aaa0",
     }
     assert set(prefixes) == set(guard.ALLOWED_OVERLAY)
@@ -219,19 +224,24 @@ def test_allowed_exact_match(
         mode, _kind, blob = meta.split()
         assert name == path
         assert guard.ALLOWED_OVERLAY[path] == (mode, blob)
-    # firm/scan_inbox.py is the #138 blob SGP1 overlays on b00c4f73.
+    # Blobs of these paths at 5dff9454, which SGP1 overlays on b00c4f73.
+    # tests/test_scan_inbox.py replaces 456b0c8e from that server HEAD.
     scan_commit = "5dff9454a5dce55e861aeea86eec84779e809ba3"
-    listed = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-tree", scan_commit, "--", "firm/scan_inbox.py"],
-        capture_output=True,
-        text=True,
-    )
-    assert listed.returncode == 0 and listed.stdout.strip()
-    meta, name = listed.stdout.strip().split("\t", 1)
-    mode, _kind, blob = meta.split()
-    assert name == "firm/scan_inbox.py"
-    assert (mode, blob) == ("100644", "8fe9688f6c7001d6dcddfa75b942cde105284a1b")
-    assert guard.ALLOWED_OVERLAY[name] == (mode, blob)
+    for path, expected in {
+        "firm/scan_inbox.py": ("100644", "8fe9688f6c7001d6dcddfa75b942cde105284a1b"),
+        "tests/test_scan_inbox.py": ("100644", "3cc0e6e47d4f967be2182843a91595d12d454894"),
+    }.items():
+        listed = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-tree", scan_commit, "--", path],
+            capture_output=True,
+            text=True,
+        )
+        assert listed.returncode == 0 and listed.stdout.strip()
+        meta, name = listed.stdout.strip().split("\t", 1)
+        mode, _kind, blob = meta.split()
+        assert name == path
+        assert (mode, blob) == expected
+        assert guard.ALLOWED_OVERLAY[path] == (mode, blob)
     # Later dashboard pins are ids. They stay pinned when the blob is absent,
     # and they are not the older ee994abe or FINDINGS objects.
     assert guard.ALLOWED_OVERLAY["api/observer_status.py"][1] != (

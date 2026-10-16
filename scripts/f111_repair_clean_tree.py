@@ -3,8 +3,9 @@
 The collector refuses to read a Singapore checkout whose tracked files differ
 from the pinned repair commit ``b00c4f73``. The allowlist is the 2026-10-16
 SGP1 overlay, the ``firm/memory.py`` hot fix, the eight files #135 changes at
-``3424c265``, ``firm/scan_inbox.py`` at ``8fe9688f`` (#138), and the later
-dashboard pins ``api/desk_status.py``, ``api/observer_status.py``,
+``3424c265``, ``firm/scan_inbox.py`` at ``8fe9688f`` (#138),
+``tests/test_scan_inbox.py`` at ``3cc0e6e4`` (#136, replacing ``456b0c8e``),
+and the later dashboard pins ``api/desk_status.py``, ``api/observer_status.py``,
 ``api/static/index.html``, ``api/why_no_trade.py``,
 ``tests/test_dashboard_ux.py``, and ``tests/test_why_no_trade.py``. Those
 paths are applied on the server as an overlay on ``b00c4f73``. Nothing else
@@ -81,6 +82,11 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
     ),  # 78398fb6
     "tests/test_f111_execution_repair.py": ("100644", "162c2620ea20ae7c24e09b08a96e46cbb5fcf913"),
     "tests/test_scan_fill_counts.py": ("100644", "f0520d2ea966389b521b5cd962a0cdd150696d53"),
+    # Current file at 5dff9454 (#136). Replaces 456b0c8e from b00c4f73.
+    "tests/test_scan_inbox.py": (
+        "100644",
+        "3cc0e6e47d4f967be2182843a91595d12d454894",
+    ),  # 3cc0e6e4
     "tests/test_why_no_trade.py": (
         "100644",
         "1e76aaa07bc5f59b7347d494e4e4753b3eb9c410",
