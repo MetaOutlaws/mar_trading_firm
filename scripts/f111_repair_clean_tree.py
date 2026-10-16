@@ -7,10 +7,12 @@ worktree bytes are not that commit. Those ten paths, and nothing else, may
 stay staged.
 
 A path is allowed only when it is one of those ten and both the index and the
-worktree are the pinned git blob at mode 100644. Any other staged or unstaged
-tracked path fails. An allowed path also fails when its bytes differ or either
-copy is executable (100755). Untracked files stay out of scope, matching the
-previous ``git diff HEAD`` check, which never saw them.
+worktree are the pinned git blob at that path's pinned mode. The two status
+shell scripts are 100755, matching the commits that added them. The other
+eight paths are 100644. Any other staged or unstaged tracked path fails. An
+allowed path also fails when its bytes differ or either copy has the other
+mode. Untracked files stay out of scope, matching the previous
+``git diff HEAD`` check, which never saw them.
 """
 
 from __future__ import annotations
@@ -22,26 +24,29 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-# Worktree blob ids from the 2026-10-16 SGP1 check. FINDINGS recorded the
-# 8-character abbreviations in the comments. Each abbreviation names one blob;
-# the value is that full git blob id, not a raw sha256 and not the HEAD blob.
-# scripts/status_cert_fingerprint.sh and scripts/ufw_status_443.sh are mode
-# 100755 in the commits that added them. This map still requires 100644, so
-# an executable index or worktree of those exact bytes fails closed.
-ALLOWED_OVERLAY_BLOBS = {
-    "api/app.py": "c9b9f03f8f4759e809ec17324daee52baffae4fa",  # c9b9f03f
-    "api/desk_status.py": "0ebd3b44a5bf36ff5287780e11090d72bbb83b12",  # 0ebd3b44
-    "api/static/index.html": "e5649287f0122def78d7b3ecab7ddce4c2adec44",  # e5649287
-    "api/status_app.py": "ad4de7a26776f2a14dd384057ef85c47fd936ef7",  # ad4de7a2
-    "api/status_auth.py": "28a9ccd99a3705dcbe370430e1e72215e6f1b51d",  # 28a9ccd9
-    "api/status_snapshot.py": "9fe475f649a0f049f6406ddece144b7481f66b4c",  # 9fe475f6
-    "config/settings.py": "9c02305f6e855960410daa9761abc4a849c97a1a",  # 9c02305f
-    "scripts/run_status_page.py": "b2f130fd36fda79a3d23d987c56ad3484f7e7767",  # b2f130fd
-    "scripts/status_cert_fingerprint.sh": "94c8b4126490d57ef728d258567dd294e098f0f4",  # 94c8b412
-    "scripts/ufw_status_443.sh": "f9ef5d0f510b19421d88f6f249d1c8fb37f92824",  # f9ef5d0f
+# (mode, blob) from the 2026-10-16 SGP1 check. FINDINGS recorded the 8-character
+# abbreviations in the comments. Each abbreviation names one blob; the blob is
+# that full git id, not a raw sha256 and not the HEAD blob. The mode is the one
+# recorded when the path was added: 100755 for the two shell scripts, 100644
+# for every other path. Both the index and the worktree must match both fields.
+ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
+    "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),  # c9b9f03f
+    "api/desk_status.py": ("100644", "0ebd3b44a5bf36ff5287780e11090d72bbb83b12"),  # 0ebd3b44
+    "api/static/index.html": ("100644", "e5649287f0122def78d7b3ecab7ddce4c2adec44"),  # e5649287
+    "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),  # ad4de7a2
+    "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),  # 28a9ccd9
+    "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),  # 9fe475f6
+    "config/settings.py": ("100644", "9c02305f6e855960410daa9761abc4a849c97a1a"),  # 9c02305f
+    "scripts/run_status_page.py": (
+        "100644",
+        "b2f130fd36fda79a3d23d987c56ad3484f7e7767",
+    ),  # b2f130fd
+    "scripts/status_cert_fingerprint.sh": (
+        "100755",
+        "94c8b4126490d57ef728d258567dd294e098f0f4",
+    ),  # 94c8b412
+    "scripts/ufw_status_443.sh": ("100755", "f9ef5d0f510b19421d88f6f249d1c8fb37f92824"),  # f9ef5d0f
 }
-
-_REGULAR_FILE = "100644"
 
 
 def _git(repo: Path, *args: str, ok: tuple[int, ...] = (0,)) -> subprocess.CompletedProcess[bytes]:
@@ -99,40 +104,41 @@ def _worktree_git_mode(repo: Path, path: str) -> str | None:
     """Return git's 100644 or 100755 for a regular file.
 
     Git records 100755 when any execute bit is set. Symlinks and missing
-    paths return None so they cannot satisfy the 100644 pin.
+    paths return None so they cannot satisfy either pinned mode.
     """
     candidate = repo / path
     if candidate.is_symlink() or not candidate.is_file():
         return None
     if candidate.stat().st_mode & 0o111:
         return "100755"
-    return _REGULAR_FILE
+    return "100644"
 
 
-def _overlay_ok(repo: Path, path: str, expected: str) -> bool:
-    """Both copies must be the pinned blob and both must be mode 100644."""
+def _overlay_ok(repo: Path, path: str, expected: tuple[str, str]) -> bool:
+    """Both copies must be the pinned blob and both must be the pinned mode."""
+    expected_mode, expected_blob = expected
     staged = _index_blob(repo, path)
     if staged is None:
         return False
     mode, blob = staged
     return (
-        mode == _REGULAR_FILE
-        and blob == expected
-        and _worktree_git_mode(repo, path) == _REGULAR_FILE
-        and _worktree_blob(repo, path) == expected
+        mode == expected_mode
+        and blob == expected_blob
+        and _worktree_git_mode(repo, path) == expected_mode
+        and _worktree_blob(repo, path) == expected_blob
     )
 
 
 def clean_tree_violations(
     repo: Path,
-    allowed: Mapping[str, str] | None = None,
+    allowed: Mapping[str, tuple[str, str]] | None = None,
 ) -> list[str]:
     """Return dirty tracked paths that are not the exact pinned overlay.
 
     An empty list means the collector may continue. ``allowed`` is the
-    production pin unless a test supplies a fixture map.
+    production pin unless a test supplies a fixture map of ``(mode, blob)``.
     """
-    pins = ALLOWED_OVERLAY_BLOBS if allowed is None else allowed
+    pins = ALLOWED_OVERLAY if allowed is None else allowed
     violations: list[str] = []
     for path in sorted(changed_tracked_paths(repo)):
         expected = pins.get(path)

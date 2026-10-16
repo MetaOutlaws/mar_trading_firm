@@ -1,7 +1,7 @@
 """Collector clean-tree guard for the ten SGP1 overlay blobs recorded 2026-10-16.
 
 The contract: those paths pass only when both the index and the worktree are
-the pinned blob at mode 100644, a different byte on those paths fails, and any
+the pinned blob at that path's pinned mode, a different byte fails, and any
 other dirty or staged path fails even when the overlay itself is exact.
 ``saved_path_parity`` is derived from the checked-in parity run.
 """
@@ -83,18 +83,22 @@ def _blob(data: bytes) -> str:
     return proc.stdout.decode().strip()
 
 
-def _pins(contents: dict[str, bytes]) -> dict[str, str]:
-    return {path: _blob(data) for path, data in contents.items()}
+def _pins(contents: dict[str, bytes], mode: str = "100644") -> dict[str, tuple[str, str]]:
+    return {path: (mode, _blob(data)) for path, data in contents.items()}
 
 
-def _stage(repo: Path, path: str, data: bytes) -> None:
+def _stage(repo: Path, path: str, data: bytes, *, mode: str = "100644") -> None:
     file = repo / path
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_bytes(data)
+    # git records 100755 when any execute bit is set, 100644 otherwise.
+    file.chmod(0o755 if mode == "100755" else 0o644)
     _git(repo, "add", "--", path)
 
 
-def _stage_overlay(repo: Path, contents: dict[str, bytes] | None = None) -> dict[str, str]:
+def _stage_overlay(
+    repo: Path, contents: dict[str, bytes] | None = None
+) -> dict[str, tuple[str, str]]:
     contents = OVERLAY if contents is None else contents
     for path, data in contents.items():
         _stage(repo, path, data)
@@ -110,21 +114,29 @@ def test_allowed_exact_match(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A clean tree passes, and so does the overlay when every blob matches."""
-    assert guard.ALLOWED_OVERLAY_BLOBS == {
-        "api/app.py": "c9b9f03f8f4759e809ec17324daee52baffae4fa",
-        "api/desk_status.py": "0ebd3b44a5bf36ff5287780e11090d72bbb83b12",
-        "api/static/index.html": "e5649287f0122def78d7b3ecab7ddce4c2adec44",
-        "api/status_app.py": "ad4de7a26776f2a14dd384057ef85c47fd936ef7",
-        "api/status_auth.py": "28a9ccd99a3705dcbe370430e1e72215e6f1b51d",
-        "api/status_snapshot.py": "9fe475f649a0f049f6406ddece144b7481f66b4c",
-        "config/settings.py": "9c02305f6e855960410daa9761abc4a849c97a1a",
-        "scripts/run_status_page.py": "b2f130fd36fda79a3d23d987c56ad3484f7e7767",
-        "scripts/status_cert_fingerprint.sh": "94c8b4126490d57ef728d258567dd294e098f0f4",
-        "scripts/ufw_status_443.sh": "f9ef5d0f510b19421d88f6f249d1c8fb37f92824",
+    assert guard.ALLOWED_OVERLAY == {
+        "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),
+        "api/desk_status.py": ("100644", "0ebd3b44a5bf36ff5287780e11090d72bbb83b12"),
+        "api/static/index.html": ("100644", "e5649287f0122def78d7b3ecab7ddce4c2adec44"),
+        "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),
+        "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),
+        "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),
+        "config/settings.py": ("100644", "9c02305f6e855960410daa9761abc4a849c97a1a"),
+        "scripts/run_status_page.py": ("100644", "b2f130fd36fda79a3d23d987c56ad3484f7e7767"),
+        "scripts/status_cert_fingerprint.sh": (
+            "100755",
+            "94c8b4126490d57ef728d258567dd294e098f0f4",
+        ),
+        "scripts/ufw_status_443.sh": ("100755", "f9ef5d0f510b19421d88f6f249d1c8fb37f92824"),
     }
-    assert set(guard.ALLOWED_OVERLAY_BLOBS) == set(FINDINGS_BLOB_PREFIXES)
+    assert set(guard.ALLOWED_OVERLAY) == set(FINDINGS_BLOB_PREFIXES)
     for path, prefix in FINDINGS_BLOB_PREFIXES.items():
-        blob = guard.ALLOWED_OVERLAY_BLOBS[path]
+        mode, blob = guard.ALLOWED_OVERLAY[path]
+        executable = path in {
+            "scripts/status_cert_fingerprint.sh",
+            "scripts/ufw_status_443.sh",
+        }
+        assert mode == ("100755" if executable else "100644")
         assert blob.startswith(prefix) and len(blob) == 40
         # When this clone has the object, the pin must be that blob and no other.
         found = subprocess.run(
@@ -145,7 +157,7 @@ def test_allowed_exact_match(
     assert code == 0 and err == ""
 
     pins = _stage_overlay(repo)
-    monkeypatch.setattr(guard, "ALLOWED_OVERLAY_BLOBS", pins)
+    monkeypatch.setattr(guard, "ALLOWED_OVERLAY", pins)
     code, err = _run(repo, capsys)
     assert code == 0 and err == ""
     assert guard.clean_tree_violations(repo) == []
@@ -160,7 +172,7 @@ def test_mismatched_content_fails(
     contents["api/static/index.html"] = b"overlay html tampered\n"
     pins = _pins(OVERLAY)
     _stage_overlay(repo, contents)
-    monkeypatch.setattr(guard, "ALLOWED_OVERLAY_BLOBS", pins)
+    monkeypatch.setattr(guard, "ALLOWED_OVERLAY", pins)
 
     code, err = _run(repo, capsys)
     assert code == 1
@@ -188,7 +200,7 @@ def test_other_file_fails(
     """An exact overlay does not excuse any other staged or unstaged tracked file."""
     repo = _init(tmp_path)
     pins = _stage_overlay(repo)
-    monkeypatch.setattr(guard, "ALLOWED_OVERLAY_BLOBS", pins)
+    monkeypatch.setattr(guard, "ALLOWED_OVERLAY", pins)
 
     # Staged-only edit: worktree matches HEAD, so ``git diff HEAD`` is silent.
     engine = repo / "core" / "execution" / "engine.py"
@@ -211,27 +223,56 @@ def test_other_file_fails(
     assert "api/app.py" not in err
 
 
-def test_executable_mode_fails(
+def test_executable_script_requires_100755(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Mode 100755 fails even when the index and the worktree bytes match."""
+    """The pinned shell script passes at 100755 and fails at 100644."""
     repo = _init(tmp_path)
-    pins = _stage_overlay(repo)
-    monkeypatch.setattr(guard, "ALLOWED_OVERLAY_BLOBS", pins)
-    script = repo / "scripts" / "ufw_status_443.sh"
-    script.chmod(script.stat().st_mode | 0o111)
-    _git(repo, "add", "--", "scripts/ufw_status_443.sh")
-    code, err = _run(repo, capsys)
-    assert code == 1
-    assert "scripts/ufw_status_443.sh" in err
+    path = "scripts/ufw_status_443.sh"
+    data = OVERLAY[path]
+    monkeypatch.setattr(guard, "ALLOWED_OVERLAY", {path: ("100755", _blob(data))})
 
-    # Index back to 100644; the worktree execute bit alone still fails.
-    script.chmod(script.stat().st_mode & ~0o111)
-    _git(repo, "add", "--", "scripts/ufw_status_443.sh")
-    script.chmod(script.stat().st_mode | 0o111)
+    _stage(repo, path, data, mode="100755")
+    code, err = _run(repo, capsys)
+    assert code == 0 and err == ""
+
+    _stage(repo, path, data, mode="100644")
     code, err = _run(repo, capsys)
     assert code == 1
     assert err == "clean-tree guard: dirty path(s): scripts/ufw_status_443.sh\n"
+
+    # The index can be 100755 while the worktree is not. That still fails.
+    _stage(repo, path, data, mode="100755")
+    (repo / path).chmod(0o644)
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): scripts/ufw_status_443.sh\n"
+
+
+def test_regular_file_requires_100644(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A 100644 pin passes only as a non-executable file and fails at 100755."""
+    repo = _init(tmp_path)
+    path = "api/app.py"
+    data = OVERLAY[path]
+    monkeypatch.setattr(guard, "ALLOWED_OVERLAY", {path: ("100644", _blob(data))})
+
+    _stage(repo, path, data, mode="100644")
+    code, err = _run(repo, capsys)
+    assert code == 0 and err == ""
+
+    _stage(repo, path, data, mode="100755")
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): api/app.py\n"
+
+    # Executable worktree bytes with a 100644 index still fail.
+    _stage(repo, path, data, mode="100644")
+    (repo / path).chmod(0o755)
+    code, err = _run(repo, capsys)
+    assert code == 1
+    assert err == "clean-tree guard: dirty path(s): api/app.py\n"
 
 
 def _parity_tree(dest: Path, *, deployed: str, remote: bool, flip_runtime: bool) -> None:
@@ -309,14 +350,14 @@ def test_deploy_preflight_allows_exact_overlay(tmp_path: Path) -> None:
     clean = _deploy_preflight(repo)
     assert clean.returncode == 0, clean.stderr
 
-    for path, sha in guard.ALLOWED_OVERLAY_BLOBS.items():
+    for path, (mode, sha) in guard.ALLOWED_OVERLAY.items():
         blob = subprocess.run(
             ["git", "-C", str(ROOT), "cat-file", "blob", sha],
             capture_output=True,
         )
         if blob.returncode != 0:
             pytest.skip("overlay blobs are not in this clone")
-        _stage(repo, path, blob.stdout)
+        _stage(repo, path, blob.stdout, mode=mode)
     allowed = _deploy_preflight(repo)
     assert allowed.returncode == 0, allowed.stderr
 
