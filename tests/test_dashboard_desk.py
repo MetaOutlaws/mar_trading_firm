@@ -18,6 +18,7 @@ from api.desk_status import (
     live_approvals_path,
     read_live_approval_book,
 )
+from api.observer_status import f111_observer, list_observers
 from config.settings import get_settings
 
 NOW = datetime(2026, 10, 10, 15, 30, tzinfo=timezone.utc)
@@ -257,6 +258,37 @@ def test_f111_panel_counts_sleeves_reasons_and_retests(tmp_path) -> None:
     assert panel["pending_retests"] == 2
     assert panel["protection"] == 2
     assert panel["telemetry_path"] == str(telemetry)
+    assert panel["last_scan_age_seconds"] == 20 * 60
+    assert [row["symbol"] for row in panel["open_positions"]] == ["A0USDT", "A1USDT"]
+    assert [row["side"] for row in panel["open_positions"]] == ["LONG", "SHORT"]
+    assert panel["paper_pnl"]["realized_usdt"] is None
+
+    card = f111_observer(now=NOW, telemetry_path=telemetry, state_path=state)
+    assert card["id"] == "f111"
+    assert card["isolated"] is True
+    assert card["live_book"] is False
+    assert card["paper_only"] is True
+    assert card["coverage"] == {"available": 6, "closed": 2, "expected": 192, "scanned": 8}
+    assert card["census"]["closed_by_reason"] == panel["registry"]["closed_by_reason"]
+    assert card["rejections"]["latest_hour"]["by_reason"] == {"extension_gate": 2}
+    assert card["open_positions_count"] == 2
+    assert card["detail"]["pending_retests"] == 2
+    assert card["sizing_policy"] == "f111-paper-v1"
+    assert card["release_sha"]
+    listed = list_observers(
+        now=NOW,
+        telemetry_path=telemetry,
+        state_path=state,
+        status_path=tmp_path / "missing-status.json",
+        db_path=tmp_path / "missing-paper.db",
+    )
+    assert [row["id"] for row in listed["observers"]] == ["f111", "bl8"]
+    pulses = {row["id"]: row for row in listed["pulses"]}
+    assert pulses["f111"]["coverage_text"] == "6/192"
+    assert pulses["f111"]["open_positions"] == 2
+    assert pulses["f111"]["mode"] == "paper"
+    assert pulses["bl8"]["coverage_text"] == "unavailable"
+    assert pulses["bl8"]["open_positions"] is None
 
 
 def test_header_shows_sha_cycle_soko_and_bar_clocks(monkeypatch, tmp_path) -> None:
