@@ -199,9 +199,28 @@ def test_fail_and_pending_never_reach_active_strategies(tmp_path, monkeypatch) -
         (pair["strategy"], pair["symbol"], pair["side"], pair["timeframe"])
         for pair in payload["pairs"]
     }
+    # Operator-ordered paper override, ordered by Brian on 2026-10-16.
+    # Exactly one expansion identity may sit on the strategies table while
+    # its research verdict is still PENDING. The exemption is this row only,
+    # and only while the mounted book keeps it paper-only.
+    exempt = ("doji_star_reversal", "DOGEUSDT", "SHORT", "1h")
+    book = json.loads((ROOT / "config" / "approved_strategies.json").read_text(encoding="utf-8"))
+    sleeve = book["doji_star_reversal:DOGEUSDT:SHORT:1h"]
+    assert sleeve["paper_override"] is True
+    assert sleeve["approved"] is False
+    assert sleeve["live_authorized"] is False
     for row in document["rows"]:
-        if row["verdict"] in {"FAIL", "VETO", "PENDING"}:
-            assert (row["rule"], row["token"], row["side"], row["clock"]) not in published
+        if row["verdict"] not in {"FAIL", "VETO", "PENDING"}:
+            continue
+        identity = (row["rule"], row["token"], row["side"], row["clock"])
+        if (
+            identity == exempt
+            and sleeve["paper_override"] is True
+            and sleeve["approved"] is False
+            and sleeve["live_authorized"] is False
+        ):
+            continue
+        assert identity not in published
     # A PASS overlay is still not copied onto the live book table.
     assert ("week_open_reclaim", "AAVEUSDT", "LONG", "4h") not in published
     assert all(pair.get("source") != "token_expansion" for pair in payload["pairs"])
@@ -255,6 +274,36 @@ def test_fail_and_pending_never_reach_active_strategies(tmp_path, monkeypatch) -
         ("rsi_trend", "BTCUSDT"),
         ("week_open_reclaim", "AAVEUSDT"),
     ]
+
+
+def test_other_pending_identity_stays_off_the_strategies_table(monkeypatch) -> None:
+    """A PENDING identity other than Brian's 2026-10-16 doji exemption stays blocked.
+
+    The exemption is exactly ``doji_star_reversal:DOGEUSDT:SHORT:1h``.
+    ``bb_medium_bw_upper_reject`` AAVEUSDT SHORT 4h is PENDING in the sealed
+    fixture when no verdict file is set, and it is not that row.
+    """
+    _arm(monkeypatch, FIXTURE, _sha(FIXTURE), None)
+    from research.token_expansion.load import load_token_expansion
+
+    document = load_token_expansion()
+    other = ("bb_medium_bw_upper_reject", "AAVEUSDT", "SHORT", "4h")
+    exempt = ("doji_star_reversal", "DOGEUSDT", "SHORT", "1h")
+    assert other != exempt
+    by_key = {
+        (row["rule"], row["token"], row["side"], row["clock"]): row["verdict"]
+        for row in document["rows"]
+    }
+    assert by_key[other] == "PENDING"
+    assert by_key[exempt] == "PENDING"
+
+    from api.app import strategies
+
+    published = {
+        (pair["strategy"], pair["symbol"], pair["side"], pair["timeframe"])
+        for pair in strategies()["pairs"]
+    }
+    assert other not in published
 
 
 def test_strategies_endpoint_publishes_the_blocked_row_filter(monkeypatch) -> None:
