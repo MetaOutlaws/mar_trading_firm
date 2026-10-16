@@ -52,12 +52,32 @@ PAPER_OVERRIDE_REASON = (
     "Frozen dataclass params and the catalog 4h/4h clock. No re-optimisation."
 )
 
-# Bybit instruments-info from this environment returned HTTP 403 (CloudFront
-# country block) on 2026-10-16. The operator note that 79 of 96 symbols were
-# Trading is not stored as a per-symbol census in the repo. Leaving this empty
-# refuses to invent a Closed list. Pass a real status map to ``closed_exclusions``
-# when one exists; only the exact status ``Closed`` is an exclusion.
-EXCHANGE_STATUS_BY_SYMBOL: dict[str, str] = {}
+# SGP1 f111/bl8 census plus a Bybit cross-check, captured 2026-10-16 09:27 GST.
+# 17 of the 96 paper symbols were Closed. Only the exact status ``Closed`` drops
+# a symbol. The other 79 stay eligible.
+CLOSED_REASON = "exchange status Closed (SGP1 and Bybit 09:27 GST)"
+EXCHANGE_STATUS_BY_SYMBOL: dict[str, str] = {
+    symbol: "Closed"
+    for symbol in (
+        "AERGOUSDT",
+        "AKROUSDT",
+        "BLZUSDT",
+        "EOSUSDT",
+        "FETUSDT",
+        "FLMUSDT",
+        "FTMUSDT",
+        "LINAUSDT",
+        "LUNAUSDT",
+        "MATICUSDT",
+        "REEFUSDT",
+        "RNDRUSDT",
+        "SXPUSDT",
+        "TOMOUSDT",
+        "TONUSDT",
+        "UNFIUSDT",
+        "UXLINKUSDT",
+    )
+}
 
 
 def book_sha256(raw: bytes) -> str:
@@ -181,26 +201,35 @@ def closed_exclusions(symbols: list[str], statuses: Mapping[str, str]) -> dict[s
     for symbol in symbols:
         status = statuses.get(symbol)
         if status == "Closed":
-            reasons[symbol] = "exchange status Closed"
+            reasons[symbol] = CLOSED_REASON
     return reasons
 
 
 def exclusion_reasons(symbols: list[str]) -> dict[str, str]:
-    """Feature gaps plus a Closed census, when one was supplied."""
-    reasons = feature_exclusions(symbols)
-    for symbol, reason in closed_exclusions(symbols, EXCHANGE_STATUS_BY_SYMBOL).items():
-        reasons.setdefault(symbol, reason)
+    """Closed census first, then 4h history gaps on the symbols that remain."""
+    closed = closed_exclusions(symbols, EXCHANGE_STATUS_BY_SYMBOL)
+    reasons = feature_exclusions([symbol for symbol in symbols if symbol not in closed])
+    reasons.update(closed)
     return reasons
 
 
-def existing_combinations(book: Mapping[str, Any]) -> set[tuple[str, str, str]]:
-    """``(strategy, symbol, side)`` already present, any clock."""
-    found: set[tuple[str, str, str]] = set()
-    for key in book:
+def existing_combinations(book: Mapping[str, Any]) -> set[tuple[str, str, str, str]]:
+    """``(strategy, symbol, side, timeframe)`` already present.
+
+    A 1h row does not occupy the 4h key. The original ema walks stored both
+    clocks, and only the matching clock is skipped.
+    """
+    found: set[tuple[str, str, str, str]] = set()
+    for key, record in book.items():
         parsed = parse_approval_key(key)
         if parsed is None:
             continue
-        found.add(parsed)
+        strategy, symbol, side = parsed
+        parts = str(key).split(":")
+        timeframe = parts[3] if len(parts) >= 4 else ""
+        if not timeframe and isinstance(record, dict):
+            timeframe = str(record.get("timeframe") or "")
+        found.add((strategy, symbol, side, timeframe))
     return found
 
 
@@ -228,8 +257,9 @@ def plan_sleeves(
 ) -> dict[str, Any]:
     """Decide adds, skips, and exclusions. Does not write.
 
-    A token+rule+side that already exists is skipped even when the stored
-    clock differs. Excluded symbols are not added on either side.
+    Skip a row only when that rule+symbol+side+timeframe is already in the
+    book. A 1h ema row does not block the 4h paper sleeve. Excluded symbols
+    are not added on either side.
     """
     universe = symbols if symbols is not None else sgp1_paper_universe()
     present = existing_combinations(book)
@@ -243,25 +273,17 @@ def plan_sleeves(
             continue
         for family in RULES:
             record = sleeve_record(family)
+            timeframe = str(record["timeframe"])
             for side in SIDES:
-                if (family, symbol, side) in present:
+                key = approval_record_key(family, symbol, side, timeframe)
+                if (family, symbol, side, timeframe) in present or key in book:
                     skipped.append(
                         {
                             "strategy": family,
                             "symbol": symbol,
                             "side": side,
-                            "reason": "token+rule+side already in the book",
-                        }
-                    )
-                    continue
-                key = approval_record_key(family, symbol, side, record["timeframe"])
-                if key in book:
-                    skipped.append(
-                        {
-                            "strategy": family,
-                            "symbol": symbol,
-                            "side": side,
-                            "reason": "book key already exists",
+                            "timeframe": timeframe,
+                            "reason": "rule+symbol+side+timeframe already in the book",
                         }
                     )
                     continue
@@ -277,23 +299,28 @@ def plan_sleeves(
 def splice_records(raw: bytes, records: dict[str, dict[str, Any]]) -> bytes:
     """Append ``records`` after the last existing row.
 
-    ``raw`` must be a JSON object ending in ``\\n}`` with no trailing newline
-    after the root brace (the shape of ``config/approved_strategies.json``).
-    Every byte before that final newline stays, then a comma, then the new
-    keys. An empty ``records`` returns ``raw`` unchanged.
+    Two endings are valid. The deployed SGP1 book ends in ``}\\n}\\n`` (root
+    brace plus a trailing newline). The older catalog ended in ``\\n}`` with
+    no byte after the root brace. In both cases every byte through the last
+    record's closing brace stays, a comma is inserted, and the new keys
+    follow. An empty ``records`` returns ``raw`` unchanged.
     """
     if not records:
         return raw
-    if not raw.endswith(b"\n}"):
+    if raw.endswith(b"}\n}\n"):
+        prefix, closer = raw[:-3], b"\n}\n"
+    elif raw.endswith(b"\n}"):
+        prefix, closer = raw[:-2], b"\n}"
+    else:
         raise ValueError(
-            "approval book must end with a newline and a root brace so rows "
-            "can be appended without rewriting existing rows"
+            "approval book must end with a root brace so rows can be appended "
+            "without rewriting existing rows"
         )
     blob = json.dumps(records, indent=2)
     if not (blob.startswith("{\n") and blob.endswith("\n}")):
         raise ValueError("json.dumps did not produce an object we can splice")
     inner = blob[2:-2].encode("utf-8")
-    return raw[:-2] + b",\n" + inner + b"\n}"
+    return prefix + b",\n" + inner + closer
 
 
 def append_sleeves(raw: bytes) -> tuple[bytes, dict[str, Any]]:
