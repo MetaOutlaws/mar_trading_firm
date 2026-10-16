@@ -6,11 +6,13 @@ SGP1 overlay, the ``firm/memory.py`` hot fix, the eight files #135 changes at
 ``3424c265``, ``firm/scan_inbox.py`` at ``8fe9688f`` (#138),
 ``tests/test_scan_inbox.py`` at ``3cc0e6e4`` (#136, replacing ``456b0c8e``),
 and the later dashboard pins ``api/desk_status.py``, ``api/observer_status.py``,
-``api/static/index.html``, ``api/why_no_trade.py``, ``api/dashboard_cache.py``,
-``tests/test_dashboard_ux.py``, and ``tests/test_why_no_trade.py``. Those
-paths are applied on the server as an overlay on ``b00c4f73``. Nothing else
-may stay staged. The cache module is part of that overlay: the desk panels
-import it, and an unpinned copy would fail this guard once it is tracked.
+``api/static/index.html``, ``api/dashboard_cache.py``, and
+``tests/test_dashboard_ux.py``. Those paths are applied on the server as an
+overlay on ``b00c4f73``. Nothing else may stay staged. The cache module is
+part of that overlay: the desk panels import it, and an unpinned copy would
+fail this guard once it is tracked. ``api/why_no_trade.py`` and
+``tests/test_why_no_trade.py`` stay pinned at the 9caf785 blobs so a leftover
+panel file is still allowed. This overlay does not ship that panel.
 
 A path is allowed only when it is one of those paths and both the index and
 the worktree are the pinned git blob at that path's pinned mode. The two
@@ -43,18 +45,18 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
         "100644",
         "c6b8f663df4e199b3cd907bd95c0b393591345cb",
     ),  # c6b8f663
-    # Cached F111 panel. Replaces the 9caf785 pin 4814d209.
-    "api/desk_status.py": ("100644", "3347d45eac23d031d4dc5169910bad24702a518a"),  # 3347d45e
-    # Cached observers list. Replaces the 9caf785 pin 152a6df7.
+    # Cached F111 panel on the pre-panel handler. Replaces 3347d45e.
+    "api/desk_status.py": ("100644", "fc4a9a75d7d0c0c9594fcf86165949ecc2b28aa2"),  # fc4a9a75
+    # Cached observers list on the pre-panel handler. Replaces b982b1ba.
     "api/observer_status.py": (
         "100644",
-        "b982b1baef176fb4f67bf0bb613477a769df75db",
-    ),  # b982b1ba
-    # 60s observers poll. Replaces the 9caf785 pin 1d13fd9d.
+        "a3813379faa22c2449d288aa2953f6318d095ba2",
+    ),  # a3813379
+    # 60s observers poll on the pre-panel page. Replaces 219d908c.
     "api/static/index.html": (
         "100644",
-        "219d908c3c62994447d60c77a2e5beed53902715",
-    ),  # 219d908c
+        "c12e3e53fddc7b130a5f9986fb9f11a369667600",
+    ),  # c12e3e53
     "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),  # ad4de7a2
     "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),  # 28a9ccd9
     "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),  # 9fe475f6
@@ -82,10 +84,11 @@ ALLOWED_OVERLAY: dict[str, tuple[str, str]] = {
         "94c8b4126490d57ef728d258567dd294e098f0f4",
     ),  # 94c8b412
     "scripts/ufw_status_443.sh": ("100755", "f9ef5d0f510b19421d88f6f249d1c8fb37f92824"),  # f9ef5d0f
+    # Pre-panel UX contract. Replaces the 9caf785 pin 78398fb6.
     "tests/test_dashboard_ux.py": (
         "100644",
-        "78398fb6d6b35cc2f309780912365f7f918801c9",
-    ),  # 78398fb6
+        "477cf0dad1f9a9397454fa9248e9519986820459",
+    ),  # 477cf0da
     "tests/test_f111_execution_repair.py": ("100644", "162c2620ea20ae7c24e09b08a96e46cbb5fcf913"),
     "tests/test_scan_fill_counts.py": ("100644", "f0520d2ea966389b521b5cd962a0cdd150696d53"),
     # Current file at 5dff9454 (#136). Replaces 456b0c8e from b00c4f73.

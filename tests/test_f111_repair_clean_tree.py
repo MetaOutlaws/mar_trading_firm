@@ -27,8 +27,8 @@ FINDINGS_BLOB_PREFIXES = {
     "api/app.py": "c9b9f03f",
     # desk_status and index.html were replaced by the later SGP1 overlay.
     "api/dashboard_cache.py": "c6b8f663",
-    "api/desk_status.py": "3347d45e",
-    "api/static/index.html": "219d908c",
+    "api/desk_status.py": "fc4a9a75",
+    "api/static/index.html": "c12e3e53",
     "api/status_app.py": "ad4de7a2",
     "api/status_auth.py": "28a9ccd9",
     "api/status_snapshot.py": "9fe475f6",
@@ -119,9 +119,9 @@ def test_allowed_exact_match(
     assert guard.ALLOWED_OVERLAY == {
         "api/app.py": ("100644", "c9b9f03f8f4759e809ec17324daee52baffae4fa"),
         "api/dashboard_cache.py": ("100644", "c6b8f663df4e199b3cd907bd95c0b393591345cb"),
-        "api/desk_status.py": ("100644", "3347d45eac23d031d4dc5169910bad24702a518a"),
-        "api/observer_status.py": ("100644", "b982b1baef176fb4f67bf0bb613477a769df75db"),
-        "api/static/index.html": ("100644", "219d908c3c62994447d60c77a2e5beed53902715"),
+        "api/desk_status.py": ("100644", "fc4a9a75d7d0c0c9594fcf86165949ecc2b28aa2"),
+        "api/observer_status.py": ("100644", "a3813379faa22c2449d288aa2953f6318d095ba2"),
+        "api/static/index.html": ("100644", "c12e3e53fddc7b130a5f9986fb9f11a369667600"),
         "api/status_app.py": ("100644", "ad4de7a26776f2a14dd384057ef85c47fd936ef7"),
         "api/status_auth.py": ("100644", "28a9ccd99a3705dcbe370430e1e72215e6f1b51d"),
         "api/status_snapshot.py": ("100644", "9fe475f649a0f049f6406ddece144b7481f66b4c"),
@@ -149,7 +149,7 @@ def test_allowed_exact_match(
         "scripts/ufw_status_443.sh": ("100755", "f9ef5d0f510b19421d88f6f249d1c8fb37f92824"),
         "tests/test_dashboard_ux.py": (
             "100644",
-            "78398fb6d6b35cc2f309780912365f7f918801c9",
+            "477cf0dad1f9a9397454fa9248e9519986820459",
         ),
         "tests/test_f111_execution_repair.py": (
             "100644",
@@ -171,7 +171,7 @@ def test_allowed_exact_match(
     assert set(FINDINGS_BLOB_PREFIXES) < set(guard.ALLOWED_OVERLAY)
     prefixes = {
         **FINDINGS_BLOB_PREFIXES,
-        "api/observer_status.py": "b982b1ba",
+        "api/observer_status.py": "a3813379",
         "api/why_no_trade.py": "1ee0e13f",
         "firm/memory.py": "fba54b57",
         "firm/scan_inbox.py": "8fe9688f",
@@ -181,7 +181,7 @@ def test_allowed_exact_match(
         "core/execution/paper_bar_eval.py": "5374ab24",
         "core/execution/paper_cash.py": "fde5e49b",
         "core/execution/paper_settle.py": "830b3c5b",
-        "tests/test_dashboard_ux.py": "78398fb6",
+        "tests/test_dashboard_ux.py": "477cf0da",
         "tests/test_f111_execution_repair.py": "162c2620",
         "tests/test_scan_fill_counts.py": "f0520d2e",
         "tests/test_scan_inbox.py": "3cc0e6e4",
