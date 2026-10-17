@@ -95,9 +95,9 @@ class RiskLimits:
         ]
 
 
-#: Limits used in paper mode. Identical to live: paper trading is only useful as
-#: a forward test if it operates under the same constraints.
-PAPER_LIMITS = RiskLimits()
+#: Owner-authorized paper capacity revision, 2026-10-17. Risk per trade,
+#: notional, gross exposure and loss limits are unchanged. Live is separate.
+PAPER_LIMITS = RiskLimits(max_concurrent_positions=15)
 
 #: Starting limits for first live capital. Half the paper exposure, because the
 #: first weeks of real trading are for discovering execution surprises, not for

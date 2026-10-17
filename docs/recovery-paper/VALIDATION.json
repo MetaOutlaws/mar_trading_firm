@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "base_commit": "190ad181760744688db66306c8f19f3f113e6ed9",
+  "local_verification": "PASS",
+  "focused_tests": 36,
+  "inherited_bl8_tests": 43,
+  "server_activation_verified": false,
+  "docker_build_verified_locally": false,
+  "real_money_authorized": false,
+  "sha256": {
+    "core/risk/limits.py": "e7c43eee740565c7e60d64a67a6c217fb3ba725e70e6e034dc9d8e34a24f2530",
+    "core/execution/recovery_paper.py": "4f96e76121b60745b1908c7ac68eac7a1fb18bc07897cbd3504e6f9e5b82aeec",
+    "core/execution/recovery_feed.py": "c7be7f1d575bb75831cab132dbfcc3203f1ed23790086d54f155f126386b94f3",
+    "config/sleeves/mar_recovery_paper_v1.json": "6caa236ed065818922d92c32723da1c5156498c347fe5557eb727fbfbcd0dad9",
+    "scripts/run_recovery_paper.py": "023630160c093a6480a5f2b0eda894f2931d725ed40cd0e9606a284ae3215faa",
+    "scripts/report_recovery_paper.py": "747d759e435bd7f3bf5bc2c554bc82d9bff669ac0fc29cbbb0e83a9553794d5e",
+    "scripts/resize_paper_account.py": "f7e9f5a6da13bf6111d395a7aba3b4bf9b41baff67b76de5ce1ee79ed37dcef7",
+    "scripts/deploy_recovery_paper.sh": "901c245f6dd13cfd8d92b78d0438d95ac19e111ca2cccd5e693d629dbd809f98",
+    "tests/test_recovery_paper.py": "fd653849655328d61450995271286173ced72859a0ac7d3c8039c729ca84308f",
+    "docs/recovery-paper/Dockerfile": "24f6d56c4ac13ab8f9f035982d9f399d4a27fda86b1742239440990d9294d034",
+    "docs/recovery-paper/README.md": "0842c23f9a54a580cd6134218027f14c4f3c192408ea9278052cc0b134de49e5"
+  }
+}
