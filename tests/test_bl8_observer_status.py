@@ -437,11 +437,17 @@ def test_observer_routes_are_get_only(firm_db, monkeypatch, tmp_path) -> None:
     """The desk can poll BL8. It cannot post a scan, an order, or a write."""
     monkeypatch.setenv("BL8_STATE_DIR", str(tmp_path / "bl8-paper"))
     from api.app import app
+    from api.observer_snapshot import snapshot_store
 
     client = TestClient(app)
+    # The GET itself must not build the cards. Refresh once, then read.
+    snapshot_store.refresh()
     listed = client.get("/api/observers")
     assert listed.status_code == 200
     body = listed.json()
+    assert body["status"] == "ready"
+    assert str(body["generated_at"]).endswith("Z")
+    assert body["warming"] is False
     assert [row["id"] for row in body["observers"]] == ["f111", "bl8"]
     assert [row["id"] for row in body["pulses"]] == ["f111", "bl8"]
     assert all(row["live_book"] is False for row in body["observers"])

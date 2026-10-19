@@ -67,7 +67,12 @@ def test_observers_tab_replaces_f111_and_keeps_the_hourly_book():
     assert "retCode 10006" in html
     assert 'id="deskbar"' in html
     assert "get(\"/api/desk\")" in html
-    assert 'get("/api/observers")' in html
+    assert 'get("/api/observers", { signal: signal, timeoutMs: OBSERVERS_TIMEOUT_MS })' in html
+    assert 'src="/observers_poll.js"' in html
+    assert "ObserverPoll.panelMode" in html
+    assert "ObserverPoll.freshnessLabel" in html
+    assert "pagehide" in html
+    assert "observerPoll.stop()" in html
     assert 'get("/api/f111")' not in html
     assert "Live book" in html
     assert "source_mtime" in html

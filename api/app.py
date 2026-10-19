@@ -108,6 +108,25 @@ def _startup() -> None:
             logger.info("Posted research verdicts to Inbox for jobs %s", progressed["posted_inbox"])
     except Exception:
         logger.exception("Research catch-up failed; desk will still load.")
+    # The observers build is slow and grows with the scan files. Do it off
+    # the request path. OBSERVER_SNAPSHOTS_AUTOSTART=0 leaves the desk on
+    # the warming payload until something calls refresh (tests do this).
+    try:
+        from api.observer_snapshot import snapshot_store
+
+        snapshot_store.start_if_enabled()
+    except Exception:
+        logger.exception("Observer snapshot refresher did not start.")
+
+
+@app.on_event("shutdown")
+def _shutdown() -> None:
+    try:
+        from api.observer_snapshot import snapshot_store
+
+        snapshot_store.stop()
+    except Exception:
+        logger.exception("Observer snapshot refresher did not stop.")
 
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -118,6 +137,16 @@ def floor_page() -> FileResponse:
     # Operators refresh this constantly; never serve a stale desk after a restart.
     return FileResponse(
         STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+
+@app.get("/observers_poll.js")
+def observers_poll_script() -> FileResponse:
+    """Poll helper for the Observers tab. No-store, same as the desk page."""
+    return FileResponse(
+        STATIC_DIR / "observers_poll.js",
+        media_type="text/javascript",
         headers={"Cache-Control": "no-store, max-age=0"},
     )
 
@@ -335,29 +364,36 @@ def observers() -> dict[str, Any]:
 
     Read-only, same exposure as ``/api/f111``. Does not scan, order, or
     write either book. BL8 stays out of the hourly blotter.
-    """
-    from api.observer_status import list_observers
 
-    return list_observers()
+    The handler does not build the cards. It returns the snapshot the
+    background refresher last finished (about every 60s, and again after a
+    scan). Before that exists the body is a warming document, not an empty list.
+    """
+    from api.observer_snapshot import snapshot_store
+
+    return snapshot_store.serve()
 
 
 @app.get("/api/observers/{observer_id}")
 def observer(observer_id: str) -> dict[str, Any]:
-    """One isolated observer. GET only; unknown ids are 404."""
-    from api.observer_status import observer_status
+    """One isolated observer from the snapshot. GET only; unknown ids are 404.
+
+    Does not rebuild the card. A known id before the first snapshot is warming.
+    """
+    from api.observer_snapshot import snapshot_store
 
     try:
-        return observer_status(observer_id)
+        return snapshot_store.serve_one(observer_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="unknown observer") from None
 
 
 @app.get("/api/bl8")
 def bl8_status() -> dict[str, Any]:
-    """BL8 observer card. Alias of ``/api/observers/bl8``. Read-only."""
-    from api.observer_status import observer_status
+    """BL8 observer card. Alias of ``/api/observers/bl8``. Read-only snapshot."""
+    from api.observer_snapshot import snapshot_store
 
-    return observer_status("bl8")
+    return snapshot_store.serve_one("bl8")
 
 
 def _strategy_name_from_record(record: dict[str, Any]) -> str:

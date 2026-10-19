@@ -778,6 +778,7 @@ canvas { width: 100%; height: 84px; display: block; }
 </div>
 <div class="modal-back" id="modal"></div>
 <div class="toast" id="toast"></div>
+<script src="/observers_poll.js"></script>
 <script>
 const API = localStorage.getItem("firmApiBase") || "";
 const RESET_PHRASE = "I HAVE INVESTIGATED THE CAUSE";
@@ -809,7 +810,7 @@ const KICKERS = {
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
 };
-let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, observers: { observers: [], pulses: [] }, regime: {}, expansion: { rows: [], active_strategies: [] } };
+let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, observers: null, observersPoll: { failed: false, error: null }, regime: {}, expansion: { rows: [], active_strategies: [] } };
 let lastError = "";
 
 function viewName() {
@@ -909,8 +910,8 @@ function renderDeskbar() {
   const sokoLabel = soko.label || "—";
   const sokoWhen = soko.as_of ? ("as of " + stamp(soko.as_of) + " · " + ageLabel(soko.age_seconds)) : "no as_of";
   const loaded = (state.observers && state.observers.pulses) || [];
-  // Always show both pulses. Before the poll, and if the call fails, the
-  // counts stay blank rather than a guessed book.
+  // Last good pulses stay when a poll times out. Placeholders are only for
+  // the moment before the first snapshot, not a guessed book.
   const pulses = loaded.length ? loaded : [
     { id: "f111", label: "F111", mode: "paper", coverage_text: "—", open_positions: null },
     { id: "bl8", label: "BL8", mode: "paper", coverage_text: "—", open_positions: null },
@@ -1160,8 +1161,16 @@ function showModal(html) {
 }
 function toggleNav() { document.getElementById("sidebar").classList.toggle("open"); }
 
-async function get(path) {
-  const res = await fetch(API + path);
+async function get(path, options) {
+  const opts = {};
+  if (options && typeof options === "object") {
+    const signals = [];
+    if (options.signal) signals.push(options.signal);
+    if (options.timeoutMs) signals.push(AbortSignal.timeout(options.timeoutMs));
+    if (signals.length === 1) opts.signal = signals[0];
+    else if (signals.length > 1) opts.signal = ObserverPoll.anySignal(signals);
+  }
+  const res = await fetch(API + path, opts);
   if (!res.ok) throw new Error(path + " " + res.status);
   return res.json();
 }
@@ -2684,16 +2693,45 @@ function observerPanel(card) {
     <div class="muted">${esc(pathBits.join(" · ") || "no paths configured")}${card.degraded_reason ? " · " + esc(card.degraded_reason) : ""}</div>
   `;
 }
+function observerFreshnessHtml() {
+  const failed = !!(state.observersPoll && state.observersPoll.failed);
+  const label = ObserverPoll.freshnessLabel(state.observers, failed, Date.now());
+  if (!label) return "";
+  const cls = failed ? "badge warn" : "badge";
+  return `<span class="${cls}" id="observerFreshness">${esc(label)}</span>`;
+}
 function renderObservers() {
   const chip = observerChip();
   const switcher = `<div class="seg" role="tablist" aria-label="Observers">
     ${OBSERVER_CHIPS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${chip === id ? "true" : "false"}" class="${chip === id ? "active" : ""}" onclick="setObserverChip('${id}')">${label}</button>`).join("")}
   </div>`;
+  const view = {
+    data: state.observers,
+    failed: !!(state.observersPoll && state.observersPoll.failed),
+  };
+  const mode = ObserverPoll.panelMode(view);
+  const head = `<div class="meta-row" style="margin:8px 0 12px; align-items:center">${switcher}${observerFreshnessHtml()}</div>`;
+  if (mode === "warming") {
+    let detail = (state.observers && state.observers.detail)
+      || (view.failed
+        ? "The last poll failed. Kept data is unchanged, and this is not an empty book."
+        : "The first snapshot is still being built. This is not an empty book.");
+    const refreshError = state.observers && state.observers.refresh_error;
+    if (refreshError) detail += " Last attempt: " + refreshError;
+    return head + `<div class="card">${empty("Observers warming", detail)}</div>`;
+  }
+  if (mode === "empty") {
+    return head + `<div class="card">${empty("No observers", "The desk reported an empty observer list.")}</div>`;
+  }
   const card = observerById(chip);
   if (!card) {
-    return switcher + `<div class="card">${empty("Observer not loaded", "The desk polls /api/observers. Until that returns, this chip stays empty.")}</div>`;
+    return head + `<div class="card">${empty("Chip missing", "The latest snapshot does not include this observer.")}</div>`;
   }
-  return switcher + observerPanel(card);
+  const refreshError = state.observers && state.observers.refresh_error;
+  const errLine = refreshError
+    ? `<div class="warn" style="margin-bottom:8px">Last refresh failed: ${esc(refreshError)}. Showing the previous snapshot.</div>`
+    : "";
+  return head + errLine + observerPanel(card);
 }
 function renderHealth() {
   const llm = state.llm || {};
@@ -3294,7 +3332,7 @@ async function wakeFloor() {
 async function load(manual) {
   try {
     await ensureLocalToken();
-    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, observers, regime, nearMisses, expansion] = await Promise.all([
+    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, regime, nearMisses, expansion] = await Promise.all([
       get("/api/floor"),
       get("/api/risk"),
       get("/api/trades?limit=100"),
@@ -3305,14 +3343,17 @@ async function load(manual) {
       get("/api/strategies"),
       get("/api/cycle"),
       get("/api/desk"),
-      get("/api/observers").catch(err => ({ ok: false, error: String(err.message || err), observers: [], pulses: [] })),
       get("/api/regime"),
       get("/api/near-misses").catch(() => ({ count: 0, rows: [] })),
       // A seal error must not blank the rest of the desk, and must not
       // invent rows. The Research section shows the error instead.
       get("/api/research/expansion").catch(err => ({ ok: false, error: String(err.message || err), rows: [], active_strategies: [] })),
     ]);
-    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, observers: observers || { observers: [], pulses: [] }, regime: regime || {}, nearMisses, expansion: expansion || { ok: false, rows: [], active_strategies: [] }, llmPing: state.llmPing };
+    // Observers are owned by observerPoll. A desk reload must not replace
+    // the last good snapshot with a timeout or an empty list.
+    const keptObservers = state.observers;
+    const keptPoll = state.observersPoll;
+    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, observers: keptObservers, observersPoll: keptPoll, regime: regime || {}, nearMisses, expansion: expansion || { ok: false, rows: [], active_strategies: [] }, llmPing: state.llmPing };
     lastError = "";
     render({ keepScroll: true, force: !!manual });
   } catch (err) {
@@ -3326,6 +3367,11 @@ async function load(manual) {
 
 function tickClock() {
   document.getElementById("clock").textContent = new Date().toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const fresh = document.getElementById("observerFreshness");
+  if (fresh && window.ObserverPoll) {
+    const failed = !!(state.observersPoll && state.observersPoll.failed);
+    fresh.textContent = ObserverPoll.freshnessLabel(state.observers, failed, Date.now());
+  }
 }
 window.addEventListener("hashchange", () => {
   if ((location.hash || "").replace(/^#/, "") === "f111") {
@@ -3340,6 +3386,22 @@ tickClock();
 setInterval(tickClock, 1000);
 load();
 setInterval(load, 15000);
+
+// Observers are not part of the 15s desk load. A timeout or a 500 keeps the
+// last good snapshot. The request is aborted when the page goes away, and a
+// new poll does not start while one is in flight.
+const OBSERVERS_TIMEOUT_MS = 4000;
+const observerPoll = ObserverPoll.create({
+  timeoutMs: OBSERVERS_TIMEOUT_MS,
+  fetchPayload: (signal) => get("/api/observers", { signal: signal, timeoutMs: OBSERVERS_TIMEOUT_MS }),
+  onChange: (view) => {
+    state.observers = view.data;
+    state.observersPoll = { failed: !!view.failed, error: view.error || null };
+    render({ keepScroll: true });
+  },
+});
+window.addEventListener("pagehide", () => observerPoll.stop());
+observerPoll.start();
 </script>
 </body>
 </html>

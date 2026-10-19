@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
+
+# The observers snapshot is built off the request path. Tests that want a
+# build call refresh() or seed() themselves so the suite does not walk the
+# scan files in a background thread.
+os.environ["OBSERVER_SNAPSHOTS_AUTOSTART"] = "0"
 
 from config.settings import get_settings
 from core.db import get_engine, get_session_factory, init_db
