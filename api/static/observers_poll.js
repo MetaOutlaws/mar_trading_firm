@@ -6,6 +6,12 @@
  * payload is not an empty book. Polls do not overlap, and stop() aborts
  * the request in flight (page hide / unmount).
  *
+ * This is the only /api/observers loop. The 15s desk load does not fetch
+ * observers, and there is no second timer in index.html. pause() is the
+ * hidden-tab guard: it clears the next-poll timer and does not start a
+ * request. An in-flight request is left to the 4s abort. resume() polls
+ * once. stop() is permanent (navigation away).
+ *
  * Loaded as a classic script by the desk and as a CommonJS module by tests.
  */
 (function (root, factory) {
@@ -162,13 +168,14 @@
     var view = { data: null, failed: false, error: null };
     var inFlight = false;
     var stopped = false;
+    var paused = false;
     var failures = 0;
     var controller = null;
     var retryTimer = null;
     var lastDelay = null;
 
     function schedule(outcome) {
-      if (stopped) return;
+      if (stopped || paused) return;
       if (retryTimer) clearTimeout(retryTimer);
       lastDelay = nextDelayMs(outcome, failures, random);
       retryTimer = setTimeout(function () {
@@ -179,7 +186,7 @@
     }
 
     function poll() {
-      if (stopped || inFlight) return Promise.resolve(view);
+      if (stopped || paused || inFlight) return Promise.resolve(view);
       inFlight = true;
       var local = new AbortController();
       controller = local;
@@ -227,9 +234,28 @@
 
     function stop() {
       stopped = true;
+      paused = false;
       if (retryTimer) clearTimeout(retryTimer);
       retryTimer = null;
       if (controller) controller.abort();
+    }
+
+    // Hidden tab: drop the scheduled poll. Do not abort the request already
+    // in flight; the timeout still caps it. Cards stay as they are.
+    function pause() {
+      if (stopped) return;
+      paused = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+
+    // Visible again: one poll, then the normal interval. Not a second loop.
+    function resume() {
+      if (stopped) return Promise.resolve(view);
+      var wasPaused = paused;
+      paused = false;
+      if (!wasPaused || inFlight) return Promise.resolve(view);
+      return poll();
     }
 
     return {
@@ -238,12 +264,17 @@
         return poll();
       },
       stop: stop,
+      pause: pause,
+      resume: resume,
       poll: poll,
       getView: function () {
         return view;
       },
       inFlight: function () {
         return inFlight;
+      },
+      paused: function () {
+        return paused;
       },
       lastDelay: function () {
         return lastDelay;

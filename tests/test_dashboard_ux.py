@@ -73,6 +73,19 @@ def test_observers_tab_replaces_f111_and_keeps_the_hourly_book():
     assert "ObserverPoll.freshnessLabel" in html
     assert "pagehide" in html
     assert "observerPoll.stop()" in html
+    assert "observerPoll.pause()" in html
+    assert "observerPoll.resume()" in html
+    assert 'document.visibilityState === "hidden"' in html
+    # One observers loop. The old inline timer is not armed beside it.
+    assert html.count("ObserverPoll.create(") == 1
+    assert html.count('get("/api/observers"') == 1
+    assert "function loadObservers(" not in html
+    assert "function armObservers(" not in html
+    assert "observersInflight" not in html
+    assert "OBSERVERS_POLL_MS" not in html
+    assert html.count("setInterval(load, 15000);") == 1
+    load = html.split("async function load(", 1)[1].split("function tickClock(", 1)[0]
+    assert "/api/observers" not in load
     assert 'get("/api/f111")' not in html
     assert "Live book" in html
     assert "source_mtime" in html

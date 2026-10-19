@@ -222,3 +222,34 @@ test("stop aborts the in-flight request and does not clear cards", async () => {
   assert.equal(client.getView().failed, false);
   assert.equal(client.getView().data, null);
 });
+
+test("a hidden tab pauses the one poller and resume does not stack a second loop", async () => {
+  let calls = 0;
+  const client = poll.create({
+    random: () => 0.5,
+    timeoutMs: 1000,
+    fetchPayload: async () => {
+      calls += 1;
+      return READY;
+    },
+  });
+  try {
+    await client.start();
+    assert.equal(calls, 1);
+    assert.equal(poll.panelMode(client.getView()), "cards");
+    client.pause();
+    assert.equal(client.paused(), true);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    assert.equal(calls, 1);
+    assert.equal(client.getView().data.observers[0].id, "f111");
+    const again = client.resume();
+    const stacked = client.resume();
+    await again;
+    await stacked;
+    assert.equal(calls, 2);
+    assert.equal(client.paused(), false);
+    assert.equal(poll.panelMode(client.getView()), "cards");
+  } finally {
+    client.stop();
+  }
+});
