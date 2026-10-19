@@ -1,0 +1,72 @@
+[
+ {
+  "id": 11,
+  "event_id": "backfill-close:desktop:1",
+  "kind": "close",
+  "mode": "paper",
+  "symbol": "ETHUSDT",
+  "position_id": null,
+  "payload": "{\"backfill\": true, \"source_trade_id\": 1, \"net\": -23.78573094139993, \"cash_after\": 9883.390734784245}",
+  "recorded_at": "2026-10-09 08:39:15.501024"
+ },
+ {
+  "id": 12,
+  "event_id": "backfill-close:desktop:2",
+  "kind": "close",
+  "mode": "paper",
+  "symbol": "XRPUSDT",
+  "position_id": null,
+  "payload": "{\"backfill\": true, \"source_trade_id\": 2, \"net\": -40.3514583272514, \"cash_after\": 9843.039276456993}",
+  "recorded_at": "2026-10-09 08:39:15.501024"
+ },
+ {
+  "id": 13,
+  "event_id": "backfill-close:desktop:3",
+  "kind": "close",
+  "mode": "paper",
+  "symbol": "BNBUSDT",
+  "position_id": null,
+  "payload": "{\"backfill\": true, \"source_trade_id\": 3, \"net\": 24.459077209000096, \"cash_after\": 9867.498353665993}",
+  "recorded_at": "2026-10-09 08:39:15.501024"
+ },
+ {
+  "id": 14,
+  "event_id": "backfill-close:desktop:4",
+  "kind": "close",
+  "mode": "paper",
+  "symbol": "AVAXUSDT",
+  "position_id": null,
+  "payload": "{\"backfill\": true, \"source_trade_id\": 4, \"net\": -14.310094110515001, \"cash_after\": 9853.188259555478}",
+  "recorded_at": "2026-10-09 08:39:15.501024"
+ },
+ {
+  "id": 15,
+  "event_id": "backfill-close:desktop:5",
+  "kind": "close",
+  "mode": "paper",
+  "symbol": "XRPUSDT",
+  "position_id": null,
+  "payload": "{\"backfill\": true, \"source_trade_id\": 5, \"net\": -35.08172176697596, \"cash_after\": 9818.106537788502}",
+  "recorded_at": "2026-10-09 08:39:15.501024"
+ },
+ {
+  "id": 16,
+  "event_id": "backfill-close:desktop:6",
+  "kind": "close",
+  "mode": "paper",
+  "symbol": "BNBUSDT",
+  "position_id": null,
+  "payload": "{\"backfill\": true, \"source_trade_id\": 6, \"net\": -12.67305500669989, \"cash_after\": 9805.433482781802}",
+  "recorded_at": "2026-10-09 08:39:15.501024"
+ },
+ {
+  "id": 17,
+  "event_id": "backfill-close:desktop:7",
+  "kind": "close",
+  "mode": "paper",
+  "symbol": "XRPUSDT",
+  "position_id": null,
+  "payload": "{\"backfill\": true, \"source_trade_id\": 7, \"net\": -12.75952188729085, \"cash_after\": 9792.673960894512}",
+  "recorded_at": "2026-10-09 08:39:15.501024"
+ }
+]

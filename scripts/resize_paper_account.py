@@ -13,6 +13,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import sqlite3
 import sys
@@ -22,6 +23,56 @@ sys.path.insert(0,str(ROOT))
 from core.execution.paper_cash import replay_events
 
 EVENT_ID='owner-paper-capital-20261017-20000-v1'
+
+# Oct 9 desktop backfill closes, paper_cash_events ids 11-17.
+# Payload is {backfill, source_trade_id, net, cash_after} and has no event_id.
+# Measured against the matching journal: net == gross_pnl - fee - entry_fee + funding
+# on all seven rows (residual under 1e-14). entry_fee and funding are 0, so this
+# is the same number as the cash-replay close, which subtracts funding. These
+# rows do not distinguish the funding sign. cash_after is the journal field,
+# not a from-zero replay of these seven closes (earlier history sits in that balance).
+LEGACY_BACKFILL_CLOSE_DESKTOP=re.compile(r'^backfill-close:desktop:\d+$')
+LEGACY_BACKFILL_CLOSE_NET_TOLERANCE=1e-6
+
+
+def legacy_backfill_close_desktop(row, payload):
+    """Named rule for the legacy desktop backfill-close shape. Nothing else.
+
+    event_id matches ^backfill-close:desktop:\\d+$, kind is close, payload.backfill
+    is true, and the payload has source_trade_id, net and cash_after and no event_id.
+    """
+    if not isinstance(payload, dict) or not isinstance(row['event_id'], str):
+        return False
+    if LEGACY_BACKFILL_CLOSE_DESKTOP.fullmatch(row['event_id']) is None:
+        return False
+    if row['kind']!='close' or payload.get('backfill') is not True or 'event_id' in payload:
+        return False
+    return all(key in payload for key in ('source_trade_id','net','cash_after'))
+
+
+def reconcile_legacy_backfill_close(row, payload, journal):
+    """Reconcile one legacy backfill-close row against its cash-journal entry.
+
+    The journal entry must exist with the same event_id and symbol, the same
+    source_trade_id and the same cash_after. Payload net must equal
+    gross_pnl - fee - entry_fee + funding within 1e-6. A miss raises; it does
+    not fall through to a softer check.
+    """
+    event_id=row['event_id']
+    if (not isinstance(journal, dict) or journal.get('event_id')!=event_id
+            or journal.get('symbol')!=row['symbol']
+            or journal.get('source_trade_id')!=payload.get('source_trade_id')
+            or 'cash_after' not in journal or journal.get('cash_after')!=payload.get('cash_after')):
+        raise ValueError(f'durable cash event identity mismatch ({event_id})')
+    try:
+        expected=(float(journal['gross_pnl'])-float(journal['fee'])
+                  -float(journal['entry_fee'])+float(journal['funding']))
+        net=float(payload['net'])
+    except (KeyError, TypeError, ValueError):
+        raise ValueError(f'durable cash event identity mismatch ({event_id})') from None
+    if (not math.isfinite(expected) or not math.isfinite(net)
+            or abs(net-expected)>LEGACY_BACKFILL_CLOSE_NET_TOLERANCE):
+        raise ValueError(f'durable cash event identity mismatch ({event_id})')
 
 
 def sha(path):
@@ -63,10 +114,14 @@ def inspect_account(data, app):
     tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     missing=[]
     if 'paper_cash_events' in tables:
-        for row in db.execute('SELECT event_id,mode,payload FROM paper_cash_events ORDER BY id'):
+        for row in db.execute('SELECT event_id,kind,mode,symbol,payload FROM paper_cash_events ORDER BY id'):
             if row['mode']!='paper':
                 raise ValueError('non-paper durable cash row')
             payload=json.loads(row['payload'])
+            # Only the named legacy backfill-close shape may omit payload event_id.
+            if legacy_backfill_close_desktop(row, payload):
+                reconcile_legacy_backfill_close(row, payload, seen.get(row['event_id']))
+                continue
             if payload.get('event_id')!=row['event_id']:
                 raise ValueError('durable cash event identity mismatch')
             if row['event_id'] not in seen:

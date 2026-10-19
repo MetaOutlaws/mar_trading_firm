@@ -90,6 +90,15 @@ It backs up the database, cash journal, risk limits and protective files.
 
 The increase is one identified capital event: `max(0, 20000 - current cash)`.
 It is not trading profit. An account already above 20,000 is not reduced.
+Seven durable rows written on 2026-10-09 (`backfill-close:desktop:1` through
+`7`, `paper_cash_events` ids 11-17) store `{backfill, source_trade_id, net,
+cash_after}` and no `event_id`. The preview accepts only that shape, and only
+when the cash journal has the same event id, symbol, source trade and
+cash-after, and `net` equals `gross_pnl - fee - entry_fee + funding` within
+1e-6. On these seven journals funding and entry fee are zero, so that is also
+the cash-replay close. Every other durable row still needs `payload.event_id`
+to match the row.
+
 Unrealised P&L on existing positions remains additional to this cash balance.
 A repeated install does not replenish subsequent losses. No position, stop,
 closed trade, earlier cash event or kill state is rewritten. The source change
