@@ -7,6 +7,7 @@ are stopped. No initial-equity reset and no edits to positions or kill switches.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -38,6 +39,66 @@ def atomic(path, payload):
     finally: os.close(fd)
 
 
+def reconcile_durable_cash(rows, events):
+    """Check old/new cash formats without assigning IDs or rewriting history.
+
+    A legacy durable payload may omit the ID stored on its database row.
+    Prefer that row ID in the journal. If both payload and journal lack an
+    ID, require an exact full-payload match (including timestamp), consumed
+    once per durable row. Matching only balances, symbols or amounts is unsafe.
+    """
+    seen={};legacy=[]
+    for event in events:
+        key=event.get('event_id')
+        if key in (None,''):
+            legacy.append({k:v for k,v in event.items() if k!='event_id'})
+            continue
+        if not isinstance(key,str):
+            raise ValueError('invalid cash event ID')
+        if key in seen:
+            raise ValueError('duplicate event IDs require cash reconciliation first')
+        seen[key]=event
+    audit=dict(durable_rows=0,matched_by_id=0,legacy_payloads_without_id=0,
+               legacy_journal_matches=0)
+    durable_ids=set()
+    for row in rows:
+        if row['mode']!='paper':
+            raise ValueError('non-paper durable cash row')
+        key=row['event_id']
+        if not isinstance(key,str) or not key:
+            raise ValueError('missing durable cash event ID')
+        if key in durable_ids:
+            raise ValueError('duplicate durable cash event IDs')
+        durable_ids.add(key)
+        payload=json.loads(row['payload'])
+        if not isinstance(payload,dict):
+            raise ValueError('invalid durable cash event payload')
+        payload_id=payload.get('event_id')
+        legacy_payload=payload_id in (None,'')
+        if not legacy_payload and payload_id!=key:
+            raise ValueError('durable cash event identity mismatch')
+        audit['durable_rows']+=1
+        audit['legacy_payloads_without_id']+=int(legacy_payload)
+        if key in seen:
+            # Existing migrations can enrich identity metadata in JSON.
+            # The identified event's economic fields must still agree exactly.
+            for field in ('kind','symbol','amount','gross_pnl','fee','entry_fee','funding'):
+                if seen[key].get(field)!=payload.get(field):
+                    raise ValueError('durable cash event economic conflict')
+            audit['matched_by_id']+=1
+        elif legacy_payload:
+            body={k:v for k,v in payload.items() if k!='event_id'}
+            try:
+                index=legacy.index(body)
+            except ValueError:
+                raise ValueError('legacy durable cash event has no unused exact journal match') from None
+            legacy.pop(index)
+            audit['legacy_journal_matches']+=1
+        else:
+            raise ValueError('durable cash events not yet reconciled; restart/repair existing account before resizing')
+    return audit
+
+
 def inspect_account(data, app):
     cash_path=data/'paper_cash.json';db_path=data/'firm.db';limits_path=app/'core/risk/limits.py'
     if not all(p.is_file() for p in (cash_path,db_path,limits_path)):
@@ -47,39 +108,17 @@ def inspect_account(data, app):
         raise ValueError('invalid existing cash journal; refusing to initialize/reset it')
     if any(e.get('kind') not in {'capital','open','funding','close'} for e in events):
         raise ValueError('unknown cash event kind')
-    seen={}
-    for e in events:
-        key=e.get('event_id')
-        if key and key in seen:
-            raise ValueError('duplicate event IDs require cash reconciliation first')
-        if key: seen[key]=e
-    db=sqlite3.connect(f'file:{db_path}?mode=ro',uri=True)
-    db.row_factory=sqlite3.Row
-    if db.execute('PRAGMA quick_check').fetchone()[0]!='ok':
-        raise ValueError('database integrity check failed')
-    positions=[dict(r) for r in db.execute("SELECT * FROM positions WHERE status != 'closed' ORDER BY id")]
-    if any(p['mode']!='paper' for p in positions):
-        raise ValueError('non-paper open positions; refuse migration')
-    tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    missing=[]
-    if 'paper_cash_events' in tables:
-        for row in db.execute('SELECT event_id,mode,payload FROM paper_cash_events ORDER BY id'):
-            if row['mode']!='paper':
-                raise ValueError('non-paper durable cash row')
-            payload=json.loads(row['payload'])
-            if payload.get('event_id')!=row['event_id']:
-                raise ValueError('durable cash event identity mismatch')
-            if row['event_id'] not in seen:
-                missing.append(payload)
-            elif seen[row['event_id']] != payload:
-                # Legacy migrations can enrich identity fields in the JSON.
-                # Economic fields must still agree exactly.
-                for key in ('kind','symbol','amount','gross_pnl','fee','entry_fee','funding'):
-                    if seen[row['event_id']].get(key) != payload.get(key):
-                        raise ValueError('durable cash event economic conflict')
-    db.close()
-    if missing:
-        raise ValueError('durable cash events not yet reconciled; restart/repair existing account before resizing')
+    with closing(sqlite3.connect(f'file:{db_path}?mode=ro',uri=True)) as db:
+        db.row_factory=sqlite3.Row
+        if db.execute('PRAGMA quick_check').fetchone()[0]!='ok':
+            raise ValueError('database integrity check failed')
+        positions=[dict(r) for r in db.execute("SELECT * FROM positions WHERE status != 'closed' ORDER BY id")]
+        if any(p['mode']!='paper' for p in positions):
+            raise ValueError('non-paper open positions; refuse migration')
+        tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        rows=(db.execute('SELECT event_id,mode,payload FROM paper_cash_events ORDER BY id')
+              if 'paper_cash_events' in tables else [])
+        reconciliation=reconcile_durable_cash(rows,events)
     current=replay_events(events)
     for value in (current.cash,current.realised_pnl,current.contributed_capital,current.total_fees,current.total_funding):
         if not math.isfinite(value): raise ValueError('nonfinite cash state')
@@ -99,6 +138,7 @@ def inspect_account(data, app):
     protective={p.name:sha(p) for p in data.iterdir() if p.is_file() and
                 ('kill' in p.name or p.name in ('f111_paper_state.json','f111_paper_scan_disabled','l01_paper_enabled.json'))}
     return dict(raw=raw,events=events,current=current,positions=positions,protective=protective,
+                durable_cash_reconciliation=reconciliation,
                 limits_text=text,limits_next=text.replace(old,new),limits=limits.to_dict(),
                 cash_sha=sha(cash_path),limits_sha=sha(limits_path))
 
@@ -113,6 +153,7 @@ def resize(data, app, backup_root, *, apply=False):
                  balance_basis='cash; open-position unrealised P&L is additional',
                  realised_pnl_before=before['current'].realised_pnl,
                  existing_open_positions=before['positions'],protective_hashes=before['protective'],
+                 durable_cash_reconciliation=before['durable_cash_reconciliation'],
                  already_applied=prior is not None,applied=False)
     if not apply: return receipt
     stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')

@@ -88,6 +88,18 @@ existing positions, known settings, and dependencies. It finishes the build,
 tests and dry run before briefly stopping the current paper and API containers.
 It backs up the database, cash journal, risk limits and protective files.
 
+Legacy cash compatibility (20 October 2026 Dubai): a durable database row may
+have an `event_id` while its older JSON payload lacks that field. The preview
+now accepts this when the database ID matches an existing journal entry with
+identical economic fields. If the journal entry also lacks an ID, the entire
+payload, including its timestamp and any other metadata, must match exactly;
+each journal occurrence can cover only one durable row. Missing IDs are not
+assigned, history is not rewritten, and explicit ID conflicts, unmatched rows,
+duplicate IDs and economic differences still stop the migration. Preview and
+apply receipts include `durable_cash_reconciliation` counts for inspection.
+The reported seven October 9 records were reproduced with synthetic fixtures;
+their actual server payloads have not been independently inspected here.
+
 The increase is one identified capital event: `max(0, 20000 - current cash)`.
 It is not trading profit. An account already above 20,000 is not reduced.
 Unrealised P&L on existing positions remains additional to this cash balance.
@@ -102,11 +114,21 @@ restarts the existing containers and starts the isolated comparison service.
 Run the pinned installer from the existing Singapore operator session:
 
 ```bash
+set -euo pipefail
+umask 077
+test "$(hostname)" = mo-paper-vm-sgp1
+# Set RELEASE to the full reviewed commit from the latest operator handoff.
+# Use the legacy-cash fix commit, not the original October 17 release.
+RELEASE='FULL_REVIEWED_COMMIT_SHA'
 git -C /data/app fetch origin codex/recovery-paper-20261017
-# Set RELEASE to the full published commit in the operator handoff.
+test "$(git -C /data/app rev-parse FETCH_HEAD)" = "$RELEASE"
 git -C /data/app show "$RELEASE:scripts/deploy_recovery_paper.sh" > /root/deploy_recovery_paper.sh
 bash /root/deploy_recovery_paper.sh "$RELEASE"
 ```
+
+Replace the placeholder before running. Fetch downloads the reviewed code
+history; it does not change the current checkout or running containers. The
+installer is the separate step that previews, backs up and applies the change.
 
 Do not checkout this branch over `/data/app`: newer unrelated repairs may be
 running there. The installer extracts this immutable release under `/opt`.
@@ -142,7 +164,10 @@ over newer trades. Backups and immutable events support an explicit repair.
 
 ## Verification and rollout status
 
-Local verification: 36 new focused checks and 43 inherited BL8 checks pass.
+Local verification: 48 recovery checks and 43 inherited BL8 checks pass.
+The recovery suite includes 12 added legacy-cash regression tests covering
+seven old payloads, mixed formats, exact-match multiplicity, conflicting IDs,
+economic differences, read-only preview, preservation and top-up retry.
 They cover fee-aware sizing, all major gates, C24 timing, shared ordering,
 short/funding accounting, partial quote/close ordering, restart/idempotence,
 an actual abrupt process interruption inside the transaction, report
