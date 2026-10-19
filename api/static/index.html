@@ -140,6 +140,37 @@ a { color: inherit; }
   line-height: 1.4;
 }
 .deskbar strong { color: var(--ink); font-weight: 500; }
+.deskbar button.pulse {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.deskbar button.pulse:hover { border-color: var(--paper); color: var(--ink); }
+.deskbar button.pulse.warn { color: var(--warn); border-color: rgba(240, 180, 41, 0.45); }
+.deskbar button.pulse.bad { color: var(--bad); border-color: rgba(255, 106, 92, 0.45); }
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-2);
+  width: fit-content;
+}
+.seg button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+.seg button.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .btn {
   border: 1px solid var(--line-strong);
   background: var(--surface);
@@ -747,13 +778,14 @@ canvas { width: 100%; height: 84px; display: block; }
 </div>
 <div class="modal-back" id="modal"></div>
 <div class="toast" id="toast"></div>
+<script src="/observers_poll.js"></script>
 <script>
 const API = localStorage.getItem("firmApiBase") || "";
 const RESET_PHRASE = "I HAVE INVESTIGATED THE CAUSE";
 const VIEWS = [
   ["overview", "Overview"],
   ["health", "Health"],
-  ["f111", "F111"],
+  ["observers", "Observers"],
   ["floor", "Floor"],
   ["blotter", "Blotter"],
   ["positions", "Positions"],
@@ -767,7 +799,7 @@ const VIEWS = [
 const KICKERS = {
   overview: "Daily standup — where we are, what needs you, what is next",
   health: "Keys, last cycle, and why the blotter is quiet",
-  f111: "F111 paper scan — 192 sleeves, census, and gate reasons. Display only.",
+  observers: "Isolated paper observers — F111 and BL8. Not the hourly live book.",
   floor: "Ten employees, trust ladder, and current work",
   blotter: "Closed round trips with costs and attribution",
   positions: "Open book — mark, open P&L, stop, and target",
@@ -778,12 +810,41 @@ const KICKERS = {
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
 };
-let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, f111: {}, regime: {}, expansion: { rows: [], active_strategies: [] } };
+let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, observers: null, observersPoll: { failed: false, error: null }, regime: {}, expansion: { rows: [], active_strategies: [] } };
 let lastError = "";
 
 function viewName() {
-  const hash = (location.hash || "#overview").slice(1);
+  // #f111 bookmarks land on Observers. The chip select is handled beside this.
+  let hash = (location.hash || "#overview").slice(1);
+  if (hash === "f111") hash = "observers";
   return VIEWS.some(([id]) => id === hash) ? hash : "overview";
+}
+const OBSERVER_KEY = "deskObserver";
+const OBSERVER_CHIPS = [["f111", "F111"], ["bl8", "BL8"]];
+function observerChip() {
+  const raw = (location.hash || "").replace(/^#/, "");
+  if (raw === "f111") return "f111";
+  const saved = localStorage.getItem(OBSERVER_KEY);
+  return saved === "bl8" ? "bl8" : "f111";
+}
+function setObserverChip(id) {
+  if (id !== "f111" && id !== "bl8") return;
+  localStorage.setItem(OBSERVER_KEY, id);
+  if ((location.hash || "").replace(/^#/, "") === "f111") {
+    location.hash = "observers";
+    return;
+  }
+  render({ keepScroll: true, force: true });
+}
+function openObserver(id) {
+  const chip = id === "bl8" ? "bl8" : "f111";
+  localStorage.setItem(OBSERVER_KEY, chip);
+  go("observers");
+}
+function pulseClass(tone) {
+  if (tone === "bad" || tone === "unavailable") return "bad";
+  if (tone === "warn" || tone === "stale" || tone === "degraded") return "warn";
+  return "";
 }
 function token() { return localStorage.getItem("firmApiToken") || ""; }
 async function ensureLocalToken() {
@@ -848,11 +909,25 @@ function renderDeskbar() {
   const cycleAge = cycle.age_seconds != null ? ageLabel(cycle.age_seconds) + " old" : "no cycle";
   const sokoLabel = soko.label || "—";
   const sokoWhen = soko.as_of ? ("as of " + stamp(soko.as_of) + " · " + ageLabel(soko.age_seconds)) : "no as_of";
+  const loaded = (state.observers && state.observers.pulses) || [];
+  // Last good pulses stay when a poll times out. Placeholders are only for
+  // the moment before the first snapshot, not a guessed book.
+  const pulses = loaded.length ? loaded : [
+    { id: "f111", label: "F111", mode: "paper", coverage_text: "—", open_positions: null },
+    { id: "bl8", label: "BL8", mode: "paper", coverage_text: "—", open_positions: null },
+  ];
+  const pulseHtml = pulses.map(p => {
+    const pos = p.open_positions == null ? "—" : (p.open_positions + " pos");
+    const label = (p.label || "Observer") + " · " + (p.mode || "paper") + " · " + (p.coverage_text || "—") + " · " + pos;
+    const id = p.id === "bl8" ? "bl8" : "f111";
+    return `<button type="button" class="pulse ${pulseClass(p.tone || p.health)}" onclick="openObserver('${id}')">${esc(label)}</button>`;
+  }).join("");
   el.innerHTML = `
     <span title="${esc(git.sha || "")}">sha <strong class="num">${esc(git.short || "—")}</strong></span>
     <span>cycle <strong>${esc(cycleWhen)}</strong> <span class="muted">${esc(cycleAge)}</span></span>
     <span>soko <strong>${esc(sokoLabel)}</strong> <span class="muted">${esc(sokoWhen)}</span></span>
     <span>bar close <strong class="num">${esc(barBits)}</strong></span>
+    ${pulseHtml}
   `;
 }
 function rel(iso) {
@@ -1086,8 +1161,16 @@ function showModal(html) {
 }
 function toggleNav() { document.getElementById("sidebar").classList.toggle("open"); }
 
-async function get(path) {
-  const res = await fetch(API + path);
+async function get(path, options) {
+  const opts = {};
+  if (options && typeof options === "object") {
+    const signals = [];
+    if (options.signal) signals.push(options.signal);
+    if (options.timeoutMs) signals.push(AbortSignal.timeout(options.timeoutMs));
+    if (signals.length === 1) opts.signal = signals[0];
+    else if (signals.length > 1) opts.signal = ObserverPoll.anySignal(signals);
+  }
+  const res = await fetch(API + path, opts);
   if (!res.ok) throw new Error(path + " " + res.status);
   return res.json();
 }
@@ -2392,42 +2475,263 @@ function reasonRows(counts) {
     entries.map(([reason, count]) => `<tr><td>${esc(reason)}</td><td class="num">${esc(count)}</td></tr>`).join("")
   }</tbody></table>`;
 }
-function renderF111() {
-  const f = state.f111 || {};
-  const reg = f.registry || {};
-  const rej = f.rejections || {};
+function observerById(id) {
+  const rows = (state.observers && state.observers.observers) || [];
+  return rows.find(row => row && row.id === id) || null;
+}
+function observerCoverageLabel(card) {
+  const c = card.coverage || {};
+  if (card.health === "unavailable") return "—";
+  const shown = c.available != null ? c.available : c.scanned;
+  if (shown == null && c.expected == null) return "—";
+  if (c.expected == null) return String(shown);
+  if (shown == null) return "—/" + c.expected;
+  return shown + "/" + c.expected;
+}
+function observerPnl(card) {
+  const p = card.paper_pnl || {};
+  if (p.equity_usdt != null) return { text: money(p.equity_usdt), hint: "equity · " + (p.basis || "isolated book") };
+  if (p.cash_usdt != null) return { text: money(p.cash_usdt), hint: "cash · " + (p.basis || "isolated book") };
+  if (p.realized_usdt != null) return { text: money(p.realized_usdt), hint: "realised · " + (p.basis || "isolated book") };
+  return { text: "—", hint: p.basis || "no P&L stored" };
+}
+function observerScanRow(card) {
+  const scan = card.scan;
+  if (!scan) return "";
+  const chip = scan.complete === true
+    ? `<span class="badge ok">scan complete</span>`
+    : scan.complete === false
+      ? `<span class="badge bad">scan incomplete</span>`
+      : `<span class="badge">scan unknown</span>`;
+  const rate = scan.rate_limit_errors == null ? "—" : String(scan.rate_limit_errors);
+  const errors = scan.error_count == null ? "—" : String(scan.error_count);
+  const codes = Object.entries(scan.retcodes || {}).map(([code, n]) => code + " " + n).join(" · ");
+  return `<div class="meta-row">
+    ${chip}
+    <span class="badge ${Number(scan.rate_limit_errors) > 0 ? "warn" : ""}">rate limit ${esc(rate)}</span>
+    <span class="muted">errors ${esc(errors)}${codes ? " · " + esc(codes) : ""}</span>
+    <span class="muted">Bybit retCode 10006 leaves the scan incomplete.</span>
+  </div>`;
+}
+function observerPositions(rows) {
+  if (!Array.isArray(rows)) return empty("Positions unavailable", "This observer's state was not readable. No open count is filled in.");
+  if (!rows.length) return empty("No open paper positions", "This observer's own book is flat.");
+  return `<table>
+    <thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Mark</th><th>Open P&amp;L</th><th>Stop</th><th>Target</th></tr></thead>
+    <tbody>${rows.map(p => `<tr>
+      <td><strong>${esc(p.symbol)}</strong></td>
+      <td>${esc(p.side || "—")}</td>
+      <td class="num">${esc(fmtQty(p.quantity))}</td>
+      <td class="num">${esc(fmtPx(p.entry_price))}</td>
+      <td class="num">${esc(fmtPx(p.mark_price))}</td>
+      <td class="num ${pnlClass(p.unrealised_pnl)}">${money(p.unrealised_pnl)}</td>
+      <td class="num">${esc(fmtPx(p.stop))}</td>
+      <td class="num">${esc(fmtPx(p.target))}</td>
+    </tr>`).join("")}</tbody>
+  </table>`;
+}
+function whyTokens(rows) {
+  const list = rows || [];
+  if (!list.length) return "";
+  return list.map(row => {
+    const who = (row.token || row.symbol || "—") + (row.side ? " " + row.side : "");
+    return row.detail ? who + " (" + row.detail + ")" : who;
+  }).join(", ");
+}
+function whyNoTrade(card) {
+  const why = card && card.why_no_trade;
+  if (!why) return "";
+  if (why.ok === false && !(why.funnel || []).length) {
+    return `<section class="card"><h2>Why no trade</h2>${empty("No scan explanation", why.summary || "The latest scan was not readable.")}</section>`;
+  }
+  const funnel = why.funnel || [];
+  const notes = funnel.map(step => step.note).filter(Boolean);
+  const funnelTable = funnel.length ? `<table>
+      <thead><tr><th>Step</th><th>Still in</th><th>Drop-off</th><th>Who failed</th></tr></thead>
+      <tbody>${funnel.map(step => {
+        const extra = step.failed_count > (step.failed || []).length ? " · +" + (step.failed_count - step.failed.length) + " more" : "";
+        const who = whyTokens(step.failed);
+        return `<tr>
+          <td>${esc(step.label || step.id || "")}</td>
+          <td class="num">${esc(step.count)}</td>
+          <td class="num${step.drop_off ? " bad" : ""}">${esc(step.drop_off)}</td>
+          <td class="muted">${who || extra ? esc(who) + esc(extra) : "—"}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>${notes.length ? `<p class="muted">${esc(notes.join(" "))}</p>` : ""}` : empty("No funnel", "This scan did not record steps.");
+  const misses = why.closest_misses || [];
+  const missTable = misses.length ? `<table>
+      <thead><tr><th>Token</th><th>Side</th><th>Gate</th><th>Actual</th><th>Threshold</th><th>Gap</th></tr></thead>
+      <tbody>${misses.map(row => `<tr>
+        <td><strong>${esc(row.token || row.symbol || "—")}</strong></td>
+        <td>${esc(row.side || "—")}</td>
+        <td>${esc(row.gate_label || row.gate || "—")}</td>
+        <td class="num">${esc(row.value == null ? "—" : row.value)}</td>
+        <td class="num">${esc(row.threshold == null ? "—" : row.threshold)}</td>
+        <td>${esc(row.gap_text || "—")}</td>
+      </tr>`).join("")}</tbody>
+    </table>` : `<div class="muted">No measured near miss on this scan.</div>`;
+  const attempts = why.attempts || [];
+  const attemptTable = attempts.length ? `<table>
+      <thead><tr><th>Token</th><th>Side</th><th>Blocked by</th><th>Detail</th></tr></thead>
+      <tbody>${attempts.map(row => `<tr>
+        <td><strong>${esc(row.token || row.symbol || "—")}</strong></td>
+        <td>${esc(row.side || "—")}</td>
+        <td>${esc(row.reason || "—")}</td>
+        <td class="muted">${esc(row.detail || "")}</td>
+      </tr>`).join("")}</tbody>
+    </table>` : `<div class="muted">No signalled entry was blocked, and this scan recorded no error.</div>`;
+  const unavailable = why.unavailable || [];
+  const count = why.unavailable_count == null ? unavailable.length : why.unavailable_count;
+  const unavailTable = unavailable.length ? `<table>
+      <thead><tr><th>Token</th><th>Side</th><th>Status</th></tr></thead>
+      <tbody>${unavailable.map(row => `<tr>
+        <td><strong>${esc(row.token || row.symbol || "—")}</strong></td>
+        <td>${esc(row.side || "—")}</td>
+        <td>${esc(row.status || "—")}</td>
+      </tr>`).join("")}</tbody>
+    </table>` : `<div class="muted">No unavailable markets on this scan.</div>`;
+  return `<section class="card">
+    <h2>Why no trade</h2>
+    <p>${esc(why.summary || "")}</p>
+    <p class="muted">Latest scan only. Read from this observer's rows.</p>
+    <h2 style="margin-top:14px">Funnel</h2>
+    ${funnelTable}
+    <h2 style="margin-top:14px">Closest misses</h2>
+    ${missTable}
+    <h2 style="margin-top:14px">Attempts</h2>
+    ${attemptTable}
+    <h2 style="margin-top:14px">Unavailable</h2>
+    <p class="muted">${esc(count)} on this scan.</p>
+    ${unavailTable}
+  </section>`;
+}
+function observerBlotter(rows) {
+  if (!Array.isArray(rows)) return empty("Blotter unavailable", "This observer's ledger was not readable. Nothing was copied into the hourly blotter.");
+  const list = rows;
+  if (!list.length) return empty("No closed paper trades", "Exits on this observer show up here. They are not copied into the hourly blotter.");
+  return `<table>
+    <thead><tr><th>Closed</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th><th>Net</th><th>Why</th></tr></thead>
+    <tbody>${list.map(t => `<tr>
+      <td class="muted">${esc(when(t.closed_at))}</td>
+      <td><strong>${esc(t.symbol)}</strong></td>
+      <td>${esc(t.side || "—")}</td>
+      <td class="num">${esc(fmtQty(t.quantity))}</td>
+      <td class="num">${esc(fmtPx(t.entry_price))}</td>
+      <td class="num">${esc(fmtPx(t.exit_price))}</td>
+      <td class="num ${pnlClass(t.net_pnl)}">${money(t.net_pnl)}</td>
+      <td>${esc(prettyReason(t.reason))}</td>
+    </tr>`).join("")}</tbody>
+  </table>`;
+}
+function observerPanel(card) {
+  const banner = card.banner || {};
+  const tone = banner.tone === "ok" || banner.tone === "bad" || banner.tone === "warn" ? banner.tone : "warn";
+  const census = card.census || {};
+  const closed = census.closed_by_reason || {};
+  const rej = card.rejections || {};
   const hour = rej.latest_hour || {};
   const day = rej.last_24h || {};
-  const closed = reg.closed_by_reason || {};
+  const pnl = observerPnl(card);
+  const pending = card.detail ? card.detail.pending_retests : null;
+  const extras = (card.extras || []).map(item => kpi(
+    esc(item.label || ""),
+    item.value == null ? "—" : esc(item.value),
+    esc(item.hint || "")
+  )).join("");
+  const paths = card.paths || {};
+  const pathBits = [paths.telemetry, paths.state, paths.status, paths.database].filter(Boolean);
+  const ageHint = card.last_scan
+    ? (card.last_scan_age_seconds != null ? ageLabel(card.last_scan_age_seconds) : rel(card.last_scan))
+    : "no scan yet";
   return `
-    <div class="banner ${reg.evaluated === f.expected_sleeves ? "ok" : "warn"}">
-      <strong>${esc(f.expected_sleeves ?? "—")} sleeves</strong>
-      <div class="muted" style="margin-top:6px">Latest census evaluated ${esc(reg.evaluated ?? 0)}. Available ${esc(reg.available ?? 0)} · closed ${esc(reg.closed ?? 0)}. Display only — this panel does not scan or order.</div>
+    <div class="banner ${tone}">
+      <strong>${esc(banner.title || card.label || "Observer")}</strong>
+      <div class="muted" style="margin-top:6px">${esc(banner.body || "")}</div>
+      <div class="muted" style="margin-top:4px">${esc(card.health_hint || "")}</div>
     </div>
+    ${observerScanRow(card)}
     <section class="kpis">
-      ${kpi("Available", String(reg.available ?? "—"), "trading on the latest census")}
-      ${kpi("Closed", String(reg.closed ?? "—"), "unavailable, with a reason")}
-      ${kpi("Last bar close", f.last_bar_close_evaluation ? stamp(f.last_bar_close_evaluation) : "—", f.last_bar_close_evaluation ? rel(f.last_bar_close_evaluation) : "no gate row yet")}
-      ${kpi("Pending retests", String(f.pending_retests ?? "—"), "watching or scheduled")}
-      ${kpi("Protection", String(f.protection ?? "—"), "open floors")}
+      ${kpi("Coverage", esc(observerCoverageLabel(card)), "available / expected")}
+      ${kpi("Last scan", card.last_scan ? esc(stamp(card.last_scan)) : "—", esc(ageHint))}
+      ${kpi("Open positions", card.open_positions_count == null ? "—" : esc(card.open_positions_count), "this observer only")}
+      ${kpi("Paper P&L", pnl.text, esc(pnl.hint))}
+      ${kpi("Sizing", esc(card.sizing_policy || "—"), "policy badge")}
+      ${kpi("Release", esc(card.release_short || "—"), esc(card.release_sha || "no pin published"))}
+      ${extras}
     </section>
     <section class="grid-2">
       <div class="card">
-        <h2>Closed sleeves by reason</h2>
-        <p class="muted">Latest registry census. Closed means the instrument was unavailable (exchange Closed, missing, mismatch, or unreachable) — not a closed trade.</p>
-        ${reasonRows(closed)}
+        <h2>Census</h2>
+        <p class="muted">Closed by reason on the latest pass. Closed means the instrument was unavailable — not a closed trade. Evaluated ${esc(census.evaluated ?? "—")} · available ${esc(census.available ?? "—")} · closed ${esc(census.closed ?? "—")}.</p>
+        ${card.health === "unavailable" ? empty("Census unavailable", "The observer files are not mounted on this process.") : reasonRows(closed)}
       </div>
       <div class="card">
-        <h2>Gate rejections</h2>
-        <p class="muted">Latest hour${hour.hour_start ? " starting " + esc(stamp(hour.hour_start)) : ""} · ${esc(hour.rows ?? 0)} rows. Last 24h · ${esc(day.rows ?? 0)} rows.</p>
+        <h2>Gate, sit-out, and rejection reasons</h2>
+        ${card.health === "unavailable"
+          ? empty("Reasons unavailable", "The observer files are not mounted on this process.")
+          : `<p class="muted">Latest hour${hour.hour_start ? " starting " + esc(stamp(hour.hour_start)) : ""} · ${esc(hour.rows ?? 0)} rows. Last 24h · ${esc(day.rows ?? 0)} rows.${pending != null ? " Pending retests " + esc(pending) + "." : ""}</p>
         <h2 style="margin-top:12px">Latest hour</h2>
         ${reasonRows(hour.by_reason)}
         <h2 style="margin-top:12px">Last 24h</h2>
-        ${reasonRows(day.by_reason)}
+        ${reasonRows(day.by_reason)}`}
       </div>
     </section>
-    <div class="muted">Telemetry ${esc(f.telemetry_path || "—")} · state ${esc(f.state_path || "—")}${f.state_error && f.state_error !== "missing" ? " · state " + esc(f.state_error) : ""}</div>
+    <section class="grid-2">
+      <div class="card">
+        <h2>Open positions</h2>
+        <div class="meta-row" style="margin-bottom:8px"><span class="badge warn">Isolated · not in live book</span></div>
+        ${observerPositions(card.open_positions)}
+      </div>
+      <div class="card">
+        <h2>Mini blotter</h2>
+        <div class="meta-row" style="margin-bottom:8px"><span class="badge warn">Isolated · not in live book</span></div>
+        ${observerBlotter(card.blotter)}
+      </div>
+    </section>
+    ${whyNoTrade(card)}
+    <div class="muted">${esc(pathBits.join(" · ") || "no paths configured")}${card.degraded_reason ? " · " + esc(card.degraded_reason) : ""}</div>
   `;
+}
+function observerFreshnessHtml() {
+  const failed = !!(state.observersPoll && state.observersPoll.failed);
+  const label = ObserverPoll.freshnessLabel(state.observers, failed, Date.now());
+  if (!label) return "";
+  const cls = failed ? "badge warn" : "badge";
+  return `<span class="${cls}" id="observerFreshness">${esc(label)}</span>`;
+}
+function renderObservers() {
+  const chip = observerChip();
+  const switcher = `<div class="seg" role="tablist" aria-label="Observers">
+    ${OBSERVER_CHIPS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${chip === id ? "true" : "false"}" class="${chip === id ? "active" : ""}" onclick="setObserverChip('${id}')">${label}</button>`).join("")}
+  </div>`;
+  const view = {
+    data: state.observers,
+    failed: !!(state.observersPoll && state.observersPoll.failed),
+  };
+  const mode = ObserverPoll.panelMode(view);
+  const head = `<div class="meta-row" style="margin:8px 0 12px; align-items:center">${switcher}${observerFreshnessHtml()}</div>`;
+  if (mode === "warming") {
+    let detail = (state.observers && state.observers.detail)
+      || (view.failed
+        ? "The last poll failed. Kept data is unchanged, and this is not an empty book."
+        : "The first snapshot is still being built. This is not an empty book.");
+    const refreshError = state.observers && state.observers.refresh_error;
+    if (refreshError) detail += " Last attempt: " + refreshError;
+    return head + `<div class="card">${empty("Observers warming", detail)}</div>`;
+  }
+  if (mode === "empty") {
+    return head + `<div class="card">${empty("No observers", "The desk reported an empty observer list.")}</div>`;
+  }
+  const card = observerById(chip);
+  if (!card) {
+    return head + `<div class="card">${empty("Chip missing", "The latest snapshot does not include this observer.")}</div>`;
+  }
+  const refreshError = state.observers && state.observers.refresh_error;
+  const errLine = refreshError
+    ? `<div class="warn" style="margin-bottom:8px">Last refresh failed: ${esc(refreshError)}. Showing the previous snapshot.</div>`
+    : "";
+  return head + errLine + observerPanel(card);
 }
 function renderHealth() {
   const llm = state.llm || {};
@@ -2834,7 +3138,7 @@ function viewFingerprint(name) {
   const slices = {
     overview: { eq: state.equity, risk: state.risk, standup: floor.standup, pipeline: floor.pipeline, inboxN: (floor.inbox || []).length, golive: state.golive, paperN: (state.strategies || {}).paper_override_count, approvedN: (state.strategies || {}).approved_count, regime: state.regime, scan: (state.cycle || {}).scan_counts },
     health: { cycle: state.cycle, llm: state.llm, risk: state.risk },
-    f111: { f111: state.f111 },
+    observers: { observers: state.observers, chip: observerChip() },
     floor: { employees: floor.employees, activity: floor.activity, org: floor.org },
     blotter: { trades: state.trades, rejections: state.rejections },
     positions: { pos: (state.risk || {}).open_positions, eq: state.equity },
@@ -2869,7 +3173,7 @@ function render(opts) {
   const renderers = {
     overview: renderOverview,
     health: renderHealth,
-    f111: renderF111,
+    observers: renderObservers,
     floor: renderFloor,
     blotter: renderBlotter,
     positions: renderPositions,
@@ -3028,7 +3332,7 @@ async function wakeFloor() {
 async function load(manual) {
   try {
     await ensureLocalToken();
-    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime, nearMisses, expansion] = await Promise.all([
+    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, regime, nearMisses, expansion] = await Promise.all([
       get("/api/floor"),
       get("/api/risk"),
       get("/api/trades?limit=100"),
@@ -3039,14 +3343,17 @@ async function load(manual) {
       get("/api/strategies"),
       get("/api/cycle"),
       get("/api/desk"),
-      get("/api/f111"),
       get("/api/regime"),
       get("/api/near-misses").catch(() => ({ count: 0, rows: [] })),
       // A seal error must not blank the rest of the desk, and must not
       // invent rows. The Research section shows the error instead.
       get("/api/research/expansion").catch(err => ({ ok: false, error: String(err.message || err), rows: [], active_strategies: [] })),
     ]);
-    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, f111, regime: regime || {}, nearMisses, expansion: expansion || { ok: false, rows: [], active_strategies: [] }, llmPing: state.llmPing };
+    // Observers are owned by observerPoll. A desk reload must not replace
+    // the last good snapshot with a timeout or an empty list.
+    const keptObservers = state.observers;
+    const keptPoll = state.observersPoll;
+    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, observers: keptObservers, observersPoll: keptPoll, regime: regime || {}, nearMisses, expansion: expansion || { ok: false, rows: [], active_strategies: [] }, llmPing: state.llmPing };
     lastError = "";
     render({ keepScroll: true, force: !!manual });
   } catch (err) {
@@ -3060,13 +3367,41 @@ async function load(manual) {
 
 function tickClock() {
   document.getElementById("clock").textContent = new Date().toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const fresh = document.getElementById("observerFreshness");
+  if (fresh && window.ObserverPoll) {
+    const failed = !!(state.observersPoll && state.observersPoll.failed);
+    fresh.textContent = ObserverPoll.freshnessLabel(state.observers, failed, Date.now());
+  }
 }
-window.addEventListener("hashchange", () => render({ keepScroll: false, force: true }));
+window.addEventListener("hashchange", () => {
+  if ((location.hash || "").replace(/^#/, "") === "f111") {
+    localStorage.setItem(OBSERVER_KEY, "f111");
+    location.hash = "observers";
+    return;
+  }
+  render({ keepScroll: false, force: true });
+});
 window.addEventListener("resize", drawSpark);
 tickClock();
 setInterval(tickClock, 1000);
 load();
 setInterval(load, 15000);
+
+// Observers are not part of the 15s desk load. A timeout or a 500 keeps the
+// last good snapshot. The request is aborted when the page goes away, and a
+// new poll does not start while one is in flight.
+const OBSERVERS_TIMEOUT_MS = 4000;
+const observerPoll = ObserverPoll.create({
+  timeoutMs: OBSERVERS_TIMEOUT_MS,
+  fetchPayload: (signal) => get("/api/observers", { signal: signal, timeoutMs: OBSERVERS_TIMEOUT_MS }),
+  onChange: (view) => {
+    state.observers = view.data;
+    state.observersPoll = { failed: !!view.failed, error: view.error || null };
+    render({ keepScroll: true });
+  },
+});
+window.addEventListener("pagehide", () => observerPoll.stop());
+observerPoll.start();
 </script>
 </body>
 </html>

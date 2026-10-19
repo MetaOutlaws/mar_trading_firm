@@ -39,15 +39,41 @@ def test_duty_board_and_who_runs_default_collapsed():
     assert "${duties.length} on track" in html
 
 
-def test_desk_header_f111_panel_and_live_book_are_wired():
-    """Display contract for the header, F111 tab, and live strategy book."""
+def _slice(html: str, start: str, end: str) -> str:
+    begin = html.index(start)
+    stop = html.index(end, begin + len(start))
+    return html[begin:stop]
+
+
+def test_observers_tab_replaces_f111_and_keeps_the_hourly_book():
+    """Observers slot, F111/BL8 chips, deskbar pulses. Hourly tabs stay hourly."""
     html = _html()
     assert "function renderDeskbar(" in html
-    assert "function renderF111(" in html
-    assert '["f111", "F111"]' in html
+    assert "function renderObservers(" in html
+    assert "function whyNoTrade(" in html
+    assert "Why no trade" in html
+    assert "Closest misses" in html
+    assert "function renderF111(" not in html
+    assert '["observers", "Observers"]' in html
+    assert '["f111", "F111"]' not in html.split("OBSERVER_CHIPS", 1)[0]
+    assert 'const OBSERVER_CHIPS = [["f111", "F111"], ["bl8", "BL8"]];' in html
+    assert 'const OBSERVER_KEY = "deskObserver";' in html
+    assert "localStorage.getItem(OBSERVER_KEY)" in html
+    assert "localStorage.setItem(OBSERVER_KEY, id)" in html
+    assert "function openObserver(" in html
+    assert "Isolated · not in live book" in html
+    assert "scan complete" in html
+    assert "scan incomplete" in html
+    assert "retCode 10006" in html
     assert 'id="deskbar"' in html
     assert "get(\"/api/desk\")" in html
-    assert "get(\"/api/f111\")" in html
+    assert 'get("/api/observers", { signal: signal, timeoutMs: OBSERVERS_TIMEOUT_MS })' in html
+    assert 'src="/observers_poll.js"' in html
+    assert "ObserverPoll.panelMode" in html
+    assert "ObserverPoll.freshnessLabel" in html
+    assert "pagehide" in html
+    assert "observerPoll.stop()" in html
+    assert 'get("/api/f111")' not in html
     assert "Live book" in html
     assert "source_mtime" in html
     assert "Ack stale" in html
@@ -64,6 +90,25 @@ def test_desk_header_f111_panel_and_live_book_are_wired():
     assert "Legacy LLM record" in html
     assert "legacy_llm" in html
     assert 'get("/api/regime")' in html
+    assert 'get("/api/trades?limit=100")' in html
+    blotter = _slice(html, "function renderBlotter(", "function tradeRow(")
+    positions = _slice(html, "function renderPositions(", "function positionsTable(")
+    observers = _slice(html, "function observerPanel(", "function renderObservers(")
+    assert "whyNoTrade(card)" in observers
+    assert "Why no trade" not in blotter
+    assert "whyNoTrade" not in blotter
+    assert "whyNoTrade" not in positions
+    strategies = _slice(html, "function renderStrategies(", "function renderGates(")
+    assert "state.trades" in blotter
+    assert "bl8" not in blotter.lower()
+    assert "observers" not in blotter
+    assert "state.risk.open_positions" in positions
+    assert "bl8" not in positions.lower()
+    assert "state.strategies" in strategies
+    assert "bl8" not in strategies.lower()
+    assert "/api/observers" not in blotter
+    assert "/api/observers" not in positions
+    assert "/api/observers" not in strategies
 
 
 def test_hardcoded_status_notes_are_gone():
