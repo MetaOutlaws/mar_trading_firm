@@ -2,7 +2,7 @@
   "version": 1,
   "base_commit": "190ad181760744688db66306c8f19f3f113e6ed9",
   "local_verification": "PASS",
-  "focused_tests": 36,
+  "focused_tests": 53,
   "inherited_bl8_tests": 43,
   "server_activation_verified": false,
   "docker_build_verified_locally": false,
@@ -14,10 +14,34 @@
     "config/sleeves/mar_recovery_paper_v1.json": "6caa236ed065818922d92c32723da1c5156498c347fe5557eb727fbfbcd0dad9",
     "scripts/run_recovery_paper.py": "023630160c093a6480a5f2b0eda894f2931d725ed40cd0e9606a284ae3215faa",
     "scripts/report_recovery_paper.py": "747d759e435bd7f3bf5bc2c554bc82d9bff669ac0fc29cbbb0e83a9553794d5e",
-    "scripts/resize_paper_account.py": "f7e9f5a6da13bf6111d395a7aba3b4bf9b41baff67b76de5ce1ee79ed37dcef7",
+    "scripts/resize_paper_account.py": "baecb865adf3befc3b6558d55f0f6c0350079c4456e70d723ef44aa0f2f1a046",
     "scripts/deploy_recovery_paper.sh": "901c245f6dd13cfd8d92b78d0438d95ac19e111ca2cccd5e693d629dbd809f98",
-    "tests/test_recovery_paper.py": "fd653849655328d61450995271286173ced72859a0ac7d3c8039c729ca84308f",
+    "tests/test_recovery_paper.py": "c6b8ce06926c03761458e8037c3619313e0f1e8cf1c5bf93f1b0e9d0abe9f17d",
     "docs/recovery-paper/Dockerfile": "24f6d56c4ac13ab8f9f035982d9f399d4a27fda86b1742239440990d9294d034",
-    "docs/recovery-paper/README.md": "0842c23f9a54a580cd6134218027f14c4f3c192408ea9278052cc0b134de49e5"
+    "docs/recovery-paper/README.md": "33820d614a87ad3f52c47f20995f653dc6bf9aea252c90811e9a262cfc98f486"
+  },
+  "legacy_cash_compatibility": {
+    "parent_commit": "757d7f9b951117ede3356a72516454a8671d7aae",
+    "regression_tests_added": 12,
+    "migration_tests_total": 17,
+    "combined_tests_passed": 91,
+    "command": "python -m unittest tests.test_recovery_paper tests.test_bl8_shadow -v",
+    "fixture_basis": "Synthetic seven-event October 9 legacy payloads; actual server rows not available locally",
+    "legacy_matching": "Database row ID plus unchanged economic fields, or one-to-one exact full payload for ID-less journal entries",
+    "existing_history_rewritten": false,
+    "server_preview_verified": false,
+    "python_compilation": "PASS",
+    "shell_syntax": "PASS",
+    "diff_whitespace": "PASS"
+  },
+  "desktop_backfill_close_summary": {
+    "merged_commit": "ecf709dcc819d8b1bb5298e4fbd295d494be4b40",
+    "rows": "paper_cash_events 11-17",
+    "event_ids": "backfill-close:desktop:1..7",
+    "payload_shape": "{backfill, source_trade_id, net, cash_after}",
+    "tests_added": 5,
+    "ecf709dc_tests_still_passed": 91,
+    "combined_tests_passed": 96,
+    "existing_history_rewritten": false
   }
 }

@@ -7,6 +7,7 @@ are stopped. No initial-equity reset and no edits to positions or kill switches.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -24,55 +25,42 @@ from core.execution.paper_cash import replay_events
 
 EVENT_ID='owner-paper-capital-20261017-20000-v1'
 
-# Oct 9 desktop backfill closes, paper_cash_events ids 11-17.
-# Payload is {backfill, source_trade_id, net, cash_after} and has no event_id.
-# Measured against the matching journal: net == gross_pnl - fee - entry_fee + funding
-# on all seven rows (residual under 1e-14). entry_fee and funding are 0, so this
-# is the same number as the cash-replay close, which subtracts funding. These
-# rows do not distinguish the funding sign. cash_after is the journal field,
-# not a from-zero replay of these seven closes (earlier history sits in that balance).
+# paper_cash_events 11-17. Payload is only {backfill, source_trade_id, net, cash_after}.
+# Those summaries have no kind, symbol, gross, fee or funding, so the economic-field
+# check below would reject them. Measured net == gross_pnl - fee - entry_fee + funding
+# (entry_fee and funding are 0; residual under 1e-14). cash_after is exact equality
+# with the journal field, not a tolerance and not a from-zero replay.
 LEGACY_BACKFILL_CLOSE_DESKTOP=re.compile(r'^backfill-close:desktop:\d+$')
-LEGACY_BACKFILL_CLOSE_NET_TOLERANCE=1e-6
+LEGACY_BACKFILL_CLOSE_SUMMARY_KEYS=frozenset({'backfill','source_trade_id','net','cash_after'})
 
 
-def legacy_backfill_close_desktop(row, payload):
-    """Named rule for the legacy desktop backfill-close shape. Nothing else.
+def legacy_backfill_close_summary(key, payload, journal):
+    """Accept one desktop backfill-close summary, or raise.
 
-    event_id matches ^backfill-close:desktop:\\d+$, kind is close, payload.backfill
-    is true, and the payload has source_trade_id, net and cash_after and no event_id.
+    Only for event ids matching ^backfill-close:desktop:\\d+$. The payload must
+    be the summary shape: backfill true, source_trade_id, net, cash_after, and
+    no event_id. The journal event with that id must have the same
+    source_trade_id, cash_after must compare equal, and net must equal
+    gross_pnl - fee - entry_fee + funding within 1e-6. Does not rewrite the
+    row or the journal. A regex match that fails any of this raises here.
     """
-    if not isinstance(payload, dict) or not isinstance(row['event_id'], str):
-        return False
-    if LEGACY_BACKFILL_CLOSE_DESKTOP.fullmatch(row['event_id']) is None:
-        return False
-    if row['kind']!='close' or payload.get('backfill') is not True or 'event_id' in payload:
-        return False
-    return all(key in payload for key in ('source_trade_id','net','cash_after'))
-
-
-def reconcile_legacy_backfill_close(row, payload, journal):
-    """Reconcile one legacy backfill-close row against its cash-journal entry.
-
-    The journal entry must exist with the same event_id and symbol, the same
-    source_trade_id and the same cash_after. Payload net must equal
-    gross_pnl - fee - entry_fee + funding within 1e-6. A miss raises; it does
-    not fall through to a softer check.
-    """
-    event_id=row['event_id']
-    if (not isinstance(journal, dict) or journal.get('event_id')!=event_id
-            or journal.get('symbol')!=row['symbol']
+    if (not isinstance(payload,dict) or payload.get('backfill') is not True
+            or set(payload)!=LEGACY_BACKFILL_CLOSE_SUMMARY_KEYS):
+        raise ValueError(f'legacy backfill-close summary rejected ({key})')
+    if (not isinstance(journal,dict) or journal.get('event_id')!=key
             or journal.get('source_trade_id')!=payload.get('source_trade_id')
-            or 'cash_after' not in journal or journal.get('cash_after')!=payload.get('cash_after')):
-        raise ValueError(f'durable cash event identity mismatch ({event_id})')
+            or 'cash_after' not in journal
+            or journal.get('cash_after')!=payload.get('cash_after')):
+        raise ValueError(f'legacy backfill-close summary rejected ({key})')
     try:
         expected=(float(journal['gross_pnl'])-float(journal['fee'])
                   -float(journal['entry_fee'])+float(journal['funding']))
         net=float(payload['net'])
-    except (KeyError, TypeError, ValueError):
-        raise ValueError(f'durable cash event identity mismatch ({event_id})') from None
+    except (KeyError,TypeError,ValueError):
+        raise ValueError(f'legacy backfill-close summary rejected ({key})') from None
     if (not math.isfinite(expected) or not math.isfinite(net)
-            or abs(net-expected)>LEGACY_BACKFILL_CLOSE_NET_TOLERANCE):
-        raise ValueError(f'durable cash event identity mismatch ({event_id})')
+            or abs(net-expected)>1e-6):
+        raise ValueError(f'legacy backfill-close summary rejected ({key})')
 
 
 def sha(path):
@@ -89,6 +77,73 @@ def atomic(path, payload):
     finally: os.close(fd)
 
 
+def reconcile_durable_cash(rows, events):
+    """Check old/new cash formats without assigning IDs or rewriting history.
+
+    A legacy durable payload may omit the ID stored on its database row.
+    Prefer that row ID in the journal. If both payload and journal lack an
+    ID, require an exact full-payload match (including timestamp), consumed
+    once per durable row. Matching only balances, symbols or amounts is unsafe.
+    """
+    seen={};legacy=[]
+    for event in events:
+        key=event.get('event_id')
+        if key in (None,''):
+            legacy.append({k:v for k,v in event.items() if k!='event_id'})
+            continue
+        if not isinstance(key,str):
+            raise ValueError('invalid cash event ID')
+        if key in seen:
+            raise ValueError('duplicate event IDs require cash reconciliation first')
+        seen[key]=event
+    audit=dict(durable_rows=0,matched_by_id=0,legacy_payloads_without_id=0,
+               legacy_journal_matches=0)
+    durable_ids=set()
+    for row in rows:
+        if row['mode']!='paper':
+            raise ValueError('non-paper durable cash row')
+        key=row['event_id']
+        if not isinstance(key,str) or not key:
+            raise ValueError('missing durable cash event ID')
+        if key in durable_ids:
+            raise ValueError('duplicate durable cash event IDs')
+        durable_ids.add(key)
+        payload=json.loads(row['payload'])
+        if not isinstance(payload,dict):
+            raise ValueError('invalid durable cash event payload')
+        # Summary payloads never reach the identity or economic-conflict checks.
+        if LEGACY_BACKFILL_CLOSE_DESKTOP.fullmatch(key):
+            legacy_backfill_close_summary(key,payload,seen.get(key))
+            audit['durable_rows']+=1
+            audit['legacy_payloads_without_id']+=1
+            audit['matched_by_id']+=1
+            continue
+        payload_id=payload.get('event_id')
+        legacy_payload=payload_id in (None,'')
+        if not legacy_payload and payload_id!=key:
+            raise ValueError('durable cash event identity mismatch')
+        audit['durable_rows']+=1
+        audit['legacy_payloads_without_id']+=int(legacy_payload)
+        if key in seen:
+            # Existing migrations can enrich identity metadata in JSON.
+            # The identified event's economic fields must still agree exactly.
+            for field in ('kind','symbol','amount','gross_pnl','fee','entry_fee','funding'):
+                if seen[key].get(field)!=payload.get(field):
+                    raise ValueError('durable cash event economic conflict')
+            audit['matched_by_id']+=1
+        elif legacy_payload:
+            body={k:v for k,v in payload.items() if k!='event_id'}
+            try:
+                index=legacy.index(body)
+            except ValueError:
+                raise ValueError('legacy durable cash event has no unused exact journal match') from None
+            legacy.pop(index)
+            audit['legacy_journal_matches']+=1
+        else:
+            raise ValueError('durable cash events not yet reconciled; restart/repair existing account before resizing')
+    return audit
+
+
 def inspect_account(data, app):
     cash_path=data/'paper_cash.json';db_path=data/'firm.db';limits_path=app/'core/risk/limits.py'
     if not all(p.is_file() for p in (cash_path,db_path,limits_path)):
@@ -98,43 +153,17 @@ def inspect_account(data, app):
         raise ValueError('invalid existing cash journal; refusing to initialize/reset it')
     if any(e.get('kind') not in {'capital','open','funding','close'} for e in events):
         raise ValueError('unknown cash event kind')
-    seen={}
-    for e in events:
-        key=e.get('event_id')
-        if key and key in seen:
-            raise ValueError('duplicate event IDs require cash reconciliation first')
-        if key: seen[key]=e
-    db=sqlite3.connect(f'file:{db_path}?mode=ro',uri=True)
-    db.row_factory=sqlite3.Row
-    if db.execute('PRAGMA quick_check').fetchone()[0]!='ok':
-        raise ValueError('database integrity check failed')
-    positions=[dict(r) for r in db.execute("SELECT * FROM positions WHERE status != 'closed' ORDER BY id")]
-    if any(p['mode']!='paper' for p in positions):
-        raise ValueError('non-paper open positions; refuse migration')
-    tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    missing=[]
-    if 'paper_cash_events' in tables:
-        for row in db.execute('SELECT event_id,kind,mode,symbol,payload FROM paper_cash_events ORDER BY id'):
-            if row['mode']!='paper':
-                raise ValueError('non-paper durable cash row')
-            payload=json.loads(row['payload'])
-            # Only the named legacy backfill-close shape may omit payload event_id.
-            if legacy_backfill_close_desktop(row, payload):
-                reconcile_legacy_backfill_close(row, payload, seen.get(row['event_id']))
-                continue
-            if payload.get('event_id')!=row['event_id']:
-                raise ValueError('durable cash event identity mismatch')
-            if row['event_id'] not in seen:
-                missing.append(payload)
-            elif seen[row['event_id']] != payload:
-                # Legacy migrations can enrich identity fields in the JSON.
-                # Economic fields must still agree exactly.
-                for key in ('kind','symbol','amount','gross_pnl','fee','entry_fee','funding'):
-                    if seen[row['event_id']].get(key) != payload.get(key):
-                        raise ValueError('durable cash event economic conflict')
-    db.close()
-    if missing:
-        raise ValueError('durable cash events not yet reconciled; restart/repair existing account before resizing')
+    with closing(sqlite3.connect(f'file:{db_path}?mode=ro',uri=True)) as db:
+        db.row_factory=sqlite3.Row
+        if db.execute('PRAGMA quick_check').fetchone()[0]!='ok':
+            raise ValueError('database integrity check failed')
+        positions=[dict(r) for r in db.execute("SELECT * FROM positions WHERE status != 'closed' ORDER BY id")]
+        if any(p['mode']!='paper' for p in positions):
+            raise ValueError('non-paper open positions; refuse migration')
+        tables={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        rows=(db.execute('SELECT event_id,mode,payload FROM paper_cash_events ORDER BY id')
+              if 'paper_cash_events' in tables else [])
+        reconciliation=reconcile_durable_cash(rows,events)
     current=replay_events(events)
     for value in (current.cash,current.realised_pnl,current.contributed_capital,current.total_fees,current.total_funding):
         if not math.isfinite(value): raise ValueError('nonfinite cash state')
@@ -154,6 +183,7 @@ def inspect_account(data, app):
     protective={p.name:sha(p) for p in data.iterdir() if p.is_file() and
                 ('kill' in p.name or p.name in ('f111_paper_state.json','f111_paper_scan_disabled','l01_paper_enabled.json'))}
     return dict(raw=raw,events=events,current=current,positions=positions,protective=protective,
+                durable_cash_reconciliation=reconciliation,
                 limits_text=text,limits_next=text.replace(old,new),limits=limits.to_dict(),
                 cash_sha=sha(cash_path),limits_sha=sha(limits_path))
 
@@ -168,6 +198,7 @@ def resize(data, app, backup_root, *, apply=False):
                  balance_basis='cash; open-position unrealised P&L is additional',
                  realised_pnl_before=before['current'].realised_pnl,
                  existing_open_positions=before['positions'],protective_hashes=before['protective'],
+                 durable_cash_reconciliation=before['durable_cash_reconciliation'],
                  already_applied=prior is not None,applied=False)
     if not apply: return receipt
     stamp=datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')

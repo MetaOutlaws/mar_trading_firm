@@ -13,8 +13,7 @@ from core.execution.recovery_paper import (PaperTrial, MINUTE, DAY, canonical,
     observe_close, recover, make_account, funding_known)
 from core.execution.recovery_feed import advance_retest, parse_bars
 from core.execution.paper_cash import replay_events
-from scripts.resize_paper_account import (resize, inspect_account,
-    legacy_backfill_close_desktop)
+from scripts.resize_paper_account import resize, inspect_account
 from scripts.report_recovery_paper import report, render
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -327,6 +326,134 @@ class ResizeTests(unittest.TestCase):
 
     def tearDown(self): self.tmp.cleanup()
 
+    def write_durable(self, rows):
+        with sqlite3.connect(self.data/'firm.db') as db:
+            db.execute('DROP TABLE IF EXISTS paper_cash_events')
+            db.execute('CREATE TABLE paper_cash_events(id INTEGER PRIMARY KEY,event_id TEXT,mode TEXT,payload TEXT)')
+            db.executemany('INSERT INTO paper_cash_events(event_id,mode,payload) VALUES(?,?,?)',
+                           [(key,mode,json.dumps(payload)) for key,mode,payload in rows])
+
+    def assert_resize_refused(self, reason):
+        before={p:p.read_bytes() for p in (self.data/'paper_cash.json',self.data/'firm.db',
+                                         self.app/'core/risk/limits.py',self.data/'killswitch.json')}
+        with self.assertRaisesRegex(ValueError,reason):
+            resize(self.data,self.app,self.root/'backups',apply=True)
+        self.assertEqual(before,{p:p.read_bytes() for p in before})
+        self.assertFalse((self.root/'backups').exists())
+
+    def test_seven_legacy_payloads_preserved_through_preview_apply_and_retry(self):
+        # Synthetic reproduction of the reported Oct 9 format, not server data.
+        events=[dict(kind='capital',amount=10000.),
+                dict(kind='open',symbol='BTCUSDT',fee=2.),
+                dict(kind='funding',symbol='BTCUSDT',amount=.5),
+                dict(kind='close',symbol='BTCUSDT',gross_pnl=100.,fee=1.,entry_fee=2.,funding=.5),
+                dict(kind='open',symbol='ETHUSDT',fee=1.),
+                dict(kind='funding',symbol='ETHUSDT',amount=.25),
+                dict(kind='close',symbol='ETHUSDT',gross_pnl=-50.,fee=1.,entry_fee=1.,funding=.25)]
+        events=[e|dict(ts=f'2026-10-09T0{i}:00:00+00:00') for i,e in enumerate(events)]
+        self.write_cash(events)
+        self.write_durable([(f'legacy-{i}','paper',e) for i,e in enumerate(events)])
+        paths=(self.data/'paper_cash.json',self.data/'firm.db',self.app/'core/risk/limits.py')
+        original={p:p.read_bytes() for p in paths}
+        before=inspect_account(self.data,self.app)
+        preview=resize(self.data,self.app,self.root/'backups')
+        self.assertEqual(preview['durable_cash_reconciliation'],dict(
+            durable_rows=7,matched_by_id=0,legacy_payloads_without_id=7,legacy_journal_matches=7))
+        self.assertEqual(original,{p:p.read_bytes() for p in paths})
+        self.assertFalse((self.root/'backups').exists())
+        receipt=resize(self.data,self.app,self.root/'backups',apply=True)
+        after=inspect_account(self.data,self.app)
+        self.assertEqual(after['events'][:-1],events)
+        self.assertEqual((self.data/'firm.db').read_bytes(),original[self.data/'firm.db'])
+        self.assertEqual(after['positions'],before['positions'])
+        self.assertEqual(after['protective'],before['protective'])
+        self.assertEqual(after['current'].realised_pnl,before['current'].realised_pnl)
+        self.assertEqual(receipt['cash_after'],20000.)
+        self.assertEqual(receipt['durable_cash_reconciliation'],preview['durable_cash_reconciliation'])
+        self.assertEqual((Path(receipt['backup'])/'paper_cash.json').read_bytes(),original[self.data/'paper_cash.json'])
+        self.write_cash(after['events']+[dict(event_id='later-fee',kind='open',symbol='SOLUSDT',fee=5.)])
+        retry=resize(self.data,self.app,self.root/'backups',apply=True)
+        self.assertTrue(retry['already_applied'])
+        self.assertEqual((retry['capital_addition'],retry['cash_after']),(0.,19995.))
+
+    def test_legacy_payload_matches_journal_by_database_id(self):
+        for empty in ('absent',None,''):
+            with self.subTest(empty=empty):
+                payload={k:v for k,v in self.events[1].items() if k!='event_id'}
+                if empty!='absent': payload['event_id']=empty
+                self.write_durable([('entry','paper',payload)])
+                audit=resize(self.data,self.app,self.root/'backups')['durable_cash_reconciliation']
+                self.assertEqual((audit['matched_by_id'],audit['legacy_payloads_without_id'],
+                                  audit['legacy_journal_matches']),(1,1,0))
+
+    def test_mixed_modern_and_legacy_rows_reconcile(self):
+        legacy=dict(kind='funding',symbol='BTCUSDT',amount=.5,ts='2026-10-09T08:00:00Z')
+        self.write_cash(self.events+[legacy])
+        self.write_durable([('entry','paper',self.events[1]),('legacy-funding','paper',legacy)])
+        audit=inspect_account(self.data,self.app)['durable_cash_reconciliation']
+        self.assertEqual(audit,dict(durable_rows=2,matched_by_id=1,
+                                   legacy_payloads_without_id=1,legacy_journal_matches=1))
+
+    def test_explicit_durable_payload_identity_conflict_is_refused(self):
+        for bad_id in ('different',0,False):
+            with self.subTest(bad_id=bad_id):
+                self.write_durable([('entry','paper',self.events[1]|dict(event_id=bad_id))])
+                self.assert_resize_refused('identity mismatch')
+
+    def test_identified_economic_conflict_is_refused_with_or_without_payload_id(self):
+        for legacy in (False,True):
+            with self.subTest(legacy=legacy):
+                payload=self.events[1]|dict(fee=3.)
+                if legacy: payload.pop('event_id')
+                self.write_durable([('entry','paper',payload)])
+                self.assert_resize_refused('economic conflict')
+
+    def test_legacy_match_requires_full_payload_not_only_equal_cash(self):
+        event=dict(kind='open',symbol='BTCUSDT',fee=2.,ts='2026-10-09T01:00:00Z')
+        self.write_cash([self.events[0],event])
+        for change in (dict(fee=3.),dict(symbol='ETHUSDT'),dict(ts='2026-10-10T01:00:00Z')):
+            with self.subTest(change=change):
+                self.write_durable([('legacy-entry','paper',event|change)])
+                self.assert_resize_refused('no unused exact journal match')
+
+    def test_legacy_journal_match_is_consumed_once(self):
+        event=dict(kind='funding',symbol='BTCUSDT',amount=.5,ts='2026-10-09T08:00:00Z')
+        self.write_cash(self.events+[event])
+        self.write_durable([('legacy-a','paper',event),('legacy-b','paper',event)])
+        self.assert_resize_refused('no unused exact journal match')
+        # Identical historical events remain separate occurrences, never deduped.
+        self.write_cash(self.events+[event,event])
+        after=inspect_account(self.data,self.app)
+        self.assertEqual(after['durable_cash_reconciliation']['legacy_journal_matches'],2)
+        self.assertEqual(after['current'].cash,9997.)
+
+    def test_missing_identified_event_cannot_match_idless_journal_by_value(self):
+        event=dict(kind='open',symbol='BTCUSDT',fee=2.)
+        self.write_cash([self.events[0],event])
+        self.write_durable([('entry','paper',event|dict(event_id='entry'))])
+        self.assert_resize_refused('not yet reconciled')
+
+    def test_legacy_payload_cannot_match_journal_with_different_id(self):
+        payload={k:v for k,v in self.events[1].items() if k!='event_id'}
+        self.write_durable([('different-entry','paper',payload)])
+        self.assert_resize_refused('no unused exact journal match')
+
+    def test_duplicate_durable_ids_are_refused(self):
+        self.write_durable([('entry','paper',self.events[1]),('entry','paper',self.events[1])])
+        self.assert_resize_refused('duplicate durable cash event IDs')
+
+    def test_duplicate_journal_ids_are_refused(self):
+        self.write_cash(self.events+[self.events[1]])
+        self.assert_resize_refused('duplicate event IDs')
+
+    def test_invalid_durable_rows_are_refused(self):
+        for row,reason in [((None,'paper',self.events[1]),'missing durable cash event ID'),
+                           (('entry','paper',[]),'invalid durable cash event payload'),
+                           (('entry','live',self.events[1]),'non-paper durable cash row')]:
+            with self.subTest(reason=reason):
+                self.write_durable([row])
+                self.assert_resize_refused(reason)
+
     def test_topup_is_capital_preserves_positions_kill_and_history(self):
         before=inspect_account(self.data,self.app)
         receipt=resize(self.data,self.app,self.root/'backups',apply=True)
@@ -412,64 +539,59 @@ class LegacyBackfillCloseTests(unittest.TestCase):
                          r['payload'],r['recorded_at']) for r in rows])
         db.commit();db.close()
 
-    def test_seven_legacy_rows_pass_the_check(self):
+    def test_seven_real_summary_rows_pass_under_strict_checks(self):
+        # These payloads have no kind, symbol, gross, fee or funding. The economic
+        # comparison would reject them; the summary path accepts them first.
+        economic=('kind','symbol','amount','gross_pnl','fee','entry_fee','funding')
         for row, event in zip(self.rows, self.journal):
             payload=json.loads(row['payload'])
+            self.assertEqual(set(payload), {'backfill','source_trade_id','net','cash_after'})
             self.assertIs(payload['backfill'], True)
             self.assertNotIn('event_id', payload)
-            self.assertTrue(legacy_backfill_close_desktop(row, payload))
+            self.assertTrue(any(event.get(field)!=payload.get(field) for field in economic))
             expected=event['gross_pnl']-event['fee']-event['entry_fee']+event['funding']
             self.assertAlmostEqual(payload['net'], expected, delta=1e-6)
             self.assertEqual(payload['cash_after'], event['cash_after'])
             self.assertEqual(payload['source_trade_id'], event['source_trade_id'])
-            self.assertEqual(row['symbol'], event['symbol'])
-            self.assertEqual(event['funding'], 0.0)
-            self.assertEqual(event['entry_fee'], 0.0)
-        self.assertFalse(legacy_backfill_close_desktop(
-            {'event_id':'paper-close:1:ETHUSDT:stop:1.00000000:100.00000000','kind':'close'},
-            {'event_id':'other','kind':'close','symbol':'ETHUSDT'}))
+            self.assertEqual(event['event_id'], row['event_id'])
         self.write(self.rows, self.journal)
+        db=sqlite3.connect(f'file:{self.data/"firm.db"}?mode=ro',uri=True)
+        stored=[r[0] for r in db.execute('SELECT payload FROM paper_cash_events ORDER BY id')]
+        db.close()
+        self.assertEqual(stored, [row['payload'] for row in self.rows])
         inspected=inspect_account(self.data, self.app)
-        self.assertEqual(
-            [e['event_id'] for e in inspected['events']],
-            [e['event_id'] for e in self.journal])
+        self.assertEqual(inspected['durable_cash_reconciliation'], dict(
+            durable_rows=7,matched_by_id=7,legacy_payloads_without_id=7,legacy_journal_matches=0))
+        self.assertEqual([e['event_id'] for e in inspected['events']],
+                         [e['event_id'] for e in self.journal])
 
-    def test_unknown_or_mismatched_event_still_fails(self):
-        unknown=copy.deepcopy(self.rows)
-        unknown.append(dict(id=99,event_id='not-a-real-event',kind='close',mode='paper',
-                            symbol='ETHUSDT',position_id=None,
-                            payload=json.dumps(dict(event_id='someone-else',kind='close')),
-                            recorded_at='2026-10-09 08:39:15.501024'))
-        self.write(unknown, self.journal)
+    def test_unknown_event_id_fails(self):
+        rows=copy.deepcopy(self.rows)
+        rows.append(dict(id=99,event_id='not-a-real-event',kind='close',mode='paper',
+                         symbol='ETHUSDT',position_id=None,
+                         payload=json.dumps(dict(event_id='someone-else',kind='close')),
+                         recorded_at='2026-10-09 08:39:15.501024'))
+        self.write(rows, self.journal)
         with self.assertRaisesRegex(ValueError, 'durable cash event identity mismatch'):
             inspect_account(self.data, self.app)
 
-        shaped=copy.deepcopy(self.rows)
-        shaped.append(dict(id=100,event_id='backfill-close:desktop:99',kind='close',mode='paper',
-                           symbol='ETHUSDT',position_id=None,
-                           payload=json.dumps(dict(backfill=True,source_trade_id=99,net=0.0,cash_after=0.0)),
-                           recorded_at='2026-10-09 08:39:15.501024'))
-        self.write(shaped, self.journal)
-        with self.assertRaisesRegex(ValueError, 'durable cash event identity mismatch'):
+    def test_desktop_99_without_journal_entry_fails(self):
+        rows=copy.deepcopy(self.rows)
+        rows.append(dict(id=100,event_id='backfill-close:desktop:99',kind='close',mode='paper',
+                         symbol='ETHUSDT',position_id=None,
+                         payload=json.dumps(dict(backfill=True,source_trade_id=99,net=0.0,cash_after=0.0)),
+                         recorded_at='2026-10-09 08:39:15.501024'))
+        self.write(rows, self.journal)
+        with self.assertRaisesRegex(ValueError, r'legacy backfill-close summary rejected \(backfill-close:desktop:99\)'):
             inspect_account(self.data, self.app)
 
-        # Same economic fields, but a payload event_id means this is not the legacy shape.
-        strict=copy.deepcopy(self.rows)
-        payload=json.loads(strict[0]['payload'])
-        payload['event_id']=strict[0]['event_id']
-        strict[0]['payload']=json.dumps(payload)
-        self.assertFalse(legacy_backfill_close_desktop(strict[0], payload))
-        self.write(strict, self.journal)
-        with self.assertRaisesRegex(ValueError, 'durable cash event economic conflict'):
-            inspect_account(self.data, self.app)
-
-    def test_tampered_legacy_row_fails(self):
+    def test_tampered_cash_after_or_net_fails(self):
         cash=copy.deepcopy(self.rows)
         payload=json.loads(cash[0]['payload'])
-        payload['cash_after']=payload['cash_after']+1.0
+        payload['cash_after']=payload['cash_after']+0.01
         cash[0]['payload']=json.dumps(payload)
         self.write(cash, self.journal)
-        with self.assertRaisesRegex(ValueError, 'durable cash event identity mismatch'):
+        with self.assertRaisesRegex(ValueError, r'legacy backfill-close summary rejected \(backfill-close:desktop:1\)'):
             inspect_account(self.data, self.app)
 
         net=copy.deepcopy(self.rows)
@@ -477,21 +599,7 @@ class LegacyBackfillCloseTests(unittest.TestCase):
         payload['net']=payload['net']+0.01
         net[3]['payload']=json.dumps(payload)
         self.write(net, self.journal)
-        with self.assertRaisesRegex(ValueError, 'durable cash event identity mismatch'):
-            inspect_account(self.data, self.app)
-
-        source=copy.deepcopy(self.rows)
-        payload=json.loads(source[1]['payload'])
-        payload['source_trade_id']=99
-        source[1]['payload']=json.dumps(payload)
-        self.write(source, self.journal)
-        with self.assertRaisesRegex(ValueError, 'durable cash event identity mismatch'):
-            inspect_account(self.data, self.app)
-
-        symbol=copy.deepcopy(self.rows)
-        symbol[2]['symbol']='BTCUSDT'
-        self.write(symbol, self.journal)
-        with self.assertRaisesRegex(ValueError, 'durable cash event identity mismatch'):
+        with self.assertRaisesRegex(ValueError, r'legacy backfill-close summary rejected \(backfill-close:desktop:4\)'):
             inspect_account(self.data, self.app)
 
     def test_preview_numbers_from_these_rows_and_journal(self):
