@@ -14,6 +14,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import sqlite3
 import sys
@@ -23,6 +24,43 @@ sys.path.insert(0,str(ROOT))
 from core.execution.paper_cash import replay_events
 
 EVENT_ID='owner-paper-capital-20261017-20000-v1'
+
+# paper_cash_events 11-17. Payload is only {backfill, source_trade_id, net, cash_after}.
+# Those summaries have no kind, symbol, gross, fee or funding, so the economic-field
+# check below would reject them. Measured net == gross_pnl - fee - entry_fee + funding
+# (entry_fee and funding are 0; residual under 1e-14). cash_after is exact equality
+# with the journal field, not a tolerance and not a from-zero replay.
+LEGACY_BACKFILL_CLOSE_DESKTOP=re.compile(r'^backfill-close:desktop:\d+$')
+LEGACY_BACKFILL_CLOSE_SUMMARY_KEYS=frozenset({'backfill','source_trade_id','net','cash_after'})
+
+
+def legacy_backfill_close_summary(key, payload, journal):
+    """Accept one desktop backfill-close summary, or raise.
+
+    Only for event ids matching ^backfill-close:desktop:\\d+$. The payload must
+    be the summary shape: backfill true, source_trade_id, net, cash_after, and
+    no event_id. The journal event with that id must have the same
+    source_trade_id, cash_after must compare equal, and net must equal
+    gross_pnl - fee - entry_fee + funding within 1e-6. Does not rewrite the
+    row or the journal. A regex match that fails any of this raises here.
+    """
+    if (not isinstance(payload,dict) or payload.get('backfill') is not True
+            or set(payload)!=LEGACY_BACKFILL_CLOSE_SUMMARY_KEYS):
+        raise ValueError(f'legacy backfill-close summary rejected ({key})')
+    if (not isinstance(journal,dict) or journal.get('event_id')!=key
+            or journal.get('source_trade_id')!=payload.get('source_trade_id')
+            or 'cash_after' not in journal
+            or journal.get('cash_after')!=payload.get('cash_after')):
+        raise ValueError(f'legacy backfill-close summary rejected ({key})')
+    try:
+        expected=(float(journal['gross_pnl'])-float(journal['fee'])
+                  -float(journal['entry_fee'])+float(journal['funding']))
+        net=float(payload['net'])
+    except (KeyError,TypeError,ValueError):
+        raise ValueError(f'legacy backfill-close summary rejected ({key})') from None
+    if (not math.isfinite(expected) or not math.isfinite(net)
+            or abs(net-expected)>1e-6):
+        raise ValueError(f'legacy backfill-close summary rejected ({key})')
 
 
 def sha(path):
@@ -73,6 +111,13 @@ def reconcile_durable_cash(rows, events):
         payload=json.loads(row['payload'])
         if not isinstance(payload,dict):
             raise ValueError('invalid durable cash event payload')
+        # Summary payloads never reach the identity or economic-conflict checks.
+        if LEGACY_BACKFILL_CLOSE_DESKTOP.fullmatch(key):
+            legacy_backfill_close_summary(key,payload,seen.get(key))
+            audit['durable_rows']+=1
+            audit['legacy_payloads_without_id']+=1
+            audit['matched_by_id']+=1
+            continue
         payload_id=payload.get('event_id')
         legacy_payload=payload_id in (None,'')
         if not legacy_payload and payload_id!=key:

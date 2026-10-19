@@ -102,6 +102,19 @@ their actual server payloads have not been independently inspected here.
 
 The increase is one identified capital event: `max(0, 20000 - current cash)`.
 It is not trading profit. An account already above 20,000 is not reduced.
+
+`backfill-close:desktop:N` (`paper_cash_events` 11-17, journal events with
+those same ids) is a narrower summary: `{backfill, source_trade_id, net,
+cash_after}` and no `event_id`, kind, symbol, gross, fee or funding. That
+shape is checked before the identity and economic-field comparisons, which
+would otherwise report an economic conflict. It is accepted only when
+`payload.backfill` is true, the journal has that event id and the same
+`source_trade_id`, `cash_after` compares equal, and `net` equals
+`gross_pnl - fee - entry_fee + funding` within 1e-6. On these seven journals
+funding and entry fee are zero. A desktop id that fails any of those
+conditions is refused. No database row or journal entry is rewritten. Every
+other id still uses the checks above.
+
 Unrealised P&L on existing positions remains additional to this cash balance.
 A repeated install does not replenish subsequent losses. No position, stop,
 closed trade, earlier cash event or kill state is rewritten. The source change

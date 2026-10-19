@@ -489,4 +489,145 @@ class ResizeTests(unittest.TestCase):
         with self.assertRaises(ValueError): resize(self.data,self.app,self.root/'backups',apply=True)
 
 
+# Preview of a journal that contains only the seven Oct 9 desktop closes.
+# replay_events starts from zero, so this is not the live account.
+# Live server preflight (resize-preview.json) must still show:
+#   realised P&L -174.39, top-up +10175.01, resulting cash 20000.
+# Those three figures need the rest of paper_cash.json, which is not in this repo.
+PARTIAL_REALISED_PNL=-114.50250483113291
+PARTIAL_TOP_UP=20114.502504831133
+PARTIAL_RESULT_CASH=20000.0
+SERVER_PREFLIGHT_REALISED_PNL=-174.39
+SERVER_PREFLIGHT_TOP_UP=10175.01
+SERVER_PREFLIGHT_RESULT_CASH=20000.0
+
+
+class LegacyBackfillCloseTests(unittest.TestCase):
+    """paper_cash_events 11-17 are backfill-close:desktop:1..7 with no payload event_id."""
+
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
+        self.data=self.root/'data';self.data.mkdir();self.app=self.root/'app'
+        (self.app/'core/risk').mkdir(parents=True)
+        limits=(ROOT/'core/risk/limits.py').read_text().replace(
+            'PAPER_LIMITS = RiskLimits(max_concurrent_positions=15)','PAPER_LIMITS = RiskLimits()')
+        (self.app/'core/risk/limits.py').write_text(limits)
+        fix=ROOT/'tests/fixtures'
+        self.rows=json.loads((fix/'legacy_backfill_close_rows_11_17.json').read_text())
+        self.journal=json.loads((fix/'legacy_backfill_close_journal_1_7.json').read_text())
+        self.assertEqual([r['id'] for r in self.rows], list(range(11,18)))
+        self.assertEqual([r['event_id'] for r in self.rows],
+                         [f'backfill-close:desktop:{i}' for i in range(1,8)])
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write(self, rows, events):
+        db_path=self.data/'firm.db'
+        if db_path.exists(): db_path.unlink()
+        state=replay_events(events)
+        raw={k:getattr(state,k) for k in ('cash','realised_pnl','contributed_capital','total_fees','total_funding')}
+        raw['events']=events;raw['version']=1
+        (self.data/'paper_cash.json').write_text(json.dumps(raw))
+        db=sqlite3.connect(db_path)
+        db.execute('CREATE TABLE positions(id INTEGER, mode TEXT, status TEXT)')
+        db.execute('CREATE TABLE paper_cash_events('
+                   'id INTEGER PRIMARY KEY, event_id TEXT, kind TEXT, mode TEXT, symbol TEXT, '
+                   'position_id INTEGER, payload TEXT, recorded_at TEXT)')
+        db.executemany('INSERT INTO paper_cash_events VALUES (?,?,?,?,?,?,?,?)',
+                       [(r['id'],r['event_id'],r['kind'],r['mode'],r['symbol'],r['position_id'],
+                         r['payload'],r['recorded_at']) for r in rows])
+        db.commit();db.close()
+
+    def test_seven_real_summary_rows_pass_under_strict_checks(self):
+        # These payloads have no kind, symbol, gross, fee or funding. The economic
+        # comparison would reject them; the summary path accepts them first.
+        economic=('kind','symbol','amount','gross_pnl','fee','entry_fee','funding')
+        for row, event in zip(self.rows, self.journal):
+            payload=json.loads(row['payload'])
+            self.assertEqual(set(payload), {'backfill','source_trade_id','net','cash_after'})
+            self.assertIs(payload['backfill'], True)
+            self.assertNotIn('event_id', payload)
+            self.assertTrue(any(event.get(field)!=payload.get(field) for field in economic))
+            expected=event['gross_pnl']-event['fee']-event['entry_fee']+event['funding']
+            self.assertAlmostEqual(payload['net'], expected, delta=1e-6)
+            self.assertEqual(payload['cash_after'], event['cash_after'])
+            self.assertEqual(payload['source_trade_id'], event['source_trade_id'])
+            self.assertEqual(event['event_id'], row['event_id'])
+        self.write(self.rows, self.journal)
+        db=sqlite3.connect(f'file:{self.data/"firm.db"}?mode=ro',uri=True)
+        stored=[r[0] for r in db.execute('SELECT payload FROM paper_cash_events ORDER BY id')]
+        db.close()
+        self.assertEqual(stored, [row['payload'] for row in self.rows])
+        inspected=inspect_account(self.data, self.app)
+        self.assertEqual(inspected['durable_cash_reconciliation'], dict(
+            durable_rows=7,matched_by_id=7,legacy_payloads_without_id=7,legacy_journal_matches=0))
+        self.assertEqual([e['event_id'] for e in inspected['events']],
+                         [e['event_id'] for e in self.journal])
+
+    def test_unknown_event_id_fails(self):
+        rows=copy.deepcopy(self.rows)
+        rows.append(dict(id=99,event_id='not-a-real-event',kind='close',mode='paper',
+                         symbol='ETHUSDT',position_id=None,
+                         payload=json.dumps(dict(event_id='someone-else',kind='close')),
+                         recorded_at='2026-10-09 08:39:15.501024'))
+        self.write(rows, self.journal)
+        with self.assertRaisesRegex(ValueError, 'durable cash event identity mismatch'):
+            inspect_account(self.data, self.app)
+
+    def test_desktop_99_without_journal_entry_fails(self):
+        rows=copy.deepcopy(self.rows)
+        rows.append(dict(id=100,event_id='backfill-close:desktop:99',kind='close',mode='paper',
+                         symbol='ETHUSDT',position_id=None,
+                         payload=json.dumps(dict(backfill=True,source_trade_id=99,net=0.0,cash_after=0.0)),
+                         recorded_at='2026-10-09 08:39:15.501024'))
+        self.write(rows, self.journal)
+        with self.assertRaisesRegex(ValueError, r'legacy backfill-close summary rejected \(backfill-close:desktop:99\)'):
+            inspect_account(self.data, self.app)
+
+    def test_tampered_cash_after_or_net_fails(self):
+        cash=copy.deepcopy(self.rows)
+        payload=json.loads(cash[0]['payload'])
+        payload['cash_after']=payload['cash_after']+0.01
+        cash[0]['payload']=json.dumps(payload)
+        self.write(cash, self.journal)
+        with self.assertRaisesRegex(ValueError, r'legacy backfill-close summary rejected \(backfill-close:desktop:1\)'):
+            inspect_account(self.data, self.app)
+
+        net=copy.deepcopy(self.rows)
+        payload=json.loads(net[3]['payload'])
+        payload['net']=payload['net']+0.01
+        net[3]['payload']=json.dumps(payload)
+        self.write(net, self.journal)
+        with self.assertRaisesRegex(ValueError, r'legacy backfill-close summary rejected \(backfill-close:desktop:4\)'):
+            inspect_account(self.data, self.app)
+
+    def test_preview_numbers_from_these_rows_and_journal(self):
+        """Dry-run top-up of a book whose journal is only these seven closes.
+
+        Partial preview (this fixture): realised P&L -114.50250483,
+        top-up +20114.50250483, resulting cash 20000.
+
+        Left for the server preflight against the live paper journal:
+        realised P&L -174.39, top-up +10175.01, resulting cash 20000.
+        """
+        self.write(self.rows, self.journal)
+        before=(self.data/'paper_cash.json').read_bytes()
+        receipt=resize(self.data, self.app, self.root/'backups')
+        self.assertEqual((self.data/'paper_cash.json').read_bytes(), before)
+        self.assertFalse((self.root/'backups').exists())
+        state=replay_events(self.journal)
+        nets=sum(json.loads(r['payload'])['net'] for r in self.rows)
+        self.assertAlmostEqual(receipt['realised_pnl_before'], state.realised_pnl, delta=1e-12)
+        self.assertAlmostEqual(receipt['realised_pnl_before'], nets, delta=1e-9)
+        self.assertAlmostEqual(receipt['realised_pnl_before'], PARTIAL_REALISED_PNL, delta=1e-9)
+        self.assertAlmostEqual(receipt['capital_addition'], max(0., 20000.-state.cash), delta=1e-9)
+        self.assertAlmostEqual(receipt['capital_addition'], PARTIAL_TOP_UP, delta=1e-9)
+        self.assertAlmostEqual(receipt['cash_before']+receipt['capital_addition'], receipt['cash_after'], delta=1e-9)
+        self.assertAlmostEqual(receipt['cash_after'], PARTIAL_RESULT_CASH, delta=1e-9)
+        self.assertNotAlmostEqual(receipt['realised_pnl_before'], SERVER_PREFLIGHT_REALISED_PNL, places=2)
+        self.assertNotAlmostEqual(receipt['capital_addition'], SERVER_PREFLIGHT_TOP_UP, places=2)
+        self.assertAlmostEqual(SERVER_PREFLIGHT_RESULT_CASH, 20000.0)
+
+
 if __name__=='__main__': unittest.main()
