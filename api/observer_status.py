@@ -1090,9 +1090,36 @@ def _failed_card(observer_id: str, exc: BaseException) -> dict[str, Any]:
 
 
 def list_observers(**kwargs: Any) -> dict[str, Any]:
-    """Both cards plus the deskbar pulses. Read-only.
+    """Both cards plus the deskbar pulses, from the short desk cache.
 
-    One observer failing to read does not drop the other card.
+    A warm call with the same book and scan id does not rebuild either card.
+    One observer failing to read still does not drop the other card.
+
+    ``GET /api/observers`` does not call this. The background snapshot does,
+    about every 60s and again when a scan file changes. The cache only
+    collapses overlapping refreshes. A desk poll copies the snapshot.
+    """
+    from api.dashboard_cache import observers_cache_key, panel_cache
+
+    key = observers_cache_key(
+        telemetry_path=kwargs.get("telemetry_path"),
+        state_path=kwargs.get("state_path"),
+        status_path=kwargs.get("status_path"),
+        db_path=kwargs.get("db_path"),
+        config_path=kwargs.get("config_path"),
+    )
+    return panel_cache.fetch(
+        "observers",
+        key,
+        lambda: _list_observers_uncached(**kwargs),
+    )
+
+
+def _list_observers_uncached(**kwargs: Any) -> dict[str, Any]:
+    """Build both cards. Read-only. The cache in ``list_observers`` calls this.
+
+    The F111 card goes through ``f111_status``, which has its own panel cache,
+    so a warm F111 panel is not parsed again while BL8 is built.
     """
     cards: list[dict[str, Any]] = []
     for observer_id in OBSERVER_IDS:

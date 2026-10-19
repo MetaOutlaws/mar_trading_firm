@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -60,10 +61,37 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# Parsed telemetry keyed by path, mtime_ns, and size. An append changes
+# both mtime and size, so the next read parses again. The rows are
+# treated as read-only; the panel copies the fields it returns.
+_JSONL_CACHE: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
+_JSONL_LOCK = threading.Lock()
+
+
+def clear_jsonl_cache() -> None:
+    """Drop parsed telemetry. Tests use this so a rewritten file is not required."""
+    with _JSONL_LOCK:
+        _JSONL_CACHE.clear()
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    """Telemetry is append-only. A bad line is skipped, not a failed panel."""
+    """Telemetry is append-only. A bad line is skipped, not a failed panel.
+
+    The same mtime and size returns the parsed rows. ``/api/f111`` and the
+    F111 observer both walk this file, and the full parse was stacking on
+    the dashboard thread pool.
+    """
     if not path.exists():
         return []
+    try:
+        st = path.stat()
+    except OSError:
+        return []
+    token = (str(path), int(st.st_mtime_ns), int(st.st_size))
+    with _JSONL_LOCK:
+        cached = _JSONL_CACHE.get(token)
+        if cached is not None:
+            return cached
     rows: list[dict[str, Any]] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -75,6 +103,11 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
             continue
         if isinstance(payload, dict):
             rows.append(payload)
+    with _JSONL_LOCK:
+        # A handful of paths is enough. Tests use a new file each case.
+        if len(_JSONL_CACHE) > 8:
+            _JSONL_CACHE.clear()
+        _JSONL_CACHE[token] = rows
     return rows
 
 
@@ -261,7 +294,12 @@ def _soko_label(blob: dict[str, Any]) -> str | None:
 
 
 def soko_display(path: Path | None = None, *, now: datetime | None = None) -> dict[str, Any]:
-    """Soko file label, ``as_of``, and age. Does not sit sleeves out."""
+    """Soko file label, ``as_of``, and age. Does not sit sleeves out.
+
+    The paper worker imports this from ``firm/scan_inbox.py`` (``_read_soko``,
+    ``soko_display(now=now)``). The JSONL and F111 caches do not wrap it, so
+    the dict it returns stays label, as_of, age_seconds, source, and path.
+    """
     from core.data.soko_trend import LAST_SOKO_TREND_PATH
 
     moment = _as_utc(now or _utcnow())
@@ -666,12 +704,39 @@ def f111_status(
     telemetry_path: Path | None = None,
     state_path: Path | None = None,
 ) -> dict[str, Any]:
+    """F111 panel, served from the short desk cache when the scan is unchanged.
+
+    A second request with the same book and scan id returns the first build,
+    including ``computed_at`` and ``age``, instead of walking telemetry again.
+    ``GET /api/f111`` calls this. The observer snapshot's F111 card does too,
+    so those two share one build. The paper process does not call this.
+    """
+    from api.dashboard_cache import f111_cache_key, panel_cache
+
+    key = f111_cache_key(telemetry_path, state_path)
+    return panel_cache.fetch(
+        "f111",
+        key,
+        lambda: _f111_status_uncached(
+            now=now,
+            telemetry_path=telemetry_path,
+            state_path=state_path,
+        ),
+    )
+
+
+def _f111_status_uncached(
+    *,
+    now: datetime | None = None,
+    telemetry_path: Path | None = None,
+    state_path: Path | None = None,
+) -> dict[str, Any]:
     """F111 panel: 192 sleeves, census split, gate reasons, retests.
 
     Source files are the configured state and telemetry paths
     (``data/f111_paper_state.json`` and ``data/f111_telemetry.jsonl``).
     On SGP1 those live under the state mount, typically
-    ``/data/state/data/...``.
+    ``/data/state/data/...``. The desk cache calls this once per scan.
     """
     from core.strategy.f111_config import STATE_PATH, TELEMETRY_PATH, load_f111_config
 

@@ -3387,9 +3387,10 @@ setInterval(tickClock, 1000);
 load();
 setInterval(load, 15000);
 
-// Observers are not part of the 15s desk load. A timeout or a 500 keeps the
-// last good snapshot. The request is aborted when the page goes away, and a
-// new poll does not start while one is in flight.
+// One observers poller. observers_poll.js owns the timer, the in-flight
+// guard, the 4s abort, and the hidden-tab pause. The 15s load() above does
+// not fetch /api/observers, and this page does not arm a second observers
+// interval. A timeout or a 500 keeps the last good snapshot.
 const OBSERVERS_TIMEOUT_MS = 4000;
 const observerPoll = ObserverPoll.create({
   timeoutMs: OBSERVERS_TIMEOUT_MS,
@@ -3401,6 +3402,11 @@ const observerPoll = ObserverPoll.create({
   },
 });
 window.addEventListener("pagehide", () => observerPoll.stop());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") observerPoll.pause();
+  else observerPoll.resume();
+});
+if (document.visibilityState === "hidden") observerPoll.pause();
 observerPoll.start();
 </script>
 </body>
