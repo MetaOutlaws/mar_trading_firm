@@ -1,3 +1,11 @@
+# Next shift: R03 forward research trial — 21 October 2026 Dubai
+
+Read [the owner-authorized R03 research implementation ticket](docs/rotation-trim-research/README.md) first. **Three isolated simulated books; implementation pending; runtime NOT verified.** The task is to implement and activate the research trial with the specified acceptance evidence, not replace the existing execution account. This is a research trial, not a claim of proven superiority. No live capital is authorized.
+
+The previous operational handovers below remain historical context. Inspect PR149 and actual runtime evidence before making any claim about what is currently deployed.
+
+---
+
 # Grok: current research and paper approval, 14 October 2026
 
 Current owner-approved PAPER strategy: **L01 longs + unchanged F111 shorts**.
@@ -53,3 +61,4 @@ Recovery: original MAR_hourly_compression_checkpoint_20261007.zip followed by
 MAR_2026_replication_checkpoint_20261008.zip; raw inputs remain separate.
 The complete operational handover and older checkpoint upload instructions remain
 in the owner's private checkpoint. This public handover contains research only.
+

@@ -1,3 +1,9 @@
+# 21 October 2026 Dubai — owner-authorized next-shift work
+
+Implement and activate the isolated three-book R03 paper/shadow research trial in [the detailed ticket](../docs/rotation-trim-research/README.md). Preserve deployed strategies and operational ledgers; publish actual runtime evidence. This owner-approved research experiment is distinct from historical promotion gates. Historical 2026 backtesting remains closed. Next research is the frozen equilibrium-range model; no R03 parameter rescue grid.
+
+---
+
 # Next shift (from 2 Sep 2026)
 
 Paper research only. Live stays off. PF 1.15 / CI / beats-random stay hard.
@@ -36,3 +42,4 @@ Quant keeps 2–3 unapproved drafts. Inbox-approve is the coding gate.
 
 - Change risk parameters, add symbols, or go live without a human (Tier C).
 - Loosen PF 1.15 / CI / beats-random.
+
