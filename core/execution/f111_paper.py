@@ -713,11 +713,15 @@ class F111Runtime:
             sector=pending.get("sector") or _sector(symbol),
         )
         equity = float(self.broker.get_balance())
-        decision = self.risk.evaluate(intent, self._portfolio(equity, {symbol: float(quote)}))
+        state = self._portfolio(equity, {symbol: float(quote)})
+        decision = self.risk.evaluate(intent, state)
         multiplier = getattr(self.engine, "agent_size_multipliers", {}) if self.engine is not None else {}
         if decision.is_approved and symbol in multiplier:
             decision = self.risk.apply_agent_adjustment(decision, multiplier[symbol], agent="portfolio_manager")
         if not decision.is_approved:
+            # Same report-only row as the main paper book. The rejection
+            # returned below is the one the risk engine already produced.
+            self._note_capacity_rejection(intent, state, decision)
             return self._reject_pending(
                 pending,
                 "; ".join(decision.reasons) or decision.verdict.value,
@@ -1022,6 +1026,34 @@ class F111Runtime:
         position_id = state.get("position_id")
         if self.ledger is not None and position_id is not None:
             self.ledger.update_open_stop(int(position_id), configured)
+
+    def _note_capacity_rejection(self, intent: Any, state: Any, decision: Any) -> None:
+        """Report-only capacity near-miss. Does not change ``decision`` or the pending row."""
+        try:
+            from config.settings import TradingMode, get_settings
+
+            if get_settings().trading_mode is not TradingMode.PAPER:
+                return
+            from firm.near_miss_log import note_paper_capacity_rejection
+
+            signal_cfg = self.config.get("signal") if isinstance(self.config, dict) else None
+            clock = ""
+            if isinstance(signal_cfg, dict):
+                clock = str(signal_cfg.get("timeframe") or "")
+            note_paper_capacity_rejection(
+                risk=self.risk,
+                intent=intent,
+                state=state,
+                decision=decision,
+                sleeve=STRATEGY_ID,
+                rule=STRATEGY_ID,
+                clock=clock or "1h",
+            )
+        except Exception:
+            logger.warning(
+                "Paper capacity near-miss was not written; the rejection stands",
+                exc_info=True,
+            )
 
     def _reject_pending(
         self,
