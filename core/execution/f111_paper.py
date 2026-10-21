@@ -778,6 +778,8 @@ class F111Runtime:
                                  "configuration_sha256": self.config_sha},
                 timeframe="1m",
                 max_holding_bars=0,
+                entry_equity=equity,
+                max_position_pct=self.risk.limits.max_position_pct,
             )
         brackets.update(
             {

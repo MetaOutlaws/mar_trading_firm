@@ -13,6 +13,7 @@ deliberately tight. They can be loosened later on evidence, never on optimism.
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -114,3 +115,63 @@ INITIAL_LIVE_LIMITS = RiskLimits(
     daily_loss_limit_pct=0.02,
     max_drawdown_pct=0.10,
 )
+
+
+# Paper-only daily-trade counter. Not a RiskLimits field: the dataclass
+# defaults, PAPER_LIMITS and INITIAL_LIVE_LIMITS stay as they are, and live
+# counting does not read these. A fill is dust when its filled notional is
+# strictly below the floor. Equal to the floor counts.
+#
+# Floor = max(PAPER_DUST_FRACTION_OF_NORMAL_SIZE * max_position_pct * equity,
+#             PAPER_DUST_ABSOLUTE_FLOOR_USDT).
+# With max_position_pct 0.10 that is 1% of the equity the sizer used
+# (10% of the normal per-trade size), or $25, whichever is higher.
+# The $25 backstop binds only below $2,500 of equity. Munha, 2026-10-21:
+# 2.5% of equity was rejected because it lands inside the GALA / BONK / WAVES
+# half-size cluster.
+PAPER_DUST_FRACTION_OF_NORMAL_SIZE = 0.10
+PAPER_DUST_ABSOLUTE_FLOOR_USDT = 25.0
+
+
+def paper_dust_floor_usdt(equity: float, max_position_pct: float) -> float:
+    """USDT floor for one paper fill. Dust is strictly below this number."""
+    proportional = PAPER_DUST_FRACTION_OF_NORMAL_SIZE * max_position_pct * equity
+    return max(proportional, PAPER_DUST_ABSOLUTE_FLOOR_USDT)
+
+
+def paper_fill_counts_toward_daily_trades(
+    notional: float,
+    equity: float | None,
+    max_position_pct: float | None,
+) -> tuple[bool, float | None]:
+    """Classify one paper fill against the sizer's equity.
+
+    Returns ``(counts, floor)``. ``counts`` is False only when ``notional``
+    is strictly below the floor. Missing or unusable equity, or an unusable
+    position cap, fails closed: the fill counts and the floor is None so the
+    caller can see that the inputs were not available.
+
+    The caller persists both values. Later top-ups compare cumulative
+    notional to the stored floor; they do not call this again with a new
+    equity.
+    """
+    if equity is None or isinstance(equity, bool) or not isinstance(equity, (int, float)):
+        return True, None
+    if not math.isfinite(equity) or equity <= 0:
+        return True, None
+    if (
+        max_position_pct is None
+        or isinstance(max_position_pct, bool)
+        or not isinstance(max_position_pct, (int, float))
+        or not math.isfinite(max_position_pct)
+        or max_position_pct <= 0
+    ):
+        return True, None
+    if (
+        isinstance(notional, bool)
+        or not isinstance(notional, (int, float))
+        or not math.isfinite(notional)
+    ):
+        return True, None
+    floor = paper_dust_floor_usdt(float(equity), float(max_position_pct))
+    return notional >= floor, floor

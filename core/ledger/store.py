@@ -14,6 +14,7 @@ size new trades against a fiction.
 from __future__ import annotations
 
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Sequence
 
@@ -28,8 +29,10 @@ from core.ledger.models import (
     RejectedSignal,
     RiskEvent,
     TradeRecord,
+    TradingMode,
 )
 from core.risk.engine import OpenPosition, PortfolioState
+from core.risk.limits import paper_fill_counts_toward_daily_trades
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +77,24 @@ class Ledger:
         timeframe: str = "",
         max_holding_bars: int = 0,
         expiry_at: datetime | None = None,
+        entry_equity: float | None = None,
+        max_position_pct: float | None = None,
     ) -> int:
-        """Record a newly opened position and return its id."""
+        """Record a newly opened position and return its id.
+
+        ``entry_equity`` and ``max_position_pct`` are the figures the sizer
+        used for this order. In paper mode they classify the fill once, on
+        the filled notional (``quantity * entry_price``). The result is
+        stored on the row. Live and any other mode count every fill and do
+        not write a dust classification.
+        """
+        notional = quantity * entry_price
+        counts, floor, counted_at = self._classify_open(
+            symbol=symbol,
+            notional=notional,
+            entry_equity=entry_equity,
+            max_position_pct=max_position_pct,
+        )
         with session_scope() as session:
             position = Position(
                 symbol=symbol,
@@ -84,7 +103,11 @@ class Ledger:
                 mode=self.mode,
                 quantity=quantity,
                 entry_price=entry_price,
-                notional=quantity * entry_price,
+                notional=notional,
+                entry_equity=entry_equity if self.mode == TradingMode.PAPER.value else None,
+                dust_floor_usdt=floor,
+                counts_toward_daily_trades=counts,
+                daily_trade_at=counted_at,
                 entry_fee=entry_fee,
                 expected_entry_price=expected_entry_price,
                 take_profit_price=take_profit,
@@ -110,6 +133,133 @@ class Ledger:
                 position.entry_slippage_bps,
             )
             return position.id
+
+    def _classify_open(
+        self,
+        symbol: str,
+        notional: float,
+        entry_equity: float | None,
+        max_position_pct: float | None,
+    ) -> tuple[bool, float | None, datetime | None]:
+        """Decide whether this open consumes a paper daily-trade slot.
+
+        Returns ``(counts, floor, counted_at)``. Non-paper modes always
+        count and do not store a floor. Missing sizer equity fails closed
+        (the fill counts, floor stays None).
+        """
+        if self.mode != TradingMode.PAPER.value:
+            return True, None, None
+        counts, floor = paper_fill_counts_toward_daily_trades(
+            notional, entry_equity, max_position_pct
+        )
+        counted_at = utcnow() if counts else None
+        if counts and floor is None:
+            logger.info(
+                "paper fill counts toward max_daily_trades "
+                "(sizer equity unavailable; fail closed): symbol=%s notional=%.4f",
+                symbol,
+                notional,
+            )
+        elif not counts:
+            logger.info(
+                "paper dust fill excluded from max_daily_trades: "
+                "symbol=%s notional=%.4f equity=%.4f floor=%.4f",
+                symbol,
+                notional,
+                entry_equity,
+                floor,
+            )
+        return counts, floor, counted_at
+
+    def record_additional_fill(self, position_id: int, added_notional: float) -> bool:
+        """Book more filled notional on an open position.
+
+        Paper dust uses the cumulative notional against the floor stored at
+        open. The position starts consuming a daily-trade slot at the moment
+        cumulative notional is no longer strictly below that floor. Equity is
+        not reread. The add itself is never rejected: this only updates the
+        counter flag. There is no engine scale-in path today; partial fills
+        that arrive as one order are classified once in ``open_position`` on
+        the summed fill.
+
+        Returns True when this call is the moment the position starts counting.
+        Non-paper rows already count and stay that way.
+        """
+        try:
+            added = float(added_notional)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Ledger: ignoring non-numeric additional fill on position %s (%r)",
+                position_id,
+                added_notional,
+            )
+            return False
+        if added <= 0 or not math.isfinite(added):
+            logger.warning(
+                "Ledger: ignoring non-positive additional fill on position %s (%.4f)",
+                position_id,
+                added,
+            )
+            return False
+        with session_scope() as session:
+            position = session.get(Position, position_id)
+            if position is None or position.status != PositionStatus.OPEN.value:
+                logger.error(
+                    "Ledger: cannot add fill to position %s", position_id
+                )
+                return False
+            if position.mode != self.mode:
+                logger.error(
+                    "Ledger: position %s is mode %s, not %s",
+                    position_id,
+                    position.mode,
+                    self.mode,
+                )
+                return False
+
+            cumulative = float(position.notional) + added
+            position.notional = cumulative
+            # Keep quantity * entry_price equal to the cumulative filled
+            # notional. The add is booked at the original entry price; the
+            # daily-trade rule only needs the cumulative dollars.
+            if position.entry_price:
+                position.quantity = cumulative / float(position.entry_price)
+
+            if self.mode != TradingMode.PAPER.value:
+                position.counts_toward_daily_trades = True
+                return False
+
+            # Already counting, or never classified (no stored floor): stay
+            # counting. Do not reclassify with a new equity.
+            if position.counts_toward_daily_trades or position.dust_floor_usdt is None:
+                position.counts_toward_daily_trades = True
+                if position.daily_trade_at is None:
+                    position.daily_trade_at = position.opened_at or utcnow()
+                return False
+
+            floor = float(position.dust_floor_usdt)
+            if cumulative < floor:
+                logger.info(
+                    "paper dust fill excluded from max_daily_trades: "
+                    "symbol=%s notional=%.4f equity=%.4f floor=%.4f",
+                    position.symbol,
+                    cumulative,
+                    position.entry_equity,
+                    floor,
+                )
+                return False
+
+            position.counts_toward_daily_trades = True
+            position.daily_trade_at = utcnow()
+            logger.info(
+                "paper fill counts toward max_daily_trades after crossing dust floor: "
+                "symbol=%s notional=%.4f equity=%.4f floor=%.4f",
+                position.symbol,
+                cumulative,
+                position.entry_equity,
+                floor,
+            )
+            return True
 
     def update_open_stop(self, position_id: int, stop_loss: float) -> bool:
         """Record the stop that is effective now.
@@ -316,13 +466,33 @@ class Ledger:
 
         Counts *opens*, not closes: the daily trade limit exists to cap activity
         and exposure to execution error, both of which are driven by entries.
+
+        Paper dust is the one exception. A row counts only when it was
+        classified as consuming a slot (or was never classified, which fails
+        closed) and the moment it started counting falls on this UTC day. A
+        top-up that crosses the stored floor starts counting then, not on the
+        original open day. Live and every other mode count every open, as before.
         """
         start = datetime.combine(utcnow().date(), datetime.min.time(), tzinfo=timezone.utc)
         with session_scope() as session:
+            if self.mode != TradingMode.PAPER.value:
+                return int(
+                    session.scalar(
+                        select(func.count(Position.id)).where(
+                            Position.mode == self.mode, Position.opened_at >= start
+                        )
+                    )
+                    or 0
+                )
+            # Pre-rule rows have the flag defaulted on and no daily_trade_at.
+            # Those still count on their open day.
+            counted_at = func.coalesce(Position.daily_trade_at, Position.opened_at)
             return int(
                 session.scalar(
                     select(func.count(Position.id)).where(
-                        Position.mode == self.mode, Position.opened_at >= start
+                        Position.mode == self.mode,
+                        Position.counts_toward_daily_trades.is_(True),
+                        counted_at >= start,
                     )
                 )
                 or 0

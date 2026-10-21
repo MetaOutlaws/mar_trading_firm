@@ -18,7 +18,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import JSON, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.db import Base, UtcDateTime
@@ -57,6 +57,25 @@ class Position(Base):
     quantity: Mapped[float] = mapped_column(Float)
     entry_price: Mapped[float] = mapped_column(Float)
     notional: Mapped[float] = mapped_column(Float)
+
+    #: Equity the sizer used for this order. Null on rows opened before the
+    #: dust rule, and on live rows (live does not classify). Paper dust is
+    #: decided once from this figure; it is not replaced by a later equity.
+    entry_equity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: Floor in USDT applied at classification. Null when equity was missing
+    #: (fail closed: the fill counts) or when the row is not paper.
+    dust_floor_usdt: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: Paper daily-trade slot. True means this position consumes one slot.
+    #: Default True so unclassified and pre-rule rows keep counting.
+    #: Live rows stay True; the live counter does not read the flag.
+    counts_toward_daily_trades: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    #: UTC moment the position started consuming a paper daily-trade slot.
+    #: Null while it is still dust. A later top-up sets this when cumulative
+    #: notional crosses the stored floor, so the slot is taken that UTC day
+    #: rather than on the original open day.
+    daily_trade_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
     #: Taker fee paid on the entry fill. Stored here because TradeRecord is
     #: written only on close; without this, entry costs vanish from P&L (F03).
