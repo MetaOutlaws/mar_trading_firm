@@ -2,7 +2,9 @@
 
 Old rows stay byte-identical. New rows are paper overrides with the frozen
 params and the 4h clock. Live ``build_plan`` does not select them.
-``core/risk/limits.py`` is hash-pinned, including the paper cap of 15.
+``core/risk/limits.py`` is hash-pinned. The pin covers the paper cap of 15
+and the paper dust-floor constants. RiskLimits defaults are not part of
+the dust rule.
 """
 
 from __future__ import annotations
@@ -54,10 +56,12 @@ OLD_BOOK_SHA256 = (
 )
 OLD_BOOK_LEN = 1579403
 OLD_BOOK_CLOSER = b"\n}\n"
-# core/risk/limits.py after the paper max_concurrent_positions=15 pin.
-# RiskLimits defaults and INITIAL_LIVE_LIMITS stay at their b00c4f73 values.
+# core/risk/limits.py after the paper max_concurrent_positions=15 pin and
+# the paper dust-floor constants. RiskLimits defaults and INITIAL_LIVE_LIMITS
+# stay at their b00c4f73 values. Previous pin (post-#154, before dust):
+# 8a9c3e8aee449814767d00e148f015d7d70bb022f76c934056052738e9f67684
 RISK_LIMITS_SHA256 = (
-    "8a9c3e8aee449814767d00e148f015d7d70bb022f76c934056052738e9f67684"
+    "173bd4302718bd99a3abbd65c8db5cc9f80d85b571e0aceded6471482b8f009e"
 )
 
 RULES = ("ema_adx_trend", "range_compression_volume_thrust")

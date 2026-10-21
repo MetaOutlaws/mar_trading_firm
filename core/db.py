@@ -168,6 +168,12 @@ def _migrate_sqlite_columns() -> None:
             "timeframe": "VARCHAR(16) DEFAULT ''",
             "max_holding_bars": "INTEGER DEFAULT 0",
             "expiry_at": "DATETIME",
+            # Paper dust classification. DEFAULT 1 keeps every pre-rule row
+            # counting. Null equity/floor means those rows were not classified.
+            "entry_equity": "FLOAT",
+            "dust_floor_usdt": "FLOAT",
+            "counts_toward_daily_trades": "BOOLEAN NOT NULL DEFAULT 1",
+            "daily_trade_at": "DATETIME",
         },
         "trades": {
             "entry_fees": "FLOAT DEFAULT 0.0",
