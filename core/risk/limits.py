@@ -95,9 +95,12 @@ class RiskLimits:
         ]
 
 
-#: Limits used in paper mode. Identical to live: paper trading is only useful as
-#: a forward test if it operates under the same constraints.
-PAPER_LIMITS = RiskLimits()
+#: Limits used in paper mode. Same as the RiskLimits defaults except the
+#: concurrent-position cap, which is the in-effect SGP1 paper value.
+#: Live keeps INITIAL_LIVE_LIMITS; this cap must not be copied there.
+PAPER_LIMITS = RiskLimits(
+    max_concurrent_positions=15,
+)
 
 #: Starting limits for first live capital. Half the paper exposure, because the
 #: first weeks of real trading are for discovering execution surprises, not for
