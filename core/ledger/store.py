@@ -79,6 +79,7 @@ class Ledger:
         expiry_at: datetime | None = None,
         entry_equity: float | None = None,
         max_position_pct: float | None = None,
+        opened_at: datetime | None = None,
     ) -> int:
         """Record a newly opened position and return its id.
 
@@ -124,6 +125,7 @@ class Ledger:
                 timeframe=timeframe,
                 max_holding_bars=max_holding_bars,
                 expiry_at=expiry_at,
+                opened_at=opened_at or utcnow(),
             )
             session.add(position)
             session.flush()
