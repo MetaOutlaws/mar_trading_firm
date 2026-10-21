@@ -17,12 +17,16 @@ ratios. 1.272 stays as the inner zone start for display, not a searched
 grid value. This family does not trade the 0.618 bounce.
 
 skip_bull / skip_bear default False so the approved BTC SHORT path is
-unchanged unless a near-miss overlay freezes them. When a flag is on,
-SHORT skips bull bars and LONG skips bear bars. Prefer a `regime` column
-on the candle frame when a causal series is already there. The validator's
+unchanged unless a near-miss overlay freezes them. When skip_bull is on,
+SHORT skips bull bars. An empty or unwarmed regime is not treated as
+"not bull": that bar is not a signal, and its reason is
+``skip_reason=missing_value:regime_gate``. skip_bear still only drops
+bear bars; no held paper row sets it. Prefer a `regime` column on the
+candle frame when a causal series is already there. The validator's
 quarterly BTC labels are not attached (they use the whole quarter's
 return and would leak future bars). Fallback is close versus a causal
-200-bar SMA: above = local bull, below = local bear.
+200-bar SMA: above = local bull, below = local bear. Unwarmed SMA rows
+stay empty.
 """
 
 from __future__ import annotations
@@ -160,11 +164,15 @@ class FibExtensionBreakStrategy(Strategy):
             level = short_ext
             end = swing_low
 
-        # Regime skip is opt-in. Unknown / unwarmed bars are not bull or bear.
+        # skip_bull is opt-in. A known bull label blocks the short. An empty
+        # label is not "not bull": the gate cannot decide, so the bar is not
+        # a signal. skip_bear is left as a bear-only mask; no held row sets it.
         regime = _bar_regime(candles, close)
         signals["regime"] = regime
+        missing_regime = None
         if params.side is SignalSide.SHORT and _as_flag(params.skip_bull):
-            entry = entry & ~regime.eq("bull")
+            missing_regime = regime.astype("string").fillna("").str.strip().eq("")
+            entry = entry & ~missing_regime & ~regime.eq("bull")
         if params.side is SignalSide.LONG and _as_flag(params.skip_bear):
             entry = entry & ~regime.eq("bear")
 
@@ -183,6 +191,10 @@ class FibExtensionBreakStrategy(Strategy):
                 )
                 for i in entry[entry].index
             ]
+        if missing_regime is not None:
+            # Paper reads the last bar's reason, marks that bar, and does not
+            # order. The same text is the skip_reason on every blind bar.
+            reasons.loc[missing_regime] = "skip_reason=missing_value:regime_gate"
         signals["reason"] = reasons
         return signals
 
