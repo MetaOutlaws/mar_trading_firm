@@ -11,6 +11,7 @@ from core.execution.f111_funding import observed_funding_fraction
 from core.execution.paper import PaperBroker
 from core.execution.paper_cash import PaperCashStore
 from core.execution.broker import Instrument
+from core.risk.limits import PAPER_LIMITS
 from core.ledger.store import Ledger
 from core.ledger.models import TradeRecord, PaperCashEvent
 from core.db import session_scope
@@ -34,7 +35,12 @@ def setup(tmp_path, *, ledger=None, slip=0.):
     broker = PaperBroker(starting_equity=10000., costs=CostModel(slippage=slip),
                          data_source=data, cash_store=PaperCashStore(tmp_path/"cash.json"), lock_cost_model=True)
     broker._now = lambda: clock[0]
-    risk = SimpleNamespace(evaluate=lambda *a: SimpleNamespace(is_approved=True, quantity=1.))
+    # Feat #157 reads risk.limits when it stores the dust classification.
+    # SGP1's double had no limits object. The approve/quantity stub is unchanged.
+    risk = SimpleNamespace(
+        evaluate=lambda *a: SimpleNamespace(is_approved=True, quantity=1.),
+        limits=PAPER_LIMITS,
+    )
     rt = F111Runtime(broker=broker, risk=risk, ledger=ledger, clock=lambda: clock[0],
                      state_path=tmp_path/"runtime.json", disable_flag=tmp_path/"disabled")
     rt.registry[SYMBOL] = _available()
