@@ -7,9 +7,11 @@ when the poll's window (``min_bars + 50``) has not warmed SMA(200).
 ``latest_signal`` used to float every extra column, so ``float('')`` raised
 and the paper poll counted an eval error.
 
-The label is not a trade input. The cell is left out of the indicator
-payload (no invented 0) and the signal ``generate_signals`` already computed
-is unchanged.
+The cell is left out of the indicator payload (no invented 0). Rows that do
+not read regime still return the signal ``generate_signals`` computed.
+BNB's ``skip_bull`` does read that column. An empty label is not "not bull":
+the bar is marked ``skip_reason=missing_value:regime_gate`` and no short is
+emitted. BTC, AVAX, and UNI do not set ``skip_bull``.
 """
 
 from __future__ import annotations
@@ -29,8 +31,14 @@ from core.strategy.base import (
     Strategy,
     _SKIPPED_INDICATOR_LOGGED,
 )
+from core.strategy.fib_extension_break import (
+    FibExtensionBreakParams,
+    FibExtensionBreakStrategy,
+)
 from tests.test_novel_sleeves import _impulse_then_extension
 from tests.test_paper_bar_eval import Clock, _at, _engine, _entry
+
+GATE_SKIP = "skip_reason=missing_value:regime_gate"
 
 ROOT = Path(__file__).resolve().parents[1]
 BOOK_PATH = ROOT / "config" / "approved_strategies.json"
@@ -105,6 +113,8 @@ def test_empty_regime_raises_on_float_and_latest_signal_skips_the_cell(key, capl
     params = record["params"]
     assert isinstance(params["fib_ratio"], (int, float))
     assert params["fib_ratio"] != ""
+    # Held book: only BNB of these four rows asks the strategy to read regime.
+    assert params.get("skip_bull", False) is key.endswith("BNBUSDT:SHORT:4h")
 
     candles = _production_window(strategy.min_bars)
     assert "regime" not in candles.columns
@@ -121,7 +131,15 @@ def test_empty_regime_raises_on_float_and_latest_signal_skips_the_cell(key, capl
 
     assert first is None
     assert second is None
-    assert strategy._last_eval_reason == "no_signal"
+    # Only skip_bull reads the empty label. Those rows fail closed.
+    # The other three sleeves have no regime gate, so the bar is a flat scan.
+    if params.get("skip_bull") is True:
+        assert strategy._last_eval_reason == GATE_SKIP
+        assert signals["reason"].iloc[-1] == GATE_SKIP
+    else:
+        assert strategy._last_eval_reason == "no_signal"
+        assert signals["reason"].iloc[-1] == ""
+    assert int(signals["signal"].iloc[-1]) == 0
     skipped = [
         rec.message
         for rec in caplog.records
@@ -180,6 +198,110 @@ def test_paper_poll_does_not_count_empty_regime_as_eval_error(
     assert len(evals) == 1
     assert "signal=none" in evals[0]
     assert "reason=no_signal" in evals[0]
+
+
+def test_paper_poll_marks_skip_bull_when_regime_is_empty(
+    tmp_path, monkeypatch, firm_db, caplog
+) -> None:
+    """BNB skip_bull cannot see a regime on the paper window. The bar is marked and not traded."""
+    record, _symbol, strategy = _sleeve("fib_extension_break:BNBUSDT:SHORT:4h")
+    assert record["params"]["skip_bull"] is True
+    clock_at = _at(12, 1)
+    engine = _engine(
+        tmp_path,
+        monkeypatch,
+        Clock(clock_at),
+        [_entry("BNBUSDT", SignalSide.SHORT, strategy, "4h")],
+    )
+    _SKIPPED_INDICATOR_LOGGED.clear()
+    caplog.set_level(logging.INFO, logger="core.strategy.base")
+    caplog.set_level(logging.INFO, logger="core.execution.paper_bar_eval")
+
+    assert poll_paper_book(engine, budget_seconds=30) == 1
+    assert poll_paper_book(engine, budget_seconds=30) == 0
+
+    failed = [rec for rec in caplog.records if "paper bar eval failed" in rec.message]
+    assert failed == []
+    assert not any("could not convert string to float" in rec.message for rec in caplog.records)
+
+    state = json.loads((tmp_path / "paper_bar_eval_state.json").read_text(encoding="utf-8"))
+    row = state["sleeves"][sleeve_key(engine.plan.entries[0])]
+    assert row["signal"] == "none"
+    assert row["reason"] == GATE_SKIP
+
+    evals = [
+        rec.message
+        for rec in caplog.records
+        if rec.message.startswith("paper bar eval sleeve=BNBUSDT|4h|SHORT|fib_extension_break")
+    ]
+    assert len(evals) == 1
+    assert "signal=none" in evals[0]
+    assert f"reason={GATE_SKIP}" in evals[0]
+
+
+def test_skip_bull_empty_regime_blocks_the_short_a_known_label_does_not() -> None:
+    """A break that fires with skip_bull off is not a short when the label is empty.
+
+    ``bear`` and ``chop`` are known non-bull labels, so the short still fires.
+    ``bull`` still suppresses, and that suppression is not the missing-value skip.
+    Whitespace is the same missing value as ``''``.
+    """
+    candles = _impulse_then_extension(long_side=False)
+    assert "regime" not in candles.columns
+    open_shorts = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=False)
+    ).generate_signals(candles)
+    gated = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=True)
+    ).generate_signals(candles)
+    fired = list(open_shorts.index[open_shorts["signal"] == -1])
+    assert fired
+    assert int((gated["signal"] == -1).sum()) == 0
+    for bar in fired:
+        assert gated.loc[bar, "regime"] == ""
+        assert gated.loc[bar, "reason"] == GATE_SKIP
+        assert int(gated.loc[bar, "signal"]) == 0
+
+    window = candles.loc[: fired[0]]
+    sleeve = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=True)
+    )
+    _SKIPPED_INDICATOR_LOGGED.clear()
+    assert sleeve.latest_signal("BNBUSDT", window) is None
+    assert sleeve._last_eval_reason == GATE_SKIP
+
+    for label in ("bear", "chop"):
+        labelled = candles.copy()
+        labelled["regime"] = label
+        allowed = FibExtensionBreakStrategy(
+            FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=True)
+        ).generate_signals(labelled)
+        assert int((allowed["signal"] == -1).sum()) >= 1
+        assert GATE_SKIP not in set(allowed["reason"].astype(str))
+
+    bull = candles.copy()
+    bull["regime"] = "bull"
+    blocked = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=True)
+    ).generate_signals(bull)
+    assert int((blocked["signal"] == -1).sum()) == 0
+    assert GATE_SKIP not in set(blocked["reason"].astype(str))
+
+    blank = candles.copy()
+    blank["regime"] = "  "
+    whitespace = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=True)
+    ).generate_signals(blank)
+    assert int((whitespace["signal"] == -1).sum()) == 0
+    assert whitespace.loc[fired[0], "reason"] == GATE_SKIP
+
+    # The same impulse with skip_bull off still returns the short. The gate
+    # change does not rewrite rows that do not read regime.
+    live = FibExtensionBreakStrategy(
+        FibExtensionBreakParams(side=SignalSide.SHORT, skip_bull=False)
+    ).latest_signal("BTCUSDT", window)
+    assert live is not None
+    assert live.side is SignalSide.SHORT
 
 
 def test_valid_numeric_entry_matches_generate_signals() -> None:
