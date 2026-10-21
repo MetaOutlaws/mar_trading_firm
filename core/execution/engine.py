@@ -1402,6 +1402,8 @@ class TradingEngine:
     ) -> RiskDecision:
         """Risk-check a signal and, if approved, place the order."""
         universe = get_universe()
+        # This is the label the sector cap counts, including SECTOR_OVERRIDES.
+        # The near-miss row copies it; it does not look the symbol up again.
         sector = universe.sector_of(signal.symbol)
 
         # Levels for the *risk check* still use the signal close: we do not

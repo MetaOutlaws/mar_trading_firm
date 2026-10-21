@@ -275,6 +275,8 @@ def build_capacity_rejection_record(
         "side": str(intent.side),
         "reasons": list(codes),
         "reason_text": [str(item) for item in decision.reasons],
+        # Same string the risk check counted. Callers set it from
+        # Universe.sector_of, which reads SECTOR_OVERRIDES after SECTORS.
         "sector": str(intent.sector),
         "sector_count": int(state.positions_in_sector(intent.sector)),
         "sector_limit": int(limits.max_positions_per_sector),

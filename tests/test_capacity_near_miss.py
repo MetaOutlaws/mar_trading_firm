@@ -109,8 +109,16 @@ def _signal(symbol: str = "ZECUSDT") -> Signal:
     )
 
 
-def _engine(state: PortfolioState, tmp_path, monkeypatch) -> TradingEngine:
-    monkeypatch.setattr("core.execution.engine.get_universe", lambda: _Sectors())
+def _engine(
+    state: PortfolioState,
+    tmp_path,
+    monkeypatch,
+    universe: object | None = None,
+) -> TradingEngine:
+    # Default tests pin the sector lookup. Pass a real Universe to prove the
+    # row uses sector_of, including SECTOR_OVERRIDES.
+    source = _Sectors() if universe is None else universe
+    monkeypatch.setattr("core.execution.engine.get_universe", lambda: source)
     monkeypatch.setattr(
         "core.execution.engine.get_settings",
         lambda: SimpleNamespace(trading_mode=TradingMode.PAPER),
@@ -201,6 +209,35 @@ def test_sector_cap_rejection_records_count_and_proposed_size(tmp_path, monkeypa
     # 3% stop would size off risk to ~$3.3k; the 10% position cap binds first.
     # Exposure headroom is still open, so the proposed notional is that cap.
     assert row["proposed_notional"] == pytest.approx(EQUITY * PAPER_LIMITS.max_position_pct)
+
+
+def test_near_miss_sector_uses_universe_sector_of(tmp_path, monkeypatch) -> None:
+    """ZEC is layer1 via SECTOR_OVERRIDES, not the shared 'other' bucket."""
+    from config.universe import Universe
+
+    universe = Universe()
+    assert universe.sector_of("ZECUSDT") == "layer1"
+    assert universe.sector_of("PUMPFUNUSDT") == "emerging"
+    assert universe.sector_of("DEXEUSDT") == "other"
+    state = _state(
+        open_positions=[
+            _position("ADAUSDT", "layer1", 100.0),
+            _position("AVAXUSDT", "layer1", 100.0),
+        ]
+    )
+    engine = _engine(state, tmp_path, monkeypatch, universe=universe)
+    decision = engine._attempt_entry(_signal("ZECUSDT"), EQUITY, {})
+
+    assert decision.verdict is RiskVerdict.REJECTED
+    assert decision.notional == 0
+    assert any("sector 'layer1'" in reason for reason in decision.reasons)
+    assert not any("sector 'other'" in reason for reason in decision.reasons)
+    row = _rows(tmp_path)[0]
+    assert row["symbol"] == "ZECUSDT"
+    assert row["sector"] == universe.sector_of("ZECUSDT") == "layer1"
+    assert row["sector_count"] == 2
+    assert row["sector_limit"] == 2
+    assert row["reasons"] == ["sector_cap"]
 
 
 def test_max_daily_trades_rejection_records_the_utc_day(tmp_path, monkeypatch) -> None:
