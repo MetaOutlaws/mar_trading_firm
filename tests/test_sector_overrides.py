@@ -224,10 +224,12 @@ def test_no_plan_symbol_resolves_to_other() -> None:
     assert set(EXPECTED_SECTOR) <= plan
     still_other = sorted(symbol for symbol in plan if universe.sector_of(symbol) == "other")
     assert still_other == []
-    counts: dict[str, int] = {}
+    # A sector with no plan symbol, including the emptied 'other' bucket, is 0.
+    counts = {sector: 0 for sector in EXPECTED_PLAN_COUNTS}
     for symbol in plan:
         sector = universe.sector_of(symbol)
-        counts[sector] = counts.get(sector, 0) + 1
+        assert sector in counts, sector
+        counts[sector] += 1
     assert counts == EXPECTED_PLAN_COUNTS
     assert sum(counts.values()) == 81
 
