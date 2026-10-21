@@ -69,7 +69,12 @@ def _sqlite_path() -> Path | None:
 
 
 def load_durable_close_payloads() -> list[dict[str, Any]]:
-    """Committed close payloads. Empty when the database or table is absent.
+    """Committed cash payloads that carry an event_id.
+
+    Entry rows are included once they are mirrored. A caller that applies a
+    payload as a close has to keep ``kind == "close"``. Merge dedupes on
+    ``event_id``, so an entry that is already in the JSON journal is not a
+    second fee. Empty when the database or table is absent.
 
     Does not create a database and does not write the JSON journal.
     """
@@ -162,9 +167,12 @@ def settle_paper_close(
 
         position = session.get(Position, position_id)
         if position is None or position.status != PositionStatus.OPEN.value:
+            # An entry row for this position is not a close. Treating it as
+            # one would hand the open payload to the cash journal.
             prior = session.scalars(
                 select(PaperCashEvent)
                 .where(PaperCashEvent.position_id == position_id)
+                .where(PaperCashEvent.kind == "close")
                 .order_by(PaperCashEvent.id.desc())
             ).first()
             if prior is not None:
@@ -208,3 +216,51 @@ def settle_paper_close(
         if before_commit is not None:
             before_commit()
         return SettleResult(already=False, payload=body, trade_id=int(trade.id))
+
+
+def persist_paper_open_event(*, ledger: Ledger, payload: dict[str, Any], position_id: int) -> None:
+    """Mirror one entry cash event. Does not insert a trade or move cash.
+
+    A repeated ``event_id`` is a no-op. Close rows are not written here.
+    The JSON journal must already carry this ``event_id`` so a restart
+    merges the two copies into one fee.
+    """
+    event_id = str(payload.get("event_id") or "")
+    if not event_id:
+        return
+    body = dict(payload)
+    body["event_id"] = event_id
+    body["position_id"] = int(position_id)
+    body["kind"] = "open"
+    with session_scope() as session:
+        existing = session.scalar(
+            select(PaperCashEvent).where(PaperCashEvent.event_id == event_id)
+        )
+        if existing is not None:
+            return
+        session.add(
+            PaperCashEvent(
+                event_id=event_id,
+                kind="open",
+                mode=getattr(ledger, "mode", "paper"),
+                symbol=str(body.get("symbol") or ""),
+                position_id=int(position_id),
+                payload=body,
+            )
+        )
+
+
+def link_entry_cash_event(broker: object, ledger: Ledger, symbol: str, position_id: int) -> None:
+    """Stamp the JSON open, then mirror it. JSON is written first.
+
+    If the process dies after the stamp and before this insert, replay still
+    sees one open event. If it dies after both, the shared ``event_id`` is
+    deduped. This does not write a close and does not change the fee.
+    """
+    stamp = getattr(broker, "stamp_open_cash_event", None)
+    if not callable(stamp):
+        return
+    payload = stamp(symbol, int(position_id))
+    if not isinstance(payload, dict):
+        return
+    persist_paper_open_event(ledger=ledger, payload=payload, position_id=int(position_id))

@@ -379,6 +379,9 @@ class PaperBarOutcome:
     #: these. They do not change whether the bar was traded.
     bar_open: datetime | None = None
     reason: str = ""
+    #: Paper broker filled this bar's order before the note was written.
+    #: Reporting only. A rejected or unfilled approval stays False.
+    filled: bool = False
 
 
 def _flat_reason(strategy: Any, signal: Signal | None) -> str:
@@ -460,6 +463,7 @@ def _evaluate_published(
         return PaperBarOutcome(handled=True)
 
     ordered = False
+    filled = False
     rejection: str | None = None
     if signal is not None:
         block = duplicate_order_block(engine, entry)
@@ -478,6 +482,8 @@ def _evaluate_published(
             decision = engine._attempt_entry(signal, equity, marks)
             if decision.is_approved:
                 ordered = True
+                # Set by _place_order only after a paper market order fills.
+                filled = bool(getattr(engine, "_last_entry_filled", False))
                 reason = signal.reason or reason or "signal"
             else:
                 rejection = "; ".join(decision.reasons) or "rejected"
@@ -503,6 +509,7 @@ def _evaluate_published(
         evaluated=True,
         bar_open=bar_open,
         reason=reason,
+        filled=filled,
     )
 
 
@@ -660,6 +667,7 @@ def _poll_due_sleeves(
                 signal=outcome.signal is not None,
                 ordered=outcome.ordered,
                 rejection=_note_rejection(outcome),
+                filled=outcome.filled,
             )
     return evaluated
 
@@ -705,6 +713,7 @@ def _remember_book_note(
     signal: bool,
     ordered: bool,
     rejection: str,
+    filled: bool = False,
 ) -> None:
     try:
         from firm.scan_inbox import remember_scan_note
@@ -715,6 +724,7 @@ def _remember_book_note(
             bar_time=_bar_close_iso(entry, bar_open),
             signal=signal,
             ordered=ordered,
+            filled=bool(filled),
             rejection=rejection,
             gates_passed=signal or ordered,
             **sleeve_note_fields(entry),
