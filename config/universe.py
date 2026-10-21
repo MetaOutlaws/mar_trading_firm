@@ -78,6 +78,71 @@ KNOWN_INVALID_SYMBOLS = {
     "VIRTUALUSDT",
 }
 
+# Sector labels for symbols the paper plan names that are not members of
+# SECTORS. monitored_symbols is built from SECTORS plus asset-param symbols,
+# so these names stay out of SECTORS: putting them there would add the 29
+# unwatched contracts to the engine's watch list. sector_of() reads this map
+# only after SECTORS misses. Every value is an existing SECTORS key. `other`
+# is the fallback, not a label used here, and no new label is introduced.
+#
+# Mukanya 2026-10-21 (brief sha a021945a). The 29 plan symbols outside the
+# monitored 84, plus BCH/XLM/LPT which are already watched via asset params
+# but had no SECTORS row. max_positions_per_sector stays 2.
+SECTOR_OVERRIDES: dict[str, str] = {
+    "1000RATSUSDT": "memes",
+    "ARPAUSDT": "infra",
+    "ATOMUSDT": "layer1",
+    "AUCTIONUSDT": "defi",
+    "BCHUSDT": "layer1",
+    "BLURUSDT": "gaming",
+    "CHZUSDT": "gaming",
+    "ETCUSDT": "layer1",
+    "FARTCOINUSDT": "memes",
+    "HYPEUSDT": "defi",
+    "JASMYUSDT": "infra",
+    "KNCUSDT": "defi",
+    "LPTUSDT": "infra",
+    "LTCUSDT": "layer1",
+    "LUNA2USDT": "layer1",
+    "MASKUSDT": "infra",
+    "MOODENGUSDT": "memes",
+    "NOTUSDT": "gaming",
+    "PENGUUSDT": "memes",
+    "PEOPLEUSDT": "memes",
+    "PUMPFUNUSDT": "emerging",
+    "RAREUSDT": "gaming",
+    "SHIB1000USDT": "memes",
+    "SPXUSDT": "memes",
+    "SUSHIUSDT": "defi",
+    "TRBUSDT": "infra",
+    "VIRTUALUSDT": "ai",
+    "WAVESUSDT": "layer1",
+    "XLMUSDT": "layer1",
+    "YGGUSDT": "gaming",
+    "ZECUSDT": "layer1",
+    "ZILUSDT": "layer1",
+}
+
+
+def _assert_sector_overrides() -> None:
+    """Keep the lookup map from becoming a second watch list or a new label."""
+    members = {symbol for group in SECTORS.values() for symbol in group}
+    overlap = sorted(set(SECTOR_OVERRIDES) & members)
+    if overlap:
+        raise RuntimeError(
+            "SECTOR_OVERRIDES overlaps SECTORS; that would mix the watch list "
+            f"with the lookup map: {overlap}"
+        )
+    unknown = sorted({label for label in SECTOR_OVERRIDES.values() if label not in SECTORS})
+    if unknown:
+        raise RuntimeError(
+            "SECTOR_OVERRIDES must use existing SECTORS labels, not new ones: "
+            f"{unknown}"
+        )
+
+
+_assert_sector_overrides()
+
 LONG = "LONG"
 SHORT = "SHORT"
 KNOWN_SIDES = {LONG, SHORT}
@@ -192,11 +257,17 @@ class Universe:
         return sorted(symbols)
 
     def sector_of(self, symbol: str) -> str:
-        """Return the narrative sector for a symbol, or 'other'."""
+        """Return the narrative sector for a symbol, or 'other'.
+
+        SECTORS membership wins, and that same dict is the watch list.
+        SECTOR_OVERRIDES fills in plan symbols that are deliberately absent
+        from SECTORS, so naming their sector does not add them to
+        ``monitored_symbols`` or to the engine scan.
+        """
         for sector, members in SECTORS.items():
             if symbol in members:
                 return sector
-        return "other"
+        return SECTOR_OVERRIDES.get(symbol, "other")
 
     # -- parameters ---------------------------------------------------------
     def params_for(self, symbol: str, side: str) -> LongParams | ShortParams | None:
