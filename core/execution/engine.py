@@ -824,14 +824,17 @@ def _remember_cycle_book_note(notes: list[dict[str, Any]], entry: PlanEntry, bar
             if getattr(fast, "signal", None) is None and not rejection:
                 rejection = str(getattr(fast, "reason", "") or "") or "no_signal"
         fired = getattr(fast, "signal", None) is not None
+        ordered = bool(getattr(fast, "ordered", False))
+        # filled is a diary flag from the paper fill. It is not a second order.
         remember_scan_note(
             notes,
             sleeve_id=sleeve_key(entry),
             bar_time=_bar_close_iso(entry, bar_open),
             signal=fired,
-            ordered=bool(getattr(fast, "ordered", False)),
+            ordered=ordered,
+            filled=bool(getattr(fast, "filled", False)) and ordered,
             rejection=rejection,
-            gates_passed=fired or bool(getattr(fast, "ordered", False)),
+            gates_passed=fired or ordered,
             **sleeve_note_fields(entry),
         )
     except Exception:
@@ -883,8 +886,13 @@ def _remember_order_note(
     *,
     ordered: bool,
     rejection: str,
+    filled: bool = False,
 ) -> None:
-    """A known bar joins the book diary. Anything else is the 900s cycle diary."""
+    """A known bar joins the book diary. Anything else is the 900s cycle diary.
+
+    ``filled`` is only the scan-summary counter. It does not place, size, or
+    cancel an order. Pass it when the paper broker has already filled.
+    """
     try:
         from core.execution.paper_bar_eval import is_known_timeframe, sleeve_key, sleeve_note_fields
         from firm.scan_inbox import remember_scan_note
@@ -897,12 +905,52 @@ def _remember_order_note(
             bar_time=bar_time,
             signal=True,
             ordered=ordered,
+            filled=bool(filled),
             rejection=rejection,
             gates_passed=True,
             **sleeve_note_fields(entry),
         )
     except Exception:
         logger.exception("Order scan note failed; the evaluation stands")
+
+
+def _remember_exit_note(engine: object, position: object, reason: str) -> None:
+    """Count one filled exit on the scan diary. Does not close or reprice it.
+
+    The sleeve id is distinct from the entry row, so a later merge of the
+    same bar cannot replace the entry with this exit or the other way around.
+    Live and an armed paper broker do not write the diary.
+    """
+    try:
+        from core.execution.paper_bar_eval import paper_bar_eval_enabled
+        from firm.scan_inbox import publish_book_notes, remember_scan_note
+
+        if not paper_bar_eval_enabled(engine):
+            return
+        # reason is the close label (stop_loss, take_profit, timeout). It is
+        # not a gate rejection, so it is not written onto the sleeve row.
+        logger.debug("Exit scan note for %s (%s)", getattr(position, "symbol", ""), reason)
+        symbol = str(getattr(position, "symbol", "") or "")
+        side = str(getattr(position, "side", "") or "")
+        strategy = str(getattr(position, "strategy", "") or "")
+        timeframe = str(getattr(position, "timeframe", "") or "")
+        notes: list[dict[str, Any]] = []
+        remember_scan_note(
+            notes,
+            sleeve_id=f"{symbol}|{timeframe}|{side}|{strategy}|exit",
+            bar_time=_now().replace(microsecond=0).isoformat(),
+            signal=False,
+            ordered=False,
+            filled=False,
+            exited=True,
+            rejection="",
+            symbol=symbol,
+            side=side,
+            strategy=strategy,
+        )
+        publish_book_notes(notes, now=_now())
+    except Exception:
+        logger.exception("Exit scan note was not written; the close stands")
 
 
 def _remember_cycle_failure(notes: list[dict[str, Any]], entry: PlanEntry, error: str) -> None:
@@ -1252,7 +1300,15 @@ class TradingEngine:
 
             if decision.is_approved:
                 report.orders_placed += 1
-                _remember_order_note(book_notes, cycle_notes, entry, bar_open, ordered=True, rejection="")
+                _remember_order_note(
+                    book_notes,
+                    cycle_notes,
+                    entry,
+                    bar_open,
+                    ordered=True,
+                    rejection="",
+                    filled=bool(getattr(self, "_last_entry_filled", False)),
+                )
             else:
                 rejection = "; ".join(decision.reasons)
                 report.rejections.append((signal.symbol, rejection))
@@ -1447,6 +1503,7 @@ class TradingEngine:
         # unchanged until this overlay has a measured paper record.
         decision = self._apply_crowding(decision, signal)
 
+        self._last_entry_filled = False
         if not decision.is_approved:
             logger.info(
                 "%s %s signal rejected: %s",
@@ -1543,13 +1600,18 @@ class TradingEngine:
         take_profit: float,
         sector: str,
         entry_equity: float | None = None,
-    ) -> None:
+    ) -> bool:
         """Submit the order, attach stops, and record the position.
 
         ``entry_equity`` is the equity the risk check sized against. It is
         stored with the paper fill so dust classification does not depend on
         a later equity snapshot. Omitting it fails closed: the fill counts.
+
+        The bool is the scan diary: True only when a paper broker filled
+        this market order immediately. Callers that ignore it keep the same
+        order, size, stops, and ledger row.
         """
+        self._last_entry_filled = False
         result = self.broker.place_market_order(
             symbol=signal.symbol,
             side=signal.side.value,
@@ -1562,7 +1624,11 @@ class TradingEngine:
             self.ledger.record_risk_event(
                 "order_failed", "warning", symbol=signal.symbol, detail=result.error
             )
-            return
+            return False
+        paper_filled = (
+            isinstance(self.broker, PaperBroker)
+            and float(result.filled_quantity or 0.0) > 0.0
+        )
 
         # F04: TP/SL from the slipped fill, not the signal-bar close. Research
         # always did this; runtime used to attach levels computed before the
@@ -1590,7 +1656,10 @@ class TradingEngine:
                 detail="stop placement failed",
                 action_taken="position closed immediately",
             )
-            return
+            # The market order did fill. The diary can say so. There is no
+            # ledger position to attach a cash event to.
+            self._last_entry_filled = paper_filled
+            return paper_filled
 
         plan_row = self._plan_entry_for_signal(signal)
         timeframe = plan_row.timeframe if plan_row is not None else ""
@@ -1608,7 +1677,7 @@ class TradingEngine:
             execution_contract=EXECUTION_CONTRACT_VERSION,
         )
 
-        self.ledger.open_position(
+        position_id = self.ledger.open_position(
             symbol=signal.symbol,
             side=signal.side.value,
             quantity=result.filled_quantity or decision.quantity,
@@ -1632,6 +1701,25 @@ class TradingEngine:
             entry_equity=entry_equity,
             max_position_pct=self.risk.limits.max_position_pct,
         )
+        self._link_entry_cash(signal.symbol, position_id)
+        self._last_entry_filled = paper_filled
+        return paper_filled
+
+    def _link_entry_cash(self, symbol: str, position_id: int) -> None:
+        """Stamp the entry cash event with this position. Cash is already moved.
+
+        A failure here is logged. The fill, the size, and the cash balance
+        stay as the broker left them.
+        """
+        try:
+            from core.execution.paper_settle import link_entry_cash_event
+
+            link_entry_cash_event(self.broker, self.ledger, symbol, int(position_id))
+        except Exception:
+            logger.exception(
+                "Entry cash event was not linked to position %s; the fill stands",
+                position_id,
+            )
 
     def _manage_open_positions(self) -> int:
         """Handle exits. Returns the number of positions closed.
@@ -1816,6 +1904,9 @@ class TradingEngine:
         if not applied.success and symbol in broker._positions:
             logger.error("Paper close %s committed but RAM still shows the position", symbol)
             return 0
+        # A replay of an already committed close must not count the exit again.
+        if applied.success and not result.already:
+            _remember_exit_note(self, position, reason)
         return 1
 
     def _apply_durable_close_to_ram(self, symbol: str) -> bool:
