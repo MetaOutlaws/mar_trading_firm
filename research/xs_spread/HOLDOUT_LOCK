@@ -1,0 +1,1 @@
+LOCKED. The H2 2025 holdout refuses to run until --main-output-hash matches the sha256 of the main run SHA256SUMS file. One look, and only after main is hashed. Live off.
