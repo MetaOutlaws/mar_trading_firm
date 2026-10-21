@@ -282,10 +282,16 @@ def _miss_view(
 
 
 def _f111_is_exit(row: dict[str, Any]) -> bool:
-    """True when this telemetry row closed a position.
+    """True when this telemetry row closed an open position.
 
     The exit row also carries ``simulated_fill``. That price is the close,
     not a new entry, so it must not be counted as one.
+
+    ``_blank_event`` stores ``exit_fee`` and ``realised_net_profit`` on every
+    row. Until a close they are None. Key presence is not a close: a
+    no-signal, flat, or skipped row keeps those values null and must not
+    increment the scan card. A fee of zero still counts, because the close
+    wrote the number.
     """
     reason = str(row.get("rejection_reason") or "").strip()
     if reason in _EXIT_REASONS:
@@ -293,9 +299,8 @@ def _f111_is_exit(row: dict[str, Any]) -> bool:
     assumptions = row.get("fill_assumptions")
     if isinstance(assumptions, dict) and str(assumptions.get("reason") or "").strip() in _EXIT_REASONS:
         return True
-    # Present on the exit row even when the fee is zero. An entry fill
-    # records entry_fee and does not record these keys.
-    return "exit_fee" in row or "realised_net_profit" in row
+    # A written number, including zero. None means this row did not close.
+    return _finite(row.get("exit_fee")) is not None or _finite(row.get("realised_net_profit")) is not None
 
 
 def _f111_sleeve(row: dict[str, Any], index: int) -> dict[str, Any]:
@@ -304,9 +309,10 @@ def _f111_sleeve(row: dict[str, Any], index: int) -> dict[str, Any]:
     side = str(row.get("side") or "")
     signal_id = str(row.get("source_signal_id") or "")
     sleeve_id = signal_id or f"{symbol}|{side}|{index}"
-    has_fill = row.get("simulated_fill") not in (None, "")
+    # Entry fills store the fill price. Blank rows store None. A close also
+    # stores a price; ``exited`` keeps that price out of the fill count.
+    has_fill = _finite(row.get("simulated_fill")) is not None
     exited = _f111_is_exit(row)
-    # A simulated fill that is not a close opened the position.
     filled = bool(has_fill and not exited)
     has_pending = bool(row.get("pending_retest_created_at"))
     exact = str(row.get("rejection_reason") or "").strip()

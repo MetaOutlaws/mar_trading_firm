@@ -12,9 +12,11 @@ invent a pass.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -238,9 +240,40 @@ def certify_job(job: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _row_expected_clock(row: dict[str, Any], scan_family: str, scan_clock: str) -> str:
-    """Catalog clock for this plan row: scan family or that sleeve's approval clock."""
+def _approval_clock_index(universe: Any) -> dict[tuple[str, str, str], str]:
+    """First approved clock for each (strategy, symbol, side).
+
+    ``certify_paper`` used to scan the whole book for every plan row. The
+    first matching approval wins, which is the same order as that scan.
+    """
     from core.data.ohlcv import normalise_timeframe
+
+    index: dict[tuple[str, str, str], str] = {}
+    approvals = getattr(universe, "approvals", {}) or {}
+    for key, rec in approvals.items():
+        if not isinstance(rec, dict) or rec.get("approved") is not True:
+            continue
+        parsed = parse_approval_key(key)
+        if parsed is None:
+            continue
+        token = parsed
+        if token in index:
+            continue
+        tf = str(rec.get("timeframe") or "")
+        try:
+            index[token] = normalise_timeframe(tf) if tf else tf
+        except (ValueError, TypeError, KeyError):
+            index[token] = tf
+    return index
+
+
+def _row_expected_clock(
+    row: dict[str, Any],
+    scan_family: str,
+    scan_clock: str,
+    clocks: dict[tuple[str, str, str], str] | None = None,
+) -> str:
+    """Catalog clock for this plan row: scan family or that sleeve's approval clock."""
     from firm.research_jobs import CLOCK_BY_FAMILY
 
     name = str(row.get("strategy") or "")
@@ -252,22 +285,13 @@ def _row_expected_clock(row: dict[str, Any], scan_family: str, scan_clock: str) 
     if is_paper_scan_sleeve(name, symbol, side, rec_tf):
         return rec_tf
     if name != scan_family:
-        from config.universe import get_universe
+        if clocks is None:
+            from config.universe import get_universe
 
-        universe = get_universe()
-        for key, rec in universe.approvals.items():
-            if not isinstance(rec, dict) or rec.get("approved") is not True:
-                continue
-            parsed = parse_approval_key(key)
-            if parsed is None:
-                continue
-            rec_name, rec_symbol, rec_side = parsed
-            if rec_name == name and rec_symbol == symbol and rec_side == side:
-                tf = str(rec.get("timeframe") or "")
-                try:
-                    return normalise_timeframe(tf) if tf else tf
-                except (ValueError, TypeError, KeyError):
-                    return tf
+            clocks = _approval_clock_index(get_universe())
+        found = clocks.get((name, symbol, side))
+        if found is not None:
+            return found
     blob = scan_clock if name == scan_family else (CLOCK_BY_FAMILY.get(name) or "")
     if "/" not in (blob or ""):
         return str(row.get("timeframe") or "")
@@ -358,12 +382,13 @@ def certify_paper() -> dict[str, Any]:
             ),
         )
     )
+    clocks = _approval_clock_index(universe)
     tf_ok = True
     tf_detail = []
     for row in plan:
         if not isinstance(row, dict):
             continue
-        want = _row_expected_clock(row, family, clock)
+        want = _row_expected_clock(row, family, clock, clocks)
         rec_tf = str(row.get("timeframe") or "")
         tf_detail.append(f"{row.get('symbol')} {row.get('side')} {rec_tf} (want {want})")
         if rec_tf != want:
@@ -431,7 +456,83 @@ def certify_implementation() -> dict[str, Any]:
     }
 
 
+def _stat_token(path: Path) -> tuple[int, int]:
+    """mtime_ns and size. A missing file is a stable empty token."""
+    try:
+        st = path.stat()
+    except OSError:
+        return (0, 0)
+    return (int(st.st_mtime_ns), int(st.st_size))
+
+
+_book_sha_memo: tuple[tuple[str, int, int], str] | None = None
+_snapshot_cache: tuple[tuple[Any, ...], dict[str, Any]] | None = None
+_snapshot_lock = threading.RLock()
+
+
+def clear_integrity_snapshot_cache() -> None:
+    """Drop the reused certificate. Tests call this between books."""
+    global _book_sha_memo, _snapshot_cache
+    with _snapshot_lock:
+        _book_sha_memo = None
+        _snapshot_cache = None
+
+
+def _book_sha(path: Path) -> str:
+    """sha256 of the approvals file. Reused while mtime and size hold."""
+    global _book_sha_memo
+    token = (str(path), *_stat_token(path))
+    if _book_sha_memo is not None and _book_sha_memo[0] == token:
+        return _book_sha_memo[1]
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        digest = ""
+    _book_sha_memo = (token, digest)
+    return digest
+
+
+def _integrity_key() -> tuple[Any, ...]:
+    """Book sha plus the other files the certificate reads.
+
+    The book sha is the expensive input. Jobs, the last paper cycle, the
+    pipeline pointer, and the strategy/spec directories are included so a
+    walk-forward slot fill does not reuse a flag after a job or a sleeve
+    file lands. ``certify_paper`` itself stays uncached.
+    """
+    from firm.pipeline_state import STATE_PATH
+    from firm.research_jobs import JOBS_PATH
+
+    root = PROJECT_ROOT
+    return (
+        _book_sha(APPROVALS_PATH),
+        _stat_token(JOBS_PATH),
+        _stat_token(LAST_CYCLE_PATH),
+        _stat_token(STATE_PATH),
+        _stat_token(root / "core" / "strategy"),
+        _stat_token(root / "config" / "sleeves"),
+    )
+
+
 def integrity_snapshot() -> dict[str, Any]:
+    """Operator-facing pack, computed once per book sha.
+
+    ``classify_hypothesis`` calls this for every leftover hypothesis. The
+    pack does not change between those calls, so the second call returns
+    the first pack. A new book sha, job ledger, or cycle file builds again.
+    """
+    global _snapshot_cache
+    with _snapshot_lock:
+        key = _integrity_key()
+        cached = _snapshot_cache
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        pack = _integrity_snapshot_uncached()
+        _snapshot_cache = (key, pack)
+        return pack
+
+
+def _integrity_snapshot_uncached() -> dict[str, Any]:
     """Operator-facing pack: every finished job plus the paper clock."""
     from firm.research_jobs import list_jobs
 

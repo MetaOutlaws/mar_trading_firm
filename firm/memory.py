@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -39,6 +41,34 @@ from firm.memory_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Desk polls used to prune and expire on every read. Once a minute per
+# database is enough for a TTL to elapse. Publish and the ack endpoint
+# call the underlying functions directly and are not limited.
+_READ_MAINTENANCE_S = 60.0
+_read_maintenance_at: dict[tuple[str, str], float] = {}
+_read_maintenance_lock = threading.Lock()
+
+
+def clear_read_maintenance() -> None:
+    """Forget the once-a-minute read clock. Tests start from a due state."""
+    with _read_maintenance_lock:
+        _read_maintenance_at.clear()
+
+
+def _read_maintenance_due(kind: str) -> bool:
+    """True at most once a minute for this process and this database."""
+    from config.settings import get_settings
+
+    db = get_settings().resolved_database_url
+    now = time.monotonic()
+    key = (kind, db)
+    with _read_maintenance_lock:
+        last = _read_maintenance_at.get(key, 0.0)
+        if now - last < _READ_MAINTENANCE_S:
+            return False
+        _read_maintenance_at[key] = now
+        return True
 
 #: Trade proposals are only meaningful for a short window; a stale one must
 #: never execute. Research proposals get a much longer life (set explicitly).
@@ -244,6 +274,10 @@ def record_proposal(
         return int(proposal.id)
 
 
+# Status for a dismissed (read) informational scan summary.
+INFORMATIONAL_READ_STATUS = "read"
+
+
 def decide_proposal(
     proposal_id: int,
     approved: bool,
@@ -268,11 +302,19 @@ def decide_proposal(
         # expire them into a path the pipeline can consume.
         payload = proposal.payload if isinstance(proposal.payload, dict) else {}
         if proposal.kind == ProposalKind.INFORMATIONAL.value or payload.get("informational"):
-            logger.info(
-                "Proposal %d is informational; it has no approve or reject.",
-                proposal_id,
-            )
-            return False
+            if approved:
+                logger.info(
+                    "Proposal %d is informational; it has no approve.",
+                    proposal_id,
+                )
+                return False
+            # Dismiss marks the FYI read. It is never APPROVED/REJECTED, so the
+            # pipeline and decided-gate lookups never consume it.
+            proposal.status = INFORMATIONAL_READ_STATUS
+            proposal.decided_by = decided_by
+            proposal.decided_at = utcnow()
+            proposal.decision_reason = reason
+            return True
 
         if proposal.expires_at and proposal.expires_at < utcnow():
             proposal.status = ProposalStatus.EXPIRED.value
@@ -411,20 +453,25 @@ def expire_stale_proposals() -> int:
 def pending_proposals(limit: int = 50) -> list[dict[str, Any]]:
     """Proposals awaiting a human decision. Powers the decision inbox.
 
-    Informational scan summaries expire on this read, the same way open
-    escalations expire before they are listed. Other kinds keep the existing
-    ``expire_stale_proposals`` path so a Tier B gate is not closed early.
+    Informational scan summaries are pruned on this read at most once a
+    minute per database. A publish still prunes immediately, and other
+    kinds keep ``expire_stale_proposals`` so a Tier B gate is not closed
+    early. The rows returned here are not cached: the paper cycle reads
+    them for vetoes.
     """
     try:
-        from firm.scan_inbox import expire_and_prune_scan_summaries
+        if _read_maintenance_due("scan_summaries"):
+            from firm.scan_inbox import expire_and_prune_scan_summaries
 
-        expire_and_prune_scan_summaries()
+            expire_and_prune_scan_summaries()
     except Exception:
         logger.exception("Could not prune expired scan summaries")
     with session_scope() as session:
         rows = session.scalars(
             select(Proposal)
             .where(Proposal.status == ProposalStatus.PENDING.value)
+            # Scan summaries are auto-read FYIs: never in the decision inbox.
+            .where(Proposal.kind != ProposalKind.INFORMATIONAL.value)
             .order_by(Proposal.created_at.desc())
             .limit(limit)
         )
@@ -639,11 +686,13 @@ def acknowledge_stale_escalations(now: datetime | None = None) -> dict[str, Any]
 def open_escalations(limit: int = 50) -> list[dict[str, Any]]:
     """Unresolved escalations (open or acknowledged), newest first.
 
-    Rows past their timeout are expired first, so a stale ticket does not
-    stay on the desk until someone edits the table.
+    Rows past their timeout are expired on this read at most once a minute
+    per database, so a stale ticket still leaves the desk. The ack endpoint
+    expires immediately and does not use this clock.
     """
-    expire_stale_escalations()
-    promote_stale_escalations()
+    if _read_maintenance_due("escalations"):
+        expire_stale_escalations()
+        promote_stale_escalations()
     with session_scope() as session:
         rows = session.scalars(
             select(EscalationRecord)

@@ -6,6 +6,7 @@ so a breakout is not measured against a high that includes the signal bar.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -261,8 +262,43 @@ def make_spec_strategy(spec: SleeveSpec) -> type[SpecSleeveStrategy]:
     return Generated
 
 
+# Names registered from this directory at this directory mtime. A new
+# spec file updates the directory mtime. An in-place edit of a spec that
+# is already registered does not rebuild the class; ``load_spec_sleeves``
+# already refused to replace a registered name.
+_spec_cache: tuple[int, list[str]] | None = None
+_spec_lock = threading.RLock()
+
+
+def clear_spec_sleeve_cache() -> None:
+    """Forget the directory mtime. Registered classes stay registered."""
+    global _spec_cache
+    with _spec_lock:
+        _spec_cache = None
+
+
 def load_spec_sleeves() -> list[str]:
-    """Register every auto-coded JSON spec. Novel specs are skipped on purpose."""
+    """Register every auto-coded JSON spec. Novel specs are skipped on purpose.
+
+    The directory is globbed and read only when its mtime changes. The
+    trading path calls ``list_strategies`` on every lookup; the registered
+    classes are unchanged while the directory is unchanged.
+    """
+    global _spec_cache
+    try:
+        mtime = int(SLEEVES_DIR.stat().st_mtime_ns) if SLEEVES_DIR.exists() else -1
+    except OSError:
+        mtime = -1
+    with _spec_lock:
+        if _spec_cache is not None and _spec_cache[0] == mtime:
+            return list(_spec_cache[1])
+        loaded = _load_spec_sleeves_uncached()
+        _spec_cache = (mtime, loaded)
+        return list(loaded)
+
+
+def _load_spec_sleeves_uncached() -> list[str]:
+    """Read every JSON spec once and register the auto-coded ones."""
     from core.strategy.registry import register_strategy
 
     loaded: list[str] = []

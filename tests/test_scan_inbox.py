@@ -39,7 +39,37 @@ HOUR = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
 
 def _pending_summaries() -> list[dict]:
-    return [row for row in memory.pending_proposals(limit=50) if row["kind"] == "informational"]
+    """Informational diary rows still stored as pending.
+
+    The decision inbox no longer lists these (they are auto-read FYIs). The
+    first inbox read in a minute prunes an expired summary, so this helper
+    does that read and then loads the diary from the table. Content tests
+    keep seeing the card.
+    """
+    memory.pending_proposals(limit=50)
+    with session_scope() as session:
+        rows = (
+            session.query(Proposal)
+            .filter(Proposal.kind == ProposalKind.INFORMATIONAL.value)
+            .filter(Proposal.status == ProposalStatus.PENDING.value)
+            .order_by(Proposal.created_at.desc())
+            .all()
+        )
+        return [
+            {
+                "id": p.id,
+                "agent": p.agent,
+                "kind": p.kind,
+                "symbol": p.symbol,
+                "title": p.title,
+                "payload": p.payload,
+                "rationale": p.rationale,
+                "confidence": round(p.confidence or 0.0, 3),
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+                "expires_at": p.expires_at.isoformat() if p.expires_at else None,
+            }
+            for p in rows
+        ]
 
 
 def _book(sleeve: str, bar: datetime, rejection: str, *, signal: bool = False, ordered: bool = False) -> dict:
@@ -138,11 +168,14 @@ def test_ttl_expiry_prunes_summaries_and_leaves_other_proposals(firm_db) -> None
         leftover = session.query(Proposal).filter(Proposal.kind == "informational").count()
         assert leftover == 0
 
-    # Listing the Inbox uses the same prune, so a stale diary cannot sit there.
+    # The inbox read prunes at most once a minute, and this test already
+    # listed the inbox above. Backdating after that prune is cleared by
+    # the same function publish uses, not by a second read.
     publish_book_notes([_book("ETHUSDT|1h|SHORT|sleeve", bar, "no_signal")], now=HOUR)
     with session_scope() as session:
         row = session.query(Proposal).filter(Proposal.kind == "informational").one()
         row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    expire_and_prune_scan_summaries()
     assert _pending_summaries() == []
 
 
@@ -195,8 +228,9 @@ def test_informational_rows_have_no_action_buttons(firm_db) -> None:
     assert proposal["kind"] == "informational"
     assert "action" not in (proposal["payload"] or {})
 
+    # Approve is still refused, and the row stays pending. Dismiss (approved
+    # false) marks it read and is covered by the decide-409 test below.
     assert memory.decide_proposal(pid, approved=True, decided_by="operator") is False
-    assert memory.decide_proposal(pid, approved=False, decided_by="operator") is False
     assert memory.get_proposal(pid)["status"] == "pending"
 
     from firm.research_jobs import on_operator_approved
@@ -239,6 +273,130 @@ def test_informational_rows_have_no_action_buttons(firm_db) -> None:
         confidence=0.2,
     )
     assert memory.decide_proposal(strategy_id, approved=False, decided_by="operator") is True
+
+
+def test_informational_dismiss_is_read_not_409(firm_db) -> None:
+    """Dismissing a scan summary is a read. It is not a 409 and not a reject.
+
+    The reported case: a pending kind=informational row. decide(approved=false)
+    used to return False, and POST /api/inbox/{id}/decide mapped that to 409
+    "proposal is not pending". Approve is still refused.
+    """
+    bar = HOUR + timedelta(hours=20)
+    result = publish_book_notes(
+        [_book("BTCUSDT|1h|LONG|sleeve", bar, "no_signal")],
+        now=bar,
+    )
+    pid = result[0]["id"]
+    assert memory.get_proposal(pid)["status"] == "pending"
+    assert memory.get_proposal(pid)["kind"] == "informational"
+
+    from api.app import app
+
+    client = TestClient(app)
+    response = client.post(
+        f"/api/inbox/{pid}/decide",
+        headers={"X-API-Token": get_settings().api_token},
+        json={
+            "approved": False,
+            "decided_by": "Brian (CEO)",
+            "reason": "Read: hourly scan FYI",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["queued"] is False
+    assert body["handed_to_cursor"] is False
+
+    with session_scope() as session:
+        row = session.get(Proposal, pid)
+        assert row is not None
+        assert row.status == memory.INFORMATIONAL_READ_STATUS == "read"
+        assert row.decided_by == "Brian (CEO)"
+        assert row.decision_reason == "Read: hourly scan FYI"
+        assert row.decided_at is not None
+        # Not APPROVED/REJECTED, so the decided-gate and walk-forward readers skip it.
+        assert row.status not in {
+            ProposalStatus.APPROVED.value,
+            ProposalStatus.REJECTED.value,
+        }
+
+    # A second dismiss is no longer pending, so the API 409s and the read sticks.
+    again = client.post(
+        f"/api/inbox/{pid}/decide",
+        headers={"X-API-Token": get_settings().api_token},
+        json={"approved": False, "decided_by": "Brian (CEO)", "reason": "again"},
+    )
+    assert again.status_code == 409
+    assert memory.get_proposal(pid)["status"] == "read"
+
+    # Approve of a fresh summary is still refused. The row stays pending.
+    other = publish_book_notes(
+        [_book("ETHUSDT|1h|SHORT|sleeve", bar + timedelta(minutes=15), "no_signal")],
+        now=bar,
+    )[0]["id"]
+    refused = client.post(
+        f"/api/inbox/{other}/decide",
+        headers={"X-API-Token": get_settings().api_token},
+        json={"approved": True, "decided_by": "operator", "reason": "should not apply"},
+    )
+    assert refused.status_code == 409
+    assert memory.get_proposal(other)["status"] == "pending"
+
+    from firm.research_jobs import on_operator_approved
+
+    routed = on_operator_approved(memory.get_proposal(pid) or {})
+    assert routed["queued"] is False
+    assert routed.get("handed_to_cursor") is False
+
+
+def test_scan_summaries_are_auto_read_out_of_inbox(firm_db) -> None:
+    """Scan summaries never count as unread decisions.
+
+    pending_proposals and GET /api/inbox omit kind=informational. A real
+    proposal in the same database is still listed. The diary row stays pending
+    until a dismiss marks it read.
+    """
+    bar = HOUR + timedelta(hours=21)
+    pid = publish_book_notes(
+        [_book("BTCUSDT|1h|LONG|auto-read", bar, "no_signal")],
+        now=bar,
+    )[0]["id"]
+    strategy_id = memory.record_proposal(
+        agent="quant_researcher",
+        kind=ProposalKind.STRATEGY,
+        title="Test something_else",
+        payload={"name": "something_else"},
+        rationale="a real decision",
+        confidence=0.2,
+    )
+
+    # Stored, but not an inbox item. Status is still pending until dismiss.
+    assert memory.get_proposal(pid)["status"] == "pending"
+    inbox = memory.pending_proposals(limit=50)
+    assert all(row["kind"] != "informational" for row in inbox)
+    assert all(row["id"] != pid for row in inbox)
+    assert any(row["id"] == strategy_id for row in inbox)
+
+    from api.app import app
+
+    client = TestClient(app)
+    listed = client.get("/api/inbox")
+    assert listed.status_code == 200
+    body = listed.json()
+    assert all(row["id"] != pid for row in body)
+    assert any(row["id"] == strategy_id for row in body)
+
+    assert memory.decide_proposal(
+        pid,
+        approved=False,
+        decided_by="operator",
+        reason="Read: hourly scan FYI",
+    )
+    assert memory.get_proposal(pid)["status"] == "read"
+    assert all(row["id"] != pid for row in memory.pending_proposals(limit=50))
+    assert any(row["id"] == strategy_id for row in memory.pending_proposals(limit=50))
 
 
 def test_reason_counts_and_near_misses_from_sample_telemetry() -> None:
