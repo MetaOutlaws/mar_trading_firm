@@ -46,6 +46,9 @@ deploy/caddy/certs/
 # 24h near-miss diary written by the paper worker. Pruned on read.
 data/near_miss_log.jsonl
 data/near_miss_log.jsonl.tmp
+# Paper capacity rejections (sector / daily-trade / gross). Daily files,
+# append-only, not the rolling near-miss window. Report-only.
+data/near_miss_risk/
 # Permanent scan-summary diary. Append-only; not pruned. See
 # docs/runbooks/scan_summary_log.md.
 data/scan_summaries.jsonl

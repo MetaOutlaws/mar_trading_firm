@@ -1402,6 +1402,8 @@ class TradingEngine:
     ) -> RiskDecision:
         """Risk-check a signal and, if approved, place the order."""
         universe = get_universe()
+        # This is the label the sector cap counts, including SECTOR_OVERRIDES.
+        # The near-miss row copies it; it does not look the symbol up again.
         sector = universe.sector_of(signal.symbol)
 
         # Levels for the *risk check* still use the signal close: we do not
@@ -1465,6 +1467,9 @@ class TradingEngine:
                     symbol=signal.symbol,
                     detail="; ".join(decision.reasons),
                 )
+            # Report-only. The decision above is final; this cannot resize,
+            # reorder, or replace it. A write failure is a warning.
+            self._note_paper_capacity_rejection(signal, intent, state, decision)
             return decision
 
         # Same equity the sizer just used. Paper dust classification reads it
@@ -1473,6 +1478,42 @@ class TradingEngine:
             signal, decision, stop_price, take_profit, sector, entry_equity=equity
         )
         return decision
+
+    def _note_paper_capacity_rejection(
+        self,
+        signal: Signal,
+        intent: TradeIntent,
+        state: Any,
+        decision: RiskDecision,
+    ) -> None:
+        """Paper-only near-miss row for a sector, daily, or gross rejection.
+
+        Live and testnet return before any read of the book. The helper
+        records the sizer's proposed notional and does not write it back
+        onto ``decision``.
+        """
+        try:
+            if get_settings().trading_mode is not TradingMode.PAPER:
+                return
+            from firm.near_miss_log import note_paper_capacity_rejection
+
+            entry = self._plan_entry_for_signal(signal)
+            clock = entry.timeframe if entry is not None else ""
+            sleeve = signal.strategy or ""
+            note_paper_capacity_rejection(
+                risk=self.risk,
+                intent=intent,
+                state=state,
+                decision=decision,
+                sleeve=sleeve,
+                rule=sleeve,
+                clock=clock,
+            )
+        except Exception:
+            logger.warning(
+                "Paper capacity near-miss was not written; the rejection stands",
+                exc_info=True,
+            )
 
     def _plan_entry_for_signal(self, signal: Signal) -> PlanEntry | None:
         """Match a fill back to the plan row that produced it (clock + params)."""
