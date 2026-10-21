@@ -36,6 +36,39 @@ logger = logging.getLogger(__name__)
 # Columns every strategy must return from `generate_signals`.
 SIGNAL_COLUMNS = ["signal", "side", "score", "reason"]
 
+# One log per strategy, symbol, bar, and field. The paper poll retries every
+# 15s; the same empty cell must not be announced again. Same shape as the
+# paper bar sit-out token (sleeve identity + bar).
+_SKIPPED_INDICATOR_LOGGED: set[str] = set()
+
+
+def _indicator_number(value: object) -> float | None:
+    """Value ``float()`` accepts, or None when the cell is empty or not numeric.
+
+    ``''`` and a regime label return None. Callers leave that cell out of the
+    indicator payload. They do not substitute ``0``. Bools and numeric strings
+    still parse, so sleeves whose extra columns are numbers stay identical.
+    """
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def _log_skipped_indicator(strategy: str, symbol: str, bar: str, column: str) -> None:
+    """Info, once per strategy/symbol/bar/field. Not an evaluation error."""
+    token = f"{strategy}|{symbol}|{bar}|{column}"
+    if token in _SKIPPED_INDICATOR_LOGGED:
+        return
+    _SKIPPED_INDICATOR_LOGGED.add(token)
+    logger.info(
+        "sleeve indicator skipped strategy=%s symbol=%s bar=%s skip_reason=missing_value:%s",
+        strategy,
+        symbol,
+        bar,
+        column,
+    )
+
 
 class SignalSide(str, Enum):
     """Direction of a trade signal."""
@@ -179,11 +212,20 @@ class Strategy(ABC):
         side_value = last["side"]
         score_value = float(last["score"])
         reason = str(last["reason"])
-        indicators = {
-            column: float(last[column])
-            for column in signals.columns
-            if column not in SIGNAL_COLUMNS and pd.notna(last[column])
-        }
+        # Extra columns are diagnostic. regime "" is a label, not a required
+        # trade input. Leave it out of the float payload and keep the signal
+        # generate_signals already computed. An empty cell stays omitted.
+        bar_stamp = signals.index[-1]
+        bar_text = bar_stamp.isoformat() if hasattr(bar_stamp, "isoformat") else str(bar_stamp)
+        indicators: dict[str, float] = {}
+        for column in signals.columns:
+            if column in SIGNAL_COLUMNS or not pd.notna(last[column]):
+                continue
+            number = _indicator_number(last[column])
+            if number is None:
+                _log_skipped_indicator(self.name, symbol, bar_text, str(column))
+                continue
+            indicators[column] = number
         price = float(candles["close"].iloc[-1])
         timestamp = signals.index[-1]
         self._capture_gate_diagnostics(candles, signals)
