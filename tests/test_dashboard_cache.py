@@ -18,15 +18,22 @@ ROOT = Path(__file__).resolve().parents[1]
 HOUR = datetime(2026, 10, 16, 15, 0, tzinfo=timezone.utc)
 NOW = datetime(2026, 10, 16, 15, 30, tzinfo=timezone.utc)
 
-# Blobs of the trading path and the book at the repair base. A desk patch
-# that edits one of these has changed more than the dashboard.
+# Blobs of the trading path and the book. A desk patch that edits one of
+# these has changed more than the dashboard.
 _UNTOUCHED = {
-    "core/execution/engine.py": "fd6a6b8e4238312502e830d41ef7ae29f382a0d4",
+    # Includes feat #155-#158 (empty-regime skip, sector overrides, dust
+    # entry_equity, near-miss). SGP1's pin was fd6a6b8e.
+    "core/execution/engine.py": "0c8db3f76776abe760408a1a44262a34987fabae",
     "core/execution/paper.py": "c73ead0f9dc5a2373f17da76cb2b1c9d11804381",
-    "core/execution/f111_paper.py": "ab390d3f2b98d6977574d2a40f265e7a2154a8fe",
+    # Includes #157 dust kwargs and the #158 near-miss hook. SGP1's pin
+    # was ab390d3f. The engine re-pin reaches this next.
+    "core/execution/f111_paper.py": "bdd8e9c8e326da58ce757155653040228bbf248c",
     "core/execution/paper_bar_eval.py": "5374ab24628ef9e330dbf4b6f433461cc1f299e5",
-    "config/settings.py": "5704747916ef7b63bfb8b26611848d8cdc1ecf31",
-    "config/approved_strategies.json": "97d3f2cae21ad864d14b1acf53ebc5315357a7a8",
+    # Committed blob, identical to the SGP1 export. The repair-base pin
+    # 57047479 is b00c4f73 and does not match that file.
+    "config/settings.py": "9c02305f6e855960410daa9761abc4a849c97a1a",
+    # Feat book after #139. The repair-base pin 97d3f2ca is b00c4f73.
+    "config/approved_strategies.json": "d33719d4c721c2ecfc5d90c5a079e9ce1c73c5aa",
 }
 
 

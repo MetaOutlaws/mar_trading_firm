@@ -22,8 +22,9 @@ from firm.research_catalog import _ranking_overlay, clear_ranking_overlay_cache
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Trading-path blobs at the repair base. A read-side cache must not edit them.
-_ENGINE = "fd6a6b8e4238312502e830d41ef7ae29f382a0d4"
+# Trading-path blobs. A read-side cache must not edit them.
+# engine.py includes feat #155-#158. SGP1's pin was fd6a6b8e.
+_ENGINE = "0c8db3f76776abe760408a1a44262a34987fabae"
 _PAPER = "c73ead0f9dc5a2373f17da76cb2b1c9d11804381"
 
 
