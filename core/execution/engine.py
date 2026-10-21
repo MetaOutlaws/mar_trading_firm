@@ -1467,7 +1467,11 @@ class TradingEngine:
                 )
             return decision
 
-        self._place_order(signal, decision, stop_price, take_profit, sector)
+        # Same equity the sizer just used. Paper dust classification reads it
+        # once, off the filled notional, inside the ledger.
+        self._place_order(
+            signal, decision, stop_price, take_profit, sector, entry_equity=equity
+        )
         return decision
 
     def _plan_entry_for_signal(self, signal: Signal) -> PlanEntry | None:
@@ -1497,8 +1501,14 @@ class TradingEngine:
         stop_price: float,
         take_profit: float,
         sector: str,
+        entry_equity: float | None = None,
     ) -> None:
-        """Submit the order, attach stops, and record the position."""
+        """Submit the order, attach stops, and record the position.
+
+        ``entry_equity`` is the equity the risk check sized against. It is
+        stored with the paper fill so dust classification does not depend on
+        a later equity snapshot. Omitting it fails closed: the fill counts.
+        """
         result = self.broker.place_market_order(
             symbol=signal.symbol,
             side=signal.side.value,
@@ -1578,6 +1588,8 @@ class TradingEngine:
             timeframe=str(identity["timeframe"] or ""),
             max_holding_bars=int(identity["max_holding_bars"] or 0),
             expiry_at=identity["expiry_at"] if isinstance(identity["expiry_at"], datetime) else None,
+            entry_equity=entry_equity,
+            max_position_pct=self.risk.limits.max_position_pct,
         )
 
     def _manage_open_positions(self) -> int:
