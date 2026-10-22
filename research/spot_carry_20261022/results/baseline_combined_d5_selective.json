@@ -1,0 +1,89 @@
+{
+  "average_loss": -5.74142900548788,
+  "average_win": 24.458064071214967,
+  "blocked": {
+    "cash_or_size": 0,
+    "drawdown": 0,
+    "gross_cap": 0,
+    "in_position": 2749535,
+    "inflight": 2204,
+    "missing": 0,
+    "position_cap": 0,
+    "risk": 0
+  },
+  "by_token_pnl": {
+    "BTCUSDT": -1261.3127928780998,
+    "ETHUSDT": -996.2297968446372
+  },
+  "components": {
+    "fees": 3178.472143535438,
+    "funding": 1222.1042902446575,
+    "penalty": 0.0,
+    "perp_price": -583.3932000000007,
+    "slippage": 410.093416431954,
+    "spot_price": 692.3118799999987
+  },
+  "ending_equity": 17742.457410277333,
+  "exit_reasons": {
+    "end_of_sample": 2,
+    "signal": 549
+  },
+  "expectancy": -4.097173484070303,
+  "label": "baseline_combined_d5_selective",
+  "max_drawdown": 0.11327912463939702,
+  "mean_R": -0.021699180091685723,
+  "mean_gross_exposure": 0.2818561264636467,
+  "net_return": -0.11287712948613338,
+  "open_positions": [],
+  "profit_factor": 0.2452932575378473,
+  "sum_R": -11.956248230518833,
+  "trades": 551,
+  "utilisation_minutes": 0.7736648224199559,
+  "win_rate": 0.0544464609800363,
+  "years": {
+    "2022": {
+      "end_equity": 18990.914956330467,
+      "expectancy": -5.714435141529396,
+      "max_drawdown": 0.05124092335619587,
+      "net_return": -0.050454252183476656,
+      "pnl": -1011.4550200507031,
+      "profit_factor": 0.03821869751731466,
+      "start_equity": 20000.0,
+      "trades": 177,
+      "win_rate": 0.022598870056497175
+    },
+    "2023": {
+      "end_equity": 18624.1941611389,
+      "expectancy": -4.62055031226726,
+      "max_drawdown": 0.029900499500191607,
+      "net_return": -0.019310327913891423,
+      "pnl": -522.1221852862003,
+      "profit_factor": 0.07446317298288367,
+      "start_equity": 18990.914956330467,
+      "trades": 113,
+      "win_rate": 0.09734513274336283
+    },
+    "2024": {
+      "end_equity": 18570.061266792647,
+      "expectancy": 1.0445665645636153,
+      "max_drawdown": 0.027225109150062796,
+      "net_return": -0.002906589883991173,
+      "pnl": 105.50122302092515,
+      "profit_factor": 1.2003307509424959,
+      "start_equity": 18624.1941611389,
+      "trades": 101,
+      "win_rate": 0.09900990099009901
+    },
+    "2025": {
+      "end_equity": 17742.457410277333,
+      "expectancy": -5.184166296292241,
+      "max_drawdown": 0.04484791319719405,
+      "net_return": -0.04456656575469953,
+      "pnl": -829.4666074067585,
+      "profit_factor": 0.022860990354373775,
+      "start_equity": 18570.061266792647,
+      "trades": 160,
+      "win_rate": 0.03125
+    }
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "average_loss": -5.80127724043026,
+  "average_win": 27.017025216162693,
+  "blocked": {
+    "cash_or_size": 0,
+    "drawdown": 0,
+    "gross_cap": 0,
+    "in_position": 2751747,
+    "inflight": 0,
+    "missing": 0,
+    "position_cap": 0,
+    "risk": 0
+  },
+  "bootstrap_high": -2.7830750357506253,
+  "bootstrap_low": -4.915661182784897,
+  "by_token_pnl": {
+    "BTCUSDT": -1261.4504637587195,
+    "ETHUSDT": -917.6859195639712
+  },
+  "components": {
+    "fees": 3187.1280178048305,
+    "funding": 1225.7012849431035,
+    "penalty": 0.0,
+    "perp_price": -667.5685000000054,
+    "slippage": 411.20552046095855,
+    "spot_price": 861.0643699999995
+  },
+  "ending_equity": 17820.86361667727,
+  "exit_reasons": {
+    "end_of_sample": 2,
+    "signal": 549
+  },
+  "expectancy": -3.9548754688252115,
+  "gates": {
+    "beats_null_count": 200,
+    "bootstrap_draws": 2000,
+    "bootstrap_seed": 20261022,
+    "checks": {
+      "beats_shifted_funding": true,
+      "bootstrap_ci": false,
+      "drawdown": true,
+      "expectancy": false,
+      "flat_at_end": true,
+      "min_trades": true,
+      "profit_factor": false,
+      "profitable_years": false,
+      "token_concentration": true,
+      "year_concentration": true
+    },
+    "null_shift_days": [
+      7,
+      1454
+    ],
+    "null_shifts": 200,
+    "pass": false,
+    "profitable_year_ratio": 0.0
+  },
+  "label": "baseline_combined_d1_selective",
+  "max_drawdown": 0.10940823273971406,
+  "mean_R": -0.020892536245543273,
+  "mean_gross_exposure": 0.28192923991475766,
+  "net_return": -0.10895681916613653,
+  "null_pnl_mean": -2426.244116209248,
+  "open_positions": [],
+  "profit_factor": 0.2776337490303478,
+  "sum_R": -11.511787471294344,
+  "trades": 551,
+  "utilisation_minutes": 0.7736667237052247,
+  "win_rate": 0.056261343012704176,
+  "years": {
+    "2022": {
+      "end_equity": 19005.158202573584,
+      "expectancy": -5.635265621062022,
+      "max_drawdown": 0.05056533647109602,
+      "net_return": -0.04974208987132078,
+      "pnl": -997.4420149279779,
+      "profit_factor": 0.06109684996015922,
+      "start_equity": 20000.0,
+      "trades": 177,
+      "win_rate": 0.03389830508474576
+    },
+    "2023": {
+      "end_equity": 18666.472510829662,
+      "expectancy": -4.373179177420232,
+      "max_drawdown": 0.02832108288088757,
+      "net_return": -0.017820724675580935,
+      "pnl": -494.16924704848617,
+      "profit_factor": 0.1325899622420737,
+      "start_equity": 19005.158202573584,
+      "trades": 113,
+      "win_rate": 0.08849557522123894
+    },
+    "2024": {
+      "end_equity": 18654.42357391574,
+      "expectancy": 1.4659593307189067,
+      "max_drawdown": 0.02722155249227764,
+      "net_return": -0.0006454854770728824,
+      "pnl": 148.06189240260957,
+      "profit_factor": 1.2797120323696525,
+      "start_equity": 18666.472510829662,
+      "trades": 101,
+      "win_rate": 0.09900990099009901
+    },
+    "2025": {
+      "end_equity": 17820.86361667727,
+      "expectancy": -5.222418835930231,
+      "max_drawdown": 0.044962846227068,
+      "net_return": -0.04468430524993694,
+      "pnl": -835.587013748837,
+      "profit_factor": 0.02301665393949429,
+      "start_equity": 18654.42357391574,
+      "trades": 160,
+      "win_rate": 0.03125
+    }
+  }
+}
