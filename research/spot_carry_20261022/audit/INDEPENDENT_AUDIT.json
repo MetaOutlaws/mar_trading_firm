@@ -1,0 +1,220 @@
+{
+  "basis": {
+    "BTCUSDT": {
+      "funding_minutes_missing_mark_open": 0,
+      "mark_perp": {
+        "abs_gt_1pct": 12,
+        "abs_gt_2pct": 3,
+        "max": 0.052610065851364136,
+        "max_one_minute_jump": 0.05319502215168758,
+        "mean": 8.35274142590187e-05,
+        "min": -0.016670083367500227,
+        "one_minute_jumps_gt_50bp": 40
+      },
+      "mark_spot": {
+        "abs_gt_1pct": 11,
+        "abs_gt_2pct": 4,
+        "max": 0.0424741378627653,
+        "max_one_minute_jump": 0.045569593117556845,
+        "mean": -0.0001780757485485407,
+        "min": -0.022282001595805262,
+        "one_minute_jumps_gt_50bp": 20
+      },
+      "minutes": 2103840,
+      "perp_spot": {
+        "abs_gt_1pct": 12,
+        "abs_gt_2pct": 4,
+        "max": 0.022959024668150613,
+        "max_one_minute_jump": 0.02427238005002446,
+        "mean": -0.00026154398229652335,
+        "min": -0.041234469394733846,
+        "one_minute_jumps_gt_50bp": 21
+      },
+      "spot_close_equals_perp_close": 595
+    },
+    "ETHUSDT": {
+      "funding_minutes_missing_mark_open": 0,
+      "mark_perp": {
+        "abs_gt_1pct": 24,
+        "abs_gt_2pct": 6,
+        "max": 0.038373257231594876,
+        "max_one_minute_jump": 0.04022716659028428,
+        "mean": 0.00010813241513719525,
+        "min": -0.027318489237515838,
+        "one_minute_jumps_gt_50bp": 103
+      },
+      "mark_spot": {
+        "abs_gt_1pct": 7,
+        "abs_gt_2pct": 1,
+        "max": 0.0313444764916427,
+        "max_one_minute_jump": 0.03433605343943797,
+        "mean": -0.00019755098240217762,
+        "min": -0.01456529355823607,
+        "one_minute_jumps_gt_50bp": 82
+      },
+      "minutes": 2103840,
+      "perp_spot": {
+        "abs_gt_1pct": 13,
+        "abs_gt_2pct": 6,
+        "max": 0.023419721871049275,
+        "max_one_minute_jump": 0.020996816233816627,
+        "mean": -0.000305598560462353,
+        "min": -0.03130649354076775,
+        "one_minute_jumps_gt_50bp": 48
+      },
+      "spot_close_equals_perp_close": 2300
+    }
+  },
+  "funding": {
+    "BTCUSDT": {
+      "bad_rates": 0,
+      "duplicates": 0,
+      "first": 1640995200000,
+      "last": 1767196800000,
+      "max_interval_ms": 28800000,
+      "min_interval_ms": 28800000,
+      "months": 48,
+      "months_not_exact_8h_grid": [],
+      "on_utc_8h_clock": 4383,
+      "per_month_max": 93,
+      "per_month_min": 84,
+      "rate_max": 0.00112788,
+      "rate_min": -0.00090728,
+      "rate_negative": 720,
+      "rate_positive": 3662,
+      "rate_zero": 1,
+      "settlements": 4383
+    },
+    "ETHUSDT": {
+      "bad_rates": 0,
+      "duplicates": 0,
+      "first": 1640995200000,
+      "last": 1767196800000,
+      "max_interval_ms": 28800000,
+      "min_interval_ms": 28800000,
+      "months": 48,
+      "months_not_exact_8h_grid": [],
+      "on_utc_8h_clock": 4383,
+      "per_month_max": 93,
+      "per_month_min": 84,
+      "rate_max": 0.00097166,
+      "rate_min": -0.00330495,
+      "rate_negative": 831,
+      "rate_positive": 3552,
+      "rate_zero": 0,
+      "settlements": 4383
+    }
+  },
+  "historical_2026_rows": 0,
+  "issues": [],
+  "root": "/home/ubuntu/carry_data/unpacked/spot_carry_20261022/downloads",
+  "sidecar_sha_mismatches": [],
+  "streams": {
+    "mark/BTCUSDT": {
+      "backwards": 0,
+      "bad_ohlc": 0,
+      "bad_volume": 0,
+      "duplicates": 0,
+      "expected_minutes": 2103840,
+      "first": 1640995200000,
+      "incomplete_months": [],
+      "last": 1767225540000,
+      "missing_minutes": 0,
+      "months": 48,
+      "nonfinite_or_nonpositive": 0,
+      "outside_month_or_window": 0,
+      "rows": 2103840,
+      "unaligned": 0,
+      "unique": 0
+    },
+    "mark/ETHUSDT": {
+      "backwards": 0,
+      "bad_ohlc": 0,
+      "bad_volume": 0,
+      "duplicates": 0,
+      "expected_minutes": 2103840,
+      "first": 1640995200000,
+      "incomplete_months": [],
+      "last": 1767225540000,
+      "missing_minutes": 0,
+      "months": 48,
+      "nonfinite_or_nonpositive": 0,
+      "outside_month_or_window": 0,
+      "rows": 2103840,
+      "unaligned": 0,
+      "unique": 0
+    },
+    "perpetual/BTCUSDT": {
+      "backwards": 0,
+      "bad_ohlc": 0,
+      "bad_volume": 0,
+      "duplicates": 0,
+      "expected_minutes": 2103840,
+      "first": 1640995200000,
+      "incomplete_months": [],
+      "last": 1767225540000,
+      "missing_minutes": 0,
+      "months": 48,
+      "nonfinite_or_nonpositive": 0,
+      "outside_month_or_window": 0,
+      "rows": 2103840,
+      "unaligned": 0,
+      "unique": 0
+    },
+    "perpetual/ETHUSDT": {
+      "backwards": 0,
+      "bad_ohlc": 0,
+      "bad_volume": 0,
+      "duplicates": 0,
+      "expected_minutes": 2103840,
+      "first": 1640995200000,
+      "incomplete_months": [],
+      "last": 1767225540000,
+      "missing_minutes": 0,
+      "months": 48,
+      "nonfinite_or_nonpositive": 0,
+      "outside_month_or_window": 0,
+      "rows": 2103840,
+      "unaligned": 0,
+      "unique": 0
+    },
+    "spot/BTCUSDT": {
+      "backwards": 0,
+      "bad_ohlc": 0,
+      "bad_volume": 0,
+      "duplicates": 0,
+      "expected_minutes": 2103840,
+      "first": 1640995200000,
+      "incomplete_months": [],
+      "last": 1767225540000,
+      "missing_minutes": 0,
+      "months": 48,
+      "nonfinite_or_nonpositive": 0,
+      "outside_month_or_window": 0,
+      "rows": 2103840,
+      "unaligned": 0,
+      "unique": 0
+    },
+    "spot/ETHUSDT": {
+      "backwards": 0,
+      "bad_ohlc": 0,
+      "bad_volume": 0,
+      "duplicates": 0,
+      "expected_minutes": 2103840,
+      "first": 1640995200000,
+      "incomplete_months": [],
+      "last": 1767225540000,
+      "missing_minutes": 0,
+      "months": 48,
+      "nonfinite_or_nonpositive": 0,
+      "outside_month_or_window": 0,
+      "rows": 2103840,
+      "unaligned": 0,
+      "unique": 0
+    }
+  },
+  "window": [
+    "2022-01-01T00:00:00+00:00",
+    "2025-12-31T23:59:00+00:00"
+  ]
+}
