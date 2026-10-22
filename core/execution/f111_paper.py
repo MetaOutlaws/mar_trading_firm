@@ -1528,8 +1528,11 @@ class F111Runtime:
         """Replay closed candles, then fetch funding and the quote, then lock.
 
         ``_funding_for_open`` and ``get_price`` run before ``book_guard``.
-        The lock covers protection and fills. The quote timestamp is checked
-        again under the lock; a refresh there uses a timeout of at most 2s.
+        The lock covers protection and fills. Every open position is marked
+        only when a fill is scheduled, because that equity read is the one
+        that would otherwise ticker under the lock. The quote timestamp is
+        checked again under the lock; a refresh there uses a timeout of at
+        most 2s.
         """
         now = _as_utc(now)
         needs_protection, scheduled = self._replay_closed_minutes(symbol, frame, now)
@@ -1539,7 +1542,7 @@ class F111Runtime:
         if needs_protection:
             fraction, source = _funding_for_open(self, symbol, now)
         marks: dict[str, float] = {}
-        if self.broker is not None:
+        if scheduled and self.broker is not None:
             for open_symbol in list(getattr(self.broker, "_positions", {})):
                 price = self.broker.get_price(open_symbol)
                 if _finite_price(price):

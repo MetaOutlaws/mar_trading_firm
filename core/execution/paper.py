@@ -437,12 +437,14 @@ class PaperBroker(Broker):
         Each distinct funding target is its own journal row, keyed by the
         position, its open time, and that target. An 8h interval is not one
         row: a later higher target in the same interval is a new row for the
-        unpaid difference. Booking the same target again is a no-op.
+        unpaid difference.
 
         The book lock covers the read of accrued funding, and again the cash
         write. ``before_funding_book``, when a test sets it, runs between
-        those two without the lock so two accruals can both have computed
-        the same step. The write then dedups under the lock.
+        those two without the lock. The write recomputes
+        ``target - funding_accrued`` and skips a step that is already
+        covered, so an earlier plan cannot debit again or move accrued
+        funding down. Booking the same target again is a logged no-op.
         """
         now = now or self._now()
         with self._book():
@@ -475,15 +477,23 @@ class PaperBroker(Broker):
         return planned
 
     def _book_funding_steps(self, planned: list[tuple[str, float, float, str, str]]) -> float:
-        """Debit each planned step once. Caller holds the book lock.
+        """Debit the still-unpaid part of each target. Caller holds the book lock.
 
-        A target that is already in the in-memory id set is left untouched:
-        cash is not debited and accrued funding is not raised.
+        The planned step is not applied as stored. Two accruals in one 8h
+        window can plan at different times, and the later target may book
+        first. Recomputing ``target - funding_accrued`` skips an earlier
+        plan that is already covered, so cash is not debited twice and
+        accrued funding does not move backwards. A target already in the
+        in-memory id set is a logged no-op: cash is not debited and accrued
+        funding is not raised.
         """
         cash_delta = 0.0
-        for symbol, target, step, event_id, interval_id in planned:
+        for symbol, target, _planned_step, event_id, interval_id in planned:
             position = self._positions.get(symbol)
             if position is None or position.observed_funding_only:
+                continue
+            step = float(target) - float(position.funding_accrued)
+            if step <= 1e-12:
                 continue
             if event_id in self._applied_funding_ids:
                 logger.info(
@@ -493,7 +503,7 @@ class PaperBroker(Broker):
                 continue
             self._applied_funding_ids.add(event_id)
             self._cash -= step
-            position.funding_accrued = target
+            position.funding_accrued = float(target)
             cash_delta -= step
             self._record_cash_event(
                 {

@@ -26,9 +26,9 @@ ROOT = Path(__file__).resolve().parents[1]
 # engine.py fetches quotes before the book lock. Previous pin:
 # 2afca3c6747bc3a262fa9957f425a05252524012.
 _ENGINE = "96d213af8bd2fba886b6f72aa09342b23c8e28b3"
-# paper.py funding dedup is an in-memory id check. Previous pin:
-# 30d4dea6d0e18f5414e5a6bf5d24c07751f0c3dc.
-_PAPER = "2d53bcc885fa63aa3ed50fa7a502f752112af398"
+# paper.py recomputes the unpaid funding step when booking. Previous pin:
+# 2d53bcc885fa63aa3ed50fa7a502f752112af398.
+_PAPER = "efe6ee2effe24f3caa5af3bea4541c578bdbb81a"
 
 
 def test_integrity_snapshot_is_once_per_book_sha(monkeypatch) -> None:

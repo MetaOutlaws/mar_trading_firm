@@ -405,14 +405,13 @@ class _OverlapSet(set):
 
 
 def test_concurrent_funding_accrual_debits_once(
-    tmp_path, monkeypatch, firm_db, caplog
+    tmp_path, monkeypatch, firm_db
 ) -> None:
     """A cycle accrue and an exit accrue of the same target debit once.
 
-    Both threads compute the step, then wait, then write. The book lock
-    makes the dedup check atomic with the cash debit. Dropping the lock
-    lets both miss the id. Dropping the dedup lets both debit the step
-    they already computed.
+    Both threads compute the step, then wait, then write. The booking
+    lock recomputes the unpaid amount, so the second writer of the same
+    target finds nothing left to debit.
     """
     prices = _prices()
     engine = _engine(tmp_path, monkeypatch, firm_db, prices, plan=TradingPlan())
@@ -445,7 +444,6 @@ def test_concurrent_funding_accrual_debits_once(
         barrier.wait(timeout=5)
 
     broker.before_funding_book = pause
-    caplog.set_level(logging.INFO, logger="core.execution.paper")
 
     def accrue() -> None:
         try:
@@ -472,8 +470,64 @@ def test_concurrent_funding_accrual_debits_once(
     assert rows[0]["amount"] == pytest.approx(expected)
     assert broker.cash == pytest.approx(cash_after_open - expected)
     assert SYMBOL not in broker._positions
-    assert "already booked" in caplog.text
-    assert "unchanged" in caplog.text
+
+
+def test_interleaved_accruals_with_different_targets_debit_once(
+    tmp_path, monkeypatch, firm_db
+) -> None:
+    """An earlier plan must not debit again after a later target booked.
+
+    The exit thread and the cycle accrue at different times in the same 8h
+    window. The earlier accrual plans its step, then the later one plans and
+    books a higher target, then the earlier write runs. Cash moves by the
+    later target only, and accrued funding stays at that later target.
+    """
+    prices = _prices()
+    engine = _engine(tmp_path, monkeypatch, firm_db, prices, plan=TradingPlan())
+    broker = engine.broker
+    broker.costs = CostModel(
+        taker_fee=0.0,
+        maker_fee=0.0,
+        slippage=0.0,
+        include_funding=True,
+        default_funding_rate=0.0001,
+    )
+    broker._lock_cost_model = True
+    broker._cash_store = PaperCashStore(tmp_path / "cash.json")
+    opened = datetime(2026, 10, 10, 1, tzinfo=timezone.utc)
+    broker._now = lambda: opened
+    _open_long(engine, prices)
+    earlier = opened + timedelta(hours=2)
+    later = opened + timedelta(hours=3)
+    position = broker._positions[SYMBOL]
+    target_later = broker.costs_for(SYMBOL).funding_cost(
+        "LONG", position.opened_at, later, position.notional
+    )
+    assert target_later > 0
+    cash_after_open = broker.cash
+    planned_earlier = threading.Event()
+    later_booked = threading.Event()
+
+    def pause(_planned: list) -> None:
+        if threading.current_thread().name == "earlier-accrual":
+            planned_earlier.set()
+            assert later_booked.wait(timeout=5)
+
+    broker.before_funding_book = pause
+    worker = threading.Thread(
+        target=lambda: broker.accrue_funding(earlier),
+        name="earlier-accrual",
+    )
+    worker.start()
+    assert planned_earlier.wait(timeout=5)
+    broker.accrue_funding(later)
+    later_booked.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+
+    debited = cash_after_open - broker.cash
+    assert debited == pytest.approx(target_later)
+    assert position.funding_accrued == pytest.approx(target_later)
 
 
 def test_stop_waits_for_the_inflight_exit_and_alerts_past_sixty_seconds(
