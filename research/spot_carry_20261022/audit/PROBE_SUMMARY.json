@@ -1,0 +1,20 @@
+{
+  "completed_at": "2026-10-22T05:27:21.102046+00:00",
+  "mode": "probe",
+  "from_month": "2022-01",
+  "to_month": "2025-12",
+  "historical_2026_opened": false,
+  "results": [],
+  "failure": {
+    "error_type": "HTTPError",
+    "message": "HTTP Error 403: Forbidden"
+  },
+  "strategy_ready": false,
+  "remaining_requirements": [
+    "funding/mark reconciliation",
+    "historical cost evidence",
+    "historical margin/collateral rules",
+    "matched coverage and basis audit",
+    "separately frozen strategy"
+  ]
+}

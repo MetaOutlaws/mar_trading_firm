@@ -1,0 +1,63 @@
+{
+  "observed_at_utc": "2026-10-22T05:27:35Z",
+  "host_public_ip": "54.184.235.255",
+  "host_identity": {
+    "hostname": "ec2-54-184-235-255.us-west-2.compute.amazonaws.com",
+    "city": "Boardman",
+    "region": "Oregon",
+    "country": "US",
+    "org": "AS16509 Amazon.com, Inc.",
+    "timezone": "America/Los_Angeles"
+  },
+  "egress_policy": "allow-all (cursor cloud environment egress.restricted=false). This was not a workspace firewall deny.",
+  "collector_user_agent": "MAR-public-research-audit/1",
+  "endpoints": [
+    {
+      "name": "spot_kline_probe_window",
+      "url": "https://api.bybit.com/v5/market/kline?category=spot&symbol=BTCUSDT&interval=1&start=1640995200000&end=1640995799999&limit=1000",
+      "http_status": 403,
+      "server": "CloudFront",
+      "x_cache": "Error from cloudfront",
+      "pop": "HIO52-P4",
+      "body": "{\n    error:The Amazon CloudFront distribution is configured to block access from your country\n}"
+    },
+    {
+      "name": "funding_history",
+      "url": "https://api.bybit.com/v5/market/funding/history?category=linear&symbol=BTCUSDT&startTime=1640995200000&endTime=1641081599999&limit=200",
+      "http_status": 403,
+      "server": "CloudFront",
+      "pop": "HIO52-P4",
+      "body": "{\n    error:The Amazon CloudFront distribution is configured to block access from your country\n}"
+    },
+    {
+      "name": "mark_price_kline",
+      "url": "https://api.bybit.com/v5/market/mark-price-kline?category=linear&symbol=BTCUSDT&interval=1&start=1640995200000&end=1640995799999&limit=10",
+      "http_status": 403,
+      "body": "{\n    error:The Amazon CloudFront distribution is configured to block access from your country\n}"
+    },
+    {
+      "name": "server_time_retry",
+      "url": "https://api.bybit.com/v5/market/time",
+      "http_status": 403,
+      "body": "{\n    error:The Amazon CloudFront distribution is configured to block access from your country\n}"
+    }
+  ],
+  "alternate_host_observation": {
+    "url": "https://public.bybit.com/",
+    "http_status": 200,
+    "server": "AmazonS3 via CloudFront",
+    "what_was_opened": "HTML directory index of the host root only",
+    "market_files_downloaded": false,
+    "used_as_data_source": false,
+    "reason_not_used": "api.bybit.com denied the collector probes. The handoff forbids rotating domains or proxies to bypass an access denial. The probes were not valid, so --download was not run and no bulk file was fetched as a substitute."
+  },
+  "domains_not_tried": [
+    "api.bytick.com",
+    "proxies",
+    "VPN",
+    "paid vendors",
+    "account credentials"
+  ],
+  "historical_2026_opened": false,
+  "full_download_started": false
+}

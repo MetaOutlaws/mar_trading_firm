@@ -1,0 +1,13 @@
+{
+  "mode": "probe",
+  "from_month": "2022-01",
+  "to_month": "2025-12",
+  "historical_2026_opened": false,
+  "strategy_ready": false,
+  "failure": {
+    "error_type": "HTTPError",
+    "message": "HTTP Error 403: Forbidden"
+  },
+  "results": [],
+  "note": "Eight-hour grid is a diagnostic, not proof of actual historical funding schedule or completeness."
+}
