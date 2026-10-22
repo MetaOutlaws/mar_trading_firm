@@ -260,7 +260,7 @@ def test_max_daily_trades_rejection_records_the_utc_day(tmp_path, monkeypatch) -
 
 
 def test_gross_exposure_rejection_records_exposure_before_the_entry(tmp_path, monkeypatch) -> None:
-    state = _state(open_positions=[_position("SOLUSDT", "layer1", EQUITY * 0.50)])
+    state = _state(open_positions=[_position("SOLUSDT", "layer1", EQUITY * 0.80)])
     engine = _engine(state, tmp_path, monkeypatch)
     decision = engine._attempt_entry(_signal(), EQUITY, {})
 
@@ -270,8 +270,8 @@ def test_gross_exposure_rejection_records_exposure_before_the_entry(tmp_path, mo
     _assert_common(row)
     assert row["reasons"] == ["max_total_exposure_pct"]
     assert any("total exposure" in text for text in row["reason_text"])
-    assert row["gross_exposure"] == pytest.approx(EQUITY * 0.50)
-    assert row["notional_limit"] == pytest.approx(EQUITY * 0.50)
+    assert row["gross_exposure"] == pytest.approx(EQUITY * 0.80)
+    assert row["notional_limit"] == pytest.approx(EQUITY * 0.80)
     # Headroom under the gross cap is zero, so the sizer's proposal is zero.
     # The decision's own notional stays zero either way; this row is the log.
     assert row["proposed_notional"] == pytest.approx(0.0)
@@ -284,8 +284,8 @@ def test_every_failing_capacity_reason_is_recorded(tmp_path, monkeypatch) -> Non
     state = _state(
         trades_today=PAPER_LIMITS.max_daily_trades,
         open_positions=[
-            _position("SOLUSDT", "other", 2_500.0),
-            _position("AVAXUSDT", "other", 2_500.0),
+            _position("SOLUSDT", "other", EQUITY * 0.40),
+            _position("AVAXUSDT", "other", EQUITY * 0.40),
         ],
     )
     engine = _engine(state, tmp_path, monkeypatch)
@@ -302,7 +302,7 @@ def test_every_failing_capacity_reason_is_recorded(tmp_path, monkeypatch) -> Non
     ]
     assert row["sector_count"] == 2
     assert row["daily_trade_count"] == 20
-    assert row["gross_exposure"] == pytest.approx(5_000.0)
+    assert row["gross_exposure"] == pytest.approx(EQUITY * 0.80)
     text = " ".join(row["reason_text"])
     assert "trades today" in text
     assert "sector" in text

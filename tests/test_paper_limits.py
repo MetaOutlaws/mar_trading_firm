@@ -2,8 +2,9 @@
 
 At b00c4f73, PAPER_LIMITS was `RiskLimits()` and therefore inherited
 max_concurrent_positions=5. The SGP1 paper host runs with that cap set to 15.
-This module locks that one paper override: the RiskLimits dataclass defaults
-and INITIAL_LIVE_LIMITS stay at their b00c4f73 values.
+Gross exposure is the one later move: the RiskLimits default, which paper
+inherits, is 0.80. INITIAL_LIVE_LIMITS still overrides that field to 0.20.
+Every other default stays at its b00c4f73 value.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ _PAPER_AT_B00C4F73 = {
     "max_positions_per_sector": 2,
     "max_positions_per_symbol": 1,
     "max_position_pct": 0.10,
-    "max_total_exposure_pct": 0.50,
+    "max_total_exposure_pct": 0.80,
     "max_risk_per_trade_pct": 0.01,
     "min_notional_usdt": 5.0,
     "max_leverage": 1.0,
@@ -49,7 +50,7 @@ def test_paper_max_concurrent_positions_matches_sgp1():
 
 
 def test_risklimits_default_max_concurrent_positions_is_unchanged():
-    """The dataclass default stays 5, and no other default moved either."""
+    """The dataclass default stays 5. Gross exposure is 0.80; nothing else moved."""
     assert RiskLimits().max_concurrent_positions == 5
     assert RiskLimits().to_dict() == _PAPER_AT_B00C4F73
 
