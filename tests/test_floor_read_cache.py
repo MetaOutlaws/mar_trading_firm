@@ -23,10 +23,12 @@ from firm.research_catalog import _ranking_overlay, clear_ranking_overlay_cache
 ROOT = Path(__file__).resolve().parents[1]
 
 # Trading-path blobs. A read-side cache must not edit them.
-# engine.py includes the paper-only GBN hook and the manual close-request
-# drain. Previous pin: 068566a1a3ce44ff0d2936d4654905f3bbfe8dc7.
-_ENGINE = "78db5b26f3d3b365edfc20ffedc8f25857b965db"
-_PAPER = "c73ead0f9dc5a2373f17da76cb2b1c9d11804381"
+# engine.py drains manual closes after the book lock. Previous pin:
+# 96d213af8bd2fba886b6f72aa09342b23c8e28b3.
+_ENGINE = "dd5492d0ae8ca6f629f690348a224169b2712103"
+# paper.py runs the funding hook between plan and book under the lock.
+# Previous pin: 66479045eda3fd04ebe1c9cad50d6ebfe996bdee.
+_PAPER = "821ec3eace98334565a11a7d5a8a22c447e97c68"
 
 
 def test_integrity_snapshot_is_once_per_book_sha(monkeypatch) -> None:

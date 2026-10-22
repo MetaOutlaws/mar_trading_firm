@@ -32,11 +32,13 @@ from __future__ import annotations
 import logging
 import math
 import uuid
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from core.data.funding import FundingHistory
 from core.data.ohlcv import BybitOHLCV
+from core.execution.book_guard import LOCKED_TICKER_TIMEOUT_SECONDS
 from core.execution.broker import (
     Broker,
     Instrument,
@@ -67,6 +69,16 @@ class ExitTrigger:
     at_mark: bool
     mark_price: float
     expected_price: float
+    #: When the mark was read. The engine rejects a stale quote under the lock.
+    quoted_at: datetime | None = None
+
+
+def _funding_interval_id(now: datetime) -> str:
+    """UTC 8h bucket containing ``now`` (00:00, 08:00, 16:00)."""
+    stamp = now.astimezone(timezone.utc) if now.tzinfo else now.replace(tzinfo=timezone.utc)
+    bucket = (stamp.hour // 8) * 8
+    start = stamp.replace(hour=bucket, minute=0, second=0, microsecond=0)
+    return start.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dataclass(frozen=True)
@@ -162,6 +174,24 @@ class PaperBroker(Broker):
         self.total_funding = 0.0
         #: Close event ids already applied to this process's cash.
         self._applied_close_ids: set[str] = set()
+        #: Funding journal ids already applied, one per target. This is the
+        #: dedup index. Accrue does not scan the cash journal under the lock.
+        self._applied_funding_ids: set[str] = set()
+        #: Test hook. Called after a funding step is computed and before it is
+        #: written, without the book lock. Production leaves this unset.
+        self.before_funding_book: object | None = None
+        #: Engine book lock. Unbound brokers (unit tests) accrue without it.
+        self._book_guard: object | None = None
+
+    def bind_book_guard(self, guard: object) -> None:
+        """Share the engine lock so exits and cycles cannot both debit cash."""
+        self._book_guard = guard
+
+    def _book(self):
+        guard = self._book_guard
+        if guard is None:
+            return nullcontext()
+        return guard
 
     def close(self) -> None:
         if self._owns_data_source:
@@ -214,13 +244,24 @@ class PaperBroker(Broker):
 
     # -- account -----------------------------------------------------------
     def get_balance(self) -> float:
-        """Equity: cash plus unrealised P&L on open positions."""
+        """Equity: cash plus unrealised P&L on open positions.
+
+        The cash figure and the position rows are copied under the book lock.
+        Marks are read after the lock so a ticker does not block an exit.
+        """
+        with self._book():
+            cash = self._cash
+            rows = [
+                (position.symbol, position.side, position.quantity, position.entry_price)
+                for position in self._positions.values()
+            ]
         unrealised = 0.0
-        for position in self._positions.values():
-            price = self.get_price(position.symbol)
+        for symbol, side, quantity, entry in rows:
+            price = self.get_price(symbol, timeout=LOCKED_TICKER_TIMEOUT_SECONDS)
             if price:
-                unrealised += position.unrealised_pnl(price)
-        return self._cash + unrealised
+                direction = 1.0 if side == "LONG" else -1.0
+                unrealised += (price - entry) * quantity * direction
+        return cash + unrealised
 
     @property
     def cash(self) -> float:
@@ -234,12 +275,17 @@ class PaperBroker(Broker):
 
     def exposure(self, marks: dict[str, float] | None = None) -> float:
         """Gross notional of open positions at ``marks`` (else live marks)."""
+        with self._book():
+            rows = [
+                (position.symbol, position.quantity, position.entry_price)
+                for position in self._positions.values()
+            ]
         total = 0.0
-        for position in self._positions.values():
-            price = (marks or {}).get(position.symbol)
+        for symbol, quantity, entry in rows:
+            price = (marks or {}).get(symbol)
             if price is None:
-                price = self.get_price(position.symbol) or position.entry_price
-            total += abs(position.quantity * price)
+                price = self.get_price(symbol, timeout=LOCKED_TICKER_TIMEOUT_SECONDS) or entry
+            total += abs(quantity * price)
         return total
 
     def contribute_capital(self, amount: float) -> None:
@@ -257,29 +303,77 @@ class PaperBroker(Broker):
             }
         )
 
-    def get_positions(self) -> list[PositionSnapshot]:
+    def _copy_open_rows(self) -> list[tuple]:
+        """Position fields copied under the book lock. The dict is not iterated later."""
+        with self._book():
+            return [
+                (
+                    position.symbol,
+                    position.side,
+                    position.quantity,
+                    position.entry_price,
+                    position.take_profit,
+                    position.stop_loss,
+                )
+                for position in self._positions.values()
+            ]
+
+    def snapshot_positions(self) -> list[PositionSnapshot]:
+        """Open-book copy for reconcile. Does not call the ticker.
+
+        Mark is the entry price. Reconciliation compares symbol, side, and
+        quantity, and it must run while the book lock is held.
+        """
         snapshots = []
-        for position in self._positions.values():
-            mark = self.get_price(position.symbol) or position.entry_price
+        for symbol, side, quantity, entry, take_profit, stop_loss in self._copy_open_rows():
             snapshots.append(
                 PositionSnapshot(
-                    symbol=position.symbol,
-                    side=position.side,
-                    quantity=position.quantity,
-                    entry_price=position.entry_price,
+                    symbol=symbol,
+                    side=side,
+                    quantity=quantity,
+                    entry_price=entry,
+                    mark_price=entry,
+                    unrealised_pnl=0.0,
+                    take_profit=take_profit,
+                    stop_loss=stop_loss,
+                )
+            )
+        return snapshots
+
+    def get_positions(self) -> list[PositionSnapshot]:
+        """Open positions. The row list is a snapshot; marks are read after the lock."""
+        snapshots = []
+        for symbol, side, quantity, entry, take_profit, stop_loss in self._copy_open_rows():
+            mark = self.get_price(symbol, timeout=LOCKED_TICKER_TIMEOUT_SECONDS) or entry
+            direction = 1.0 if side == "LONG" else -1.0
+            snapshots.append(
+                PositionSnapshot(
+                    symbol=symbol,
+                    side=side,
+                    quantity=quantity,
+                    entry_price=entry,
                     mark_price=mark,
-                    unrealised_pnl=position.unrealised_pnl(mark),
-                    take_profit=position.take_profit,
-                    stop_loss=position.stop_loss,
+                    unrealised_pnl=(mark - entry) * quantity * direction,
+                    take_profit=take_profit,
+                    stop_loss=stop_loss,
                 )
             )
         return snapshots
 
     # -- market data -------------------------------------------------------
-    def get_price(self, symbol: str) -> float | None:
-        return self._data.latest_price(symbol)
+    def get_price(self, symbol: str, *, timeout: float | None = None) -> float | None:
+        """Last price. ``timeout`` is forwarded when the data source accepts it."""
+        latest = getattr(self._data, "latest_price", None)
+        if latest is None:
+            return None
+        if timeout is None:
+            return latest(symbol)
+        try:
+            return latest(symbol, timeout=timeout)
+        except TypeError:
+            return latest(symbol)
 
-    def get_instrument(self, symbol: str) -> Instrument:
+    def get_instrument(self, symbol: str, *, price: float | None = None) -> Instrument:
         """Instrument rules, inferred from price magnitude.
 
         The real broker queries the exchange. Here a reasonable approximation
@@ -289,7 +383,8 @@ class PaperBroker(Broker):
         if symbol in self._instruments:
             return self._instruments[symbol]
 
-        price = self.get_price(symbol) or 1.0
+        if price is None or not math.isfinite(price) or price <= 0:
+            price = self.get_price(symbol, timeout=LOCKED_TICKER_TIMEOUT_SECONDS) or 1.0
         if price >= 10_000:
             instrument = Instrument(symbol, tick_size=0.1, qty_step=0.001, min_qty=0.001)
         elif price >= 100:
@@ -338,12 +433,36 @@ class PaperBroker(Broker):
         Positive delta means cash increased (shorts receiving a positive rate).
         Uses ``CostModel.funding_cost`` so a closed paper trade matches a
         research run with the same model, window, notional and history.
-        Each non-zero step is appended to the F02 cash journal as ``funding``.
+
+        Each distinct funding target is its own journal row, keyed by the
+        position, its open time, and that target. An 8h interval is not one
+        row: a later target in the same interval is a new row for the unpaid
+        difference, including when the cumulative sum changes sign.
+
+        Plan and book share one hold of the book lock. ``_funding_cost`` is
+        pure arithmetic, so that hold does not wait on the network. The cash
+        move is ``target - funding_accrued`` whatever its sign. A second
+        accrual cannot book a stale plan in between, so the same step is not
+        debited twice. ``before_funding_book``, when a test sets it, runs
+        after the plan and before the cash write, while this lock is held.
+        Booking the same target again is a logged no-op.
         """
         now = now or self._now()
-        cash_delta = 0.0
-        for position in self._positions.values():
-            if position.observed_funding_only:
+        with self._book():
+            planned = self._plan_funding_steps(now)
+            pause = self.before_funding_book
+            if pause is not None and planned:
+                pause(planned)
+            booked = self._book_funding_steps(planned)
+        return booked
+
+    def _plan_funding_steps(self, now: datetime) -> list[tuple[str, float, float, str, str]]:
+        """Funding steps due now. Does not move cash. Caller holds the book lock."""
+        planned: list[tuple[str, float, float, str, str]] = []
+        interval_id = _funding_interval_id(now)
+        for symbol in list(self._positions):
+            position = self._positions.get(symbol)
+            if position is None or position.observed_funding_only:
                 # F111 supplies an observed cumulative cash target. Missing
                 # observations never fall back to an elapsed-time estimate.
                 continue
@@ -351,14 +470,48 @@ class PaperBroker(Broker):
             step = target - position.funding_accrued
             if abs(step) < 1e-12:
                 continue
+            event_id = (
+                f"funding:{symbol}:{position.opened_at.isoformat()}:"
+                f"{interval_id}:{target:.10f}"
+            )
+            planned.append((symbol, float(target), float(step), event_id, interval_id))
+        return planned
+
+    def _book_funding_steps(self, planned: list[tuple[str, float, float, str, str]]) -> float:
+        """Debit ``target - funding_accrued``, including a sign change.
+
+        Caller holds the book lock, and planned these rows in that same hold.
+        The stored step is not applied: accrued funding may already include
+        part of this target. A negative step credits cash (a short receiving
+        a positive rate, or a long after the cumulative rate flips sign).
+        A target already in the in-memory id set is a logged no-op: cash is
+        not debited and accrued funding is not changed.
+        """
+        cash_delta = 0.0
+        for symbol, target, _planned_step, event_id, interval_id in planned:
+            position = self._positions.get(symbol)
+            if position is None or position.observed_funding_only:
+                continue
+            step = float(target) - float(position.funding_accrued)
+            if abs(step) <= 1e-12:
+                continue
+            if event_id in self._applied_funding_ids:
+                logger.info(
+                    "Funding %s already booked; cash and accrued funding unchanged",
+                    event_id,
+                )
+                continue
+            self._applied_funding_ids.add(event_id)
             self._cash -= step
-            position.funding_accrued = target
+            position.funding_accrued = float(target)
             cash_delta -= step
             self._record_cash_event(
                 {
                     "kind": KIND_FUNDING,
                     "symbol": position.symbol,
                     "amount": step,
+                    "event_id": event_id,
+                    "interval": interval_id,
                     "cash_after": self._cash,
                     "funding_accrued": position.funding_accrued,
                 }
@@ -730,7 +883,7 @@ class PaperBroker(Broker):
         logger.info("PAPER STOPS %s TP=%s SL=%s", symbol, take_profit, stop_loss)
         return True
 
-    def close_position(self, symbol: str) -> OrderResult:
+    def close_position(self, symbol: str, *, quoted_price: float | None = None) -> OrderResult:
         """Close at market using the exact held quantity.
 
         ``place_market_order`` rounds every new request down to the step.
@@ -742,7 +895,7 @@ class PaperBroker(Broker):
         position = self._positions.get(symbol)
         if position is None:
             return OrderResult(success=False, symbol=symbol, error="no open position")
-        price = self.get_price(symbol)
+        price = self.get_price(symbol) if quoted_price is None else quoted_price
         if price is None:
             return OrderResult(
                 success=False,
@@ -801,7 +954,7 @@ class PaperBroker(Broker):
         triggered: list[tuple[str, str, OrderResult]] = []
 
         for symbol, position in list(self._positions.items()):
-            price = self.get_price(symbol)
+            price = self.get_price(symbol, timeout=LOCKED_TICKER_TIMEOUT_SECONDS)
             if price is None:
                 continue
 
@@ -837,21 +990,27 @@ class PaperBroker(Broker):
     def peek_exit_triggers(self) -> list[ExitTrigger]:
         """Report TP/SL hits without filling.
 
-        ``check_stops`` still fills for broker-only tests. The trading engine
-        peeks, then commits the cash event and the trade row together, and
-        only then calls ``apply_journal_close``.
+        The open-row copy is taken under the book lock. Each mark is read
+        after that lock, so a ticker cannot run while the dict is mutating
+        and an exit cannot block on this peek.
         """
+        with self._book():
+            rows = [
+                (symbol, position.side, position.stop_loss, position.take_profit)
+                for symbol, position in self._positions.items()
+            ]
         triggers: list[ExitTrigger] = []
-        for symbol, position in list(self._positions.items()):
-            price = self.get_price(symbol)
+        for symbol, side, stop_loss, take_profit in rows:
+            price = self.get_price(symbol, timeout=LOCKED_TICKER_TIMEOUT_SECONDS)
+            quoted_at = self._now()
             if price is None:
                 continue
-            if position.side == "LONG":
-                hit_stop = position.stop_loss is not None and price <= position.stop_loss
-                hit_target = position.take_profit is not None and price >= position.take_profit
+            if side == "LONG":
+                hit_stop = stop_loss is not None and price <= stop_loss
+                hit_target = take_profit is not None and price >= take_profit
             else:
-                hit_stop = position.stop_loss is not None and price >= position.stop_loss
-                hit_target = position.take_profit is not None and price <= position.take_profit
+                hit_stop = stop_loss is not None and price >= stop_loss
+                hit_target = take_profit is not None and price <= take_profit
             if hit_stop:
                 triggers.append(
                     ExitTrigger(
@@ -859,7 +1018,8 @@ class PaperBroker(Broker):
                         reason="stop_loss",
                         at_mark=True,
                         mark_price=price,
-                        expected_price=position.stop_loss or price,
+                        expected_price=stop_loss or price,
+                        quoted_at=quoted_at,
                     )
                 )
             elif hit_target:
@@ -869,7 +1029,8 @@ class PaperBroker(Broker):
                         reason="take_profit",
                         at_mark=False,
                         mark_price=price,
-                        expected_price=position.take_profit or price,
+                        expected_price=take_profit or price,
+                        quoted_at=quoted_at,
                     )
                 )
         return triggers
@@ -909,6 +1070,10 @@ class PaperBroker(Broker):
         self.total_fees = state.total_fees
         self.total_funding = state.total_funding
         self._open_funding = dict(state.open_funding)
+        for event in merged:
+            event_id = event.get("event_id")
+            if event.get("kind") == KIND_FUNDING and event_id:
+                self._applied_funding_ids.add(str(event_id))
         logger.warning(
             "Paper cash replayed from %s: cash=%.4f realised=%.4f "
             "fees=%.4f funding=%.4f contributed=%.4f (%d events)",

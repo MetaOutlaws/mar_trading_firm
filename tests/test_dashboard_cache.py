@@ -21,19 +21,20 @@ NOW = datetime(2026, 10, 16, 15, 30, tzinfo=timezone.utc)
 # Blobs of the trading path and the book. A desk patch that edits one of
 # these has changed more than the dashboard.
 _UNTOUCHED = {
-    # Includes feat #155-#158, the paper-only GBN hook, and manual close
-    # requests drained inside supervise_exits. Previous pin (pre-manual-close):
-    # 068566a1a3ce44ff0d2936d4654905f3bbfe8dc7.
-    "core/execution/engine.py": "78db5b26f3d3b365edfc20ffedc8f25857b965db",
-    "core/execution/paper.py": "c73ead0f9dc5a2373f17da76cb2b1c9d11804381",
-    # Includes #157 dust kwargs and the #158 near-miss hook. SGP1's pin
-    # was ab390d3f. The engine re-pin reaches this next.
-    "core/execution/f111_paper.py": "bdd8e9c8e326da58ce757155653040228bbf248c",
-    # GBN defers same-cycle paper-bar submits when ENTRY_ORDERING_GBN is on.
-    # Previous pin: 5374ab24628ef9e330dbf4b6f433461cc1f299e5.
-    "core/execution/paper_bar_eval.py": "994d64930cdf4fb786dcc78751be9a58500220dd",
-    # LOSS_STREAK_PROBATION stays default false. STRATEGY_LOSS_BLOCK is
-    # refused above 10. Previous pin (probation flags): 31e6a009207c733e85adb378e5297636a37a6469.
+    # Manual closes drain after the book lock. Previous pin:
+    # 96d213af8bd2fba886b6f72aa09342b23c8e28b3.
+    "core/execution/engine.py": "dd5492d0ae8ca6f629f690348a224169b2712103",
+    # The funding hook runs between plan and book while the lock is held.
+    # Previous pin: 66479045eda3fd04ebe1c9cad50d6ebfe996bdee.
+    "core/execution/paper.py": "821ec3eace98334565a11a7d5a8a22c447e97c68",
+    # Open-position marks are fetched only when a fill is scheduled. Previous pin:
+    # f820f0b81784c1cf4066481dd8e7a88505b31946.
+    "core/execution/f111_paper.py": "20445ce624844b87c0d880963c0f7fb024517762",
+    # GBN commit skips a bar that was already submitted. Previous pin:
+    # 90df0f765fc32c27866f250697361896b8fe19e6.
+    "core/execution/paper_bar_eval.py": "4462166658ad22b81c63bf07bddccb6a53575bcd",
+    # STRATEGY_LOSS_BLOCK is refused above 10. Previous pin:
+    # 31e6a009207c733e85adb378e5297636a37a6469.
     "config/settings.py": "556ea0784ce5c94c2bee16f19d9037593e36a569",
     # Feat book after #139. The repair-base pin 97d3f2ca is b00c4f73.
     "config/approved_strategies.json": "d33719d4c721c2ecfc5d90c5a079e9ce1c73c5aa",

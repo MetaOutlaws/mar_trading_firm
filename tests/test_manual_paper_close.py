@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -388,6 +389,11 @@ def test_manual_close_updates_the_loss_streak(engine: TradingEngine) -> None:
 
 
 def test_quote_is_outside_book_guard_and_settle_is_inside(engine: TradingEngine) -> None:
+    """The caller does not hold the lock across the quote or the funding read.
+
+    ``_settle_paper_exit`` is entered with the lock released, then takes it
+    for the ledger commit. One request closes each named position once.
+    """
     guard = RecordingGuard()
     engine.book_guard = guard
     _open(engine, "XRPUSDT", qty=10, quote=1.0)
@@ -397,16 +403,16 @@ def test_quote_is_outside_book_guard_and_settle_is_inside(engine: TradingEngine)
     original_price = engine.broker.get_price
     original_settle = engine._settle_paper_exit
 
-    def get_price(symbol: str) -> float | None:
+    def get_price(symbol: str, timeout: float | None = None) -> float | None:
+        del timeout
         if guard.depth:
             guard.quote_inside = True
         guard.events.append(("quote", guard.depth))
         return original_price(symbol)
 
     def settle(*args, **kwargs):
-        guard.settle_inside = guard.depth == 1
         guard.events.append(("settle", guard.depth))
-        assert guard.depth == 1
+        assert guard.depth == 0
         return original_settle(*args, **kwargs)
 
     engine.broker.get_price = get_price
@@ -419,12 +425,13 @@ def test_quote_is_outside_book_guard_and_settle_is_inside(engine: TradingEngine)
 
     assert engine.supervise_exits() == 2
     assert guard.quote_inside is False
-    assert guard.settle_inside is True
     quotes = [depth for kind, depth in guard.events if kind == "quote"]
     settles = [depth for kind, depth in guard.events if kind == "settle"]
     assert quotes
     assert all(depth == 0 for depth in quotes)
-    assert settles == [1, 1]
+    assert settles == [0, 0]
+    commits = [depth for kind, depth in guard.events if kind == "enter"]
+    assert len(commits) >= 2
     assert len(_trades(engine)) == 2
 
 
@@ -538,3 +545,51 @@ def test_non_paper_broker_does_not_read_the_directory(engine: TradingEngine) -> 
 
     assert path.is_file()
     assert not Path(str(path) + ".done").exists()
+
+
+def test_concurrent_drains_settle_once_and_done_has_no_error(
+    engine: TradingEngine, monkeypatch
+) -> None:
+    """The poll and the exit thread must not both record the same request.
+
+    One drain settles the position. The other finds the drain lock busy and
+    skips. The ``.done`` file has no error item.
+    """
+    import core.execution.paper_close_requests as requests
+
+    real_settle = requests._settle_target
+
+    def slow_settle(engine_, request_id, target):  # noqa: ANN001
+        time.sleep(0.05)
+        return real_settle(engine_, request_id, target)
+
+    monkeypatch.setattr(requests, "_settle_target", slow_settle)
+    _open(engine, "XRPUSDT", qty=10, quote=1.0)
+    engine.broker._data.prices["XRPUSDT"] = 1.2
+    path = _write(
+        engine, "race.json", {"request_id": "race", "symbols": ["XRPUSDT"]}
+    )
+    barrier = threading.Barrier(2)
+    results: list[int] = []
+    errors: list[BaseException] = []
+
+    def drain() -> None:
+        try:
+            barrier.wait(timeout=5)
+            results.append(engine._drain_manual_close_requests())
+        except Exception as exc:
+            errors.append(exc)
+
+    workers = [threading.Thread(target=drain), threading.Thread(target=drain)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=10)
+        assert not worker.is_alive()
+
+    assert errors == []
+    assert sorted(results) == [0, 1]
+    done = _read(Path(str(path) + ".done"))
+    assert [item["status"] for item in done["items"]] == ["closed"]
+    assert all("error" not in item for item in done["items"])
+    assert len(_trades(engine)) == 1

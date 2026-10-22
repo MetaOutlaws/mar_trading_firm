@@ -220,6 +220,8 @@ class BarEvalState:
         self._broken = False
         self._waiting_logged: set[str] = set()
         self._sitout_logged: set[str] = set()
+        #: In-memory only. A restart drops a batch that was not submitted.
+        self.gbn_hold: _GbnHold | None = None
 
     def load(self) -> None:
         if self._loaded:
@@ -547,7 +549,9 @@ def commit_deferred_paper_entry(
     """Risk-check one signal that GBN held back, then mark the bar.
 
     Same duplicate gate and ``_attempt_entry`` as ``_evaluate_published``.
-    The cursor is written only after that attempt, except when the book
+    A bar already marked seen is not submitted again, including after a
+    reject or an exit, where the open-position guard would otherwise pass.
+    The cursor is written at submit, before the order, except when the book
     cannot be read: that bar stays unmarked so the next poll can retry.
     """
     if bar_open is None:
@@ -556,6 +560,17 @@ def commit_deferred_paper_entry(
             signal=signal,
             price=price,
             error=f"{entry.key}: deferred bar has no open time",
+        )
+    state = _state(engine)
+    if state.seen(sleeve_key(entry), bar_open):
+        return PaperBarOutcome(
+            handled=True,
+            signal=signal,
+            price=price,
+            ordered=False,
+            evaluated=True,
+            bar_open=bar_open,
+            reason="already submitted",
         )
     block = duplicate_order_block(engine, entry)
     if block.uncertain:
@@ -571,6 +586,12 @@ def commit_deferred_paper_entry(
         reason = block.reason
         rejection = block.reason
     else:
+        state.mark(
+            sleeve_key(entry),
+            bar_open,
+            signal=signal.side.value,
+            reason=signal.reason or reason or "submit",
+        )
         decision = engine._attempt_entry(signal, equity, marks)
         if decision.is_approved:
             ordered = True
@@ -629,6 +650,11 @@ def cycle_paper_bar(
     # still load candles and no-op; that is a second look at a bar the poll
     # already finished.
     if state.seen(sleeve_key(entry), expected):
+        return PaperBarOutcome(handled=True)
+    # A sleeve the GBN poll is still holding must not be submitted here.
+    # The poll marks it seen only when the batch is actually sent.
+    hold = state.gbn_hold
+    if hold is not None and sleeve_key(entry) in hold.visited:
         return PaperBarOutcome(handled=True)
     if not bar_is_actionable(now, entry.timeframe, expected):
         return PaperBarOutcome(handled=False)
@@ -781,6 +807,27 @@ def _poll_due_sleeves(
     return evaluated
 
 
+class _GbnHold:
+    """Candidates gathered across polls for one bar. Not written to disk."""
+
+    def __init__(self) -> None:
+        self.pending: list[tuple[int, Any, PaperBarOutcome]] = []
+        self.visited: set[str] = set()
+        #: Normalised timeframe -> bar-open ISO this batch is for.
+        self.anchors: dict[str, str] = {}
+
+
+def _gbn_hold_rolled(hold: _GbnHold, now: datetime) -> bool:
+    """True when any anchored bar is no longer the actionable closed bar."""
+    for timeframe, anchored in hold.anchors.items():
+        current = last_closed_bar_open(now, timeframe)
+        if _as_utc(current).isoformat() != anchored:
+            return True
+        if not bar_is_actionable(now, timeframe, current):
+            return True
+    return False
+
+
 def _poll_due_sleeves_gbn(
     engine: Any,
     *,
@@ -792,12 +839,13 @@ def _poll_due_sleeves_gbn(
     marks: dict[str, float],
     notes: list[dict[str, Any]],
 ) -> int:
-    """Same due-sleeve walk as the poll, then one GBN submit of the whole set.
+    """Walk due sleeves until the budget, then submit the batch once.
 
-    The 8s budget is not allowed to split the candidate set: a later poll
-    would already see the first poll's fills and could not neutralise across
-    the batch. Flag off does not use this function. ``deadline`` is only a
-    log threshold.
+    The walk stops at ``deadline`` and keeps what it gathered. The next poll
+    resumes. Nothing is sent to the risk engine until every sleeve that is
+    due for this bar has been visited, so the batch is never split. If the
+    bar rolls over first, the hold is discarded and logged. Flag off does
+    not use this function.
     """
     from core.execution.entry_ordering import (
         DAILY_LOOKBACK_BARS,
@@ -810,27 +858,62 @@ def _poll_due_sleeves_gbn(
         load_betas,
     )
 
-    started = clock()
+    now = _clock()
+    hold = state.gbn_hold
+    if hold is not None and _gbn_hold_rolled(hold, now):
+        logger.info(
+            "GBN poll discarded held batch after the bar rolled: anchors=%s",
+            dict(hold.anchors),
+        )
+        hold = None
+    if hold is None:
+        hold = _GbnHold()
+    state.gbn_hold = hold
+
     evaluated = 0
     refreshed = False
-    pending: list[tuple[int, Any, PaperBarOutcome]] = []
+    incomplete = False
     for plan_index, entry in enumerate(list(engine.plan.entries)):
+        if clock() >= deadline:
+            incomplete = True
+            logger.info(
+                "GBN poll budget %.1fs exhausted with %d candidate(s) held; "
+                "the batch is not submitted until the due set is complete",
+                budget_seconds,
+                len(hold.pending),
+            )
+            break
         if not is_known_timeframe(entry.timeframe):
+            continue
+        key = sleeve_key(entry)
+        if key in hold.visited:
             continue
         now = _clock()
         expected = last_closed_bar_open(now, entry.timeframe)
+        timeframe = normalise_timeframe(entry.timeframe)
+        anchored = hold.anchors.get(timeframe)
+        if anchored is not None and anchored != _as_utc(expected).isoformat():
+            logger.info(
+                "GBN poll discarded held batch after the bar rolled: "
+                "timeframe=%s held=%s now=%s",
+                timeframe,
+                anchored,
+                _as_utc(expected).isoformat(),
+            )
+            state.gbn_hold = None
+            return evaluated
         if not bar_is_actionable(now, entry.timeframe, expected):
             continue
-        if state.seen(sleeve_key(entry), expected):
+        if state.seen(key, expected):
             continue
         sitout = _engine_mod().paper_regime_sitout_reason(entry)
         if sitout:
-            token = f"{sleeve_key(entry)}|{expected.isoformat()}"
+            token = f"{key}|{expected.isoformat()}"
             if token not in state._sitout_logged:
                 state._sitout_logged.add(token)
                 logger.info(
                     "paper bar eval sleeve=%s bar=%s signal=none reason=%s source=poll",
-                    sleeve_key(entry),
+                    key,
                     expected.isoformat(),
                     sitout,
                 )
@@ -841,6 +924,15 @@ def _poll_due_sleeves_gbn(
         if not refreshed:
             engine._refresh_crowding()
             refreshed = True
+            if clock() >= deadline:
+                incomplete = True
+                logger.info(
+                    "GBN poll budget %.1fs exhausted with %d candidate(s) held; "
+                    "the batch is not submitted until the due set is complete",
+                    budget_seconds,
+                    len(hold.pending),
+                )
+                break
         outcome = _evaluate_published(
             engine,
             entry,
@@ -851,9 +943,13 @@ def _poll_due_sleeves_gbn(
             defer_submit=True,
         )
         if outcome.deferred and outcome.signal is not None:
-            pending.append((plan_index, entry, outcome))
+            hold.anchors.setdefault(timeframe, _as_utc(expected).isoformat())
+            hold.visited.add(key)
+            hold.pending.append((plan_index, entry, outcome))
             continue
         if outcome.evaluated:
+            hold.anchors.setdefault(timeframe, _as_utc(expected).isoformat())
+            hold.visited.add(key)
             evaluated += 1
             _remember_book_note(
                 notes,
@@ -865,6 +961,11 @@ def _poll_due_sleeves_gbn(
                 filled=outcome.filled,
             )
 
+    if incomplete:
+        return evaluated
+
+    pending = hold.pending
+    state.gbn_hold = None
     if pending:
         evaluated = _submit_poll_gbn(
             engine,
@@ -881,16 +982,6 @@ def _poll_due_sleeves_gbn(
             cycle_day_utc=cycle_day_utc,
             daily_bars=DAILY_LOOKBACK_BARS,
             evaluated=evaluated,
-        )
-
-    elapsed = clock() - started
-    if elapsed > float(budget_seconds):
-        logger.info(
-            "GBN poll scanned the full due set in %.1fs (budget %.1fs, deadline %.1f). "
-            "The budget does not split a GBN candidate set.",
-            elapsed,
-            budget_seconds,
-            deadline,
         )
     return evaluated
 
@@ -931,8 +1022,9 @@ def _submit_poll_gbn(
     def book() -> list[Any]:
         return legs_from_portfolio(engine.ledger.portfolio_state(equity, marks))
 
-    def fetch_daily(symbol: str) -> Any:
-        return engine._data.fetch_latest(symbol, "1d", bars=daily_bars)
+    from core.execution.entry_ordering import budgeted_daily_fetch
+
+    fetch_daily = budgeted_daily_fetch(engine._data, daily_bars)
 
     day = cycle_day_utc(_clock())
     symbols = {item.symbol for item in candidates}

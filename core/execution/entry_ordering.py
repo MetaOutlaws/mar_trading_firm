@@ -56,6 +56,7 @@ from __future__ import annotations
 import logging
 import math
 import threading
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -80,6 +81,16 @@ MAX_DAILY_RETURNS = 30
 #: Latest daily bars requested from the feed the paper engine already has.
 #: One forming day plus 31 history, with room for gaps.
 DAILY_LOOKBACK_BARS = 45
+
+#: Wall clock for every 1d beta fetch in one cycle or poll. Past this, the
+#: remaining names fail and the cycle stays in plan order. Not used on the
+#: exit path.
+BETA_FETCH_BUDGET_SECONDS = 5.0
+
+#: One Bybit read. Two tries, no exponential backoff. A single try cannot
+#: hold the old 20s client timeout.
+BETA_FETCH_TIMEOUT_SECONDS = 1.0
+BETA_FETCH_ATTEMPTS = 2
 
 _warned_non_paper = False
 
@@ -330,6 +341,43 @@ def ols_beta_to_btc(
     if not math.isfinite(beta):
         return None, "non-finite beta"
     return beta, ""
+
+
+def budgeted_daily_fetch(
+    data: Any,
+    bars: int,
+    *,
+    budget: float = BETA_FETCH_BUDGET_SECONDS,
+    monotonic: Callable[[], float] | None = None,
+) -> Callable[[str], Any]:
+    """Fetch daily bars until ``budget`` seconds have passed.
+
+    A name that would start after the budget raises ``TimeoutError`` and is
+    not fetched. ``BybitOHLCV.fetch_beta_daily`` uses a short timeout and two
+    tries. A test double without that method is called at most once per name,
+    and only while the budget remains. This is not used by ``supervise_exits``.
+    """
+    clock = monotonic or time.monotonic
+    deadline = clock() + float(budget)
+
+    def fetch(symbol: str) -> Any:
+        if clock() >= deadline:
+            raise TimeoutError(
+                f"beta fetch budget {float(budget):.1f}s exhausted before {symbol}"
+            )
+        beta = getattr(data, "fetch_beta_daily", None)
+        if beta is not None:
+            return beta(
+                symbol,
+                bars,
+                timeout=BETA_FETCH_TIMEOUT_SECONDS,
+                attempts=BETA_FETCH_ATTEMPTS,
+                deadline=deadline,
+                monotonic=clock,
+            )
+        return data.fetch_latest(symbol, "1d", bars=bars)
+
+    return fetch
 
 
 def load_betas(

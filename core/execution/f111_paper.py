@@ -20,6 +20,7 @@ import logging
 import math
 import os
 import uuid
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -57,6 +58,35 @@ from core.strategy.f111_semantics import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _hold_book(runtime: Any):
+    """The engine book lock, or a no-op when this runtime has no engine.
+
+    Held for the fill and the protection update. Funding pages and the
+    ticker are fetched before this lock. A quote older than the book-lock
+    freshness window is read again under the lock with a timeout of at most
+    2 seconds.
+    """
+    guard = getattr(getattr(runtime, "engine", None), "book_guard", None)
+    if guard is None:
+        return nullcontext()
+    return guard
+
+
+def _locked_ticker(broker: Any, symbol: str) -> float | None:
+    """One ticker under the book lock. Timeout is 2 seconds when the source allows it."""
+    from core.execution.book_guard import LOCKED_TICKER_TIMEOUT_SECONDS
+
+    if broker is None:
+        return None
+    get_price = getattr(broker, "get_price", None)
+    if not callable(get_price):
+        return None
+    try:
+        return get_price(symbol, timeout=LOCKED_TICKER_TIMEOUT_SECONDS)
+    except TypeError:
+        return get_price(symbol)
 
 # A registry census row is not an hourly signal, so it has no source_signal_id.
 # gate=False still needs a string. None used to be logged as False because the
@@ -654,6 +684,48 @@ class F111Runtime:
         row["pending_expiry"] = pending["expiry"]
         return [self._emit(row)]
 
+    def _equity_for_fill(
+        self,
+        marks: dict[str, float] | None,
+        marks_at: datetime | None,
+    ) -> float:
+        """Equity for sizing. Fresh cached marks do not call the ticker.
+
+        ``_try_fill`` runs under the book lock. A balance read that priced
+        every open position there held the lock for about two seconds per
+        ticker. Marks are fetched before the lock. Under the lock a quote
+        older than five seconds is refreshed once, with a two-second cap.
+        A missing mark cache falls back to ``get_balance``, which prices
+        after its own lock and is only used when this fill is not already
+        inside the book lock.
+        """
+        broker = self.broker
+        if broker is None:
+            return 0.0
+        if marks is None or marks_at is None:
+            return float(broker.get_balance())
+        from core.execution.book_guard import QUOTE_MAX_AGE
+
+        now = _as_utc(self.clock())
+        fresh = now - _as_utc(marks_at) <= QUOTE_MAX_AGE
+        cash = float(getattr(broker, "_cash", 0.0))
+        unrealised = 0.0
+        positions = getattr(broker, "_positions", {})
+        for symbol, position in list(positions.items()):
+            mark = marks.get(symbol) if fresh else None
+            if mark is None or not _finite_price(mark):
+                refreshed = _locked_ticker(broker, symbol)
+                if not _finite_price(refreshed):
+                    continue
+                mark = float(refreshed)
+            direction = 1.0 if getattr(position, "side", "LONG") == "LONG" else -1.0
+            unrealised += (
+                (float(mark) - float(position.entry_price))
+                * float(position.quantity)
+                * direction
+            )
+        return cash + unrealised
+
     def _try_fill(
         self,
         pending: dict[str, Any],
@@ -662,6 +734,8 @@ class F111Runtime:
         observed: datetime,
         funding_fraction: float | None,
         funding_source: str | None,
+        marks: dict[str, float] | None = None,
+        marks_at: datetime | None = None,
     ) -> dict[str, Any]:
         action = _parse_time(pending["action_time"])
         assert action is not None
@@ -724,7 +798,7 @@ class F111Runtime:
             score=1.0,
             sector=pending.get("sector") or _sector(symbol),
         )
-        equity = float(self.broker.get_balance())
+        equity = self._equity_for_fill(marks, marks_at)
         state = self._portfolio(equity, {symbol: float(quote)})
         decision = self.risk.evaluate(intent, state)
         multiplier = getattr(self.engine, "agent_size_multipliers", {}) if self.engine is not None else {}
@@ -771,7 +845,7 @@ class F111Runtime:
         )
         stops_ok = self.broker.set_stops(symbol, brackets["target"], brackets["initial_stop"])
         if not stops_ok:
-            self.broker.close_position(symbol)
+            self.broker.close_position(symbol, quoted_price=quote)
             return self._reject_pending(pending, "stops_failed", observed=observed, action=action, risk=True)
         position_id = None
         if self.ledger is not None:
@@ -1451,12 +1525,42 @@ class F111Runtime:
         _publish_hourly_summary(self, self.events[start:], now)
 
     def _consume_minutes(self, symbol: str, frame: Any, now: datetime) -> None:
-        """Confirm closed candles once; execute only at a current quote.
+        """Replay closed candles, then fetch funding and the quote, then lock.
 
-        OHLC confirms a retest. It is never an executable exit price. Protection
-        samples once per current minute; effective stops retain the hot poll.
+        ``_funding_for_open`` and ``get_price`` run before ``book_guard``.
+        The lock covers protection and fills. Every open position is marked
+        only when a fill is scheduled, because that equity read is the one
+        that would otherwise ticker under the lock. The quote timestamp is
+        checked again under the lock; a refresh there uses a timeout of at
+        most 2s.
         """
         now = _as_utc(now)
+        needs_protection, scheduled = self._replay_closed_minutes(symbol, frame, now)
+        if not needs_protection and not scheduled:
+            return
+        fraction, source = (None, None)
+        if needs_protection:
+            fraction, source = _funding_for_open(self, symbol, now)
+        marks: dict[str, float] = {}
+        if scheduled and self.broker is not None:
+            for open_symbol in list(getattr(self.broker, "_positions", {})):
+                price = self.broker.get_price(open_symbol)
+                if _finite_price(price):
+                    marks[open_symbol] = float(price)
+        quote = marks.get(symbol)
+        if quote is None and self.broker is not None:
+            price = self.broker.get_price(symbol)
+            quote = float(price) if _finite_price(price) else None
+        quoted_at = _as_utc(self.clock())
+        with _hold_book(self):
+            self._apply_minute_book(
+                symbol, now, fraction, source, quote, quoted_at, marks, quoted_at
+            )
+
+    def _replay_closed_minutes(
+        self, symbol: str, frame: Any, now: datetime
+    ) -> tuple[bool, list]:
+        """Candle walk. No ticker and no funding request."""
         closed = []
         if frame is not None and len(frame):
             for stamp, bar in frame.sort_index().iterrows():
@@ -1488,22 +1592,58 @@ class F111Runtime:
                      and _parse_time(p["action_time"]) <= now]
         if not needs_protection and not scheduled:
             self.persist()
+        return needs_protection, scheduled
+
+    def _apply_minute_book(
+        self,
+        symbol: str,
+        now: datetime,
+        fraction: float | None,
+        source: str | None,
+        quote: float | None,
+        quoted_at: datetime,
+        marks: dict[str, float] | None = None,
+        marks_at: datetime | None = None,
+    ) -> None:
+        """Protection and fills. Caller holds the book lock."""
+        from core.execution.book_guard import QUOTE_MAX_AGE
+
+        state = self.protection.get(symbol)
+        if state is not None and not self._position_still_open(symbol):
+            self.protection.pop(symbol, None)
+            self.last_exit.setdefault(symbol, _iso(now) or "")
+            state = None
+        bucket = now.replace(second=0, microsecond=0)
+        previous = _parse_time(state.get("last_protection_minute")) if state else None
+        needs_protection = state is not None and (previous is None or bucket > previous)
+        scheduled = [p for p in self.pending if p["symbol"] == symbol and p["status"] == "scheduled"
+                     and _parse_time(p["action_time"]) <= now]
+        if not needs_protection and not scheduled:
+            self.persist()
             return
-        fraction, source = (None, None)
-        if needs_protection:
-            fraction, source = _funding_for_open(self, symbol, now)
-        # Obtain the quote AFTER any funding/candle request. Recheck the clock
-        # so a slow fetch cannot disguise a missed action or reuse an old open.
-        quote = self.broker.get_price(symbol) if self.broker is not None else None
-        observed = max(now, _as_utc(self.clock()))
+        # The quote was taken before the lock. If it aged out while we waited,
+        # one short ticker runs here. The action-window check still uses the
+        # clock after that read, so a slow fetch cannot reuse an old open.
+        observed_now = _as_utc(self.clock())
+        if quote is None or observed_now - _as_utc(quoted_at) > QUOTE_MAX_AGE:
+            quote = _locked_ticker(self.broker, symbol)
+            quoted_at = _as_utc(self.clock())
+        observed = max(now, quoted_at, _as_utc(self.clock()))
         sample = observed.replace(second=0, microsecond=0)
         if needs_protection:
             self._advance_protection(symbol, sample, quote, observed, observed,
                                      fraction, source, now)
         for pending in scheduled:
             if pending["status"] == "scheduled":
-                self._try_fill(pending, quote, observed, observed, 0., "entry has no accrued funding")
+                self._try_fill(
+                    pending, quote, observed, observed, 0., "entry has no accrued funding",
+                    marks, marks_at,
+                )
         self.persist()
+
+    def _consume_minutes_work(self, symbol: str, frame: Any, now: datetime) -> None:
+        """Same as ``_consume_minutes``. Kept so older callers stay on the safe path."""
+        self._consume_minutes(symbol, frame, now)
 
     def _emit_data_gap(self, symbol: str, reason: str, side: str | None = None) -> None:
         sides = [side] if side else list(self.config["sides"])

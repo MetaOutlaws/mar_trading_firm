@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -190,9 +191,22 @@ class BybitOHLCV:
 
     # -- low level ----------------------------------------------------------
     def _request_page(
-        self, symbol: str, interval: str, start_ms: int, end_ms: int
+        self,
+        symbol: str,
+        interval: str,
+        start_ms: int,
+        end_ms: int,
+        *,
+        attempts: int = 4,
+        timeout: float | None = None,
+        backoff: bool = True,
     ) -> list[list[str]]:
-        """Fetch one page of klines, retrying transient failures."""
+        """Fetch one page of klines, retrying transient failures.
+
+        The defaults are the historical client: four tries, the client's own
+        timeout, and exponential sleeps. Beta reads pass a short timeout,
+        two tries, and no sleep so a 1d pull cannot stall exits for minutes.
+        """
         params = {
             "category": self.category,
             "symbol": symbol,
@@ -203,9 +217,12 @@ class BybitOHLCV:
         }
 
         last_error: Exception | None = None
-        for attempt in range(4):
+        for attempt in range(attempts):
             try:
-                response = self._client.get(f"{self.base_url}/v5/market/kline", params=params)
+                request = {"params": params}
+                if timeout is not None:
+                    request["timeout"] = timeout
+                response = self._client.get(f"{self.base_url}/v5/market/kline", **request)
                 response.raise_for_status()
                 payload = response.json()
 
@@ -223,14 +240,64 @@ class BybitOHLCV:
                 raise
             except Exception as exc:
                 last_error = exc
-                backoff = 2**attempt
+                if not backoff:
+                    logger.debug(
+                        "kline fetch failed (%s attempt %d): %s",
+                        symbol, attempt + 1, exc,
+                    )
+                    continue
+                delay = 2**attempt
                 logger.debug(
                     "kline fetch failed (%s attempt %d): %s - retrying in %ds",
-                    symbol, attempt + 1, exc, backoff,
+                    symbol, attempt + 1, exc, delay,
                 )
-                time.sleep(backoff)
+                time.sleep(delay)
 
         raise RuntimeError(f"Failed to fetch klines for {symbol}: {last_error}")
+
+    def fetch_beta_daily(
+        self,
+        symbol: str,
+        bars: int = 45,
+        *,
+        timeout: float = 1.0,
+        attempts: int = 2,
+        deadline: float | None = None,
+        monotonic: Callable[[], float] | None = None,
+    ) -> pd.DataFrame:
+        """One short daily read for GBN betas. Not used by exit supervision.
+
+        Stops before starting a try that would begin after ``deadline``.
+        Each try uses ``timeout`` seconds and there is no backoff sleep.
+        """
+        clock = monotonic or time.monotonic
+        if deadline is not None and clock() >= deadline:
+            raise TimeoutError(f"beta fetch budget exhausted before {symbol}")
+        timeframe = normalise_timeframe("1d")
+        interval = INTERVAL_CODES[timeframe]
+        step = TIMEFRAME_DELTAS[timeframe]
+        end = datetime.now(timezone.utc)
+        start = end - step * (int(bars) + 5)
+        last_error: Exception | None = None
+        for _attempt in range(max(1, int(attempts))):
+            if deadline is not None and clock() >= deadline:
+                raise TimeoutError(f"beta fetch budget exhausted before {symbol}")
+            try:
+                page = self._request_page(
+                    symbol,
+                    interval,
+                    int(start.timestamp() * 1000),
+                    int(end.timestamp() * 1000),
+                    attempts=1,
+                    timeout=float(timeout),
+                    backoff=False,
+                )
+                return _rows_to_frame(page).tail(bars)
+            except ValueError:
+                raise
+            except Exception as exc:
+                last_error = exc
+        raise TimeoutError(f"beta daily fetch failed for {symbol}: {last_error}")
 
     # -- public -------------------------------------------------------------
     def fetch(
@@ -320,12 +387,21 @@ class BybitOHLCV:
         frame = self.fetch(symbol, timeframe, start, end, use_cache=False)
         return frame.tail(bars)
 
-    def latest_price(self, symbol: str) -> float | None:
-        """Last traded price from the public ticker endpoint."""
+    def latest_price(self, symbol: str, *, timeout: float | None = None) -> float | None:
+        """Last traded price from the public ticker endpoint.
+
+        ``timeout`` overrides the client timeout for this call. Callers that
+        still hold the book lock pass 2 seconds or less.
+        """
         try:
+            request: dict[str, object] = {
+                "params": {"category": self.category, "symbol": symbol},
+            }
+            if timeout is not None:
+                request["timeout"] = timeout
             response = self._client.get(
                 f"{self.base_url}/v5/market/tickers",
-                params={"category": self.category, "symbol": symbol},
+                **request,
             )
             response.raise_for_status()
             payload = response.json()

@@ -27,6 +27,7 @@ from core.execution.entry_ordering import (
     GbnCandidate,
     SubmitResult,
     book_beta_usdt,
+    budgeted_daily_fetch,
     clear_daily_beta_cache,
     entry_ordering_gbn_enabled,
     execute_entry_ordering,
@@ -39,6 +40,11 @@ from core.risk.killswitch import KillSwitch
 from core.risk.limits import PAPER_LIMITS, RiskLimits
 from core.strategy.base import SignalSide
 from firm.paper_universe_sleeves import RISK_LIMITS_PATH
+from core.execution.paper_bar_eval import (
+    commit_deferred_paper_entry,
+    cycle_paper_bar,
+    sleeve_key,
+)
 from tests.test_paper_bar_eval import AlwaysLong, Clock, _at, _engine, _entry, poll_paper_book
 from tests.test_paper_universe_sleeves import RISK_LIMITS_SHA256
 
@@ -952,3 +958,259 @@ def test_engine_flag_on_falls_back_to_plan_order_when_beta_cannot_be_computed(
         assert "variance" in caplog.text
     finally:
         get_settings.cache_clear()
+
+
+def test_gbn_poll_submits_the_batch_once_when_the_due_set_is_complete(
+    tmp_path, monkeypatch, firm_db
+) -> None:
+    """A slow walk holds candidates. The next poll finishes the set and sends it once, in GBN order."""
+    _arm(monkeypatch, "true")
+    clock = Clock(_at(12, 5))
+    engine = _engine(tmp_path, monkeypatch, clock, _two_sleeves())
+    engine.risk.limits = _limits(0.80)
+    engine.broker._data.prices.update({"ETHUSDT": 100_000.0, "SOLUSDT": 100_000.0})
+    engine._data = BetaFeed(clock, {"BTCUSDT": 1.0, "ETHUSDT": 2.0, "SOLUSDT": 0.25})
+    seen = _record(engine)
+
+    class Mono:
+        def __init__(self) -> None:
+            self.t = 0.0
+
+        def __call__(self) -> float:
+            return self.t
+
+    mono = Mono()
+    real = engine._data.fetch_latest
+
+    def slow(symbol: str, timeframe: str, bars: int = 300) -> pd.DataFrame:
+        if timeframe != "1d":
+            mono.t += 5.0
+        return real(symbol, timeframe, bars)
+
+    engine._data.fetch_latest = slow  # type: ignore[method-assign]
+    try:
+        assert poll_paper_book(engine, budget_seconds=4, monotonic=mono) == 0
+        assert seen == []
+        assert engine.ledger.open_positions() == []
+        assert poll_paper_book(engine, budget_seconds=4, monotonic=mono) == 2
+        assert seen == ["SOLUSDT", "ETHUSDT"]
+        assert [row.symbol for row in engine.ledger.open_positions()] == [
+            "SOLUSDT",
+            "ETHUSDT",
+        ]
+    finally:
+        get_settings.cache_clear()
+
+
+def test_gbn_poll_discards_a_held_batch_when_the_bar_rolls(
+    tmp_path, monkeypatch, firm_db, caplog
+) -> None:
+    _arm(monkeypatch, "true")
+    clock = Clock(_at(12, 5))
+    engine = _engine(tmp_path, monkeypatch, clock, _two_sleeves())
+    engine.risk.limits = _limits(0.80)
+    engine.broker._data.prices.update({"ETHUSDT": 100_000.0, "SOLUSDT": 100_000.0})
+    engine._data = BetaFeed(clock, {"BTCUSDT": 1.0, "ETHUSDT": 2.0, "SOLUSDT": 0.25})
+    seen = _record(engine)
+
+    class Mono:
+        def __init__(self) -> None:
+            self.t = 0.0
+
+        def __call__(self) -> float:
+            return self.t
+
+    mono = Mono()
+    real = engine._data.fetch_latest
+
+    def slow(symbol: str, timeframe: str, bars: int = 300) -> pd.DataFrame:
+        if timeframe != "1d":
+            mono.t += 5.0
+        return real(symbol, timeframe, bars)
+
+    engine._data.fetch_latest = slow  # type: ignore[method-assign]
+    caplog.set_level(logging.INFO, logger="core.execution.paper_bar_eval")
+    try:
+        assert poll_paper_book(engine, budget_seconds=4, monotonic=mono) == 0
+        assert seen == []
+        clock.when = _at(13, 5)
+        assert poll_paper_book(engine, budget_seconds=4, monotonic=mono) == 0
+        assert seen == []
+        assert engine.ledger.open_positions() == []
+        assert "discarded held batch" in caplog.text
+    finally:
+        get_settings.cache_clear()
+
+
+def _hold_one_sleeve(engine, monkeypatch):
+    """Stop the GBN poll after the first due sleeve is held, before any submit."""
+
+    class Mono:
+        def __init__(self) -> None:
+            self.t = 0.0
+
+        def __call__(self) -> float:
+            return self.t
+
+    mono = Mono()
+    real = engine._data.fetch_latest
+
+    def slow(symbol: str, timeframe: str, bars: int = 300) -> pd.DataFrame:
+        if timeframe != "1d":
+            mono.t += 5.0
+        return real(symbol, timeframe, bars)
+
+    engine._data.fetch_latest = slow  # type: ignore[method-assign]
+    assert poll_paper_book(engine, budget_seconds=4, monotonic=mono) == 0
+    hold = engine._paper_bar_state.gbn_hold
+    assert hold is not None and hold.pending and hold.visited
+    return hold
+
+
+def test_gbn_cycle_does_not_submit_a_sleeve_the_poll_is_holding(
+    tmp_path, monkeypatch, firm_db
+) -> None:
+    """The cycle skips sleeves in gbn_hold.visited. The poll still submits once."""
+    _arm(monkeypatch, "true")
+    clock = Clock(_at(12, 5))
+    engine = _engine(tmp_path, monkeypatch, clock, _two_sleeves())
+    engine.risk.limits = _limits(0.80)
+    engine.broker._data.prices.update({"ETHUSDT": 100_000.0, "SOLUSDT": 100_000.0})
+    engine._data = BetaFeed(clock, {"BTCUSDT": 1.0, "ETHUSDT": 2.0, "SOLUSDT": 0.25})
+    try:
+        hold = _hold_one_sleeve(engine, monkeypatch)
+        saved = [
+            (entry, outcome.signal, outcome.price, outcome.bar_open)
+            for _index, entry, outcome in hold.pending
+        ]
+        for entry in engine.plan.entries:
+            if sleeve_key(entry) not in hold.visited:
+                continue
+            outcome = cycle_paper_bar(engine, entry, equity=EQUITY, marks={})
+            assert outcome.handled is True
+            assert outcome.ordered is False
+        assert engine.ledger.open_positions() == []
+        # Resume. The held sleeve is still unseen, so the batch submits once.
+        engine._data.fetch_latest = engine._data.fetch_latest  # keep the slow walk
+        assert poll_paper_book(engine, budget_seconds=30, monotonic=lambda: 0.0) == 2
+        assert [row.symbol for row in engine.ledger.open_positions()] == [
+            "SOLUSDT",
+            "ETHUSDT",
+        ]
+        entry, signal, price, bar_open = saved[0]
+        again = commit_deferred_paper_entry(
+            engine,
+            entry,
+            signal,
+            equity=EQUITY,
+            marks={},
+            source="poll",
+            price=price,
+            bar_open=bar_open,
+        )
+        assert again.ordered is False
+        assert again.reason == "already submitted"
+        assert len(engine.ledger.open_positions()) == 2
+    finally:
+        get_settings.cache_clear()
+
+
+def test_gbn_commit_does_not_resubmit_after_a_reject_or_an_exit(
+    tmp_path, monkeypatch, firm_db
+) -> None:
+    """duplicate_order_block passes after a reject or an exit. seen does not."""
+    _arm(monkeypatch, "true")
+    clock = Clock(_at(12, 5))
+    engine = _engine(tmp_path, monkeypatch, clock, _two_sleeves())
+    engine.risk.limits = _limits(0.80)
+    engine.broker._data.prices.update({"ETHUSDT": 100_000.0, "SOLUSDT": 100_000.0})
+    engine._data = BetaFeed(clock, {"BTCUSDT": 1.0, "ETHUSDT": 2.0, "SOLUSDT": 0.25})
+    attempts: list[str] = []
+    real = engine._attempt_entry
+
+    def counted(signal, equity, marks):  # noqa: ANN001
+        attempts.append(signal.symbol)
+        return real(signal, equity, marks)
+
+    engine._attempt_entry = counted  # type: ignore[method-assign]
+    try:
+        hold = _hold_one_sleeve(engine, monkeypatch)
+        _index, entry, outcome = hold.pending[0]
+        engine.risk.limits = _limits(0.80, max_concurrent_positions=0)
+        rejected = commit_deferred_paper_entry(
+            engine,
+            entry,
+            outcome.signal,
+            equity=EQUITY,
+            marks={},
+            source="poll",
+            price=outcome.price,
+            bar_open=outcome.bar_open,
+        )
+        assert rejected.ordered is False
+        assert engine.ledger.open_positions() == []
+        engine.risk.limits = _limits(0.80)
+        retried = commit_deferred_paper_entry(
+            engine,
+            entry,
+            outcome.signal,
+            equity=EQUITY,
+            marks={},
+            source="poll",
+            price=outcome.price,
+            bar_open=outcome.bar_open,
+        )
+        assert retried.ordered is False
+        assert retried.reason == "already submitted"
+        assert attempts == [entry.symbol]
+
+        # A fresh bar that fills, then exits, must not be submitted again.
+        engine._paper_bar_state.sleeves.pop(sleeve_key(entry), None)
+        filled = commit_deferred_paper_entry(
+            engine,
+            entry,
+            outcome.signal,
+            equity=EQUITY,
+            marks={},
+            source="poll",
+            price=outcome.price,
+            bar_open=outcome.bar_open,
+        )
+        assert filled.ordered is True
+        engine.broker._data.prices[entry.symbol] = 1.0
+        assert engine.supervise_exits() >= 1
+        assert engine.ledger.find_open_position(entry.symbol) is None
+        after_exit = commit_deferred_paper_entry(
+            engine,
+            entry,
+            outcome.signal,
+            equity=EQUITY,
+            marks={},
+            source="cycle",
+            price=outcome.price,
+            bar_open=outcome.bar_open,
+        )
+        assert after_exit.ordered is False
+        assert after_exit.reason == "already submitted"
+        assert engine.ledger.find_open_position(entry.symbol) is None
+        assert attempts.count(entry.symbol) == 2
+    finally:
+        get_settings.cache_clear()
+
+
+def test_beta_fetch_budget_skips_names_past_the_cap() -> None:
+    """A throttled 1d pull does not start another symbol after the 5s budget."""
+    clock = {"t": 0.0}
+    calls: list[str] = []
+
+    class Data:
+        def fetch_latest(self, symbol: str, timeframe: str, bars: int = 300) -> pd.DataFrame:
+            calls.append(symbol)
+            clock["t"] += 3.0
+            beta = 1.0 if symbol == BTC_SYMBOL else 1.2
+            return _daily_frame(beta)
+
+    fetch = budgeted_daily_fetch(Data(), 45, budget=5, monotonic=lambda: clock["t"])
+    _betas, failures = load_betas(fetch, {"ETHUSDT", "SOLUSDT"}, DAY)
+    assert calls == [BTC_SYMBOL, "ETHUSDT"]
+    assert "budget" in failures["SOLUSDT"]
