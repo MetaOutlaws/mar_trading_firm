@@ -24,10 +24,12 @@ _UNTOUCHED = {
     # Quotes and funding are fetched before the book lock. Previous pin:
     # 2afca3c6747bc3a262fa9957f425a05252524012.
     "core/execution/engine.py": "96d213af8bd2fba886b6f72aa09342b23c8e28b3",
-    "core/execution/paper.py": "30d4dea6d0e18f5414e5a6bf5d24c07751f0c3dc",
-    # Minute replay fetches funding and the quote before the lock. Previous pin:
-    # 5fd81a6c317abe05fc33a271279ba5f83774b415.
-    "core/execution/f111_paper.py": "1191874164a6d8f17fe385610490eaf9bb30d957",
+    # Funding dedup is an in-memory id check. Previous pin:
+    # 30d4dea6d0e18f5414e5a6bf5d24c07751f0c3dc.
+    "core/execution/paper.py": "2d53bcc885fa63aa3ed50fa7a502f752112af398",
+    # Fill equity uses marks fetched before the book lock. Previous pin:
+    # 1191874164a6d8f17fe385610490eaf9bb30d957.
+    "core/execution/f111_paper.py": "f820f0b81784c1cf4066481dd8e7a88505b31946",
     # GBN commit skips a bar that was already submitted. Previous pin:
     # 90df0f765fc32c27866f250697361896b8fe19e6.
     "core/execution/paper_bar_eval.py": "4462166658ad22b81c63bf07bddccb6a53575bcd",

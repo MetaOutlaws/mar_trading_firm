@@ -684,6 +684,48 @@ class F111Runtime:
         row["pending_expiry"] = pending["expiry"]
         return [self._emit(row)]
 
+    def _equity_for_fill(
+        self,
+        marks: dict[str, float] | None,
+        marks_at: datetime | None,
+    ) -> float:
+        """Equity for sizing. Fresh cached marks do not call the ticker.
+
+        ``_try_fill`` runs under the book lock. A balance read that priced
+        every open position there held the lock for about two seconds per
+        ticker. Marks are fetched before the lock. Under the lock a quote
+        older than five seconds is refreshed once, with a two-second cap.
+        A missing mark cache falls back to ``get_balance``, which prices
+        after its own lock and is only used when this fill is not already
+        inside the book lock.
+        """
+        broker = self.broker
+        if broker is None:
+            return 0.0
+        if marks is None or marks_at is None:
+            return float(broker.get_balance())
+        from core.execution.book_guard import QUOTE_MAX_AGE
+
+        now = _as_utc(self.clock())
+        fresh = now - _as_utc(marks_at) <= QUOTE_MAX_AGE
+        cash = float(getattr(broker, "_cash", 0.0))
+        unrealised = 0.0
+        positions = getattr(broker, "_positions", {})
+        for symbol, position in list(positions.items()):
+            mark = marks.get(symbol) if fresh else None
+            if mark is None or not _finite_price(mark):
+                refreshed = _locked_ticker(broker, symbol)
+                if not _finite_price(refreshed):
+                    continue
+                mark = float(refreshed)
+            direction = 1.0 if getattr(position, "side", "LONG") == "LONG" else -1.0
+            unrealised += (
+                (float(mark) - float(position.entry_price))
+                * float(position.quantity)
+                * direction
+            )
+        return cash + unrealised
+
     def _try_fill(
         self,
         pending: dict[str, Any],
@@ -692,6 +734,8 @@ class F111Runtime:
         observed: datetime,
         funding_fraction: float | None,
         funding_source: str | None,
+        marks: dict[str, float] | None = None,
+        marks_at: datetime | None = None,
     ) -> dict[str, Any]:
         action = _parse_time(pending["action_time"])
         assert action is not None
@@ -754,7 +798,7 @@ class F111Runtime:
             score=1.0,
             sector=pending.get("sector") or _sector(symbol),
         )
-        equity = float(self.broker.get_balance())
+        equity = self._equity_for_fill(marks, marks_at)
         state = self._portfolio(equity, {symbol: float(quote)})
         decision = self.risk.evaluate(intent, state)
         multiplier = getattr(self.engine, "agent_size_multipliers", {}) if self.engine is not None else {}
@@ -1494,11 +1538,20 @@ class F111Runtime:
         fraction, source = (None, None)
         if needs_protection:
             fraction, source = _funding_for_open(self, symbol, now)
-        quote = self.broker.get_price(symbol) if self.broker is not None else None
+        marks: dict[str, float] = {}
+        if self.broker is not None:
+            for open_symbol in list(getattr(self.broker, "_positions", {})):
+                price = self.broker.get_price(open_symbol)
+                if _finite_price(price):
+                    marks[open_symbol] = float(price)
+        quote = marks.get(symbol)
+        if quote is None and self.broker is not None:
+            price = self.broker.get_price(symbol)
+            quote = float(price) if _finite_price(price) else None
         quoted_at = _as_utc(self.clock())
         with _hold_book(self):
             self._apply_minute_book(
-                symbol, now, fraction, source, quote, quoted_at
+                symbol, now, fraction, source, quote, quoted_at, marks, quoted_at
             )
 
     def _replay_closed_minutes(
@@ -1546,6 +1599,8 @@ class F111Runtime:
         source: str | None,
         quote: float | None,
         quoted_at: datetime,
+        marks: dict[str, float] | None = None,
+        marks_at: datetime | None = None,
     ) -> None:
         """Protection and fills. Caller holds the book lock."""
         from core.execution.book_guard import QUOTE_MAX_AGE
@@ -1577,7 +1632,10 @@ class F111Runtime:
                                      fraction, source, now)
         for pending in scheduled:
             if pending["status"] == "scheduled":
-                self._try_fill(pending, quote, observed, observed, 0., "entry has no accrued funding")
+                self._try_fill(
+                    pending, quote, observed, observed, 0., "entry has no accrued funding",
+                    marks, marks_at,
+                )
         self.persist()
 
     def _consume_minutes_work(self, symbol: str, frame: Any, now: datetime) -> None:

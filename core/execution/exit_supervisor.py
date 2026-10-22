@@ -14,8 +14,9 @@ The thread only starts for a paper broker. Live stays on the exchange's own
 stops. Quotes are taken before ``engine.book_guard``; the lock covers the
 close, so an entry cannot mutate that same position at the same time. Beta
 fetches are not on this thread. ``stop`` waits until an in-flight
-``supervise_exits`` returns, and a call that is still running after 60s is
-logged.
+``supervise_exits`` returns. A call still running after 60s is logged.
+``stop`` waits at most 30s for that call, then logs and returns so close
+can proceed.
 """
 
 from __future__ import annotations
@@ -37,6 +38,10 @@ EXIT_CADENCE_LIMIT_SECONDS = 20
 
 #: Log an alert when one ``supervise_exits`` call is still running after this.
 EXIT_STALL_ALERT_SECONDS = 60.0
+
+#: ``stop`` waits this long for the in-flight exit, then logs and returns
+#: so the caller can continue on to ``engine.close()``.
+EXIT_STOP_JOIN_SECONDS = 30.0
 
 #: Bound on recorded call timestamps. The thread only needs a recent window.
 EXIT_CALL_HISTORY = 256
@@ -80,14 +85,21 @@ class PaperExitSupervisor:
     def stop(self, timeout: float | None = None) -> None:
         """Ask the thread to exit and wait for the in-flight exit check.
 
-        ``timeout`` defaults to waiting until that call returns, so
-        ``engine.close()`` does not run while a close is still committing.
+        The wait is 30s unless ``timeout`` is passed. A ``supervise_exits``
+        that is still running after that is logged, and this method returns
+        so the caller can continue on to ``engine.close()``.
         """
         self._stop.set()
         thread = self._thread
         self._thread = None
+        limit = EXIT_STOP_JOIN_SECONDS if timeout is None else float(timeout)
         if thread is not None and thread is not threading.current_thread():
-            thread.join(timeout=timeout)
+            thread.join(timeout=limit)
+            if thread.is_alive():
+                logger.error(
+                    "Paper exit supervisor still running after %.0fs; continuing to close",
+                    limit,
+                )
         self._cancel_stall_timer()
 
     def _run(self) -> None:

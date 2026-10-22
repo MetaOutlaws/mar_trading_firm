@@ -197,6 +197,9 @@ class PaperCashStore:
     def __init__(self, path: Path | None = None) -> None:
         self.path = path or PAPER_CASH_PATH
         self._events: list[dict[str, Any]] = []
+        #: Durable ids already stored. ``record`` checks this instead of
+        #: scanning the journal, including when the caller holds the book lock.
+        self._event_ids: set[str] = set()
         self._load()
 
     def has_events(self) -> bool:
@@ -212,10 +215,12 @@ class PaperCashStore:
         payload = dict(event)
         event_id = payload.get("event_id")
         # Same durable id must not debit twice when a commit is replayed.
-        if event_id and any(existing.get("event_id") == event_id for existing in self._events):
+        if event_id and str(event_id) in self._event_ids:
             return
         payload.setdefault("ts", _utcnow_iso())
         self._events.append(payload)
+        if event_id:
+            self._event_ids.add(str(event_id))
         self._persist()
 
     def replace_event(self, index: int, event: dict[str, Any]) -> None:
@@ -227,6 +232,9 @@ class PaperCashStore:
         if index < 0 or index >= len(self._events):
             raise IndexError(index)
         self._events[index] = dict(event)
+        self._event_ids = {
+            str(item["event_id"]) for item in self._events if item.get("event_id")
+        }
         self._persist()
 
     def _load(self) -> None:
@@ -240,6 +248,9 @@ class PaperCashStore:
         if not isinstance(events, list):
             raise RuntimeError(f"paper cash ledger at {self.path} has no events array")
         self._events = [e for e in events if isinstance(e, dict)]
+        self._event_ids = {
+            str(event["event_id"]) for event in self._events if event.get("event_id")
+        }
 
     def _persist(self) -> None:
         state = self.replay()

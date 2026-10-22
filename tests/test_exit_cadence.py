@@ -24,9 +24,11 @@ from core.execution.broker import InvalidOrder
 from core.data.ohlcv import BybitOHLCV
 from core.execution.book_guard import BookGuard
 from core.execution.engine import PAPER_EXIT_POLL_SECONDS, TradingPlan
+from core.data.bybit_linear_instruments import AVAILABLE, InstrumentStatus
 from core.execution.exit_supervisor import (
     EXIT_CADENCE_LIMIT_SECONDS,
     EXIT_CALL_HISTORY,
+    EXIT_STOP_JOIN_SECONDS,
     PaperExitSupervisor,
 )
 from core.execution.f111_paper import F111Runtime
@@ -297,66 +299,121 @@ def test_concurrent_exit_and_entry_stay_consistent(
 def test_reconcile_during_an_exit_does_not_false_trip(
     tmp_path, monkeypatch, firm_db
 ) -> None:
-    """Ledger close and the broker update share the lock, so reconcile cannot
-    see a closed row against a still-open RAM position, and get_positions
-    does not iterate a dict another thread is resizing."""
+    """Broker snapshot and the ledger read share the book lock.
+
+    Reconcile copies the broker book first. The exit is then released so it
+    can commit before the ledger read. The lock makes that commit wait, so
+    both sides still describe the open book. Removing the lock lets the
+    exit land in the gap and reconcile reports a mismatch.
+    """
     prices = _prices()
     engine = _engine(tmp_path, monkeypatch, firm_db, prices, plan=TradingPlan())
     _open_long(engine, prices)
     _drive_through_stop(prices)
-    real_apply = engine.broker.apply_journal_close
-    started = threading.Event()
+    snapshot_taken = threading.Event()
+    exit_done = threading.Event()
+    real_snapshot = engine.broker.snapshot_positions
+    real_reconcile = engine.ledger.reconcile
 
-    def slow_apply(payload: dict):
-        # Ledger commit has already landed. RAM still shows the position
-        # until this returns. Reconcile must wait out this window.
-        started.set()
-        time.sleep(0.2)
-        return real_apply(payload)
+    def snapshot() -> list:
+        rows = real_snapshot()
+        snapshot_taken.set()
+        return rows
 
-    engine.broker.apply_journal_close = slow_apply  # type: ignore[method-assign]
+    def reconcile(snapshots: list) -> list[str]:
+        # Started only after the snapshot. With the book lock held, this
+        # times out and the ledger is still the pre-exit book. Without the
+        # lock, the exit finishes and sets the event first.
+        exit_done.wait(timeout=0.6)
+        return real_reconcile(snapshots)
+
+    engine.broker.snapshot_positions = snapshot  # type: ignore[method-assign]
+    engine.ledger.reconcile = reconcile  # type: ignore[method-assign]
     errors: list[BaseException] = []
     mismatches: list[str] = []
 
-    def exit_once() -> None:
+    def reconcile_first() -> None:
+        try:
+            mismatches.extend(engine.reconcile_broker())
+        except Exception as exc:
+            errors.append(exc)
+
+    def exit_after_snapshot() -> None:
+        assert snapshot_taken.wait(timeout=5)
         try:
             engine.supervise_exits()
         except Exception as exc:
             errors.append(exc)
+        finally:
+            exit_done.set()
 
-    def reconcile_during_the_gap() -> None:
-        assert started.wait(timeout=5)
-        deadline = time.monotonic() + 0.35
-        try:
-            while time.monotonic() < deadline:
-                mismatches.extend(engine.reconcile_broker())
-                engine.broker.get_positions()
-        except Exception as exc:
-            errors.append(exc)
-
-    workers = [
-        threading.Thread(target=exit_once),
-        threading.Thread(target=reconcile_during_the_gap),
-    ]
-    for worker in workers:
-        worker.start()
-    for worker in workers:
-        worker.join(timeout=10)
-        assert not worker.is_alive()
+    recon_thread = threading.Thread(target=reconcile_first)
+    recon_thread.start()
+    assert snapshot_taken.wait(timeout=5)
+    exit_thread = threading.Thread(target=exit_after_snapshot)
+    exit_thread.start()
+    recon_thread.join(timeout=10)
+    exit_thread.join(timeout=10)
+    assert not recon_thread.is_alive()
+    assert not exit_thread.is_alive()
 
     assert errors == []
     assert mismatches == []
     assert engine.risk.kill_switch.is_tripped is False
-    broker_symbols = {row.symbol for row in engine.broker.snapshot_positions()}
+    broker_symbols = {row.symbol for row in real_snapshot()}
     ledger_symbols = {row.symbol for row in engine.ledger.open_positions()}
     assert broker_symbols == ledger_symbols
     assert broker_symbols == set()
 
 
+class _OverlapSet(set):
+    """Set whose overlapping membership tests both miss.
+
+    The first checker waits briefly. A second checker in that window means
+    the book lock is not around the dedup check. Both then report the id
+    as absent, even if one of them adds it before the other returns.
+    A lock lets only one checker in, so the wait times out and the second
+    sees the id the first just booked.
+    """
+
+    def __init__(self, items: set[str] | None = None) -> None:
+        super().__init__(items or ())
+        self._mu = threading.Lock()
+        self._inside = 0
+        self._release = threading.Event()
+        self._forced_miss: set[object] = set()
+
+    def __contains__(self, item: object) -> bool:
+        with self._mu:
+            self._inside += 1
+            if self._inside >= 2:
+                self._forced_miss.add(item)
+                self._release.set()
+            first = self._inside == 1
+        if first:
+            self._release.wait(timeout=0.4)
+        with self._mu:
+            forced = item in self._forced_miss
+            present = super().__contains__(item)
+            self._inside -= 1
+            if self._inside == 0:
+                self._release.clear()
+                self._forced_miss.clear()
+        if forced:
+            return False
+        return present
+
+
 def test_concurrent_funding_accrual_debits_once(
-    tmp_path, monkeypatch, firm_db
+    tmp_path, monkeypatch, firm_db, caplog
 ) -> None:
-    """A cycle accrue and an exit settle of the same interval debit once."""
+    """A cycle accrue and an exit accrue of the same target debit once.
+
+    Both threads compute the step, then wait, then write. The book lock
+    makes the dedup check atomic with the cash debit. Dropping the lock
+    lets both miss the id. Dropping the dedup lets both debit the step
+    they already computed.
+    """
     prices = _prices()
     engine = _engine(tmp_path, monkeypatch, firm_db, prices, plan=TradingPlan())
     broker = engine.broker
@@ -380,41 +437,43 @@ def test_concurrent_funding_accrual_debits_once(
     )
     assert expected > 0
     cash_after_open = broker.cash
+    broker._applied_funding_ids = _OverlapSet(set(broker._applied_funding_ids))
     errors: list[BaseException] = []
     barrier = threading.Barrier(2)
 
-    def cycle_accrue() -> None:
+    def pause(_planned: list) -> None:
         barrier.wait(timeout=5)
+
+    broker.before_funding_book = pause
+    caplog.set_level(logging.INFO, logger="core.execution.paper")
+
+    def accrue() -> None:
         try:
             broker.accrue_funding()
         except Exception as exc:
             errors.append(exc)
 
-    def exit_settle() -> None:
-        barrier.wait(timeout=5)
-        try:
-            engine._settle_paper_exit(
-                SYMBOL, "timeout", at_mark=False, mark_price=prices[SYMBOL]
-            )
-        except Exception as exc:
-            errors.append(exc)
-
-    workers = [
-        threading.Thread(target=cycle_accrue),
-        threading.Thread(target=exit_settle),
-    ]
+    workers = [threading.Thread(target=accrue), threading.Thread(target=accrue)]
     for worker in workers:
         worker.start()
     for worker in workers:
         worker.join(timeout=10)
         assert not worker.is_alive()
 
+    assert (
+        engine._settle_paper_exit(
+            SYMBOL, "timeout", at_mark=False, mark_price=prices[SYMBOL]
+        )
+        == 1
+    )
     rows = [event for event in broker._cash_store.events() if event.get("kind") == KIND_FUNDING]
     assert errors == []
     assert len(rows) == 1
     assert rows[0]["amount"] == pytest.approx(expected)
     assert broker.cash == pytest.approx(cash_after_open - expected)
     assert SYMBOL not in broker._positions
+    assert "already booked" in caplog.text
+    assert "unchanged" in caplog.text
 
 
 def test_stop_waits_for_the_inflight_exit_and_alerts_past_sixty_seconds(
@@ -445,3 +504,138 @@ def test_stop_waits_for_the_inflight_exit_and_alerts_past_sixty_seconds(
     supervisor.stop()
     assert time.monotonic() - began >= 0.15
     assert "supervise_exits has not completed" in caplog.text
+
+
+def test_try_fill_lock_hold_does_not_scale_with_open_position_tickers(
+    tmp_path, monkeypatch, firm_db
+) -> None:
+    """Equity for a fill is priced before the book lock.
+
+    Open positions are marked outside the lock. ``_try_fill`` then recomputes
+    equity from those marks. A ticker that runs only while the lock is held
+    must not be called once per open position. Falling back to ``get_balance``
+    under the lock would sleep once per position and this fails.
+    """
+    fills = {1: "ETHUSDT", 4: "BNBUSDT"}
+    extras = ["SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT"]
+    now = datetime(2026, 10, 10, 12, 0, tzinfo=timezone.utc)
+    prices = {symbol: 100.0 for symbol in (*fills.values(), *extras)}
+
+    def run(open_count: int) -> tuple[list[str], float, int]:
+        fill = fills[open_count]
+        engine = _engine(
+            tmp_path, monkeypatch, firm_db, prices, plan=TradingPlan()
+        )
+        for symbol in extras[:open_count]:
+            opened = engine.broker.place_market_order(
+                symbol, "LONG", 0.1, expected_price=100.0
+            )
+            assert opened.success, opened.error
+        runtime = F111Runtime(
+            broker=engine.broker,
+            risk=engine.risk,
+            ledger=engine.ledger,
+            engine=engine,
+            clock=lambda: now,
+            state_path=tmp_path / f"f111-lock-{open_count}.json",
+            disable_flag=tmp_path / "f111-scan-flag-absent",
+        )
+        runtime.registry[fill] = InstrumentStatus(
+            symbol=fill,
+            availability=AVAILABLE,
+            reason="Trading",
+            exchange_status="Trading",
+            tick_size=0.01,
+            qty_step=0.01,
+            min_qty=0.01,
+            min_notional=5.0,
+        )
+        runtime.pending.append(
+            {
+                "symbol": fill,
+                "side": "LONG",
+                "sign": 1,
+                "source_signal_id": f"lock-hold-{fill}",
+                "source_signal_time": now.isoformat(),
+                "cohort": "majors",
+                "sector": "other",
+                "prior_atr": 1.0,
+                "action_time": now.isoformat(),
+                "status": "scheduled",
+            }
+        )
+        depth = {"n": 0}
+        locked: list[str] = []
+        real_enter = BookGuard.__enter__
+        real_exit = BookGuard.__exit__
+
+        def tracking_enter(self):  # noqa: ANN001
+            if self is engine.book_guard:
+                depth["n"] += 1
+            return real_enter(self)
+
+        def tracking_exit(self, *exc: object):  # noqa: ANN001
+            try:
+                return real_exit(self, *exc)
+            finally:
+                if self is engine.book_guard and depth["n"] > 0:
+                    depth["n"] -= 1
+
+        def slow_price(symbol: str, timeout: float | None = None) -> float | None:
+            del timeout
+            if depth["n"] > 0:
+                locked.append(symbol)
+                time.sleep(0.05)
+            return prices.get(symbol)
+
+        monkeypatch.setattr(BookGuard, "__enter__", tracking_enter)
+        monkeypatch.setattr(BookGuard, "__exit__", tracking_exit)
+        engine.broker.get_price = slow_price  # type: ignore[method-assign]
+        calls = {"n": 0}
+        real_equity = runtime._equity_for_fill
+
+        def equity(marks, marks_at):  # noqa: ANN001
+            calls["n"] += 1
+            return real_equity(marks, marks_at)
+
+        runtime._equity_for_fill = equity  # type: ignore[method-assign]
+        started = time.monotonic()
+        runtime._consume_minutes(fill, None, now)
+        return locked, time.monotonic() - started, calls["n"]
+
+    locked_one, elapsed_one, calls_one = run(1)
+    locked_four, elapsed_four, calls_four = run(4)
+    assert calls_one == 1
+    assert calls_four == 1
+    assert locked_one == []
+    assert locked_four == []
+    assert elapsed_four < elapsed_one + 0.1
+
+
+def test_stop_returns_when_the_inflight_exit_outlasts_the_timeout(
+    tmp_path, monkeypatch, firm_db, caplog
+) -> None:
+    """``stop`` waits 30s by default, then logs and returns."""
+    assert EXIT_STOP_JOIN_SECONDS == 30.0
+    engine = _engine(tmp_path, monkeypatch, firm_db, _prices(), plan=TradingPlan())
+    entered = threading.Event()
+    release = threading.Event()
+
+    def hang() -> int:
+        entered.set()
+        release.wait(timeout=5)
+        return 0
+
+    engine.supervise_exits = hang  # type: ignore[method-assign]
+    supervisor = PaperExitSupervisor(engine, interval=0.05, stall_after=60.0)
+    caplog.set_level(logging.ERROR, logger="core.execution.exit_supervisor")
+    supervisor.start()
+    assert entered.wait(timeout=2)
+    began = time.monotonic()
+    try:
+        supervisor.stop(timeout=0.05)
+        elapsed = time.monotonic() - began
+    finally:
+        release.set()
+    assert elapsed < 0.5
+    assert "continuing to close" in caplog.text

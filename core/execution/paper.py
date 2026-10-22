@@ -174,8 +174,12 @@ class PaperBroker(Broker):
         self.total_funding = 0.0
         #: Close event ids already applied to this process's cash.
         self._applied_close_ids: set[str] = set()
-        #: Funding journal ids already applied: position, 8h interval, target.
+        #: Funding journal ids already applied, one per target. This is the
+        #: dedup index. Accrue does not scan the cash journal under the lock.
         self._applied_funding_ids: set[str] = set()
+        #: Test hook. Called after a funding step is computed and before it is
+        #: written, without the book lock. Production leaves this unset.
+        self.before_funding_book: object | None = None
         #: Engine book lock. Unbound brokers (unit tests) accrue without it.
         self._book_guard: object | None = None
 
@@ -429,18 +433,29 @@ class PaperBroker(Broker):
         Positive delta means cash increased (shorts receiving a positive rate).
         Uses ``CostModel.funding_cost`` so a closed paper trade matches a
         research run with the same model, window, notional and history.
-        The read-modify-write runs under the book lock. Each non-zero step is
-        one ``funding`` journal row keyed by position, 8h interval, and
-        target, so a cycle and an exit settle cannot debit that charge twice.
-        A later ``now`` in the same interval with a higher target still books
-        only the increment.
+
+        Each distinct funding target is its own journal row, keyed by the
+        position, its open time, and that target. An 8h interval is not one
+        row: a later higher target in the same interval is a new row for the
+        unpaid difference. Booking the same target again is a no-op.
+
+        The book lock covers the read of accrued funding, and again the cash
+        write. ``before_funding_book``, when a test sets it, runs between
+        those two without the lock so two accruals can both have computed
+        the same step. The write then dedups under the lock.
         """
         now = now or self._now()
         with self._book():
-            return self._accrue_funding_locked(now)
+            planned = self._plan_funding_steps(now)
+        pause = self.before_funding_book
+        if pause is not None and planned:
+            pause(planned)
+        with self._book():
+            return self._book_funding_steps(planned)
 
-    def _accrue_funding_locked(self, now: datetime) -> float:
-        cash_delta = 0.0
+    def _plan_funding_steps(self, now: datetime) -> list[tuple[str, float, float, str, str]]:
+        """Funding steps due now. Does not move cash. Caller holds the book lock."""
+        planned: list[tuple[str, float, float, str, str]] = []
         interval_id = _funding_interval_id(now)
         for symbol in list(self._positions):
             position = self._positions.get(symbol)
@@ -456,10 +471,25 @@ class PaperBroker(Broker):
                 f"funding:{symbol}:{position.opened_at.isoformat()}:"
                 f"{interval_id}:{target:.10f}"
             )
-            if event_id in self._applied_funding_ids or self._funding_event_recorded(event_id):
-                self._applied_funding_ids.add(event_id)
-                if target > position.funding_accrued:
-                    position.funding_accrued = target
+            planned.append((symbol, float(target), float(step), event_id, interval_id))
+        return planned
+
+    def _book_funding_steps(self, planned: list[tuple[str, float, float, str, str]]) -> float:
+        """Debit each planned step once. Caller holds the book lock.
+
+        A target that is already in the in-memory id set is left untouched:
+        cash is not debited and accrued funding is not raised.
+        """
+        cash_delta = 0.0
+        for symbol, target, step, event_id, interval_id in planned:
+            position = self._positions.get(symbol)
+            if position is None or position.observed_funding_only:
+                continue
+            if event_id in self._applied_funding_ids:
+                logger.info(
+                    "Funding %s already booked; cash and accrued funding unchanged",
+                    event_id,
+                )
                 continue
             self._applied_funding_ids.add(event_id)
             self._cash -= step
@@ -477,12 +507,6 @@ class PaperBroker(Broker):
                 }
             )
         return cash_delta
-
-    def _funding_event_recorded(self, event_id: str) -> bool:
-        store = self._cash_store
-        if store is None:
-            return False
-        return any(event.get("event_id") == event_id for event in store.events())
 
     def record_observed_funding(
         self, symbol: str, amount: float, *, asof: datetime, source: str
