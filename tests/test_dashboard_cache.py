@@ -24,9 +24,9 @@ _UNTOUCHED = {
     # Manual closes drain after the book lock. Previous pin:
     # 96d213af8bd2fba886b6f72aa09342b23c8e28b3.
     "core/execution/engine.py": "dd5492d0ae8ca6f629f690348a224169b2712103",
-    # Funding plan and book share one lock, including a sign flip. Previous pin:
-    # ed7b2ac61f5fe7f60f09cca9976c2f77c8447925.
-    "core/execution/paper.py": "66479045eda3fd04ebe1c9cad50d6ebfe996bdee",
+    # The funding hook runs between plan and book while the lock is held.
+    # Previous pin: 66479045eda3fd04ebe1c9cad50d6ebfe996bdee.
+    "core/execution/paper.py": "821ec3eace98334565a11a7d5a8a22c447e97c68",
     # Open-position marks are fetched only when a fill is scheduled. Previous pin:
     # f820f0b81784c1cf4066481dd8e7a88505b31946.
     "core/execution/f111_paper.py": "20445ce624844b87c0d880963c0f7fb024517762",

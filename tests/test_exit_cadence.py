@@ -372,10 +372,11 @@ def test_reconcile_during_an_exit_does_not_false_trip(
 def test_concurrent_funding_accrual_debits_once(
     tmp_path, monkeypatch, firm_db
 ) -> None:
-    """A cycle accrue and an exit accrue of the same target debit once.
+    """A second accrual started between plan and book debits the target once.
 
-    Plan and book share the book lock. The second accrual sees the target
-    already in funding_accrued and books nothing more.
+    The hook runs while the book lock is held. The second accrual blocks
+    there, then finds the target already accrued. Dropping the lock lets
+    the second accrual finish inside the pause.
     """
     prices = _prices()
     engine = _engine(tmp_path, monkeypatch, firm_db, prices, plan=TradingPlan())
@@ -401,43 +402,62 @@ def test_concurrent_funding_accrual_debits_once(
     assert expected > 0
     cash_after_open = broker.cash
     errors: list[BaseException] = []
+    second_started = threading.Event()
+    second_done = threading.Event()
+    holder: dict[str, threading.Thread] = {}
 
-    def accrue() -> None:
-        try:
-            broker.accrue_funding()
-        except Exception as exc:
-            errors.append(exc)
+    def pause(_planned: list) -> None:
+        if holder:
+            return
 
-    workers = [threading.Thread(target=accrue), threading.Thread(target=accrue)]
-    for worker in workers:
+        def run() -> None:
+            second_started.set()
+            try:
+                broker.accrue_funding()
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                second_done.set()
+
+        worker = threading.Thread(target=run)
+        holder["thread"] = worker
         worker.start()
-    for worker in workers:
-        worker.join(timeout=10)
-        assert not worker.is_alive()
+        assert second_started.wait(timeout=5)
+        time.sleep(0.2)
+        assert not second_done.is_set()
 
+    broker.before_funding_book = pause
+    try:
+        broker.accrue_funding()
+    finally:
+        broker.before_funding_book = None
+        worker = holder.get("thread")
+        if worker is not None:
+            worker.join(timeout=5)
+            assert not worker.is_alive()
+
+    assert position.funding_accrued == pytest.approx(expected)
+    assert broker.cash == pytest.approx(cash_after_open - expected)
+    rows = [event for event in broker._cash_store.events() if event.get("kind") == KIND_FUNDING]
+    assert errors == []
+    assert len(rows) == 1
+    assert rows[0]["amount"] == pytest.approx(expected)
     assert (
         engine._settle_paper_exit(
             SYMBOL, "timeout", at_mark=False, mark_price=prices[SYMBOL]
         )
         == 1
     )
-    rows = [event for event in broker._cash_store.events() if event.get("kind") == KIND_FUNDING]
-    assert errors == []
-    assert len(rows) == 1
-    assert rows[0]["amount"] == pytest.approx(expected)
-    assert broker.cash == pytest.approx(cash_after_open - expected)
     assert SYMBOL not in broker._positions
 
 
 def test_interleaved_accruals_with_different_targets_debit_once(
     tmp_path, monkeypatch, firm_db
 ) -> None:
-    """An earlier plan must not debit again after a later target booked.
+    """An earlier plan and a later target in one 8h window debit the later target.
 
-    The exit thread and the cycle accrue at different times in the same 8h
-    window. The earlier accrual plans its step, then the later one plans and
-    books a higher target, then the earlier write runs. Cash moves by the
-    later target only, and accrued funding stays at that later target.
+    The earlier accrual holds the book lock between plan and book. The later
+    accrual blocks on that lock, then books only the unpaid increment.
     """
     prices = _prices()
     engine = _engine(tmp_path, monkeypatch, firm_db, prices, plan=TradingPlan())
@@ -462,26 +482,42 @@ def test_interleaved_accruals_with_different_targets_debit_once(
     )
     assert target_later > 0
     cash_after_open = broker.cash
-    planned_earlier = threading.Event()
-    later_booked = threading.Event()
+    errors: list[BaseException] = []
+    later_started = threading.Event()
+    later_done = threading.Event()
+    holder: dict[str, threading.Thread] = {}
 
     def pause(_planned: list) -> None:
-        if threading.current_thread().name == "earlier-accrual":
-            planned_earlier.set()
-            assert later_booked.wait(timeout=5)
+        if holder:
+            return
+
+        def run() -> None:
+            later_started.set()
+            try:
+                broker.accrue_funding(later)
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                later_done.set()
+
+        worker = threading.Thread(target=run)
+        holder["thread"] = worker
+        worker.start()
+        assert later_started.wait(timeout=5)
+        time.sleep(0.2)
+        assert not later_done.is_set()
 
     broker.before_funding_book = pause
-    worker = threading.Thread(
-        target=lambda: broker.accrue_funding(earlier),
-        name="earlier-accrual",
-    )
-    worker.start()
-    assert planned_earlier.wait(timeout=5)
-    broker.accrue_funding(later)
-    later_booked.set()
-    worker.join(timeout=5)
-    assert not worker.is_alive()
+    try:
+        broker.accrue_funding(earlier)
+    finally:
+        broker.before_funding_book = None
+        worker = holder.get("thread")
+        if worker is not None:
+            worker.join(timeout=5)
+            assert not worker.is_alive()
 
+    assert errors == []
     debited = cash_after_open - broker.cash
     assert debited == pytest.approx(target_later)
     assert position.funding_accrued == pytest.approx(target_later)

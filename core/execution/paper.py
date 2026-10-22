@@ -444,15 +444,16 @@ class PaperBroker(Broker):
         move is ``target - funding_accrued`` whatever its sign. A second
         accrual cannot book a stale plan in between, so the same step is not
         debited twice. ``before_funding_book``, when a test sets it, runs
-        after that lock. Booking the same target again is a logged no-op.
+        after the plan and before the cash write, while this lock is held.
+        Booking the same target again is a logged no-op.
         """
         now = now or self._now()
         with self._book():
             planned = self._plan_funding_steps(now)
+            pause = self.before_funding_book
+            if pause is not None and planned:
+                pause(planned)
             booked = self._book_funding_steps(planned)
-        pause = self.before_funding_book
-        if pause is not None:
-            pause(planned)
         return booked
 
     def _plan_funding_steps(self, now: datetime) -> list[tuple[str, float, float, str, str]]:

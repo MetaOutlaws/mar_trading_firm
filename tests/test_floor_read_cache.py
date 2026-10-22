@@ -26,9 +26,9 @@ ROOT = Path(__file__).resolve().parents[1]
 # engine.py drains manual closes after the book lock. Previous pin:
 # 96d213af8bd2fba886b6f72aa09342b23c8e28b3.
 _ENGINE = "dd5492d0ae8ca6f629f690348a224169b2712103"
-# paper.py plans and books funding under one lock. Previous pin:
-# ed7b2ac61f5fe7f60f09cca9976c2f77c8447925.
-_PAPER = "66479045eda3fd04ebe1c9cad50d6ebfe996bdee"
+# paper.py runs the funding hook between plan and book under the lock.
+# Previous pin: 66479045eda3fd04ebe1c9cad50d6ebfe996bdee.
+_PAPER = "821ec3eace98334565a11a7d5a8a22c447e97c68"
 
 
 def test_integrity_snapshot_is_once_per_book_sha(monkeypatch) -> None:
