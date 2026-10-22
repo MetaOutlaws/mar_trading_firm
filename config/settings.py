@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     loss_streak_probation: bool = False
     #: Per-strategy losing streak (sleeve family + side) that blocks new
     #: entries while probation is on. One half-risk trial is still allowed.
-    #: Env: ``STRATEGY_LOSS_BLOCK``.
+    #: Default 3. Values above 10 are refused at startup. Env: ``STRATEGY_LOSS_BLOCK``.
     strategy_loss_block: int = Field(default=3, ge=1)
     #: How many of a strategy's most recent closed paper trades are used for
     #: rolling net expectancy under heightened scrutiny. Cannot be set below
@@ -190,6 +190,11 @@ class Settings(BaseSettings):
                     "TRADING_MODE=live requires BYBIT_LIVE_API_KEY and "
                     "BYBIT_LIVE_API_SECRET. Refusing to start."
                 )
+        if self.strategy_loss_block > 10:
+            raise ValueError(
+                f"STRATEGY_LOSS_BLOCK={self.strategy_loss_block} is above 10. "
+                "Refusing to start."
+            )
         return self
 
     # -----------------------------------------------------------------------

@@ -32,9 +32,9 @@ _UNTOUCHED = {
     # GBN defers same-cycle paper-bar submits when ENTRY_ORDERING_GBN is on.
     # Previous pin: 5374ab24628ef9e330dbf4b6f433461cc1f299e5.
     "core/execution/paper_bar_eval.py": "994d64930cdf4fb786dcc78751be9a58500220dd",
-    # LOSS_STREAK_PROBATION and the cluster option, both default false.
-    # Previous pin (GBN flag): e57e99b4d9a9137ce51f13dfc4ff8e1cab14e7fa.
-    "config/settings.py": "31e6a009207c733e85adb378e5297636a37a6469",
+    # LOSS_STREAK_PROBATION stays default false. STRATEGY_LOSS_BLOCK is
+    # refused above 10. Previous pin (probation flags): 31e6a009207c733e85adb378e5297636a37a6469.
+    "config/settings.py": "556ea0784ce5c94c2bee16f19d9037593e36a569",
     # Feat book after #139. The repair-base pin 97d3f2ca is b00c4f73.
     "config/approved_strategies.json": "d33719d4c721c2ecfc5d90c5a079e9ce1c73c5aa",
 }

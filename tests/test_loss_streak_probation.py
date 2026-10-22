@@ -533,6 +533,124 @@ def test_outside_scrutiny_bad_expectancy_stays_full_size(engine, monkeypatch) ->
     assert found == []
 
 
+def test_rejected_gates_do_not_journal_a_trial_or_half_row(engine, monkeypatch) -> None:
+    """Sector, gross, and duplicate rejections leave no probation row.
+
+    The decision is still a half or a trial. Only an approval writes that row.
+    A block still journals its reason, as it did before.
+    """
+    _enable(monkeypatch)
+    from tests.test_risk import position
+
+    half = {"probation_by_strategy": {}}
+    trial = {
+        "probation_by_strategy": {
+            "ema_adx LONG": _row(raw_streak=3, nets=[-1.0, -1.0, -1.0], trial_open=False)
+        }
+    }
+
+    def expect_no_row(state: PortfolioState, action: str, needle: str) -> None:
+        found = _capture_journal(state)
+        decision = engine.evaluate(_intent(), state)
+        assert decision.verdict is RiskVerdict.REJECTED
+        assert decision.probation_action == action
+        assert any(needle in reason for reason in decision.reasons)
+        assert found == []
+
+    expect_no_row(
+        _state(
+            consecutive_losses=6,
+            open_positions=[
+                position("ETHUSDT", sector="majors"),
+                position("SOLUSDT", sector="majors"),
+            ],
+            **half,
+        ),
+        "half",
+        "sector",
+    )
+    expect_no_row(
+        _state(
+            consecutive_losses=6,
+            open_positions=[position("ETHUSDT", sector="other", notional=8_000.0)],
+            **half,
+        ),
+        "half",
+        "total exposure",
+    )
+    expect_no_row(
+        _state(
+            consecutive_losses=2,
+            open_positions=[position("BTCUSDT")],
+            **trial,
+        ),
+        "trial",
+        "already holding",
+    )
+
+    blocked_state = _state(
+        consecutive_losses=6,
+        probation_by_strategy={
+            "ema_adx LONG": _row(raw_streak=3, nets=[1.0] * 20, trial_open=True)
+        },
+    )
+    blocked_rows = _capture_journal(blocked_state)
+    blocked = engine.evaluate(_intent(), blocked_state)
+    assert blocked.verdict is RiskVerdict.REJECTED
+    assert blocked.probation_action == "blocked"
+    assert len(blocked_rows) == 1
+    assert blocked_rows[0]["kwargs"]["context"]["action"] == "blocked"
+
+
+def test_approved_order_journals_exactly_one_probation_row(engine, monkeypatch) -> None:
+    _enable(monkeypatch)
+    half_state = _state(consecutive_losses=6, probation_by_strategy={})
+    half_rows = _capture_journal(half_state)
+    half = engine.evaluate(_intent(), half_state)
+    assert half.is_approved
+    assert half.probation_action == "half"
+    assert len(half_rows) == 1
+    assert half_rows[0]["kwargs"]["action_taken"] == "half"
+
+    trial_state = _state(
+        consecutive_losses=2,
+        probation_by_strategy={
+            "ema_adx LONG": _row(raw_streak=3, nets=[-1.0, -1.0, -1.0], trial_open=False)
+        },
+    )
+    trial_rows = _capture_journal(trial_state)
+    trial = engine.evaluate(_intent(symbol="ETHUSDT"), trial_state)
+    assert trial.is_approved
+    assert trial.probation_action == "trial"
+    assert len(trial_rows) == 1
+    assert trial_rows[0]["kwargs"]["context"]["action"] == "trial"
+
+
+def test_strategy_loss_block_above_10_is_rejected_at_load(monkeypatch) -> None:
+    """11 is refused. 10 and the default 3 still load. The flag stays off."""
+    from pydantic import ValidationError
+
+    from config.settings import Settings
+
+    monkeypatch.setenv("STRATEGY_LOSS_BLOCK", "10")
+    get_settings.cache_clear()
+    assert Settings().strategy_loss_block == 10
+    assert get_settings().strategy_loss_block == 10
+    assert get_settings().loss_streak_probation is False
+
+    monkeypatch.setenv("STRATEGY_LOSS_BLOCK", "11")
+    get_settings.cache_clear()
+    with pytest.raises(ValidationError, match="STRATEGY_LOSS_BLOCK"):
+        Settings()
+    with pytest.raises(ValidationError, match="STRATEGY_LOSS_BLOCK"):
+        get_settings()
+
+    monkeypatch.delenv("STRATEGY_LOSS_BLOCK", raising=False)
+    get_settings.cache_clear()
+    assert Settings().strategy_loss_block == 3
+    assert get_settings().loss_streak_probation is False
+
+
 def test_strategy_loss_block_is_configurable(engine, monkeypatch) -> None:
     _enable(monkeypatch, STRATEGY_LOSS_BLOCK="4")
     state = _state(
