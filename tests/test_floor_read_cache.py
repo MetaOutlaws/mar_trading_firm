@@ -27,8 +27,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # 96d213af8bd2fba886b6f72aa09342b23c8e28b3.
 _ENGINE = "dd5492d0ae8ca6f629f690348a224169b2712103"
 # paper.py recomputes the unpaid funding step when booking. Previous pin:
-# 2d53bcc885fa63aa3ed50fa7a502f752112af398.
-_PAPER = "efe6ee2effe24f3caa5af3bea4541c578bdbb81a"
+# efe6ee2effe24f3caa5af3bea4541c578bdbb81a.
+_PAPER = "ed7b2ac61f5fe7f60f09cca9976c2f77c8447925"
 
 
 def test_integrity_snapshot_is_once_per_book_sha(monkeypatch) -> None:

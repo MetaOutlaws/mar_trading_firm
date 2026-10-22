@@ -25,8 +25,8 @@ _UNTOUCHED = {
     # 96d213af8bd2fba886b6f72aa09342b23c8e28b3.
     "core/execution/engine.py": "dd5492d0ae8ca6f629f690348a224169b2712103",
     # Booking recomputes the unpaid funding step. Previous pin:
-    # 2d53bcc885fa63aa3ed50fa7a502f752112af398.
-    "core/execution/paper.py": "efe6ee2effe24f3caa5af3bea4541c578bdbb81a",
+    # efe6ee2effe24f3caa5af3bea4541c578bdbb81a.
+    "core/execution/paper.py": "ed7b2ac61f5fe7f60f09cca9976c2f77c8447925",
     # Open-position marks are fetched only when a fill is scheduled. Previous pin:
     # f820f0b81784c1cf4066481dd8e7a88505b31946.
     "core/execution/f111_paper.py": "20445ce624844b87c0d880963c0f7fb024517762",

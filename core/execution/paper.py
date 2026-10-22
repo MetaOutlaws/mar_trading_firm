@@ -442,9 +442,10 @@ class PaperBroker(Broker):
         The book lock covers the read of accrued funding, and again the cash
         write. ``before_funding_book``, when a test sets it, runs between
         those two without the lock. The write recomputes
-        ``target - funding_accrued`` and skips a step that is already
-        covered, so an earlier plan cannot debit again or move accrued
-        funding down. Booking the same target again is a logged no-op.
+        ``target - funding_accrued``. A target already reached in that
+        direction is skipped, so an earlier plan cannot debit again or move
+        accrued funding back. A short's credit is a negative step and is
+        still booked. Booking the same target again is a logged no-op.
         """
         now = now or self._now()
         with self._book():
@@ -481,19 +482,27 @@ class PaperBroker(Broker):
 
         The planned step is not applied as stored. Two accruals in one 8h
         window can plan at different times, and the later target may book
-        first. Recomputing ``target - funding_accrued`` skips an earlier
-        plan that is already covered, so cash is not debited twice and
-        accrued funding does not move backwards. A target already in the
-        in-memory id set is a logged no-op: cash is not debited and accrued
-        funding is not raised.
+        first. Recomputing ``target - funding_accrued`` skips a target that
+        accrued funding has already reached, so cash is not debited twice
+        and accrued funding does not move back toward the earlier amount.
+        A negative step is a credit (a short receiving funding) and is
+        booked. A target already in the in-memory id set is a logged no-op:
+        cash is not debited and accrued funding is not raised.
         """
         cash_delta = 0.0
         for symbol, target, _planned_step, event_id, interval_id in planned:
             position = self._positions.get(symbol)
             if position is None or position.observed_funding_only:
                 continue
-            step = float(target) - float(position.funding_accrued)
-            if step <= 1e-12:
+            accrued = float(position.funding_accrued)
+            target_value = float(target)
+            step = target_value - accrued
+            if abs(step) <= 1e-12:
+                continue
+            # Already at or beyond this target. Do not rewind accrued.
+            if accrued > 0.0 and target_value <= accrued:
+                continue
+            if accrued < 0.0 and target_value >= accrued:
                 continue
             if event_id in self._applied_funding_ids:
                 logger.info(
