@@ -56,11 +56,13 @@ Enter only when flat and all of the following hold:
 - the drawdown stop is not active
 - the position, gross, cash, minimum-quantity and risk checks pass
 
-Basis uses the decision minute's closes. Quantity is
+Basis uses the decision minute's closes. Quantity is chosen from those known closes, not from the later fill:
 
-`floor(min(0.10 * equity, cash affordability) / spot_buy_fill / step) * step`
+`floor(min(0.10 * equity, cash that the decision-minute quote can afford) / quoted_spot_buy / step) * step`
 
-with step 0.001 BTC and 0.01 ETH. Those steps are labeled instrument rules, not observed in the archive. Within a minute, BTC is handled before ETH. Exits and liquidations happen before entries, so freed cash can fund a later symbol in that same minute.
+`quoted_spot_buy` is the decision-minute spot close times `(1 + slippage)`. The delayed open is used only when the order fills. If that open is worse and the reserved cash cannot pay for the original quantity, quantity is reduced by whole steps at fill time or the fill is skipped and counted as blocked. It is not resized from a future close.
+
+Steps are 0.001 BTC and 0.01 ETH. Those steps are labeled instrument rules, not observed in the archive. Within a minute, BTC is handled before ETH. Exits and liquidations happen before entries, so freed cash can fund a later symbol in that same minute.
 
 Exit on the next delayed open when any of these is true on the decision minute:
 

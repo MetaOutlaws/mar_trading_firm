@@ -1,6 +1,9 @@
 """Frozen same-token carry protocol. Numbers live here so the backtest cannot
 quietly redefine them. Hypothesis count is 1. No constant was chosen by
 scanning historical strategy profit.
+
+Quantity is sized off the decision minute's close. The delayed open is the
+fill only. See PROTOCOL.md.
 """
 from __future__ import annotations
 
