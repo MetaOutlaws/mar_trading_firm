@@ -25,6 +25,8 @@ from core.data.ohlcv import BybitOHLCV
 from core.execution.book_guard import BookGuard
 from core.execution.engine import PAPER_EXIT_POLL_SECONDS, TradingPlan
 from core.data.bybit_linear_instruments import AVAILABLE, InstrumentStatus
+from core.data.funding import FundingHistory
+from core.execution.paper import PaperBroker
 from core.execution.exit_supervisor import (
     EXIT_CADENCE_LIMIT_SECONDS,
     EXIT_CALL_HISTORY,
@@ -37,6 +39,7 @@ from core.strategy.base import Signal, SignalSide
 from core.strategy.f111_semantics import new_protection_state
 from research.costs import CostModel
 from scripts.run_paper_trading import _hot_poll
+from tests.test_execution import StubDataSource
 from tests.test_f05_exit_supervision import (
     STARTING,
     SYMBOL,
@@ -366,52 +369,13 @@ def test_reconcile_during_an_exit_does_not_false_trip(
     assert broker_symbols == set()
 
 
-class _OverlapSet(set):
-    """Set whose overlapping membership tests both miss.
-
-    The first checker waits briefly. A second checker in that window means
-    the book lock is not around the dedup check. Both then report the id
-    as absent, even if one of them adds it before the other returns.
-    A lock lets only one checker in, so the wait times out and the second
-    sees the id the first just booked.
-    """
-
-    def __init__(self, items: set[str] | None = None) -> None:
-        super().__init__(items or ())
-        self._mu = threading.Lock()
-        self._inside = 0
-        self._release = threading.Event()
-        self._forced_miss: set[object] = set()
-
-    def __contains__(self, item: object) -> bool:
-        with self._mu:
-            self._inside += 1
-            if self._inside >= 2:
-                self._forced_miss.add(item)
-                self._release.set()
-            first = self._inside == 1
-        if first:
-            self._release.wait(timeout=0.4)
-        with self._mu:
-            forced = item in self._forced_miss
-            present = super().__contains__(item)
-            self._inside -= 1
-            if self._inside == 0:
-                self._release.clear()
-                self._forced_miss.clear()
-        if forced:
-            return False
-        return present
-
-
 def test_concurrent_funding_accrual_debits_once(
     tmp_path, monkeypatch, firm_db
 ) -> None:
     """A cycle accrue and an exit accrue of the same target debit once.
 
-    Both threads compute the step, then wait, then write. The booking
-    lock recomputes the unpaid amount, so the second writer of the same
-    target finds nothing left to debit.
+    Plan and book share the book lock. The second accrual sees the target
+    already in funding_accrued and books nothing more.
     """
     prices = _prices()
     engine = _engine(tmp_path, monkeypatch, firm_db, prices, plan=TradingPlan())
@@ -436,14 +400,7 @@ def test_concurrent_funding_accrual_debits_once(
     )
     assert expected > 0
     cash_after_open = broker.cash
-    broker._applied_funding_ids = _OverlapSet(set(broker._applied_funding_ids))
     errors: list[BaseException] = []
-    barrier = threading.Barrier(2)
-
-    def pause(_planned: list) -> None:
-        barrier.wait(timeout=5)
-
-    broker.before_funding_book = pause
 
     def accrue() -> None:
         try:
@@ -558,6 +515,55 @@ def test_stop_waits_for_the_inflight_exit_and_alerts_past_sixty_seconds(
     supervisor.stop()
     assert time.monotonic() - began >= 0.15
     assert "supervise_exits has not completed" in caplog.text
+
+
+def test_funding_sign_flip_books_the_running_sum(tmp_path) -> None:
+    """A rate that changes sign still moves cash to the cumulative target.
+
+    Funding is a running signed sum. After +0.0003 and then -0.0005 on
+    1000 notional, a long's accrued funding is -0.20 and a short's is +0.20.
+    """
+    opened = datetime(2026, 10, 10, 1, tzinfo=timezone.utc)
+    rates = pd.Series(
+        [0.0003, -0.0005],
+        index=pd.to_datetime(["2026-10-10T08:00:00Z", "2026-10-10T16:00:00Z"]),
+    )
+    history = FundingHistory("XRPUSDT", rates)
+
+    def run(side: str) -> None:
+        broker = PaperBroker(
+            starting_equity=10_000.0,
+            costs=CostModel(
+                taker_fee=0.0,
+                maker_fee=0.0,
+                slippage=0.0,
+                include_funding=True,
+                default_funding_rate=0.0001,
+            ),
+            data_source=StubDataSource({"XRPUSDT": 1.0}),
+            cash_store=PaperCashStore(tmp_path / f"cash-{side}.json"),
+            lock_cost_model=True,
+        )
+        broker._now = lambda: opened
+        broker.set_funding_history("XRPUSDT", history)
+        opened_order = broker.place_market_order(
+            "XRPUSDT", side, 1000.0, expected_price=1.0
+        )
+        assert opened_order.success, opened_order.error
+        position = broker._positions["XRPUSDT"]
+        cash_after_open = broker.cash
+        broker.accrue_funding(opened + timedelta(hours=8))
+        broker.accrue_funding(opened + timedelta(hours=16))
+        expected = broker._funding_cost(position, opened + timedelta(hours=16))
+        assert position.funding_accrued == pytest.approx(expected)
+        assert cash_after_open - broker.cash == pytest.approx(expected)
+        if side == "LONG":
+            assert position.funding_accrued == pytest.approx(-0.20)
+        else:
+            assert position.funding_accrued == pytest.approx(0.20)
+
+    run("LONG")
+    run("SHORT")
 
 
 def test_try_fill_lock_hold_does_not_scale_with_open_position_tickers(

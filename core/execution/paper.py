@@ -436,25 +436,24 @@ class PaperBroker(Broker):
 
         Each distinct funding target is its own journal row, keyed by the
         position, its open time, and that target. An 8h interval is not one
-        row: a later higher target in the same interval is a new row for the
-        unpaid difference.
+        row: a later target in the same interval is a new row for the unpaid
+        difference, including when the cumulative sum changes sign.
 
-        The book lock covers the read of accrued funding, and again the cash
-        write. ``before_funding_book``, when a test sets it, runs between
-        those two without the lock. The write recomputes
-        ``target - funding_accrued``. A target already reached in that
-        direction is skipped, so an earlier plan cannot debit again or move
-        accrued funding back. A short's credit is a negative step and is
-        still booked. Booking the same target again is a logged no-op.
+        Plan and book share one hold of the book lock. ``_funding_cost`` is
+        pure arithmetic, so that hold does not wait on the network. The cash
+        move is ``target - funding_accrued`` whatever its sign. A second
+        accrual cannot book a stale plan in between, so the same step is not
+        debited twice. ``before_funding_book``, when a test sets it, runs
+        after that lock. Booking the same target again is a logged no-op.
         """
         now = now or self._now()
         with self._book():
             planned = self._plan_funding_steps(now)
+            booked = self._book_funding_steps(planned)
         pause = self.before_funding_book
-        if pause is not None and planned:
+        if pause is not None:
             pause(planned)
-        with self._book():
-            return self._book_funding_steps(planned)
+        return booked
 
     def _plan_funding_steps(self, now: datetime) -> list[tuple[str, float, float, str, str]]:
         """Funding steps due now. Does not move cash. Caller holds the book lock."""
@@ -478,31 +477,22 @@ class PaperBroker(Broker):
         return planned
 
     def _book_funding_steps(self, planned: list[tuple[str, float, float, str, str]]) -> float:
-        """Debit the still-unpaid part of each target. Caller holds the book lock.
+        """Debit ``target - funding_accrued``, including a sign change.
 
-        The planned step is not applied as stored. Two accruals in one 8h
-        window can plan at different times, and the later target may book
-        first. Recomputing ``target - funding_accrued`` skips a target that
-        accrued funding has already reached, so cash is not debited twice
-        and accrued funding does not move back toward the earlier amount.
-        A negative step is a credit (a short receiving funding) and is
-        booked. A target already in the in-memory id set is a logged no-op:
-        cash is not debited and accrued funding is not raised.
+        Caller holds the book lock, and planned these rows in that same hold.
+        The stored step is not applied: accrued funding may already include
+        part of this target. A negative step credits cash (a short receiving
+        a positive rate, or a long after the cumulative rate flips sign).
+        A target already in the in-memory id set is a logged no-op: cash is
+        not debited and accrued funding is not changed.
         """
         cash_delta = 0.0
         for symbol, target, _planned_step, event_id, interval_id in planned:
             position = self._positions.get(symbol)
             if position is None or position.observed_funding_only:
                 continue
-            accrued = float(position.funding_accrued)
-            target_value = float(target)
-            step = target_value - accrued
+            step = float(target) - float(position.funding_accrued)
             if abs(step) <= 1e-12:
-                continue
-            # Already at or beyond this target. Do not rewind accrued.
-            if accrued > 0.0 and target_value <= accrued:
-                continue
-            if accrued < 0.0 and target_value >= accrued:
                 continue
             if event_id in self._applied_funding_ids:
                 logger.info(

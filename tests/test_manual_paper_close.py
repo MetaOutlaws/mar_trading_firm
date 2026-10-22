@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -458,3 +460,51 @@ def test_non_paper_broker_does_not_read_the_directory(engine: TradingEngine) -> 
 
     assert path.is_file()
     assert not Path(str(path) + ".done").exists()
+
+
+def test_concurrent_drains_settle_once_and_done_has_no_error(
+    engine: TradingEngine, monkeypatch
+) -> None:
+    """The poll and the exit thread must not both record the same request.
+
+    One drain settles the position. The other finds the drain lock busy and
+    skips. The ``.done`` file has no error item.
+    """
+    import core.execution.paper_close_requests as requests
+
+    real_settle = requests._settle_target
+
+    def slow_settle(engine_, request_id, target):  # noqa: ANN001
+        time.sleep(0.05)
+        return real_settle(engine_, request_id, target)
+
+    monkeypatch.setattr(requests, "_settle_target", slow_settle)
+    _open(engine, "XRPUSDT", qty=10, quote=1.0)
+    engine.broker._data.prices["XRPUSDT"] = 1.2
+    path = _write(
+        engine, "race.json", {"request_id": "race", "symbols": ["XRPUSDT"]}
+    )
+    barrier = threading.Barrier(2)
+    results: list[int] = []
+    errors: list[BaseException] = []
+
+    def drain() -> None:
+        try:
+            barrier.wait(timeout=5)
+            results.append(engine._drain_manual_close_requests())
+        except Exception as exc:
+            errors.append(exc)
+
+    workers = [threading.Thread(target=drain), threading.Thread(target=drain)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=10)
+        assert not worker.is_alive()
+
+    assert errors == []
+    assert sorted(results) == [0, 1]
+    done = _read(Path(str(path) + ".done"))
+    assert [item["status"] for item in done["items"]] == ["closed"]
+    assert all("error" not in item for item in done["items"])
+    assert len(_trades(engine)) == 1

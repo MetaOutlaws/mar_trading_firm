@@ -38,6 +38,7 @@ import json
 import logging
 import math
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -54,12 +55,33 @@ logger = logging.getLogger(__name__)
 PAPER_CLOSE_REQUESTS_DIR = PROJECT_ROOT / "data" / "close_requests"
 MANUAL_CLOSE_REASON = "manual_close"
 
+# One drain at a time. The 15s poll and the exit thread both call this.
+# The loser skips the pass instead of writing a second result file.
+_CLOSE_DRAIN = threading.Lock()
+
 _OPEN = PositionStatus.OPEN.value
 _CLOSED = PositionStatus.CLOSED.value
 
 
 def process_paper_close_requests(engine: Any) -> int:
     """Settle pending paper close requests. Returns how many positions closed.
+
+    A caller that finds a drain already in progress returns 0 and does not
+    touch the directory. The in-progress drain writes the ``.done`` file.
+    """
+    if not _CLOSE_DRAIN.acquire(blocking=False):
+        logger.info(
+            "Paper close request drain already in progress; skipping this pass"
+        )
+        return 0
+    try:
+        return _drain_close_request_files(engine)
+    finally:
+        _CLOSE_DRAIN.release()
+
+
+def _drain_close_request_files(engine: Any) -> int:
+    """Read and settle the directory. Caller holds ``_CLOSE_DRAIN``.
 
     No-op unless the trading mode is paper and the broker is the paper
     broker. One bad file cannot prevent the rest of the directory, or the
@@ -177,17 +199,20 @@ def _settle_target(engine: Any, request_id: str, target: dict[str, Any]) -> dict
         return item
 
     numbers = _trade_numbers(int(located["position_id"]))
-    if closed_n and numbers is not None and numbers["exit_reason"] == MANUAL_CLOSE_REASON:
-        item = _public_item(
-            located,
-            status="closed",
-            pnl=numbers["pnl"],
-            fees=numbers["fees"],
-            funding=numbers["funding"],
-        )
+    if numbers is not None and numbers["exit_reason"] == MANUAL_CLOSE_REASON:
+        if closed_n:
+            item = _public_item(
+                located,
+                status="closed",
+                pnl=numbers["pnl"],
+                fees=numbers["fees"],
+                funding=numbers["funding"],
+            )
+        else:
+            item = _public_item(located, status="already_closed")
         _log_item(request_id, item)
         return item
-    if numbers is not None and numbers["exit_reason"] != MANUAL_CLOSE_REASON:
+    if numbers is not None:
         item = _public_item(located, status="already_closed")
         _log_item(request_id, item)
         return item
