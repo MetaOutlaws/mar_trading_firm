@@ -1066,6 +1066,9 @@ class TradingEngine:
         Live exchange-close settlement on a dirty recon book is F06; pass
         ``allow_live_exchange_close=False`` so this method does not invent
         ticker fills for unreconciled live positions.
+
+        Paper close-request files are drained in this same call, after stops
+        and timeouts. Live and testnet do not read them.
         """
         self._allow_live_exchange_close = allow_live_exchange_close
         return self._manage_open_positions()
@@ -1930,6 +1933,9 @@ class TradingEngine:
                     mark_price=trigger.mark_price,
                 )
             closed += self._timeout_paper_positions()
+            # Same call as the stop poll, after it, so a stop and a manual
+            # request cannot both commit. Paper trading mode only.
+            closed += self._drain_manual_close_requests()
             return closed
 
         if not getattr(self, "_allow_live_exchange_close", True):
@@ -1960,6 +1966,25 @@ class TradingEngine:
             closed += 1
 
         return closed
+
+    def _drain_manual_close_requests(self) -> int:
+        """Settle ``data/close_requests/*.json`` after stops in this step.
+
+        The quote for each request is read before ``book_guard`` when that
+        lock exists. A malformed file is archived and does not escape this
+        method. Live and testnet trading modes do not read the directory.
+        """
+        if not isinstance(self.broker, PaperBroker):
+            return 0
+        try:
+            from core.execution.paper_close_requests import process_paper_close_requests
+
+            return process_paper_close_requests(self)
+        except Exception:
+            logger.exception(
+                "Paper manual close requests failed; stop supervision already ran"
+            )
+            return 0
 
     def _timeout_paper_positions(self) -> int:
         """Flatten paper rows whose ``max_holding_bars`` window has elapsed.

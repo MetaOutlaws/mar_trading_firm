@@ -21,9 +21,10 @@ NOW = datetime(2026, 10, 16, 15, 30, tzinfo=timezone.utc)
 # Blobs of the trading path and the book. A desk patch that edits one of
 # these has changed more than the dashboard.
 _UNTOUCHED = {
-    # Includes feat #155-#158 and the paper-only GBN entry-order hook.
-    # Previous pin (pre-GBN): 0c8db3f76776abe760408a1a44262a34987fabae.
-    "core/execution/engine.py": "068566a1a3ce44ff0d2936d4654905f3bbfe8dc7",
+    # Includes feat #155-#158, the paper-only GBN hook, and manual close
+    # requests drained inside supervise_exits. Previous pin (pre-manual-close):
+    # 068566a1a3ce44ff0d2936d4654905f3bbfe8dc7.
+    "core/execution/engine.py": "78db5b26f3d3b365edfc20ffedc8f25857b965db",
     "core/execution/paper.py": "c73ead0f9dc5a2373f17da76cb2b1c9d11804381",
     # Includes #157 dust kwargs and the #158 near-miss hook. SGP1's pin
     # was ab390d3f. The engine re-pin reaches this next.
