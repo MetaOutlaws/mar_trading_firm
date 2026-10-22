@@ -1,0 +1,477 @@
+{
+ "cell": "xs_crowd_lsr_contrarian",
+ "status": "PROPOSAL_FOR_GARWE_LOCK_SLOT_2026-10-22 (v2 per Brian ruling (a); not sent; today's 1 filing used by xs_sentiment_beta_mid_v2)",
+ "author": "Shumba",
+ "written_at": "2026-10-21T14:35:29+0400 (v1); v2 update 2026-10-21T15:01:37+0400",
+ "live": "off",
+ "paper_only": true,
+ "citation": "Dunbar, K. & Owusu-Amoako, J. (2023) Predictability of crypto returns: The impact of trading behavior. J. Behav. Exp. Finance 39, 100812. DOI 10.1016/j.jbef.2023.100812. Context only: Kogan, Makarov, Niessner & Schoar (2024) JFE 159:103897.",
+ "freeze": {
+  "draft": "briefs/proposals/2026-10-20_shumba_DRAFT_xs_crowd_lsr_contrarian.json sha 7227fb17 (mtime 2026-10-20T03:36:38+0400)",
+  "rules_and_kill_v1": "research/xs_crowd_lsr_contrarian_20261020/PRESTATED_THRESHOLD_lsr.md sha 05d58470572af3507d15e148ef2cccb1e1f14a9b16ec505391a4605d6065aa2d (mtime 2026-10-20T03:36:38+0400, before any LSR data on box)",
+  "rules_and_kill_v2": "research/xs_crowd_lsr_contrarian_20261020/PRESTATED_THRESHOLD_lsr_v2.md sha 5e1fac2c493ae45ab1fbd143896eb2f64291fd5ea13a97880d40e87c5c01b4e5 (box mtime 2026-10-21T14:59:50+0400 GST)",
+  "count_script_v1": "lsr_counts.py sha 28aec716612cfe2330bde26fcdc46d97129807b55de3dce78c1d25c98df2b70b (mtime 2026-10-21T13:00:54+0400)",
+  "count_script_v2": "lsr_counts_v2.py sha ae5ed1a3085678f5d71703180b919b4381eb8f02d587c1d549ca76971bd463f1 (mtime 2026-10-21T15:00:06+0400); diff vs v1 = exclusion predicate, skip+prev reset on dropped Mondays, iso_weeks on kept Mondays, rebalances_dropped/dropped_mondays_v2 fields, output filename _v2",
+  "n_per_rebalance_script_v2": "lsr_n_per_rebalance_v2.py sha 024a6da2d6a49e387a6d876acf7cdc4314dd439860ab3fb4e460b243fb0aee1a (mtime 2026-10-21T15:00:06+0400; features only, reuses lsr_counts_v2.py setup)",
+  "prerun_sums": "SHA256SUMS_v2_prerun (all three hashes written 15:00:06 GST; sha256sum -c OK)",
+  "run_start": "lsr_counts_v2.py 2026-10-21T15:00:10+0400 (after freeze mtime 14:59:50); lsr_n_per_rebalance_v2.py 2026-10-21T15:00:43+0400",
+  "v2_freeze_needed": true,
+  "declared_diff": "ONE inserted rules line vs 05d58470 (V2 DECLARED EXCLUSION): drop Monday rebalance t iff t-7d <= 2025-06-01 and t-1d >= 2025-05-01 (feature window touches 2025-05-01..2025-06-01 inclusive); dropped rebalances hold no position, are not ISO weeks, give no kill row; next kept rebalance enters fresh; tape as is, no rescaling; annualisation denominators unchanged. Unified diff embedded in the v2 file."
+ },
+ "pins": {
+  "lsr_tape": "research/bybit_lsratio_20261020/SHA256SUMS 2787b82f6cbc903a4c1a4e727351256eb5c7bec3b6ff0dc0abc28a1d98e0c884 (sha256sum -c OK, 4657 lines)",
+  "oi_tape": "research/bybit_oi_1h_20261020/SHA256SUMS 63d4518c87a9fc45d4e4dc75fc926f3bd15f6d4b762e32844b0493145e47f596 (sha256sum -c OK, 2329 lines)",
+  "tk_counts.py": "c143f354",
+  "bab_counts.py": "e682ddd9",
+  "counts.py": "c6fe438a",
+  "nl_membership.parquet": "0dcee149",
+  "tapeC_funding.parquet": "b8e28b42",
+  "count_output": "lsr_counts_out_v2.json 231fe7d0f9e2f975055988ccd3974b938585cf150aa895fa5cb5e9fb0cc2b0a2 (written 2026-10-21T15:00:38+0400)",
+  "n_per_rebalance": "lsr_n_per_rebalance_v2.json b401d0a6e4fb7558430b701a56e39c3a78a6f561951c4f8b2825f036fe70bbf4 (written 2026-10-21T15:00:53+0400)",
+  "superseded_v1_outputs": "lsr_counts_out.json 828663f5 / lsr_n_per_rebalance.json 83e1dc4a (v1, kept for audit)",
+  "tsuro_pit_report": "research/bybit_lsratio_20261020/pit_check_20261021/REPORT.md sha256 1533b11c... ; SHA256SUMS 6c6f27be314d6bdcc7f8c80c1505c2e4c3666bf77e5e309c70e2269fda96abc2"
+ },
+ "compatibility_check": {
+  "venue": "Bybit v5 linear /v5/market/account-ratio - matches rules",
+  "field": "buyRatio - present in ls1d and ls1h per_symbol parquet (cols symbol, ts_ms, buyRatio, sellRatio)",
+  "period": "feature L on period 1d; dACC kill on 1h (pulled, 713 symbols); OI kill on 1h openInterest",
+  "timestamp": "ls1d value at ts equals ls1h value at the same ts on 100% of BTC/ETH/SOL days, i.e. ts_ms is a snapshot time. Script uses daily ts <= t-1d (rule: ts+1d<=t and ts<t) and hourly ts <= t-1h, so every input is strictly before the Monday 00:00 UTC rebalance under either start- or snapshot-convention. The day-t-0 snapshot is skipped by the frozen rule (conservative).",
+  "universe": "PIT: tape C 96 elig(t) (>=31d history, last_bar>=t, delisted included to delist) UNION N-tape quoteCoin==USDT and symbolType=='' with first_bar<=t-31d and last_bar>=t",
+  "delisted": "tapes return history to the delist hour (COVERAGE.md probe); names stay eligible until last_bar",
+  "usdc_perp": "the 61 errored symbols on the account-ratio endpoint are exactly the 61 USDC *PERP contracts; removed by quoteCoin==USDT filter, so they never enter the denominator",
+  "missing_days": "7 missing daily rows across 2 symbols handled by frozen min-5-of-7 rule"
+ },
+ "counts_features_only": {
+  "version": "v2",
+  "main": {
+   "iso_weeks": 85,
+   "rebalances_dropped": 5,
+   "median_eligible": 140.0,
+   "median_valid_L": 140.0,
+   "median_coverage": 1.0,
+   "leg_trade_entries": 1631,
+   "leg_trades_per_yr": 954.7
+  },
+  "holdout": {
+   "iso_weeks": 26,
+   "rebalances_dropped": 0,
+   "median_eligible": 243.0,
+   "median_valid_L": 243.0,
+   "median_coverage": 1.0,
+   "leg_trade_entries": 645,
+   "leg_trades_per_yr": 1287.4
+  },
+  "veto2026_not_evidence": "counted by the frozen script for veto bookkeeping only; not used as evidence",
+  "n_per_rebalance": {
+   "main": {
+    "rebalances": 85,
+    "N_valid_min": 74,
+    "N_valid_median": 140.0,
+    "N_valid_max": 224,
+    "per_leg_min": 24,
+    "per_leg_median": 46.0,
+    "per_leg_max": 74,
+    "names_in_position_per_rebalance_min": 48,
+    "names_in_position_per_rebalance_median": 92.0,
+    "names_in_position_per_rebalance_max": 148,
+    "rebalances_below_10": 0
+   },
+   "holdout": {
+    "rebalances": 26,
+    "N_valid_min": 225,
+    "N_valid_median": 243.0,
+    "N_valid_max": 274,
+    "per_leg_min": 75,
+    "per_leg_median": 80.5,
+    "per_leg_max": 91,
+    "names_in_position_per_rebalance_min": 150,
+    "names_in_position_per_rebalance_median": 161.0,
+    "names_in_position_per_rebalance_max": 182,
+    "rebalances_below_10": 0
+   }
+  },
+  "floors": "main ISO weeks 85 >= 30; leg-trades/yr 954.7 >= 100; coverage median 1.0 >= 0.80; median valid L 140.0 >= 30; BTCUSDT ls1d first 2023-10-01 00:00:00 <= 2023-10-08",
+  "v1_to_v2_note": "main ISO weeks 90 -> 85; leg-trade entries 1594 -> 1631 (rises because the first kept Monday after the gap, 2025-06-09, is a full fresh entry under the declared rule rather than a turnover-only rebalance); holdout unchanged (26 weeks, 645 entries) as H2 2025 is untouched."
+ },
+ "kill_test": {
+  "version": "v2",
+  "main_means": {
+   "rho_dACC": 0.102,
+   "J_dACC": 0.234,
+   "rho_oi7d": 0.093,
+   "J_oi7d": 0.233,
+   "rho_oi24h": 0.086,
+   "J_oi24h": 0.228,
+   "rho_fund7d": 0.146,
+   "J_fund7d": 0.257,
+   "rho_ret60": 0.209,
+   "J_ret60": 0.272,
+   "rho_mom3": 0.234,
+   "J_mom3": 0.279,
+   "rho_skew": 0.118,
+   "J_skew": 0.24,
+   "rho_bab_beta": 0.198,
+   "J_bab_beta": 0.271,
+   "rho_tk60": 0.223,
+   "J_tk60": 0.27,
+   "rho_ivol": 0.143,
+   "J_ivol": 0.249,
+   "rho_max7": 0.13,
+   "J_max7": 0.25,
+   "rho_size30": 0.301,
+   "J_size30": 0.314,
+   "rho_amih": 0.307,
+   "J_amih": 0.318,
+   "J_new_listing_hours": 0.0
+  },
+  "max": "J_amih 0.318 (rho_amih 0.307); max rho = rho_amih 0.307",
+  "threshold": 0.5,
+  "fired": [],
+  "verdict": "PASS_ALL_PRESTATED"
+ },
+ "dnr_check_e3acd03f": {
+  "verdict": "CLEAN - not seen",
+  "basis": "briefs/2026-10-16_edge_sweep.md (sha e3acd03fb5dd...) plus research/edge_sweep_20261016/s.py (9dee6d72) and r.py (fb450226) read only the kline_1h tape (open/high/low/close/turnover) of 26 USDT perps; no account-ratio, long/short, positioning, OI or sentiment input. Grep for ratio|account|long-short|crowd|positioning|sentiment|retail|OI|open interest|toptrader returns 0 relevant hits; the only funding/ratio lines are the DROPPED XS funding clone and alt_btc_ratio lead-lag. Adjacent sweep reads (XS 1d reversal, 1w/3w momentum, MAX30, IVOL, Amihud) are covered by the kill test: rho/J vs mom3 0.228/0.278, max7 0.131/0.25, ivol 0.145/0.25, amih 0.315/0.322, all < 0.50."
+ },
+ "disclosures": [
+  "Paper transfer GAP: Dunbar & Owusu-Amoako use CME/CFTC trader categories, time series, BTC/ETH; this cell is a cross-section of Bybit perps on Bybit's account ratio.",
+  "Retrospective pull: the LSR tape was pulled 2026-10-21. Tsuro's PIT check (6c6f27be) found a pre-cutover restatement (see pit_data_declaration); handled by the v2 declared exclusion of cutover-straddling windows, tape used as is; outside the dropped windows ranks are unaffected because the map is a common positive affine transform.",
+  "Leg-trades/yr rises 933.0 -> 954.7 in v2 because the rebalance after the 5-week gap re-enters fresh; annualisation keeps the full calendar span of the main window (conservative per-week, as dropped weeks count in the denominator).",
+  "The sealed oi_funding_z (6-token TS 4h, d4/fz) and toptrader_crowd_divergence (Binance BTC 4h, dTOP/dACC) are not cross-sectional; the frozen kill file tests their cross-sectional legs (dACC 24h on the Bybit ratio; Bybit OI 7d and 24h change; 7d funding). Max among these 0.256 (J_fund7d). The full two-leg TS cells were not re-instantiated cross-sectionally.",
+  "Price-based kill comps (ret60, mom3, skew, BAB, TK, ivol, max7, size30, amih) and fund7d are only computable on tape-C names (n about 80 of about 144 per week); dACC/OI comps use the full set.",
+  "J_new_listing_hours = 0.0 is structural: the >=31d eligibility rule excludes every name in its first 14 days.",
+  "Sign (contrarian) is from the cited paper, frozen 2026-10-20 before any LSR data existed on the box; nothing was tuned.",
+  "Execution and scoring rules (stop 12%, next_open, 0.31% per leg-trade, 1000 random draws seed 20261016) are unchanged from the frozen rules; the stop exceeds the 3% floor.",
+  "Grade cap B. Live off. No 2026 evidence.",
+  "Today's daily filing cap is used (xs_sentiment_beta_mid_v2); this is for the 2026-10-22 slot or Brian's choice."
+ ],
+ "no_outcomes_read": "True. Counts are features, selections and entries only. Past daily returns enter only as contemporaneous kill-test features (ret60, mom3, skew, TK, ivol, max7, BAB beta), the same as the sealed cells. No forward or outcome returns were computed.",
+ "pit_data_declaration": {
+  "written_gst": "2026-10-21T15:01:37+0400 GST",
+  "brian_ruling": "2026-10-21 14:58 GST, option (a) approved (supersedes the 14:57 case-(1) as-is reading): freeze v2 with one declared change, drop every rebalance whose 7-day feature window touches 2025-05-01..2025-06-01, tape as is, no rescaling; freeze/hash before any outcome read; list dropped Mondays and final week count (>=30); feature recounts only; attach Tsuro report and affine-fit evidence; file to Garwe in the 2026-10-22 first slot; Garwe LOCK -> Munha prereg -> Brian YES; no gates loosened; live off.",
+  "v2_freeze": "PRESTATED_THRESHOLD_lsr_v2.md sha256 5e1fac2c493ae45ab1fbd143896eb2f64291fd5ea13a97880d40e87c5c01b4e5, box mtime 2026-10-21T14:59:50+0400 GST",
+  "diff_from_05d58470": "one inserted line after 'Windows:' (V2 DECLARED EXCLUSION): drop t iff t-7d <= 2025-06-01 and t-1d >= 2025-05-01; dropped = no position, no ISO week, no kill row, fresh entry next kept Monday; tape as is, no rescaling. Every other line verbatim. Unified diff embedded in the v2 file.",
+  "dropped_mondays": [
+   "2025-05-05",
+   "2025-05-12",
+   "2025-05-19",
+   "2025-05-26",
+   "2025-06-02"
+  ],
+  "final_main_iso_weeks": 85,
+  "holdout": "H2 2025 untouched: 26 ISO weeks, 0 dropped, 645 entries (identical to v1)",
+  "tsuro_pit_report": "/workspace/research/bybit_lsratio_20261020/pit_check_20261021/REPORT.md (SHA256SUMS 6c6f27be314d6bdcc7f8c80c1505c2e4c3666bf77e5e309c70e2269fda96abc2; REPORT.md sha256 1533b11c)",
+  "affine_fit_evidence": {
+   "source": "Tardis.dev free first-of-month replay, live-recorded 15-60s after publish: 448 captures, 56 days 2022-03..2026-10, 86,271 rows, 696 symbols",
+   "pre_cutover": "0 of 25,825 rows match the tape (except 7 rows at exactly 0.5, the map's fixed point); 25,825/25,825 fit published_then = 0.35 + 0.30 x tape within +-0.00015 (4-dp rounding), across 248 symbols incl. delisted; 25,654 of them in the main window (2023-10-01 on)",
+   "post_cutover": "from 2025-06-01: 60,446 of 60,446 rows match exactly (685 symbols)",
+   "cutover": "between 2025-05-01 21:00Z (last restated sample) and 2025-06-01 00:00Z (first exact sample)",
+   "stamping": "PASS, no offset (ts = snapshot at bucket start; daily D = hourly D 00:00Z on 297,733/297,733 rows)",
+   "live_repull": "155/155 rows identical to tape (seed 20261021, 10 pairs incl. delisted AERGO, AKRO, PROMPT)",
+   "files": "pit_check_20261021/summary.json, restatement_fit.csv, tardis_row_diffs.csv"
+  },
+  "counts_point_to": "research/xs_crowd_lsr_contrarian_20261020/lsr_counts_out_v2.json (231fe7d0) and lsr_n_per_rebalance_v2.json (b401d0a6)",
+  "no_outcomes_read": "v2 recount is features/selections/entries only; no outcome returns read",
+  "tsuro_pit_derived_folder": "/workspace/research/bybit_lsratio_20261020_pit_derived/ (SHA256SUMS 7facedfb); marks 2025-05-01 23:55Z to 2025-06-01 00:00Z as ambiguous_cutover_window",
+  "brian_ruling_1512": "2026-10-21 15:12 GST: ruling (a) supersedes 265a90e5's no-window-cut. Drop every rebalance whose 7d window touches the ambiguous span; raw tape otherwise. The v2 exclusion (dates 2025-05-01..2025-06-01 inclusive) is a superset of that span and drops the same five Mondays: 2025-05-05, 05-12, 05-19, 05-26, 06-02 (06-02's window includes the 06-01 daily period that starts at 00:00Z; 06-09's window starts 06-02, so it is kept). Final main weeks 85 (>=30). Prior proposal versions fed46f15 and 265a90e5 are kept alongside."
+ },
+ "frozen_rules_verbatim_v1": "# xs_crowd_lsr_contrarian: rules + kill stated BEFORE the Bybit long/short tape exists on the box (Shumba, written 2026-10-20T03:36:38+0400 per box clock)\nPaper only. Live off. No long/short data on box at writing; nothing counted; Shumba never computes returns.\nCitation: Dunbar, K. & Owusu-Amoako, J. (2023) Predictability of crypto returns: The impact of trading behavior. JBEF 39, 100812. DOI 10.1016/j.jbef.2023.100812 (peer-reviewed; Crossref + RePEc). Claim: net-short behaviour of speculative retail traders predicts crypto returns. GAP (disclosed): paper uses CME/CFTC trader categories, time-series, BTC/ETH; this cell transfers the retail-positioning idea to a cross-section of Bybit perps using Bybit's account long/short ratio. Context (not support): Kogan, Makarov, Niessner & Schoar (2024) JFE 159:103897 find crypto retail trades momentum-like.\nInput: Bybit /v5/market/account-ratio, period 1d, field buyRatio (share of accounts net long), per symbol; a value is usable at t only if its timestamp + 1d <= t (period closed) and timestamp < t.\nFeature at Monday 00:00 UTC rebalance t: L = mean buyRatio of the last 7 closed daily periods (min 5).\nUniverse: tape C 96 + N-tape USDT LinearPerpetual names, PIT eligible (>=31d perp history, listed at t), valid L. Terciles on L.\nSide (contrarian): LONG bottom tercile (crowd most short), SHORT top tercile (crowd most long); equal-weight, dollar-neutral; hold 7d; stop 12% per coin, re-entry next rebalance; fill next_open; ts < close; 0.31% per leg-trade.\nWindows: main 2023-10-15..2025-06-30; holdout H2 2025; 2026 veto only. Grade cap B (delisted names likely absent from the ratio endpoint).\nGates: PF>=1.15 net; week-cluster CI excludes 0; beats random (1000 draws, seed 20261016, same leg sizes from eligible set); >=100 leg-trades/yr; main >=30 ISO weeks; holdout week-mean R>0 and PF>=1.15.\nKILL (main), NOT_FILED if mean |Spearman rho| > 0.50 OR mean leg Jaccard > 0.50 (larger-overlap orientation) vs any of:\n toptrader_crowd_divergence crowd leg: dACC = ln(L_t / L_{t-24h}) on the same Bybit ratio (period 1h if pulled, else 1d) [explicit leg-drop/variant test]\n OI cells: 7d Bybit OI change ln(OI_t/OI_{t-7d}) and 24h OI change (oi_delta_agree / oi_funding_z d-feature) on Tsuro's 1h OI tape\n ret60, mom3, skew168, BAB beta90, TK60, ivol30, max7, size30, amih30 (definitions as in tk_counts.py c143f354 / bab_counts.py e682ddd9 / counts.py c6fe438a)\n new_listing_drift_short: Jaccard of (symbol,hour) in-position hours vs NL main-cohort first 14d.\n funding family: |rho| vs 7d mean funding rate rank (tape C funding) > 0.50 also kills (funding_fade / xs_funding_rank proximity).\nCoverage gate: NOT_FILED if ratio history starts after 2023-10-08 for BTCUSDT, or median main-week coverage < 80% of PIT-eligible names, or median eligible with valid L < 30.\nNothing here may change after hashing.\n",
+ "frozen_rules_v2_file": "research/xs_crowd_lsr_contrarian_20261020/PRESTATED_THRESHOLD_lsr_v2.md (full text incl. freeze header and unified diff vs v1)",
+ "munha_cost_dd_fields": {
+  "source_request": "Munhamutapa R&L 2026-10-22 (/workspace/briefs/2026-10-22_research_and_learnings.md) + Garwe additions relayed 2026-10-22 ~07:13 GST",
+  "inputs_only": "L features (raw tape), tape C funding (carry), random-basket prices pre-main (seed 20261016). No outcome/forward return of this cell or any L/S-ratio-sorted portfolio read in any window.",
+  "scripts": {
+   "lsr_munha_fields_v2.py": "e651b09485479bea47a15ecfec53cb6a0d0aacb90bd95585d2d081f340237b25",
+   "lsr_munha_fields_v2_out.json": "86d82986fd759a3854867aaed22b54d505e4b414ead19b495205164d6d493782",
+   "lsr_dacc_pit_and_sizing_v2.py": "53cf2f171ec19123b252c079d21ca3a6062f4d0afe5bbac8b208783f147f17ff",
+   "lsr_dacc_pit_and_sizing_v2_out.json": "599ecb535fe80911e531c83cc558373f12755bc20d6975040f06e52736fca987"
+  },
+  "1_expected_turnover_per_week": {
+   "method": "tercile membership change between consecutive kept Mondays exactly 7d apart (83 pairs, main); features only",
+   "fraction_of_leg_replaced": {
+    "long_mean": 0.2154,
+    "long_median": 0.1961,
+    "short_mean": 0.1959,
+    "short_median": 0.1667
+   },
+   "traded_notional_per_unit_gross_per_week": {
+    "mean": 0.4119,
+    "median": 0.3488,
+    "definition": "sum |w_t - w_{t-1}| over both legs (entries + exits + equal-weight resizes), each leg = 0.5 of gross"
+   },
+   "name_leg_trades_entries_plus_exits_per_week": {
+    "mean": 33.54,
+    "median": 32.0
+   },
+   "fresh_full_entry_weeks_excluded_from_average": [
+    "2023-10-16",
+    "2025-06-09"
+   ],
+   "fresh_entry_amortised_add": "2 full entries (traded 1.0 per unit gross each) over 85 weeks adds ~+0.024 traded/wk (~+0.007%/wk cost)",
+   "floor_note": "FLOOR: excludes stop-outs (12% per coin) and re-entries, which cannot be known without returns. Prior weekly XS cells realized 1.3-2.6x planned turnover from stop churn (prospect_value 2.05 traded/$2 gross; realized_skew 1.64 units/position/wk)."
+  },
+  "a_expected_leg_trades_per_year": {
+   "main": 954.7,
+   "holdout": 1287.4,
+   "veto2026": 1575.5,
+   "basis": "lsr_counts_out_v2.json (entries/yr, calendar span denominators)"
+  },
+  "cost_convention": "Binding scorer convention (as applied in xs_prospect_value / realized_skew / bab main scores): 0.31% of notional charged on EACH entry and EACH exit (per one-way leg-trade); a replaced name pays exit + entry = 0.62%. Cost/wk = traded notional x 0.31%. Expressed here as % of gross; in spread units (per $1 per leg) multiply by 2.",
+  "b_funding_carry_per_week": {
+   "method": "sum of tape C funding rates over each hold week (t, t+7d] for tercile members (features-defined); long pays +rate, short receives; cost per unit gross = 0.5*mean_long - 0.5*mean_short (positive = cost); main, 85 kept Mondays",
+   "mean_pct_gross_per_wk": -0.1655,
+   "median_pct_gross_per_wk": -0.0527,
+   "sign": "negative = net CREDIT (short leg, crowd-long names, receives higher funding)",
+   "leg_means_7d_funding_pct": {
+    "long": -0.0852,
+    "short": 0.2459
+   },
+   "PIT_lagged_check_prior_7d": {
+    "mean": -0.193,
+    "median": -0.0646
+   },
+   "coverage": "median 60.9% of held names have funding data; uncovered names assumed equal to covered-leg mean",
+   "n_held_symbols_without_funding_data": 140,
+   "symbols_without_funding_data": [
+    "1000000BABYDOGEUSDT",
+    "1000000MOGUSDT",
+    "10000SATSUSDT",
+    "1000CATUSDT",
+    "1000NEIROCTOUSDT",
+    "1000TOSHIUSDT",
+    "1000TURBOUSDT",
+    "ACEUSDT",
+    "ACTUSDT",
+    "AEROUSDT",
+    "AEVOUSDT",
+    "AIXBTUSDT",
+    "AKTUSDT",
+    "ALCHUSDT",
+    "ALTUSDT",
+    "ANIMEUSDT",
+    "ARCUSDT",
+    "ATHUSDT",
+    "AUSDT",
+    "AVAAIUSDT",
+    "AVAUSDT",
+    "AXLUSDT",
+    "B3USDT",
+    "BABYUSDT",
+    "BANANAS31USDT",
+    "BANANAUSDT",
+    "BANUSDT",
+    "BBUSDT",
+    "BEAMUSDT",
+    "BERAUSDT",
+    "BIOUSDT",
+    "BOMEUSDT",
+    "BRETTUSDT",
+    "CAKEUSDT",
+    "CARVUSDT",
+    "CATIUSDT",
+    "CETUSUSDT",
+    "CGPTUSDT",
+    "CHILLGUYUSDT",
+    "COOKIEUSDT",
+    "COWUSDT",
+    "DEEPUSDT",
+    "DEXEUSDT",
+    "DRIFTUSDT",
+    "DYMUSDT",
+    "EIGENUSDT",
+    "ETHBTCUSDT",
+    "ETHFIUSDT",
+    "FIDAUSDT",
+    "FLUXUSDT",
+    "FORMUSDT",
+    "FUSDT",
+    "GASUSDT",
+    "GOATUSDT",
+    "GRASSUSDT",
+    "GRIFFAINUSDT",
+    "HEIUSDT",
+    "HIVEUSDT",
+    "HMSTRUSDT",
+    "HUMAUSDT",
+    "HYPERUSDT",
+    "INITUSDT",
+    "IOUSDT",
+    "JTOUSDT",
+    "KAIAUSDT",
+    "KAITOUSDT",
+    "KERNELUSDT",
+    "KMNOUSDT",
+    "LSKUSDT",
+    "MANTAUSDT",
+    "MAVIAUSDT",
+    "MELANIAUSDT",
+    "MEMEUSDT",
+    "MERLUSDT",
+    "METISUSDT",
+    "MEUSDT",
+    "MEWUSDT",
+    "MOCAUSDT",
+    "MORPHOUSDT",
+    "MOVEUSDT",
+    "MOVRUSDT",
+    "MUBARAKUSDT",
+    "NILUSDT",
+    "NXPCUSDT",
+    "ONGUSDT",
+    "ORCAUSDT",
+    "ORDERUSDT",
+    "PARTIUSDT",
+    "PHAUSDT",
+    "PIPPINUSDT",
+    "PIXELUSDT",
+    "PLUMEUSDT",
+    "PNUTUSDT",
+    "POLUSDT",
+    "POLYXUSDT",
+    "PORTALUSDT",
+    "POWRUSDT",
+    "PUFFERUSDT",
+    "PUNDIXUSDT",
+    "PYTHUSDT",
+    "RAYDIUMUSDT",
+    "REDUSDT",
+    "RENDERUSDT",
+    "REZUSDT",
+    "RONINUSDT",
+    "SAFEUSDT",
+    "SAGAUSDT",
+    "SHELLUSDT",
+    "SIGNUSDT",
+    "SNTUSDT",
+    "SOLAYERUSDT",
+    "SONICUSDT",
+    "SOONUSDT",
+    "SOPHUSDT",
+    "STEEMUSDT",
+    "SUPERUSDT",
+    "SUSDT",
+    "SXTUSDT",
+    "SYRUPUSDT",
+    "TAIKOUSDT",
+    "TAOUSDT",
+    "THEUSDT",
+    "TNSRUSDT",
+    "USDEUSDT",
+    "USTCUSDT",
+    "USUALUSDT",
+    "VANAUSDT",
+    "VELODROMEUSDT",
+    "VELOUSDT",
+    "WALUSDT",
+    "WCTUSDT",
+    "WUSDT",
+    "XAIUSDT",
+    "XAUTUSDT",
+    "ZBCNUSDT",
+    "ZEREBROUSDT",
+    "ZETAUSDT",
+    "ZKUSDT",
+    "ZORAUSDT",
+    "ZROUSDT"
+   ],
+   "tape": "universe96_full_history_20261016/funding.parquet b8e28b42af2089f068ebc6ea4b0326bb873bf52cbb7062b8b541b3028f98bb71"
+  },
+  "2c_breakeven_gross_pct_of_gross_per_week": {
+   "1.0x": {
+    "trading_only_mean": 0.1277,
+    "trading_only_median": 0.1081,
+    "trading_plus_funding_mean": -0.0378,
+    "trading_plus_funding_median": 0.0554
+   },
+   "1.5x": {
+    "trading_only_mean": 0.1915,
+    "trading_only_median": 0.1622,
+    "trading_plus_funding_mean": 0.026,
+    "trading_plus_funding_median": 0.1095
+   },
+   "2.0x": {
+    "trading_only_mean": 0.2554,
+    "trading_only_median": 0.2163,
+    "trading_plus_funding_mean": 0.0899,
+    "trading_plus_funding_median": 0.1636
+   }
+  },
+  "breakeven_headline": "Trading only at 1x: 0.128%/wk mean turnover (0.108 median) of gross = 0.255%/wk in spread units. With funding credit: -0.038% (mean) / +0.055% (median) at 1x; +0.026/+0.110 at 1.5x; +0.090/+0.164 at 2x. Funding credit rests on 61% name coverage; treat trading-only as the conservative bar.",
+  "3d_cited_effect_size": {
+   "value": "not reported",
+   "search": "Draft 7227fb17 and kill file 05d58470/5e1fac2c cite the paper but give no number. Web: abstract (ScienceDirect S2214635023000266, RePEc, UNCFSU digital commons) states only an \"economically strong and statistically significant\" effect; full text/tables paywalled, no preprint found. No weekly effect figure quoted; none invented.",
+   "transfer_discount": "paper is time-series BTC/ETH CME/CFTC COT positioning; this cell is cross-sectional Bybit account-ratio terciles; any cited figure would need a discount.",
+   "multiple_of_breakeven": "not computable (effect not reported)",
+   "vs_breakeven": "cannot be shown to exceed the 0.128%/wk (trading-only) breakeven, let alone 2x it"
+  },
+  "brian_2x_rule_exemption": "Per relay 2026-10-22 (~07:14 GST, via Garwe/parent): Brian exempted this cell from the Munha 2x-breakeven screen while still requiring the fields to be reported. Shumba did not see Brian's own message text.",
+  "4_per_leg_sizing": {
+   "addendum": "/workspace/research/xs_crowd_lsr_contrarian_20261020/PRESTATED_SIZING_lsr_v2.md",
+   "addendum_sha256": "5f6e436f83c66b08dff254a9ac091dfb8c15a2d19ec83889f27cb91f30888e0a",
+   "frozen_at": "2026-10-22T07:16:13+0400",
+   "gross_leverage": 1.18,
+   "per_leg": 0.59,
+   "per_name_at_median_46": 0.0128,
+   "sigma_w_per_unit_gross": 0.01211,
+   "formula": "E[MDD] = sqrt(pi/2)*sigma_w*G*sqrt(85), zero drift, iid, no stops (Magdon-Ismail 2004 limit); pre-main 2022-01-03..2023-10-02 random 46/46 baskets",
+   "expected_MDD": {
+    "analytic": 0.165,
+    "mc_zero_drift": {
+     "E_MDD": 0.1373,
+     "median": 0.1265,
+     "P_MDD_gt_25": 0.0491
+    },
+    "mc_cost_drift": {
+     "E_MDD": 0.1836,
+     "median": 0.1765,
+     "P_MDD_gt_25": 0.1819
+    }
+   },
+   "caveat": "random basket lacks factor tilts of a sorted book; realized vol may be higher"
+  },
+  "turnover_disclosure": "The cell holds about 92 names per rebalance (median 46/leg, main) on a weekly rebalance, which is higher turnover than Munha prefers. Stated as is; no redesign."
+ },
+ "kill_dACC_tape_vs_pit": {
+  "binding_i_tape_as_written_5e1fac2c": {
+   "rho": 0.102,
+   "J": 0.234,
+   "recomputed": {
+    "rho": 0.102,
+    "J": 0.234,
+    "n_mean": 140.4
+   }
+  },
+  "disclosure_ii_pit_reconstruction": {
+   "rho": 0.097,
+   "J": 0.232,
+   "n_mean": 140.4,
+   "rho_max_week": 0.294,
+   "J_max_week": 0.322
+  },
+  "pit_by_period": {
+   "pre_cutover": {
+    "n": 81,
+    "rho": 0.1,
+    "J": 0.232
+   },
+   "post_cutover": {
+    "n": 4,
+    "rho": 0.044,
+    "J": 0.217
+   }
+  },
+  "method": "same as lsr_counts_v2.py: dACC=ln(buy_{<=t-1h}/buy_{<=t-25h}) on 1h; |Spearman| and larger-orientation tercile Jaccard vs the cell L (raw tape), mean over 85 kept main Mondays; PIT uses buyRatio from bybit_lsratio_20261020_pit_derived/per_symbol/ls1h (ambiguous rows NaN; no kept window touches them)",
+  "pit_folder_SHA256SUMS": "7facedfb12c17b55acc664258a6b2b744e5090bb159da726c8ad88aa9d865e9f (verified)",
+  "above_0p50": false,
+  "verdict": "neither (i) nor (ii) exceeds 0.50; not a toptrader_crowd_divergence variant on this test"
+ },
+ "pit_ruling_relied_on": {
+  "rulings": "Brian 2026-10-21 14:58 GST ruling (a) [drop rebalances whose 7d window touches 2025-05-01..2025-06-01; raw tape as is, no rescaling] and its 15:12 GST confirmation, which superseded his 14:57 GST ruling (1) [rank-only: tape as is, no window cut].",
+  "rationale": "The restatement is one positive affine map (published_then = 0.35 + 0.30 x tape) applied identically to every symbol, so cross-sectional ranks are unchanged outside 7d windows that may straddle the unknown cutover; those windows are dropped.",
+  "evidence": [
+   "Tsuro pit_check REPORT.md, SHA256SUMS 6c6f27be314d6bdcc7f8c80c1505c2e4c3666bf77e5e309c70e2269fda96abc2",
+   "Tsuro pit_derived folder, SHA256SUMS 7facedfb12c17b55acc664258a6b2b744e5090bb159da726c8ad88aa9d865e9f (ambiguous_cutover_window 2025-05-01 23:55Z..2025-06-01 00:00Z)"
+  ],
+  "alternative_not_used": "Restrict to 2025-06 onward: main would keep only Mondays 2025-06-09, 06-16, 06-23, 06-30 = 4 main weeks, far below the 30-week floor."
+ }
+}

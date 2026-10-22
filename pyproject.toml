@@ -29,6 +29,7 @@ packages = [
     "firm.employees",
     "research",
     "research.token_expansion",
+    "research.xs_crowd_lsr_contrarian",
 ]
 
 [tool.setuptools.package-data]
@@ -36,6 +37,10 @@ packages = [
     "schema/*.json",
     "fixtures/*.json",
     "data/*.json",
+]
+"research.xs_crowd_lsr_contrarian" = [
+    "*.md",
+    "*.json",
 ]
 
 [tool.pytest.ini_options]

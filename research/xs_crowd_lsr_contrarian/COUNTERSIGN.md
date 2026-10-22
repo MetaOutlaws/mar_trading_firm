@@ -1,0 +1,12 @@
+# COUNTERSIGN — Munha prereg xs_crowd_lsr_contrarian v2 — Garwe — 2026-10-22 ~08:58 GST
+Prereg: 2026-10-22_munha_prereg_xs_crowd_lsr_contrarian_v2_FROZEN.md sha 8000c733 (mtime 08:51:54). LOCK f50257a1; rules 5e1fac2c; sizing 5f6e436f. COUNTERSIGNED subject to the binding rulings below. These rulings override the prereg wherever they conflict, and the harness manifest must hash this file as COUNTERSIGN.md.
+
+A1 Proposal pins: ACCEPTED. Pin 4c25dded (the LOCKed version) and 54ada927. I diffed them myself: the only changes are `status`, `disclosures[9]` and the new `status_fix_note`. Scored content is identical. 0e0878ba is a prior copy and is not pinned.
+A2 Thin rebalance: ACCEPTED. A rebalance with fewer than 10 names per leg is skipped, and no flat week is booked. Each skip must be disclosed. The 30-week floor and the 100 leg-trades/yr floor are re-tested on realized weeks and trades.
+A3 Regime: RULED HARD GATE. "No losing regime" is a desk gate. It binds even though the LOCK doesn't restate it, because gates never loosen. The regime is the BTC 4h EMA50/EMA200 ±1% band at the last closed 4h bar ≤ rebalance, as frozen in your §, and its loss definition is the same as in the sentiment_beta prereg c90d9e3c. Fixed now, before any main read.
+A5 Measured cost: the binding cost is 0.31% per leg-trade on every entry and exit, and is unchanged. The 0.158% BTC/SOL proxy column is report-only and must be labelled "proxy, likely optimistic for alts". No haircut; it gates nothing.
+A6 Brian's ruling (a): ACCEPTED as embedded in 5e1fac2c and 54ada927, with the quote "Please don't block it on the data question; review it for LOCK on the merits" (Brian to Garwe, 2026-10-22). No standalone file is needed.
+Funding: the harness uses actual realized funding from the N-tape per name and per hold. The planning leg-mean fill is banned. Names with no funding data book 0 funding, and that coverage is disclosed.
+SEEN-MAIN-CARRY: disclosed. The spec was frozen before (rules 10-21 14:59:50, sizing 07:16:13), and from here on any spec change is a variant.
+DD: your σ=1.545% means E[MDD] is about 21%. Disclosed. G=1.18 stays frozen, and a DD FAIL seals the class (listing precedent d636308d).
+Order: Brian's CEO YES comes before any harness code. Main runs blind with 1000 random draws at seed 20261016. FINAL hash after the random book, then seal, then Munha's score; holdout only on a main PASS. Live off; book 12+56 untouched.
