@@ -81,6 +81,29 @@ class Settings(BaseSettings):
     #: not read or write RiskLimits.
     entry_ordering_gbn: bool = False
 
+    # ---- Paper loss-streak probation ----------------------------------------
+    #: Paper only. Default false: the global consecutive-loss cool-down stays
+    #: exactly as it is, including the hard block at ``max_consecutive_losses``.
+    #: When true, that global streak no longer blocks paper entries by itself.
+    #: Live and testnet ignore the flag even if it is set. This is not a
+    #: ``RiskLimits`` field, so the limits pin does not move.
+    #: Env: ``LOSS_STREAK_PROBATION``. Restart the paper loop after changing it.
+    loss_streak_probation: bool = False
+    #: Per-strategy losing streak (sleeve family + side) that blocks new
+    #: entries while probation is on. One half-risk trial is still allowed.
+    #: Env: ``STRATEGY_LOSS_BLOCK``.
+    strategy_loss_block: int = Field(default=3, ge=1)
+    #: How many of a strategy's most recent closed paper trades are used for
+    #: rolling net expectancy under heightened scrutiny. Cannot be set below
+    #: 5. A strategy with fewer than 5 closes is half-sized under scrutiny
+    #: even when this window is larger. Env: ``STRATEGY_EXPECTANCY_WINDOW``.
+    strategy_expectancy_window: int = Field(default=20, ge=5)
+    #: When true, and only while probation is on, a strategy's own streak
+    #: counts overlapping losing holds as one cluster. Default false: each
+    #: trailing loss counts. The global streak and rolling expectancy are
+    #: not clustered. Env: ``LOSS_STREAK_CLUSTER_OVERLAPPING``.
+    loss_streak_cluster_overlapping: bool = False
+
     # ---- Historical data ----------------------------------------------------
     gcp_project_id: str = "crypto-bot-472419"
     bigquery_dataset: str = "historical_data"

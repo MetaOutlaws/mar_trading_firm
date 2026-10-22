@@ -453,7 +453,7 @@ class Ledger:
                 )
             )
 
-        return PortfolioState(
+        state = PortfolioState(
             equity=equity,
             peak_equity=max(self.peak_equity(), equity),
             open_positions=open_positions,
@@ -462,6 +462,14 @@ class Ledger:
             consecutive_losses=self.consecutive_losses(),
             day=today_utc(),
         )
+        # Flag off does not read the per-strategy book. The fields stay at
+        # their defaults, and the global streak above is the only loss count.
+        from core.risk.loss_streak_probation import loss_streak_probation_enabled
+
+        if loss_streak_probation_enabled():
+            state.probation_by_strategy = self.strategy_probation_book(positions)
+            state.journal_risk_event = self.record_risk_event
+        return state
 
     def trades_today(self) -> int:
         """Count of trades opened today (UTC).
@@ -512,8 +520,46 @@ class Ledger:
                 or 0.0
             )
 
+    def strategy_probation_book(self, positions: Sequence[Position] | None = None) -> dict:
+        """Per-strategy loss streak and rolling nets, from closed trades.
+
+        Recomputed on every call. A restart has nothing to reload: the next
+        ``portfolio_state`` walks the same rows. An open position counts as
+        the one allowed trial when the strategy was already blocked at its
+        ``opened_at``.
+        """
+        from core.risk.loss_streak_probation import ClosedFill, build_probation_book
+
+        fills: list[ClosedFill] = []
+        with session_scope() as session:
+            rows = session.scalars(
+                select(TradeRecord)
+                .where(TradeRecord.mode == self.mode)
+                .order_by(TradeRecord.exit_time.desc(), TradeRecord.id.desc())
+            )
+            for row in rows:
+                fills.append(
+                    ClosedFill(
+                        strategy=row.strategy or "",
+                        side=row.side or "",
+                        net_pnl=float(row.net_pnl or 0.0),
+                        entry_time=row.entry_time,
+                        exit_time=row.exit_time,
+                        trade_id=int(row.id),
+                    )
+                )
+        if positions is None:
+            positions = self.open_positions()
+        return build_probation_book(fills, positions)
+
     def consecutive_losses(self) -> int:
-        """Length of the current losing streak."""
+        """Length of the current losing streak across every strategy.
+
+        This is the global streak the cool-down reads. Paper probation does
+        not change the count: overlapping holds are not clustered here, and
+        a ``net_pnl > 0`` close of any strategy breaks it. The walk is still
+        capped at the last 50 closes.
+        """
         with session_scope() as session:
             recent = list(
                 session.scalars(
