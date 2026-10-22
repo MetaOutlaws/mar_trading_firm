@@ -5,9 +5,9 @@ no 0.5x long factor. Long and short with the same stop distance get the same
 notional. The Oct 20 replay's 0.5x long was empirical, not this code.
 
 The gross cap is whatever ``RiskLimits.max_total_exposure_pct`` the sizer
-already holds. These tests pass 0.50 (what SGP1 paper still runs) and 0.80
-(this tree, after PR #160, not deployed until Tsuro ships it). Neither value
-is hardcoded in the orderer.
+already holds. SGP1 paper runs 0.80 since 13:22 GST on 2026-10-22
+(#160, ``aa01e948``). These tests still pass 0.50 as a regression and 0.80
+as the production cap. Neither value is hardcoded in the orderer.
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ from core.execution.entry_ordering import (
     GbnCandidate,
     SubmitResult,
     book_beta_usdt,
+    clear_daily_beta_cache,
     entry_ordering_gbn_enabled,
     execute_entry_ordering,
     legs_from_portfolio,
@@ -44,6 +45,14 @@ from tests.test_paper_universe_sleeves import RISK_LIMITS_SHA256
 EQUITY = 10_000.0
 STOP = 0.0625  # 1/16, inside the stop-distance gate, exact in binary
 DAY = date(2026, 10, 10)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_daily_beta_cache() -> None:
+    """One test's 1d frames must not satisfy the next test's fetch."""
+    clear_daily_beta_cache()
+    yield
+    clear_daily_beta_cache()
 
 
 class NamedLong(AlwaysLong):
@@ -611,7 +620,6 @@ def test_beta_failure_falls_back_to_plan_order_for_the_cycle(tmp_path) -> None:
         betas={"GOODUSDT": 0.1},
         enabled=True,
         failures={"BADUSDT": "fewer than 20 paired daily returns (4 before 2026-10-10)"},
-        size_raises=True,
     )
     assert mode == "plan_fallback"
     assert [row[0] for row in attempts] == ["BADUSDT", "GOODUSDT"]
@@ -662,6 +670,185 @@ def test_zero_notional_position_does_not_force_fallback() -> None:
     )
     assert mode == "gbn"
     assert seen == ["SOLUSDT"]
+
+
+def test_zero_notional_missing_beta_does_not_force_fallback() -> None:
+    """A dust candidate and a flat open leg do not need a beta.
+
+    Plan order would send SOL first. GBN sends the zero-size name first,
+    because it leaves ``|B|`` at 0 and the short does not. That reorder is
+    the proof the missing betas were ignored.
+    """
+    seen: list[str] = []
+
+    def size(candidate: GbnCandidate) -> float:
+        if candidate.symbol == "DUSTUSDT":
+            return 0.0
+        return 250.0
+
+    def submit(candidate: GbnCandidate) -> SubmitResult:
+        seen.append(candidate.symbol)
+        return SubmitResult(approved=False, reasons="no")
+
+    mode = execute_entry_ordering(
+        [
+            GbnCandidate("SOLUSDT", "SHORT", 1.0, 0),
+            GbnCandidate("DUSTUSDT", "LONG", 1.0, 1),
+        ],
+        enabled=True,
+        betas={"SOLUSDT": 0.4},
+        beta_failures={
+            "DUSTUSDT": "fewer than 20 paired daily returns (4 before 2026-10-10)",
+            "ZECUSDT": "daily closes unavailable (feed down)",
+        },
+        book_legs=lambda: [BookLeg("ZECUSDT", "LONG", 0.0)],
+        size_notional=size,
+        submit=submit,
+        cycle_day=DAY,
+        gross_cap=0.80,
+    )
+    assert mode == "gbn"
+    assert seen == ["DUSTUSDT", "SOLUSDT"]
+
+
+def test_mid_cycle_exception_submits_each_candidate_once(caplog) -> None:
+    """A sizing error after the first fill must not drop or repeat a name.
+
+    Equal ``|B|`` on a flat book, so the higher score (MID) is sent first.
+    The next preview raises. MID stays sent; the other two follow plan order.
+    """
+    submitted: list[str] = []
+
+    def size(candidate: GbnCandidate) -> float:
+        if submitted:
+            raise RuntimeError(f"sizer failed on {candidate.symbol}")
+        return 800.0
+
+    def submit(candidate: GbnCandidate) -> SubmitResult:
+        submitted.append(candidate.symbol)
+        return SubmitResult(approved=True, reasons="")
+
+    caplog.set_level(logging.ERROR, logger="core.execution.entry_ordering")
+    mode = execute_entry_ordering(
+        [
+            GbnCandidate("EARLYUSDT", "LONG", 1.0, 0),
+            GbnCandidate("MIDUSDT", "SHORT", 5.0, 1),
+            GbnCandidate("LATEUSDT", "LONG", 3.0, 2),
+        ],
+        enabled=True,
+        betas={"EARLYUSDT": 1.0, "MIDUSDT": 1.0, "LATEUSDT": 1.0},
+        beta_failures={},
+        book_legs=lambda: [],
+        size_notional=size,
+        submit=submit,
+        cycle_day=DAY,
+        gross_cap=0.80,
+    )
+    assert mode == "plan_fallback"
+    assert submitted == ["MIDUSDT", "EARLYUSDT", "LATEUSDT"]
+    assert len(submitted) == len(set(submitted))
+    assert "plan order" in caplog.text
+
+
+def test_daily_fetch_is_cached_for_the_utc_day() -> None:
+    """A second cycle on the same UTC day does not fetch. The next day does.
+
+    Scan and poll both load betas through this function, so one cache covers
+    both. The key is (symbol, cycle date).
+    """
+    calls: list[str] = []
+
+    def fetch(symbol: str) -> pd.Series:
+        calls.append(symbol)
+        beta = 1.0 if symbol == BTC_SYMBOL else 1.5
+        return _closes(beta, 30, date(2026, 10, 9))
+
+    day = date(2026, 10, 10)
+    first, failures = load_betas(fetch, {"ETHUSDT", "SOLUSDT"}, day)
+    assert failures == {}
+    assert first["ETHUSDT"] == pytest.approx(1.5)
+    assert calls == [BTC_SYMBOL, "ETHUSDT", "SOLUSDT"]
+
+    calls.clear()
+    second, again = load_betas(fetch, {"SOLUSDT", "ETHUSDT"}, day)
+    assert again == {}
+    assert calls == []
+    assert second["ETHUSDT"] == pytest.approx(first["ETHUSDT"])
+    assert second["SOLUSDT"] == pytest.approx(first["SOLUSDT"])
+
+    next_day = day + timedelta(days=1)
+    load_betas(fetch, {"ETHUSDT"}, next_day)
+    assert calls == [BTC_SYMBOL, "ETHUSDT"]
+
+
+def test_empty_daily_frame_is_not_cached() -> None:
+    """An empty frame must not be pinned. The next call fetches it again."""
+    calls: list[str] = []
+
+    def fetch(symbol: str):
+        calls.append(symbol)
+        if symbol == BTC_SYMBOL:
+            return _closes(1.0, 30, date(2026, 10, 9))
+        return pd.DataFrame()
+
+    day = date(2026, 10, 10)
+    load_betas(fetch, {"ETHUSDT"}, day)
+    assert calls == [BTC_SYMBOL, "ETHUSDT"]
+    calls.clear()
+    load_betas(fetch, {"ETHUSDT"}, day)
+    assert calls == ["ETHUSDT"]
+
+
+def test_daily_frame_missing_previous_utc_day_is_not_cached() -> None:
+    """Bars that stop the day before yesterday are not pinned past 00:00 UTC."""
+    calls: list[str] = []
+
+    def fetch(symbol: str) -> pd.Series:
+        calls.append(symbol)
+        # Cycle day 10 Oct needs the 9 Oct bar. ETH stops on 8 Oct.
+        last = date(2026, 10, 9) if symbol == BTC_SYMBOL else date(2026, 10, 8)
+        beta = 1.0 if symbol == BTC_SYMBOL else 1.5
+        return _closes(beta, 30, last)
+
+    day = date(2026, 10, 10)
+    load_betas(fetch, {"ETHUSDT"}, day)
+    assert calls == [BTC_SYMBOL, "ETHUSDT"]
+    calls.clear()
+    load_betas(fetch, {"ETHUSDT"}, day)
+    assert calls == ["ETHUSDT"]
+
+
+def test_daily_cache_evicts_other_utc_days_on_write() -> None:
+    """A write for a new UTC day drops every key from any other day."""
+    calls: list[str] = []
+    last_close = {"day": date(2026, 10, 9)}
+
+    def fetch(symbol: str) -> pd.Series:
+        calls.append(symbol)
+        beta = 1.0 if symbol == BTC_SYMBOL else 1.25
+        return _closes(beta, 30, last_close["day"])
+
+    day = date(2026, 10, 10)
+    load_betas(fetch, {"ETHUSDT", "SOLUSDT"}, day)
+    calls.clear()
+    load_betas(fetch, {"ETHUSDT", "SOLUSDT"}, day)
+    assert calls == []
+
+    last_close["day"] = date(2026, 10, 10)
+    calls.clear()
+    nxt = date(2026, 10, 11)
+    load_betas(fetch, {"ETHUSDT"}, nxt)
+    assert calls == [BTC_SYMBOL, "ETHUSDT"]
+    calls.clear()
+    load_betas(fetch, {"ETHUSDT"}, nxt)
+    assert calls == []
+
+    # SOL was cached for 10 Oct and this write did not replace it. The date
+    # is gone anyway, so the old day fetches again.
+    last_close["day"] = date(2026, 10, 9)
+    calls.clear()
+    load_betas(fetch, {"SOLUSDT"}, day)
+    assert calls == [BTC_SYMBOL, "SOLUSDT"]
 
 
 # ---------------------------------------------------------------------------
