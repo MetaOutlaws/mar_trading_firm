@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +19,7 @@ from core.db import session_scope
 from core.execution.engine import TradingEngine, TradingPlan
 from core.execution.paper import PaperBroker
 from core.execution.paper_cash import PaperCashStore
+from core.execution import paper_close_requests
 from core.execution.paper_close_requests import (
     MANUAL_CLOSE_REASON,
     process_paper_close_requests,
@@ -442,6 +445,89 @@ def test_live_and_testnet_ignore_close_requests(engine: TradingEngine, monkeypat
     assert engine.ledger.find_open_position("XRPUSDT") is not None
     assert "XRPUSDT" in engine.broker._positions
     assert _trades(engine) == []
+
+
+def test_symbol_request_does_not_close_a_position_opened_after_the_file(
+    engine: TradingEngine,
+) -> None:
+    """The file is older than the open. The position stays, and the result says so."""
+    path = _write(engine, "late.json", {"request_id": "late", "symbols": ["XRPUSDT"]})
+    past = time.time() - 3600
+    os.utime(path, (past, past))
+    pid = _open(engine, "XRPUSDT", qty=10, quote=1.0)
+    engine.broker._data.prices["XRPUSDT"] = 1.4
+
+    assert engine.supervise_exits() == 0
+
+    item = _read(Path(str(path) + ".done"))["items"][0]
+    assert item["status"] == "opened_after_request"
+    assert item["symbol"] == "XRPUSDT"
+    assert item["position_id"] == pid
+    assert not path.exists()
+    assert engine.ledger.find_open_position("XRPUSDT") is not None
+    assert "XRPUSDT" in engine.broker._positions
+    assert _trades(engine) == []
+
+
+def test_symbol_binding_survives_a_rerun(engine: TradingEngine, monkeypatch) -> None:
+    """A failed .done write leaves the bound ids. The next run does not adopt a new open."""
+    first = _open(engine, "XRPUSDT", qty=10, quote=1.0)
+    engine.broker._data.prices["XRPUSDT"] = 1.2
+    path = _write(engine, "bind.json", {"request_id": "bind", "symbols": ["XRPUSDT"]})
+    real_write = paper_close_requests._atomic_write
+
+    def fail_done(dest, body):
+        if str(dest).endswith(".done"):
+            raise OSError("disk full")
+        real_write(dest, body)
+
+    monkeypatch.setattr(paper_close_requests, "_atomic_write", fail_done)
+    assert engine.supervise_exits() == 1
+    assert path.is_file()
+    assert not Path(str(path) + ".done").exists()
+    stored = _read(path)
+    assert stored["symbol_bindings"]["symbols"]["XRPUSDT"]["position_ids"] == [first]
+    request_mtime = stored["symbol_bindings"]["request_mtime"]
+
+    monkeypatch.setattr(paper_close_requests, "_atomic_write", real_write)
+    second = _open(engine, "XRPUSDT", qty=10, quote=1.3)
+    engine.broker._data.prices["XRPUSDT"] = 1.3
+    assert engine.supervise_exits() == 0
+
+    done = _read(Path(str(path) + ".done"))
+    assert not path.exists()
+    item = done["items"][0]
+    assert item["status"] == "already_closed"
+    assert item["position_id"] == first
+    assert request_mtime == stored["symbol_bindings"]["request_mtime"]
+    still_open = engine.ledger.find_open_position("XRPUSDT")
+    assert still_open is not None
+    assert still_open.id == second
+    assert "XRPUSDT" in engine.broker._positions
+    trades = _trades(engine)
+    assert len(trades) == 1
+    assert trades[0].position_id == first
+    assert trades[0].exit_reason == MANUAL_CLOSE_REASON
+
+
+def test_position_id_request_still_closes_when_opened_after_the_file(
+    engine: TradingEngine,
+) -> None:
+    """An explicit id is not rebound and is not skipped for open time."""
+    pid = _open(engine, "XRPUSDT", qty=10, quote=1.0)
+    engine.broker._data.prices["XRPUSDT"] = 1.2
+    path = _write(engine, "by-id.json", {"request_id": "by-id", "position_ids": [pid]})
+    past = time.time() - 86400
+    os.utime(path, (past, past))
+
+    assert engine.supervise_exits() == 1
+
+    item = _read(Path(str(path) + ".done"))["items"][0]
+    assert item["status"] == "closed"
+    assert item["position_id"] == pid
+    assert "symbol_bindings" not in _read(Path(str(path) + ".done"))
+    assert engine.ledger.find_open_position("XRPUSDT") is None
+    assert _trades(engine)[0].exit_reason == MANUAL_CLOSE_REASON
 
 
 def test_non_paper_broker_does_not_read_the_directory(engine: TradingEngine) -> None:

@@ -405,28 +405,17 @@ def _journal_payload(decision: ProbationDecision) -> dict[str, Any]:
     }
 
 
-def apply_loss_streak_probation(intent: Any, state: Any, limits: Any) -> ProbationDecision | None:
-    """Judge one entry, and log plus journal it when the rules actually spoke.
+def record_probation_decision(intent: Any, state: Any, decision: ProbationDecision) -> None:
+    """Log and journal one probation decision.
 
-    Returns None when the flag is off or this process is not paper. Callers
-    then keep today's path, including the global hard block.
+    ``RiskEngine.evaluate`` calls this for a half, trial, or scrutiny-normal
+    decision only after the other gates have approved the order. A block is
+    recorded as soon as it is decided, including when another gate also
+    rejects the order, because that block is the reason the strategy cannot
+    enter.
     """
-    if not loss_streak_probation_enabled():
-        return None
-
-    book = getattr(state, "probation_by_strategy", None) or {}
-    key = strategy_key(getattr(intent, "strategy", ""), getattr(intent, "side", ""))
-    record = book.get(key) if isinstance(book, dict) else None
-    decision = judge_entry(
-        strategy=getattr(intent, "strategy", ""),
-        side=getattr(intent, "side", ""),
-        global_streak=int(getattr(state, "consecutive_losses", 0) or 0),
-        scrutiny_at=int(limits.max_consecutive_losses),
-        record=record if isinstance(record, dict) else None,
-    )
     if not decision.journaled:
-        return decision
-
+        return
     logger.info(
         "loss-streak probation: strategy=%s raw_streak=%s clustered_streak=%s "
         "streak=%s expectancy=%s win_rate=%s n=%s global_streak=%s action=%s reason=%s",
@@ -451,4 +440,31 @@ def apply_loss_streak_probation(intent: Any, state: Any, limits: Any) -> Probati
             action_taken=decision.action,
             context=_journal_payload(decision),
         )
+
+
+def apply_loss_streak_probation(intent: Any, state: Any, limits: Any) -> ProbationDecision | None:
+    """Judge one entry. A block is logged and journaled here.
+
+    Half, trial, and scrutiny-normal decisions are not journaled yet. The
+    risk engine writes that row only when the order is actually approved, so
+    a sector, gross, or duplicate rejection does not leave a probation row.
+    Returns None when the flag is off or this process is not paper. Callers
+    then keep today's path, including the global hard block.
+    """
+    if not loss_streak_probation_enabled():
+        return None
+
+    book = getattr(state, "probation_by_strategy", None) or {}
+    record = book.get(
+        strategy_key(getattr(intent, "strategy", ""), getattr(intent, "side", ""))
+    ) if isinstance(book, dict) else None
+    decision = judge_entry(
+        strategy=getattr(intent, "strategy", ""),
+        side=getattr(intent, "side", ""),
+        global_streak=int(getattr(state, "consecutive_losses", 0) or 0),
+        scrutiny_at=int(limits.max_consecutive_losses),
+        record=record if isinstance(record, dict) else None,
+    )
+    if decision.action == ACTION_BLOCKED:
+        record_probation_decision(intent, state, decision)
     return decision
