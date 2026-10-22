@@ -72,6 +72,15 @@ class Settings(BaseSettings):
     #: ``data/last_soko_trend.json``. Restart the paper loop and the API.
     llm_seats_enabled: bool = True
 
+    # ---- Paper entry ordering -----------------------------------------------
+    #: Paper only. When true, same-cycle entry candidates reach the risk
+    #: engine in greedy beta-neutralising order (GBN). Default false: plan
+    #: order, byte-for-byte the current scan. Live and testnet ignore this
+    #: even if the variable is set. Env: ``ENTRY_ORDERING_GBN``.
+    #: Restart the paper loop after changing it. Does not resize, and does
+    #: not read or write RiskLimits.
+    entry_ordering_gbn: bool = False
+
     # ---- Historical data ----------------------------------------------------
     gcp_project_id: str = "crypto-bot-472419"
     bigquery_dataset: str = "historical_data"
