@@ -463,9 +463,9 @@ def test_sizer_still_approves_a_headroom_dust_size() -> None:
         OpenPosition(
             symbol="CHZUSDT",
             side="SHORT",
-            quantity=(equity * 0.50 - room) / 100.0,
+            quantity=(equity * 0.80 - room) / 100.0,
             entry_price=100.0,
-            notional=equity * 0.50 - room,
+            notional=equity * 0.80 - room,
             sector="other",
         )
     ]

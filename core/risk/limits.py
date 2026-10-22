@@ -44,7 +44,7 @@ class RiskLimits:
 
     #: Combined notional across all open positions, as a fraction of equity.
     #: Below 1.0 means the account is never fully committed.
-    max_total_exposure_pct: float = 0.50
+    max_total_exposure_pct: float = 0.80
 
     #: Equity fraction lost if a stop is hit. This, not notional, is the real
     #: risk measure: a 10% position with a 5% stop risks 0.5% of equity.

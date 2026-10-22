@@ -2,9 +2,9 @@
 
 Old rows stay byte-identical. New rows are paper overrides with the frozen
 params and the 4h clock. Live ``build_plan`` does not select them.
-``core/risk/limits.py`` is hash-pinned. The pin covers the paper cap of 15
-and the paper dust-floor constants. RiskLimits defaults are not part of
-the dust rule.
+``core/risk/limits.py`` is hash-pinned. The pin covers the paper cap of 15,
+the paper dust-floor constants, and the gross exposure default of 0.80.
+RiskLimits defaults other than that cap are not part of the dust rule.
 """
 
 from __future__ import annotations
@@ -56,12 +56,12 @@ OLD_BOOK_SHA256 = (
 )
 OLD_BOOK_LEN = 1579403
 OLD_BOOK_CLOSER = b"\n}\n"
-# core/risk/limits.py after the paper max_concurrent_positions=15 pin and
-# the paper dust-floor constants. RiskLimits defaults and INITIAL_LIVE_LIMITS
-# stay at their b00c4f73 values. Previous pin (post-#154, before dust):
-# 8a9c3e8aee449814767d00e148f015d7d70bb022f76c934056052738e9f67684
+# core/risk/limits.py after the gross exposure default moved from 0.50 to
+# 0.80. PAPER_LIMITS inherits it. INITIAL_LIVE_LIMITS still sets 0.20.
+# Previous pin (post-dust, before this cap):
+# 173bd4302718bd99a3abbd65c8db5cc9f80d85b571e0aceded6471482b8f009e
 RISK_LIMITS_SHA256 = (
-    "173bd4302718bd99a3abbd65c8db5cc9f80d85b571e0aceded6471482b8f009e"
+    "b53c8b3975a1d8b62d62ac4179c1ee36da19474a0dd913a5b80314e21befbf7d"
 )
 
 RULES = ("ema_adx_trend", "range_compression_volume_thrust")
@@ -342,9 +342,19 @@ def test_live_plan_does_not_select_the_new_sleeves(monkeypatch) -> None:
     assert ("ema_adx_trend", "MATICUSDT", "LONG", "4h") not in paper_ids
 
 
-def test_risk_limits_file_is_unchanged() -> None:
+def test_risk_limits_sha_and_gross_exposure_cap() -> None:
+    """Pinned sha256 of limits.py, and the gross exposure cap is 0.80.
+
+    PAPER_LIMITS inherits the dataclass default. INITIAL_LIVE_LIMITS still
+    sets its own 0.20 and is not this cap.
+    """
+    from core.risk.limits import INITIAL_LIVE_LIMITS, PAPER_LIMITS, RiskLimits
+
     digest = hashlib.sha256(RISK_LIMITS_PATH.read_bytes()).hexdigest()
     assert digest == RISK_LIMITS_SHA256
+    assert RiskLimits().max_total_exposure_pct == 0.80
+    assert PAPER_LIMITS.max_total_exposure_pct == 0.80
+    assert INITIAL_LIVE_LIMITS.max_total_exposure_pct == 0.20
 
 
 def test_append_refuses_an_approved_row(monkeypatch) -> None:

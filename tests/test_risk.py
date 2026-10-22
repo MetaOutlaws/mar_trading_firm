@@ -177,10 +177,10 @@ def test_different_sectors_are_allowed(engine, healthy_state):
 # Exposure
 # ---------------------------------------------------------------------------
 def test_total_exposure_cap_is_enforced(engine, healthy_state):
-    # $5,000 of exposure on $10,000 equity is exactly the 50% cap.
+    # $8,000 of exposure on $10,000 equity is exactly the 80% cap.
     healthy_state.open_positions = [
-        position("A", sector="s1", notional=2_500.0),
-        position("B", sector="s2", notional=2_500.0),
+        position("A", sector="s1", notional=4_000.0),
+        position("B", sector="s2", notional=4_000.0),
     ]
     decision = engine.evaluate(long_intent(), healthy_state)
     assert decision.verdict is RiskVerdict.REJECTED
@@ -189,11 +189,11 @@ def test_total_exposure_cap_is_enforced(engine, healthy_state):
 
 def test_exposure_headroom_shrinks_the_position(engine, healthy_state):
     """Near the exposure cap, a trade is allowed but only at reduced size."""
-    healthy_state.open_positions = [position("A", sector="s1", notional=4_600.0)]
+    healthy_state.open_positions = [position("A", sector="s1", notional=7_600.0)]
     decision = engine.evaluate(long_intent(stop_pct=0.02), healthy_state)
 
     assert decision.verdict is RiskVerdict.APPROVED_REDUCED
-    # Only $400 of headroom remains under the 50% cap.
+    # Only $400 of headroom remains under the 80% cap.
     assert decision.notional <= 400.01
     assert any("exposure headroom" in w for w in decision.warnings)
 
