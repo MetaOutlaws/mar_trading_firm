@@ -172,6 +172,25 @@ class RiskDecision:
         return f"{self.verdict.value}: {'; '.join(self.reasons)}"
 
 
+def _journal_approved_probation(
+    intent: TradeIntent,
+    state: PortfolioState,
+    probation: object | None,
+) -> None:
+    """Write the probation row for an order that evaluate is about to approve.
+
+    Rejected orders do not get a half or trial row. A blocked decision is
+    recorded earlier and is not recorded again here.
+    """
+    if probation is None or not getattr(probation, "journaled", False):
+        return
+    if getattr(probation, "action", "") == "blocked":
+        return
+    from core.risk.loss_streak_probation import record_probation_decision
+
+    record_probation_decision(intent, state, probation)
+
+
 def _annotate_probation(decision: RiskDecision, probation: object | None) -> RiskDecision:
     """Attach the probation action when that path actually recorded one.
 
@@ -260,6 +279,10 @@ class RiskEngine:
                 probation,
             )
 
+        # The other gates have passed. This is the only place a half, trial,
+        # or scrutiny-normal probation row is written. A block was already
+        # journaled when it was decided, and it cannot reach this return.
+        _journal_approved_probation(intent, state, probation)
         return _annotate_probation(
             RiskDecision(
                 verdict=RiskVerdict.APPROVED_REDUCED if reduced else RiskVerdict.APPROVED,

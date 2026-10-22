@@ -8,10 +8,20 @@ that lock itself after the observed-funding read, so the lock is not held
 across the quote or the funding read.
 
 A finished file is replaced by ``<name>.json.done`` carrying one result per
-item: ``closed`` (with pnl), ``not_found``, ``already_closed``, or ``error``.
-A file that is not valid JSON, or not the shape below, becomes
-``<name>.json.error`` and the loop continues. Live and testnet do not read
-the directory.
+item: ``closed`` (with pnl), ``not_found``, ``already_closed``,
+``opened_after_request``, or ``error``. A file that is not valid JSON, or
+not the shape below, becomes ``<name>.json.error`` and the loop continues.
+Live and testnet do not read the directory.
+
+A symbol request is bound on first read to the position ids open for that
+symbol at that moment. The binding, and the file mtime from before it is
+written, are saved back into the same JSON before anything is settled. A
+later retry or restart uses those ids and does not adopt a position opened
+afterwards. A bound position opened more than one second after that
+mtime is left open and recorded as ``opened_after_request``. The one
+second absorbs filesystem mtime lagging the ledger clock, so a fill and
+the file written in the same moment still close. Position ids named by the
+operator are not rebound and are not subject to that mtime check.
 
 Example (``data/close_requests/manual-close-xrp-chz-jup.json``)::
 
@@ -136,6 +146,12 @@ def _process_file(engine: Any, path: Path) -> int:
         return 0
 
     request_id, targets = parsed
+    if payload.get("symbols") and not isinstance(payload.get("symbol_bindings"), dict):
+        payload = _attach_symbol_bindings(engine.ledger, payload, path)
+        _atomic_write(path, payload)
+        targets = _targets_from_payload(payload)
+    elif isinstance(payload.get("symbol_bindings"), dict):
+        targets = _targets_from_payload(payload)
     items: list[dict[str, Any]] = []
     closed = 0
     for target in targets:
@@ -164,7 +180,21 @@ def _process_file(engine: Any, path: Path) -> int:
 
 
 def _settle_target(engine: Any, request_id: str, target: dict[str, Any]) -> dict[str, Any]:
+    if target.get("bound_absent"):
+        located = _located(
+            str(target.get("absent_status") or "not_found"),
+            target.get("symbol"),
+            target.get("position_id"),
+            error=target.get("error"),
+        )
+        _log_item(request_id, located)
+        return _public_item(located)
+
     located = _locate(engine.ledger, target)
+    if _bound_position_is_too_new(target, located):
+        item = _public_item(located, status="opened_after_request")
+        _log_item(request_id, item)
+        return item
     if located["status"] != "open":
         _log_item(request_id, located)
         return _public_item(located)
@@ -179,6 +209,10 @@ def _settle_target(engine: Any, request_id: str, target: dict[str, Any]) -> dict
     # reads observed funding before it takes the book lock, and it uses this
     # quote instead of fetching another.
     located = _locate(engine.ledger, target)
+    if _bound_position_is_too_new(target, located):
+        item = _public_item(located, status="opened_after_request")
+        _log_item(request_id, item)
+        return item
     if located["status"] != "open":
         _log_item(request_id, located)
         return _public_item(located)
@@ -252,14 +286,20 @@ def _locate(ledger: Any, target: dict[str, Any]) -> dict[str, Any]:
                 error="symbol does not match position_id",
             )
         if row["status"] == _OPEN:
-            return _located("open", row["symbol"], row["id"])
+            return _located("open", row["symbol"], row["id"], opened_at=row.get("opened_at"))
         if row["status"] == _CLOSED:
-            return _located("already_closed", row["symbol"], row["id"])
+            return _located(
+                "already_closed",
+                row["symbol"],
+                row["id"],
+                opened_at=row.get("opened_at"),
+            )
         return _located(
             "error",
             row["symbol"],
             row["id"],
             error=f"position is {row['status']}",
+            opened_at=row.get("opened_at"),
         )
 
     open_row = _open_by_symbol(ledger, str(symbol))
@@ -284,6 +324,7 @@ def _located(
     position_id: int | None,
     *,
     error: str | None = None,
+    opened_at: datetime | None = None,
 ) -> dict[str, Any]:
     item: dict[str, Any] = {
         "status": status,
@@ -292,6 +333,8 @@ def _located(
     }
     if error is not None:
         item["error"] = error
+    if opened_at is not None:
+        item["opened_at"] = opened_at
     return item
 
 
@@ -443,7 +486,146 @@ def _snap(row: Position) -> dict[str, Any]:
         "symbol": str(row.symbol),
         "status": str(row.status),
         "mode": str(row.mode),
+        "opened_at": row.opened_at,
     }
+
+
+def _attach_symbol_bindings(ledger: Any, payload: dict[str, Any], path: Path) -> dict[str, Any]:
+    """Freeze each listed symbol to the position ids open right now.
+
+    ``request_mtime`` is the file's mtime before this rewrite. A later read
+    must keep using it: the rewrite itself moves the file's mtime.
+    """
+    request_mtime = path.stat().st_mtime
+    bound: dict[str, Any] = {}
+    for raw in payload.get("symbols") or []:
+        symbol = str(raw).strip()
+        opens = _open_rows(ledger, symbol)
+        if opens:
+            bound[symbol] = {"position_ids": [row["id"] for row in opens]}
+            continue
+        latest = _latest_by_symbol(ledger, symbol)
+        if latest is None:
+            bound[symbol] = {"position_ids": [], "status": "not_found"}
+        elif latest["status"] == _CLOSED:
+            bound[symbol] = {
+                "position_ids": [],
+                "status": "already_closed",
+                "position_id": latest["id"],
+            }
+        else:
+            bound[symbol] = {
+                "position_ids": [],
+                "status": "error",
+                "position_id": latest["id"],
+                "error": f"position is {latest['status']}",
+            }
+    updated = dict(payload)
+    updated["symbol_bindings"] = {"request_mtime": request_mtime, "symbols": bound}
+    return updated
+
+
+def _targets_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Symbol targets come from the stored binding. Id targets are unchanged."""
+    bindings = payload.get("symbol_bindings")
+    if not isinstance(bindings, dict):
+        parsed = _parse_request(payload)
+        if isinstance(parsed, str):
+            return []
+        return parsed[1]
+    symbols_map = bindings.get("symbols")
+    if not isinstance(symbols_map, dict):
+        symbols_map = {}
+    try:
+        request_mtime = float(bindings["request_mtime"])
+    except (KeyError, TypeError, ValueError):
+        request_mtime = None
+    targets: list[dict[str, Any]] = []
+    listed = payload.get("symbols") or list(symbols_map)
+    for raw in listed:
+        symbol = str(raw).strip()
+        spec = symbols_map.get(symbol)
+        if not isinstance(spec, dict):
+            targets.append(
+                {
+                    "symbol": symbol,
+                    "position_id": None,
+                    "bound_absent": True,
+                    "absent_status": "not_found",
+                }
+            )
+            continue
+        ids = spec.get("position_ids") or []
+        if ids:
+            for raw_id in ids:
+                targets.append(
+                    {
+                        "symbol": symbol,
+                        "position_id": int(raw_id),
+                        "bound": True,
+                        "request_mtime": request_mtime,
+                    }
+                )
+        else:
+            targets.append(
+                {
+                    "symbol": symbol,
+                    "position_id": spec.get("position_id"),
+                    "bound_absent": True,
+                    "absent_status": spec.get("status") or "not_found",
+                    "error": spec.get("error"),
+                }
+            )
+    for raw_id in payload.get("position_ids") or []:
+        targets.append({"symbol": None, "position_id": int(raw_id)})
+    return targets
+
+
+def _open_rows(ledger: Any, symbol: str) -> list[dict[str, Any]]:
+    with session_scope() as session:
+        rows = session.scalars(
+            select(Position)
+            .where(
+                Position.symbol == symbol,
+                Position.status == _OPEN,
+                Position.mode == ledger.mode,
+            )
+            .order_by(Position.id)
+        )
+        return [_snap(row) for row in rows]
+
+
+def _bound_position_is_too_new(target: dict[str, Any], located: dict[str, Any]) -> bool:
+    """A symbol binding must not close a position opened after the request.
+
+    A binding with no stored mtime fails closed: the position stays open.
+    Operator-supplied position ids are not bindings and are never skipped here.
+    """
+    if not target.get("bound") or located.get("status") != "open":
+        return False
+    if target.get("request_mtime") is None:
+        return True
+    return _opened_after(located.get("opened_at"), target.get("request_mtime"))
+
+
+def _opened_after(opened_at: datetime | None, request_mtime: Any) -> bool:
+    """True when the position was opened after the request file.
+
+    The ledger clock and the filesystem mtime are not one clock, and mtime
+    can lag a fill that was recorded and then immediately followed by the
+    file. A position counts as later only when its open time is more than
+    one second past that mtime. A same-second open still closes.
+    """
+    if opened_at is None or request_mtime is None:
+        return False
+    try:
+        mtime = float(request_mtime)
+    except (TypeError, ValueError):
+        return False
+    moment = opened_at
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.timestamp() > mtime + 1.0
 
 
 def _trade_numbers(position_id: int) -> dict[str, Any] | None:

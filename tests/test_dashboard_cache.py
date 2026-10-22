@@ -33,9 +33,9 @@ _UNTOUCHED = {
     # GBN commit skips a bar that was already submitted. Previous pin:
     # 90df0f765fc32c27866f250697361896b8fe19e6.
     "core/execution/paper_bar_eval.py": "4462166658ad22b81c63bf07bddccb6a53575bcd",
-    # LOSS_STREAK_PROBATION and the cluster option, both default false.
-    # Previous pin (GBN flag): e57e99b4d9a9137ce51f13dfc4ff8e1cab14e7fa.
-    "config/settings.py": "31e6a009207c733e85adb378e5297636a37a6469",
+    # STRATEGY_LOSS_BLOCK is refused above 10. Previous pin:
+    # 31e6a009207c733e85adb378e5297636a37a6469.
+    "config/settings.py": "556ea0784ce5c94c2bee16f19d9037593e36a569",
     # Feat book after #139. The repair-base pin 97d3f2ca is b00c4f73.
     "config/approved_strategies.json": "d33719d4c721c2ecfc5d90c5a079e9ce1c73c5aa",
 }
