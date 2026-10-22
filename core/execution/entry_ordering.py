@@ -44,8 +44,11 @@ ordered, the exception is logged and every candidate not yet submitted goes
 in plan order. Names already sent to the risk engine in that cycle are not
 sent again.
 
-Daily closes are cached per ``(symbol, cycle UTC date)`` so a later cycle or
-poll on the same day does not fetch them again.
+Daily closes are cached per ``(symbol, cycle UTC date)`` only when the frame
+is non-empty and already contains the previous UTC day's bar, so a later
+cycle or poll on that day does not fetch them again. A frame from just after
+00:00 UTC, before that bar is published, is not pinned. Each write drops
+every key from any other UTC day.
 """
 
 from __future__ import annotations
@@ -55,7 +58,7 @@ import math
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd
@@ -80,7 +83,10 @@ DAILY_LOOKBACK_BARS = 45
 
 _warned_non_paper = False
 
-#: Successful 1d frames, keyed by (symbol, cycle UTC date). Flag off never reads this.
+#: 1d frames worth reusing, keyed by (symbol, cycle UTC date).
+#: Stored only when the frame is non-empty and contains the previous UTC
+#: day's bar. Each write drops keys for every other UTC day.
+#: Flag off never reads this.
 _daily_close_cache: dict[tuple[str, date], Any] = {}
 _daily_cache_lock = threading.Lock()
 
@@ -94,7 +100,12 @@ def clear_daily_beta_cache() -> None:
 def _fetch_daily_cached(
     fetch_daily: Callable[[str], Any], symbol: str, cycle_day: date
 ) -> Any:
-    """Return the daily frame for ``symbol`` on ``cycle_day``, fetching at most once.
+    """Return the daily frame for ``symbol`` on ``cycle_day``.
+
+    A non-empty frame that contains the previous UTC day's bar is stored and
+    reused. An empty frame, or one that does not yet include that bar, is
+    returned and not stored, so the next call fetches again. On each write,
+    keys for any other UTC day are dropped.
 
     The lock is held across the fetch so a cycle and a poll that start together
     share one Bybit read instead of both missing and both pulling.
@@ -105,7 +116,11 @@ def _fetch_daily_cached(
         if cached is not None:
             return cached
         frame = fetch_daily(symbol)
-        _daily_close_cache[key] = frame
+        if _daily_frame_is_cacheable(frame, cycle_day):
+            stale = [existing for existing in _daily_close_cache if existing[1] != cycle_day]
+            for existing in stale:
+                del _daily_close_cache[existing]
+            _daily_close_cache[key] = frame
         return frame
 
 
@@ -255,6 +270,30 @@ def _closes_before(series: pd.Series, cycle_day: date) -> dict[date, float]:
     return found
 
 
+def _daily_frame_is_cacheable(frame: Any, cycle_day: date) -> bool:
+    """True when ``frame`` is non-empty and has the previous UTC day's bar.
+
+    A fetch just after 00:00 UTC often has older daily bars but not yesterday's,
+    because that bar is not published yet. Caching it would pin the gap for
+    the rest of the cycle day.
+    """
+    if frame is None or bool(getattr(frame, "empty", True)):
+        return False
+    closes = closes_from_frame(frame)
+    if len(closes) == 0:
+        return False
+    previous = cycle_day - timedelta(days=1)
+    for ts in closes.index:
+        stamp = pd.Timestamp(ts)
+        if stamp.tzinfo is None:
+            stamp = stamp.tz_localize("UTC")
+        else:
+            stamp = stamp.tz_convert("UTC")
+        if stamp.date() == previous:
+            return True
+    return False
+
+
 def ols_beta_to_btc(
     symbol_closes: pd.Series,
     btc_closes: pd.Series,
@@ -301,11 +340,13 @@ def load_betas(
     """Betas for ``symbols`` using daily closes the caller already knows how to fetch.
 
     ``fetch_daily`` is ``engine._data.fetch_latest(symbol, "1d", bars=...)``.
-    A successful frame is reused for every later call with the same symbol and
-    the same cycle UTC date. The next UTC date fetches again. BTCUSDT is 1.0
-    and is still fetched when another symbol needs a market leg. Failures are
-    names, not exceptions: the cycle falls back to plan order. A failed fetch
-    is not cached, so a later cycle the same day can try once more.
+    A non-empty frame that contains the previous UTC day's bar is reused for
+    every later call with the same symbol and the same cycle UTC date. An
+    empty frame, or one that does not yet include that bar, is not cached.
+    A failed fetch is not cached either, so a later cycle the same day can
+    try once more. Each write drops frames stored for any other UTC day.
+    BTCUSDT is 1.0 and is still fetched when another symbol needs a market
+    leg. Failures are names, not exceptions: the cycle falls back to plan order.
     """
     betas: dict[str, float] = {}
     failures: dict[str, str] = {}

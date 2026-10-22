@@ -781,6 +781,76 @@ def test_daily_fetch_is_cached_for_the_utc_day() -> None:
     assert calls == [BTC_SYMBOL, "ETHUSDT"]
 
 
+def test_empty_daily_frame_is_not_cached() -> None:
+    """An empty frame must not be pinned. The next call fetches it again."""
+    calls: list[str] = []
+
+    def fetch(symbol: str):
+        calls.append(symbol)
+        if symbol == BTC_SYMBOL:
+            return _closes(1.0, 30, date(2026, 10, 9))
+        return pd.DataFrame()
+
+    day = date(2026, 10, 10)
+    load_betas(fetch, {"ETHUSDT"}, day)
+    assert calls == [BTC_SYMBOL, "ETHUSDT"]
+    calls.clear()
+    load_betas(fetch, {"ETHUSDT"}, day)
+    assert calls == ["ETHUSDT"]
+
+
+def test_daily_frame_missing_previous_utc_day_is_not_cached() -> None:
+    """Bars that stop the day before yesterday are not pinned past 00:00 UTC."""
+    calls: list[str] = []
+
+    def fetch(symbol: str) -> pd.Series:
+        calls.append(symbol)
+        # Cycle day 10 Oct needs the 9 Oct bar. ETH stops on 8 Oct.
+        last = date(2026, 10, 9) if symbol == BTC_SYMBOL else date(2026, 10, 8)
+        beta = 1.0 if symbol == BTC_SYMBOL else 1.5
+        return _closes(beta, 30, last)
+
+    day = date(2026, 10, 10)
+    load_betas(fetch, {"ETHUSDT"}, day)
+    assert calls == [BTC_SYMBOL, "ETHUSDT"]
+    calls.clear()
+    load_betas(fetch, {"ETHUSDT"}, day)
+    assert calls == ["ETHUSDT"]
+
+
+def test_daily_cache_evicts_other_utc_days_on_write() -> None:
+    """A write for a new UTC day drops every key from any other day."""
+    calls: list[str] = []
+    last_close = {"day": date(2026, 10, 9)}
+
+    def fetch(symbol: str) -> pd.Series:
+        calls.append(symbol)
+        beta = 1.0 if symbol == BTC_SYMBOL else 1.25
+        return _closes(beta, 30, last_close["day"])
+
+    day = date(2026, 10, 10)
+    load_betas(fetch, {"ETHUSDT", "SOLUSDT"}, day)
+    calls.clear()
+    load_betas(fetch, {"ETHUSDT", "SOLUSDT"}, day)
+    assert calls == []
+
+    last_close["day"] = date(2026, 10, 10)
+    calls.clear()
+    nxt = date(2026, 10, 11)
+    load_betas(fetch, {"ETHUSDT"}, nxt)
+    assert calls == [BTC_SYMBOL, "ETHUSDT"]
+    calls.clear()
+    load_betas(fetch, {"ETHUSDT"}, nxt)
+    assert calls == []
+
+    # SOL was cached for 10 Oct and this write did not replace it. The date
+    # is gone anyway, so the old day fetches again.
+    last_close["day"] = date(2026, 10, 9)
+    calls.clear()
+    load_betas(fetch, {"SOLUSDT"}, day)
+    assert calls == [BTC_SYMBOL, "SOLUSDT"]
+
+
 # ---------------------------------------------------------------------------
 # Engine hook: poll and cycle. Flag off does not fetch daily bars.
 # ---------------------------------------------------------------------------
