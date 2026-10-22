@@ -1136,7 +1136,9 @@ class TradingEngine:
         Paper quotes and observed-funding reads happen before ``book_guard``.
         The lock then covers the ledger close and the broker update together.
         A quote older than ``QUOTE_MAX_AGE`` is refreshed under the lock with
-        a timeout of at most 2 seconds.
+        a timeout of at most 2 seconds. Paper close-request files are drained
+        in this same call, after that lock is released. Live and testnet do
+        not read them.
         """
         self._allow_live_exchange_close = allow_live_exchange_close
         if isinstance(self.broker, PaperBroker):
@@ -2083,10 +2085,14 @@ class TradingEngine:
         if isinstance(self.broker, PaperBroker):
             # Quotes and funding are read before the lock. The lock covers
             # every ledger close and the matching RAM update together.
+            # Manual closes run after that block, so the lock is not held
+            # across their quote or their funding read. A stop that already
+            # committed is seen as already closed.
             prepared = self._prepare_paper_exits()
             with self.book_guard:
                 for item in prepared:
                     closed += self._commit_prepared_exit(item)
+            closed += self._drain_manual_close_requests()
             return closed
 
         if not getattr(self, "_allow_live_exchange_close", True):
@@ -2203,6 +2209,27 @@ class TradingEngine:
             item.funding_fraction = fraction
             item.funding_source = source
             item.funding_asof = observed_at
+
+    def _drain_manual_close_requests(self) -> int:
+        """Settle ``data/close_requests/*.json`` after stops in this step.
+
+        Called after the book lock is released. The quote and the
+        observed-funding read stay outside that lock; ``_settle_paper_exit``
+        takes it for the commit. A malformed file is archived and does not
+        escape this method. Live and testnet trading modes do not read the
+        directory.
+        """
+        if not isinstance(self.broker, PaperBroker):
+            return 0
+        try:
+            from core.execution.paper_close_requests import process_paper_close_requests
+
+            return process_paper_close_requests(self)
+        except Exception:
+            logger.exception(
+                "Paper manual close requests failed; stop supervision already ran"
+            )
+            return 0
 
     def _timeout_paper_positions(self) -> int:
         """Flatten paper rows whose ``max_holding_bars`` window has elapsed.

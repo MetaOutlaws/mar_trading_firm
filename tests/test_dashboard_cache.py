@@ -21,9 +21,9 @@ NOW = datetime(2026, 10, 16, 15, 30, tzinfo=timezone.utc)
 # Blobs of the trading path and the book. A desk patch that edits one of
 # these has changed more than the dashboard.
 _UNTOUCHED = {
-    # Quotes and funding are fetched before the book lock. Previous pin:
-    # 2afca3c6747bc3a262fa9957f425a05252524012.
-    "core/execution/engine.py": "96d213af8bd2fba886b6f72aa09342b23c8e28b3",
+    # Manual closes drain after the book lock. Previous pin:
+    # 96d213af8bd2fba886b6f72aa09342b23c8e28b3.
+    "core/execution/engine.py": "dd5492d0ae8ca6f629f690348a224169b2712103",
     # Booking recomputes the unpaid funding step. Previous pin:
     # 2d53bcc885fa63aa3ed50fa7a502f752112af398.
     "core/execution/paper.py": "efe6ee2effe24f3caa5af3bea4541c578bdbb81a",
@@ -33,9 +33,9 @@ _UNTOUCHED = {
     # GBN commit skips a bar that was already submitted. Previous pin:
     # 90df0f765fc32c27866f250697361896b8fe19e6.
     "core/execution/paper_bar_eval.py": "4462166658ad22b81c63bf07bddccb6a53575bcd",
-    # ENTRY_ORDERING_GBN flag, default false. Previous pin:
-    # 9c02305f6e855960410daa9761abc4a849c97a1a.
-    "config/settings.py": "e57e99b4d9a9137ce51f13dfc4ff8e1cab14e7fa",
+    # LOSS_STREAK_PROBATION and the cluster option, both default false.
+    # Previous pin (GBN flag): e57e99b4d9a9137ce51f13dfc4ff8e1cab14e7fa.
+    "config/settings.py": "31e6a009207c733e85adb378e5297636a37a6469",
     # Feat book after #139. The repair-base pin 97d3f2ca is b00c4f73.
     "config/approved_strategies.json": "d33719d4c721c2ecfc5d90c5a079e9ce1c73c5aa",
 }

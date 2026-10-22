@@ -91,6 +91,11 @@ class PortfolioState:
     realised_pnl_today: float = 0.0
     consecutive_losses: int = 0
     day: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    #: Per-strategy probation book, keyed by "{family} {SIDE}". None when
+    #: LOSS_STREAK_PROBATION is off. The ledger fills it from closed trades.
+    probation_by_strategy: dict | None = None
+    #: Optional ``Ledger.record_risk_event``. Set only while probation is on.
+    journal_risk_event: object | None = None
 
     @property
     def total_exposure(self) -> float:
@@ -133,13 +138,17 @@ class RiskDecision:
     risk_amount: float = 0.0  # equity at risk if the stop is hit
     reasons: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    #: Paper loss-streak probation. Empty when that flag is off, so the
+    #: historical summary shape is unchanged.
+    probation_action: str = ""
+    probation_trial: bool = False
 
     @property
     def is_approved(self) -> bool:
         return self.verdict in (RiskVerdict.APPROVED, RiskVerdict.APPROVED_REDUCED)
 
     def summary(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "verdict": self.verdict.value,
             "approved": self.is_approved,
             "quantity": round(self.quantity, 8),
@@ -148,6 +157,11 @@ class RiskDecision:
             "reasons": self.reasons,
             "warnings": self.warnings,
         }
+        # Flag-off decisions leave these off so the summary stays the same.
+        if self.probation_action:
+            payload["probation_action"] = self.probation_action
+            payload["probation_trial"] = self.probation_trial
+        return payload
 
     def __str__(self) -> str:
         if self.is_approved:
@@ -156,6 +170,19 @@ class RiskDecision:
                 f"(${self.notional:.2f} notional, ${self.risk_amount:.2f} at risk)"
             )
         return f"{self.verdict.value}: {'; '.join(self.reasons)}"
+
+
+def _annotate_probation(decision: RiskDecision, probation: object | None) -> RiskDecision:
+    """Attach the probation action when that path actually recorded one.
+
+    A quiet pass (flag off, or outside scrutiny with no block) leaves the
+    decision fields at their defaults.
+    """
+    if probation is None or not getattr(probation, "journaled", False):
+        return decision
+    decision.probation_action = str(getattr(probation, "action", "") or "")
+    decision.probation_trial = decision.probation_action == "trial"
+    return decision
 
 
 class RiskEngine:
@@ -194,31 +221,54 @@ class RiskEngine:
         # ---- 3. portfolio limits ---------------------------------------
         reasons.extend(self._check_portfolio_limits(intent, state))
 
+        # ---- 3b. paper loss-streak probation ---------------------------
+        # Flag off returns None and adds nothing: the decision below is the
+        # same one this function returned before probation existed. F111 and
+        # the scan both call evaluate, so both inherit the multiplier and
+        # the block without a second implementation.
+        from core.risk.loss_streak_probation import apply_loss_streak_probation
+
+        probation = apply_loss_streak_probation(intent, state, self.limits)
+        if probation is not None and probation.action == "blocked":
+            reasons.append(probation.reason)
+        elif probation is not None and probation.journaled and probation.reason:
+            warnings.append(probation.reason)
+
         if reasons:
-            return RiskDecision(verdict=RiskVerdict.REJECTED, reasons=reasons, warnings=warnings)
+            return _annotate_probation(
+                RiskDecision(verdict=RiskVerdict.REJECTED, reasons=reasons, warnings=warnings),
+                probation,
+            )
 
         # ---- 4. sizing --------------------------------------------------
+        multiplier = 1.0 if probation is None else probation.risk_multiplier
         quantity, notional, risk_amount, sizing_notes, reduced = self._size_position(
-            intent, state
+            intent, state, risk_multiplier=multiplier
         )
         warnings.extend(sizing_notes)
 
         if quantity <= 0 or notional < self.limits.min_notional_usdt:
-            return RiskDecision(
-                verdict=RiskVerdict.REJECTED,
-                reasons=[
-                    f"position size ${notional:.2f} below exchange minimum "
-                    f"${self.limits.min_notional_usdt:.2f}"
-                ],
-                warnings=warnings,
+            return _annotate_probation(
+                RiskDecision(
+                    verdict=RiskVerdict.REJECTED,
+                    reasons=[
+                        f"position size ${notional:.2f} below exchange minimum "
+                        f"${self.limits.min_notional_usdt:.2f}"
+                    ],
+                    warnings=warnings,
+                ),
+                probation,
             )
 
-        return RiskDecision(
-            verdict=RiskVerdict.APPROVED_REDUCED if reduced else RiskVerdict.APPROVED,
-            quantity=quantity,
-            notional=notional,
-            risk_amount=risk_amount,
-            warnings=warnings,
+        return _annotate_probation(
+            RiskDecision(
+                verdict=RiskVerdict.APPROVED_REDUCED if reduced else RiskVerdict.APPROVED,
+                quantity=quantity,
+                notional=notional,
+                risk_amount=risk_amount,
+                warnings=warnings,
+            ),
+            probation,
         )
 
     # -----------------------------------------------------------------
@@ -256,10 +306,15 @@ class RiskEngine:
             )
 
         if state.consecutive_losses >= self.limits.max_consecutive_losses:
-            reasons.append(
-                f"{state.consecutive_losses} consecutive losses >= limit "
-                f"{self.limits.max_consecutive_losses}; cooling down"
-            )
+            # Paper probation replaces this one halt. Every other halt above
+            # still fires. Flag off, live, and testnet keep the cool-down.
+            from core.risk.loss_streak_probation import loss_streak_probation_enabled
+
+            if not loss_streak_probation_enabled():
+                reasons.append(
+                    f"{state.consecutive_losses} consecutive losses >= limit "
+                    f"{self.limits.max_consecutive_losses}; cooling down"
+                )
 
         if state.equity <= 0:
             reasons.append("account equity is zero or negative")
@@ -343,7 +398,10 @@ class RiskEngine:
         return reasons
 
     def _size_position(
-        self, intent: TradeIntent, state: PortfolioState
+        self,
+        intent: TradeIntent,
+        state: PortfolioState,
+        risk_multiplier: float = 1.0,
     ) -> tuple[float, float, float, list[str], bool]:
         """Compute position size as the *minimum* of every applicable cap.
 
@@ -354,6 +412,12 @@ class RiskEngine:
 
         Taking the minimum rather than a preferred sizing rule means adding a
         new cap can only ever make positions smaller.
+
+        ``risk_multiplier`` defaults to 1 and then this function is the
+        historical sizer: the cap math below is not rewritten. A multiplier
+        below 1 (the half-risk trial, or half size under scrutiny) scales
+        that result. It cannot enlarge a position, and it does not relax
+        any cap.
         """
         limits = self.limits
         notes: list[str] = []
@@ -389,6 +453,19 @@ class RiskEngine:
 
         quantity = notional / intent.entry_price if intent.entry_price > 0 else 0.0
         risk_amount = notional * stop_distance
+
+        # Scale only when asked. A multiplier of 1 does not touch the figures
+        # the cap math just produced, so flag-off sizing stays identical.
+        if risk_multiplier < 1.0 - 1e-12:
+            scaled = max(0.0, risk_multiplier)
+            notional *= scaled
+            quantity = notional / intent.entry_price if intent.entry_price > 0 else 0.0
+            risk_amount = notional * stop_distance
+            reduced = True
+            notes.append(
+                f"risk multiplier {scaled:.2f}x applied to the sizer result "
+                f"(${notional:.2f})"
+            )
 
         return quantity, notional, risk_amount, notes, reduced
 

@@ -23,9 +23,9 @@ from firm.research_catalog import _ranking_overlay, clear_ranking_overlay_cache
 ROOT = Path(__file__).resolve().parents[1]
 
 # Trading-path blobs. A read-side cache must not edit them.
-# engine.py fetches quotes before the book lock. Previous pin:
-# 2afca3c6747bc3a262fa9957f425a05252524012.
-_ENGINE = "96d213af8bd2fba886b6f72aa09342b23c8e28b3"
+# engine.py drains manual closes after the book lock. Previous pin:
+# 96d213af8bd2fba886b6f72aa09342b23c8e28b3.
+_ENGINE = "dd5492d0ae8ca6f629f690348a224169b2712103"
 # paper.py recomputes the unpaid funding step when booking. Previous pin:
 # 2d53bcc885fa63aa3ed50fa7a502f752112af398.
 _PAPER = "efe6ee2effe24f3caa5af3bea4541c578bdbb81a"
