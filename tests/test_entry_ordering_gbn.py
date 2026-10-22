@@ -27,6 +27,7 @@ from core.execution.entry_ordering import (
     GbnCandidate,
     SubmitResult,
     book_beta_usdt,
+    budgeted_daily_fetch,
     clear_daily_beta_cache,
     entry_ordering_gbn_enabled,
     execute_entry_ordering,
@@ -952,3 +953,103 @@ def test_engine_flag_on_falls_back_to_plan_order_when_beta_cannot_be_computed(
         assert "variance" in caplog.text
     finally:
         get_settings.cache_clear()
+
+
+def test_gbn_poll_submits_the_batch_once_when_the_due_set_is_complete(
+    tmp_path, monkeypatch, firm_db
+) -> None:
+    """A slow walk holds candidates. The next poll finishes the set and sends it once, in GBN order."""
+    _arm(monkeypatch, "true")
+    clock = Clock(_at(12, 5))
+    engine = _engine(tmp_path, monkeypatch, clock, _two_sleeves())
+    engine.risk.limits = _limits(0.80)
+    engine.broker._data.prices.update({"ETHUSDT": 100_000.0, "SOLUSDT": 100_000.0})
+    engine._data = BetaFeed(clock, {"BTCUSDT": 1.0, "ETHUSDT": 2.0, "SOLUSDT": 0.25})
+    seen = _record(engine)
+
+    class Mono:
+        def __init__(self) -> None:
+            self.t = 0.0
+
+        def __call__(self) -> float:
+            return self.t
+
+    mono = Mono()
+    real = engine._data.fetch_latest
+
+    def slow(symbol: str, timeframe: str, bars: int = 300) -> pd.DataFrame:
+        if timeframe != "1d":
+            mono.t += 5.0
+        return real(symbol, timeframe, bars)
+
+    engine._data.fetch_latest = slow  # type: ignore[method-assign]
+    try:
+        assert poll_paper_book(engine, budget_seconds=4, monotonic=mono) == 0
+        assert seen == []
+        assert engine.ledger.open_positions() == []
+        assert poll_paper_book(engine, budget_seconds=4, monotonic=mono) == 2
+        assert seen == ["SOLUSDT", "ETHUSDT"]
+        assert [row.symbol for row in engine.ledger.open_positions()] == [
+            "SOLUSDT",
+            "ETHUSDT",
+        ]
+    finally:
+        get_settings.cache_clear()
+
+
+def test_gbn_poll_discards_a_held_batch_when_the_bar_rolls(
+    tmp_path, monkeypatch, firm_db, caplog
+) -> None:
+    _arm(monkeypatch, "true")
+    clock = Clock(_at(12, 5))
+    engine = _engine(tmp_path, monkeypatch, clock, _two_sleeves())
+    engine.risk.limits = _limits(0.80)
+    engine.broker._data.prices.update({"ETHUSDT": 100_000.0, "SOLUSDT": 100_000.0})
+    engine._data = BetaFeed(clock, {"BTCUSDT": 1.0, "ETHUSDT": 2.0, "SOLUSDT": 0.25})
+    seen = _record(engine)
+
+    class Mono:
+        def __init__(self) -> None:
+            self.t = 0.0
+
+        def __call__(self) -> float:
+            return self.t
+
+    mono = Mono()
+    real = engine._data.fetch_latest
+
+    def slow(symbol: str, timeframe: str, bars: int = 300) -> pd.DataFrame:
+        if timeframe != "1d":
+            mono.t += 5.0
+        return real(symbol, timeframe, bars)
+
+    engine._data.fetch_latest = slow  # type: ignore[method-assign]
+    caplog.set_level(logging.INFO, logger="core.execution.paper_bar_eval")
+    try:
+        assert poll_paper_book(engine, budget_seconds=4, monotonic=mono) == 0
+        assert seen == []
+        clock.when = _at(13, 5)
+        assert poll_paper_book(engine, budget_seconds=4, monotonic=mono) == 0
+        assert seen == []
+        assert engine.ledger.open_positions() == []
+        assert "discarded held batch" in caplog.text
+    finally:
+        get_settings.cache_clear()
+
+
+def test_beta_fetch_budget_skips_names_past_the_cap() -> None:
+    """A throttled 1d pull does not start another symbol after the 5s budget."""
+    clock = {"t": 0.0}
+    calls: list[str] = []
+
+    class Data:
+        def fetch_latest(self, symbol: str, timeframe: str, bars: int = 300) -> pd.DataFrame:
+            calls.append(symbol)
+            clock["t"] += 3.0
+            beta = 1.0 if symbol == BTC_SYMBOL else 1.2
+            return _daily_frame(beta)
+
+    fetch = budgeted_daily_fetch(Data(), 45, budget=5, monotonic=lambda: clock["t"])
+    _betas, failures = load_betas(fetch, {"ETHUSDT", "SOLUSDT"}, DAY)
+    assert calls == [BTC_SYMBOL, "ETHUSDT"]
+    assert "budget" in failures["SOLUSDT"]

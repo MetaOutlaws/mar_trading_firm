@@ -49,6 +49,7 @@ from core.execution.contract import (
     position_identity,
     risk_levels,
 )
+from core.execution.book_guard import BookGuard
 from core.execution.paper import PaperBroker
 from core.execution.paper_cash import PAPER_CASH_PATH, PaperCashStore
 from core.ledger.store import Ledger
@@ -65,8 +66,10 @@ MAX_CANDLE_LATENCY = timedelta(minutes=15)
 #: Paper stop-poll cadence independent of the 15-minute scan clock.
 #: Review F05 / F15 overlap: sequential workers plus a 900s sleep used to be
 #: the only TP/SL check, and a halt `break` removed even that. The paper
-#: runner calls ``supervise_exits`` on this interval while waiting. Not a
-#: new process — F15's full worker/scan split is out of scope.
+#: runner's exit thread calls ``supervise_exits`` on this interval, including
+#: while F111 or the entry poll is running, and including when
+#: ``ENTRY_ORDERING_GBN`` is off. Not a new process — F15's full worker/scan
+#: split is out of scope.
 PAPER_EXIT_POLL_SECONDS = 15
 
 #: Last completed cycle, written so the dashboard can explain a quiet blotter
@@ -1007,6 +1010,8 @@ class TradingEngine:
         #: F05/F06 seam: paper always polls stops. Live exchange-close
         #: settlement on a dirty recon book is F06 and stays skipped.
         self._allow_live_exchange_close = True
+        #: Serialises an exit close with an entry fill. Not held across a fetch.
+        self.book_guard = BookGuard()
 
     def refresh_scan_plan(self) -> bool:
         """Rebuild the paper sleeve from the latest coded research job.
@@ -1067,8 +1072,9 @@ class TradingEngine:
         ``allow_live_exchange_close=False`` so this method does not invent
         ticker fills for unreconciled live positions.
         """
-        self._allow_live_exchange_close = allow_live_exchange_close
-        return self._manage_open_positions()
+        with self.book_guard:
+            self._allow_live_exchange_close = allow_live_exchange_close
+            return self._manage_open_positions()
 
     def _marked_unrealised(self, marks: dict[str, float]) -> float:
         """Open price P&L. Uses a passed mark when one exists, else the broker price.
@@ -1562,6 +1568,7 @@ class TradingEngine:
             DAILY_LOOKBACK_BARS,
             GbnCandidate,
             SubmitResult,
+            budgeted_daily_fetch,
             cycle_day_utc,
             execute_entry_ordering,
             finite_score,
@@ -1587,8 +1594,7 @@ class TradingEngine:
         def book() -> list[Any]:
             return legs_from_portfolio(self.ledger.portfolio_state(equity, marks))
 
-        def fetch_daily(symbol: str) -> Any:
-            return self._data.fetch_latest(symbol, "1d", bars=DAILY_LOOKBACK_BARS)
+        fetch_daily = budgeted_daily_fetch(self._data, DAILY_LOOKBACK_BARS)
 
         day = cycle_day_utc(_now())
         symbols = {candidate.symbol for candidate in candidates}
@@ -1658,7 +1664,17 @@ class TradingEngine:
     def _attempt_entry(
         self, signal: Signal, equity: float, marks: dict[str, float]
     ) -> RiskDecision:
-        """Risk-check a signal and, if approved, place the order."""
+        """Risk-check a signal and, if approved, place the order.
+
+        The book lock covers the check and the fill so an exit thread cannot
+        close this symbol in the middle of the open.
+        """
+        with self.book_guard:
+            return self._attempt_entry_locked(signal, equity, marks)
+
+    def _attempt_entry_locked(
+        self, signal: Signal, equity: float, marks: dict[str, float]
+    ) -> RiskDecision:
         intent = self._intent_for_signal(signal)
         # Levels for the *risk check* still use the signal close: we do not
         # have a fill yet. Protection levels are rebuilt from the slipped

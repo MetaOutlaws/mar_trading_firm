@@ -11,6 +11,11 @@ an unproven idea in simulation is how evidence gets gathered; requiring
 validation first would be circular. Live mode is the opposite: it trades only
 research-approved pairs, and refuses to start with none.
 
+Exit supervision runs on its own thread, every 15 seconds, including while
+F111 or the entry poll is in a blocking call and including when
+``ENTRY_ORDERING_GBN`` is off. Entry order with the flag off is unchanged.
+Exit timing is not: stops no longer wait for the ~36s F111 minute step.
+
 Usage:
     python scripts/run_paper_trading.py                    # continuous
     python scripts/run_paper_trading.py --cycles 3         # a few cycles then stop
@@ -37,6 +42,7 @@ from core.execution.engine import (
     may_break_on_halt,
     may_stop_for_empty_plan,
 )
+from core.execution.exit_supervisor import PaperExitSupervisor
 from core.execution.paper import PaperBroker
 from core.ledger.store import Ledger
 from firm.locks import PAPER_PID_PATH, acquire_pidfile, release_pidfile
@@ -60,8 +66,10 @@ def _handle_shutdown(signum, _frame) -> None:  # noqa: ANN001
 def _hot_poll(engine) -> None:  # noqa: ANN001
     """F111 and the paper book (any bar clock). No seat and no model call.
 
-    One pass failing must not skip the other, and neither may stop exit
-    supervision. The 900s cycle still owns the pipeline and the seats.
+    One pass failing must not skip the other. Exit supervision does not wait
+    on this function: ``PaperExitSupervisor`` keeps the 15s cadence on its
+    own thread, with the flag off as well as on. The 900s cycle still owns
+    the pipeline and the seats.
     """
     try:
         from core.execution.f111_paper import run_attached_minute_step
@@ -99,8 +107,10 @@ def wait_for_next_cycle(
 
     The scan interval (default 900s) used to be the only TP/SL check. Under
     halt the process used to ``break`` before the next cycle, so even that
-    check vanished (F05). Keep polling ``supervise_exits`` here so an empty
-    plan or ENTRY_HALT cannot orphan paper stops for a full candle.
+    check vanished (F05). This wait still calls ``supervise_exits`` after
+    each sleep. The exit thread is what covers the gap while ``on_poll``
+    (F111, then the book) is blocked. An empty plan or ENTRY_HALT cannot
+    orphan paper stops for a full candle.
     """
     if interval <= 0:
         return
@@ -254,6 +264,10 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
             )
 
     cycle = 0
+    # Paper only. Live stops stay on the exchange. The thread is stopped
+    # before the engine closes so it cannot touch a shutting-down book.
+    exit_supervisor = PaperExitSupervisor(engine)
+    exit_supervisor.start()
     try:
         while not _shutdown_requested:
             cycle += 1
@@ -316,6 +330,7 @@ def _run_loop(args: argparse.Namespace, settings) -> int:  # noqa: ANN001
 
             wait_for_next_cycle(engine, args.interval, on_poll=lambda: _hot_poll(engine))
     finally:
+        exit_supervisor.stop()
         if orchestrator is not None:
             orchestrator.close()
         engine.close()

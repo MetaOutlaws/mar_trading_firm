@@ -21,16 +21,16 @@ NOW = datetime(2026, 10, 16, 15, 30, tzinfo=timezone.utc)
 # Blobs of the trading path and the book. A desk patch that edits one of
 # these has changed more than the dashboard.
 _UNTOUCHED = {
-    # Includes feat #155-#158 and the paper-only GBN entry-order hook.
-    # Previous pin (pre-GBN): 0c8db3f76776abe760408a1a44262a34987fabae.
-    "core/execution/engine.py": "068566a1a3ce44ff0d2936d4654905f3bbfe8dc7",
+    # Exit thread lock plus bounded GBN beta fetches. Previous pin:
+    # 068566a1a3ce44ff0d2936d4654905f3bbfe8dc7.
+    "core/execution/engine.py": "2afca3c6747bc3a262fa9957f425a05252524012",
     "core/execution/paper.py": "c73ead0f9dc5a2373f17da76cb2b1c9d11804381",
-    # Includes #157 dust kwargs and the #158 near-miss hook. SGP1's pin
-    # was ab390d3f. The engine re-pin reaches this next.
-    "core/execution/f111_paper.py": "bdd8e9c8e326da58ce757155653040228bbf248c",
-    # GBN defers same-cycle paper-bar submits when ENTRY_ORDERING_GBN is on.
-    # Previous pin: 5374ab24628ef9e330dbf4b6f433461cc1f299e5.
-    "core/execution/paper_bar_eval.py": "994d64930cdf4fb786dcc78751be9a58500220dd",
+    # Minute replay holds the book lock. Previous pin:
+    # bdd8e9c8e326da58ce757155653040228bbf248c.
+    "core/execution/f111_paper.py": "5fd81a6c317abe05fc33a271279ba5f83774b415",
+    # GBN poll holds a batch until the due set is complete. Previous pin:
+    # 994d64930cdf4fb786dcc78751be9a58500220dd.
+    "core/execution/paper_bar_eval.py": "90df0f765fc32c27866f250697361896b8fe19e6",
     # ENTRY_ORDERING_GBN flag, default false. Previous pin:
     # 9c02305f6e855960410daa9761abc4a849c97a1a.
     "config/settings.py": "e57e99b4d9a9137ce51f13dfc4ff8e1cab14e7fa",

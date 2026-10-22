@@ -20,6 +20,7 @@ import logging
 import math
 import os
 import uuid
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -57,6 +58,18 @@ from core.strategy.f111_semantics import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _hold_book(runtime: Any):
+    """The engine book lock, or a no-op when this runtime has no engine.
+
+    Minute replay mutates positions. The fetch that feeds it stays outside
+    the lock so the exit thread can run during the 1m/1h pull.
+    """
+    guard = getattr(getattr(runtime, "engine", None), "book_guard", None)
+    if guard is None:
+        return nullcontext()
+    return guard
 
 # A registry census row is not an hourly signal, so it has no source_signal_id.
 # gate=False still needs a string. None used to be logged as False because the
@@ -1451,6 +1464,11 @@ class F111Runtime:
         _publish_hourly_summary(self, self.events[start:], now)
 
     def _consume_minutes(self, symbol: str, frame: Any, now: datetime) -> None:
+        """Hold the book lock for the replay. The candle fetch is the caller's."""
+        with _hold_book(self):
+            self._consume_minutes_work(symbol, frame, now)
+
+    def _consume_minutes_work(self, symbol: str, frame: Any, now: datetime) -> None:
         """Confirm closed candles once; execute only at a current quote.
 
         OHLC confirms a retest. It is never an executable exit price. Protection

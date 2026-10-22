@@ -23,9 +23,9 @@ from firm.research_catalog import _ranking_overlay, clear_ranking_overlay_cache
 ROOT = Path(__file__).resolve().parents[1]
 
 # Trading-path blobs. A read-side cache must not edit them.
-# engine.py includes the paper-only GBN hook. Previous pin:
-# 0c8db3f76776abe760408a1a44262a34987fabae.
-_ENGINE = "068566a1a3ce44ff0d2936d4654905f3bbfe8dc7"
+# engine.py holds the book lock around exits and entries. Previous pin:
+# 068566a1a3ce44ff0d2936d4654905f3bbfe8dc7.
+_ENGINE = "2afca3c6747bc3a262fa9957f425a05252524012"
 _PAPER = "c73ead0f9dc5a2373f17da76cb2b1c9d11804381"
 
 
