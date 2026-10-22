@@ -23,10 +23,10 @@ from firm.research_catalog import _ranking_overlay, clear_ranking_overlay_cache
 ROOT = Path(__file__).resolve().parents[1]
 
 # Trading-path blobs. A read-side cache must not edit them.
-# engine.py holds the book lock around exits and entries. Previous pin:
-# 068566a1a3ce44ff0d2936d4654905f3bbfe8dc7.
-_ENGINE = "2afca3c6747bc3a262fa9957f425a05252524012"
-_PAPER = "c73ead0f9dc5a2373f17da76cb2b1c9d11804381"
+# engine.py fetches quotes before the book lock. Previous pin:
+# 2afca3c6747bc3a262fa9957f425a05252524012.
+_ENGINE = "96d213af8bd2fba886b6f72aa09342b23c8e28b3"
+_PAPER = "30d4dea6d0e18f5414e5a6bf5d24c07751f0c3dc"
 
 
 def test_integrity_snapshot_is_once_per_book_sha(monkeypatch) -> None:

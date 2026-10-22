@@ -119,7 +119,9 @@ def test_poll_counts_the_fill_and_the_exit(tmp_path, monkeypatch, firm_db) -> No
     assert decisions[0].is_approved
     assert len(seen) == 1
     symbol, side, quantity, expected_price, reduce_only, quoted = seen[0]
-    assert (symbol, side, reduce_only, quoted) == ("BTCUSDT", "LONG", False, None)
+    assert (symbol, side, reduce_only) == ("BTCUSDT", "LONG", False)
+    # The quote is taken before the book lock and passed into the fill.
+    assert quoted == pytest.approx(100_000.0)
     assert quantity == pytest.approx(decisions[0].quantity)
     assert expected_price == pytest.approx(100_000.0)
     position = engine.broker._positions["BTCUSDT"]

@@ -549,7 +549,9 @@ def commit_deferred_paper_entry(
     """Risk-check one signal that GBN held back, then mark the bar.
 
     Same duplicate gate and ``_attempt_entry`` as ``_evaluate_published``.
-    The cursor is written only after that attempt, except when the book
+    A bar already marked seen is not submitted again, including after a
+    reject or an exit, where the open-position guard would otherwise pass.
+    The cursor is written at submit, before the order, except when the book
     cannot be read: that bar stays unmarked so the next poll can retry.
     """
     if bar_open is None:
@@ -558,6 +560,17 @@ def commit_deferred_paper_entry(
             signal=signal,
             price=price,
             error=f"{entry.key}: deferred bar has no open time",
+        )
+    state = _state(engine)
+    if state.seen(sleeve_key(entry), bar_open):
+        return PaperBarOutcome(
+            handled=True,
+            signal=signal,
+            price=price,
+            ordered=False,
+            evaluated=True,
+            bar_open=bar_open,
+            reason="already submitted",
         )
     block = duplicate_order_block(engine, entry)
     if block.uncertain:
@@ -573,6 +586,12 @@ def commit_deferred_paper_entry(
         reason = block.reason
         rejection = block.reason
     else:
+        state.mark(
+            sleeve_key(entry),
+            bar_open,
+            signal=signal.side.value,
+            reason=signal.reason or reason or "submit",
+        )
         decision = engine._attempt_entry(signal, equity, marks)
         if decision.is_approved:
             ordered = True
@@ -631,6 +650,11 @@ def cycle_paper_bar(
     # still load candles and no-op; that is a second look at a bar the poll
     # already finished.
     if state.seen(sleeve_key(entry), expected):
+        return PaperBarOutcome(handled=True)
+    # A sleeve the GBN poll is still holding must not be submitted here.
+    # The poll marks it seen only when the batch is actually sent.
+    hold = state.gbn_hold
+    if hold is not None and sleeve_key(entry) in hold.visited:
         return PaperBarOutcome(handled=True)
     if not bar_is_actionable(now, entry.timeframe, expected):
         return PaperBarOutcome(handled=False)

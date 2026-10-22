@@ -387,12 +387,21 @@ class BybitOHLCV:
         frame = self.fetch(symbol, timeframe, start, end, use_cache=False)
         return frame.tail(bars)
 
-    def latest_price(self, symbol: str) -> float | None:
-        """Last traded price from the public ticker endpoint."""
+    def latest_price(self, symbol: str, *, timeout: float | None = None) -> float | None:
+        """Last traded price from the public ticker endpoint.
+
+        ``timeout`` overrides the client timeout for this call. Callers that
+        still hold the book lock pass 2 seconds or less.
+        """
         try:
+            request: dict[str, object] = {
+                "params": {"category": self.category, "symbol": symbol},
+            }
+            if timeout is not None:
+                request["timeout"] = timeout
             response = self._client.get(
                 f"{self.base_url}/v5/market/tickers",
-                params={"category": self.category, "symbol": symbol},
+                **request,
             )
             response.raise_for_status()
             payload = response.json()

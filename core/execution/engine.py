@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from dataclasses import dataclass, field, fields, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -49,7 +50,11 @@ from core.execution.contract import (
     position_identity,
     risk_levels,
 )
-from core.execution.book_guard import BookGuard
+from core.execution.book_guard import (
+    LOCKED_TICKER_TIMEOUT_SECONDS,
+    QUOTE_MAX_AGE,
+    BookGuard,
+)
 from core.execution.paper import PaperBroker
 from core.execution.paper_cash import PAPER_CASH_PATH, PaperCashStore
 from core.ledger.store import Ledger
@@ -102,6 +107,59 @@ LAST_CYCLE_PATH = PROJECT_ROOT / "data" / "last_cycle.json"
 def _now() -> datetime:
     """Clock seam so tests can freeze the just-closed-bar window."""
     return datetime.now(timezone.utc)
+
+
+def _limited_price(broker: object, symbol: str) -> float | None:
+    """Ticker used under the book lock. Timeout is 2 seconds when accepted."""
+    get_price = getattr(broker, "get_price", None)
+    if not callable(get_price):
+        return None
+    try:
+        return get_price(symbol, timeout=LOCKED_TICKER_TIMEOUT_SECONDS)
+    except TypeError:
+        return get_price(symbol)
+
+
+def _quote_is_stale(quoted_at: datetime | None) -> bool:
+    if quoted_at is None:
+        return True
+    stamp = quoted_at if quoted_at.tzinfo else quoted_at.replace(tzinfo=timezone.utc)
+    return _now() - stamp > QUOTE_MAX_AGE
+
+
+def _trigger_still_hit(position: object, price: float, reason: str) -> bool:
+    """True when the prefetched stop or target is still through at ``price``."""
+    side = str(getattr(position, "side", ""))
+    stop_loss = getattr(position, "stop_loss", None)
+    take_profit = getattr(position, "take_profit", None)
+    if reason == "stop_loss":
+        if stop_loss is None:
+            return False
+        if side == "LONG":
+            return price <= float(stop_loss)
+        return price >= float(stop_loss)
+    if reason == "take_profit":
+        if take_profit is None:
+            return False
+        if side == "LONG":
+            return price >= float(take_profit)
+        return price <= float(take_profit)
+    return True
+
+
+@dataclass
+class _PreparedExit:
+    """One paper close whose quote and funding were read before the book lock."""
+
+    symbol: str
+    reason: str
+    at_mark: bool
+    mark_price: float | None
+    quoted_at: datetime | None = None
+    funding_fraction: float | None = None
+    funding_source: str | None = None
+    funding_asof: datetime | None = None
+    funding_checked: bool = False
 
 
 @dataclass
@@ -1012,6 +1070,9 @@ class TradingEngine:
         self._allow_live_exchange_close = True
         #: Serialises an exit close with an entry fill. Not held across a fetch.
         self.book_guard = BookGuard()
+        bind = getattr(self.broker, "bind_book_guard", None)
+        if callable(bind):
+            bind(self.book_guard)
 
     def refresh_scan_plan(self) -> bool:
         """Rebuild the paper sleeve from the latest coded research job.
@@ -1071,10 +1132,31 @@ class TradingEngine:
         Live exchange-close settlement on a dirty recon book is F06; pass
         ``allow_live_exchange_close=False`` so this method does not invent
         ticker fills for unreconciled live positions.
+
+        Paper quotes and observed-funding reads happen before ``book_guard``.
+        The lock then covers the ledger close and the broker update together.
+        A quote older than ``QUOTE_MAX_AGE`` is refreshed under the lock with
+        a timeout of at most 2 seconds.
+        """
+        self._allow_live_exchange_close = allow_live_exchange_close
+        if isinstance(self.broker, PaperBroker):
+            return self._manage_open_positions()
+        with self.book_guard:
+            return self._manage_open_positions()
+
+    def reconcile_broker(self) -> list[str]:
+        """Compare the ledger to a broker snapshot while holding the book lock.
+
+        The exit thread commits the ledger close and the in-memory position
+        update under the same lock, so this cannot observe a closed ledger
+        row against a broker that still shows the position.
         """
         with self.book_guard:
-            self._allow_live_exchange_close = allow_live_exchange_close
-            return self._manage_open_positions()
+            if isinstance(self.broker, PaperBroker):
+                snapshots = self.broker.snapshot_positions()
+            else:
+                snapshots = self.broker.get_positions()
+            return self.ledger.reconcile(snapshots)
 
     def _marked_unrealised(self, marks: dict[str, float]) -> float:
         """Open price P&L. Uses a passed mark when one exists, else the broker price.
@@ -1084,13 +1166,19 @@ class TradingEngine:
         """
         total = 0.0
         if isinstance(self.broker, PaperBroker):
-            for position in self.broker._positions.values():
-                mark = marks.get(position.symbol)
+            with self.book_guard:
+                rows = [
+                    (position.symbol, position.side, position.quantity, position.entry_price)
+                    for position in self.broker._positions.values()
+                ]
+            for symbol, side, quantity, entry in rows:
+                mark = marks.get(symbol)
                 if mark is None:
-                    mark = self.broker.get_price(position.symbol)
+                    mark = self.broker.get_price(symbol)
                 if mark is None:
                     continue
-                total += position.unrealised_pnl(float(mark))
+                direction = 1.0 if side == "LONG" else -1.0
+                total += (float(mark) - entry) * quantity * direction
             return total
         for snap in self.broker.get_positions():
             mark = marks.get(snap.symbol)
@@ -1200,7 +1288,7 @@ class TradingEngine:
         # ---- 2. reconcile ------------------------------------------------
         recon_dirty = False
         try:
-            discrepancies = self.ledger.reconcile(self.broker.get_positions())
+            discrepancies = self.reconcile_broker()
         except Exception as exc:
             # F09 (fail-open on recon exception) is unchanged here.
             report.errors.append(f"reconciliation failed: {exc}")
@@ -1666,14 +1754,39 @@ class TradingEngine:
     ) -> RiskDecision:
         """Risk-check a signal and, if approved, place the order.
 
-        The book lock covers the check and the fill so an exit thread cannot
-        close this symbol in the middle of the open.
+        The quote and the instrument are read before the book lock. The lock
+        covers the check and the fill so an exit thread cannot close this
+        symbol in the middle of the open. A quote that aged out while waiting
+        for the lock is refreshed with a timeout of at most 2 seconds.
         """
+        if isinstance(self.broker, PaperBroker):
+            quoted_price = self.broker.get_price(signal.symbol)
+            quoted_at = _now()
+            self.broker.get_instrument(signal.symbol, price=quoted_price)
+            with self.book_guard:
+                if (
+                    quoted_price is None
+                    or quoted_at is None
+                    or _now() - quoted_at > QUOTE_MAX_AGE
+                ):
+                    quoted_price = _limited_price(self.broker, signal.symbol)
+                return self._attempt_entry_locked(
+                    signal,
+                    equity,
+                    marks,
+                    quoted_price=quoted_price,
+                    quote_resolved=True,
+                )
         with self.book_guard:
             return self._attempt_entry_locked(signal, equity, marks)
 
     def _attempt_entry_locked(
-        self, signal: Signal, equity: float, marks: dict[str, float]
+        self,
+        signal: Signal,
+        equity: float,
+        marks: dict[str, float],
+        quoted_price: float | None = None,
+        quote_resolved: bool = False,
     ) -> RiskDecision:
         intent = self._intent_for_signal(signal)
         # Levels for the *risk check* still use the signal close: we do not
@@ -1733,7 +1846,14 @@ class TradingEngine:
         # Same equity the sizer just used. Paper dust classification reads it
         # once, off the filled notional, inside the ledger.
         self._place_order(
-            signal, decision, stop_price, take_profit, sector, entry_equity=equity
+            signal,
+            decision,
+            stop_price,
+            take_profit,
+            sector,
+            entry_equity=equity,
+            quoted_price=quoted_price,
+            quote_resolved=quote_resolved,
         )
         return decision
 
@@ -1801,6 +1921,8 @@ class TradingEngine:
         take_profit: float,
         sector: str,
         entry_equity: float | None = None,
+        quoted_price: float | None = None,
+        quote_resolved: bool = False,
     ) -> bool:
         """Submit the order, attach stops, and record the position.
 
@@ -1813,12 +1935,32 @@ class TradingEngine:
         order, size, stops, and ledger row.
         """
         self._last_entry_filled = False
-        result = self.broker.place_market_order(
-            symbol=signal.symbol,
-            side=signal.side.value,
-            quantity=decision.quantity,
-            expected_price=signal.price,
-        )
+        if quote_resolved and (
+            quoted_price is None or not math.isfinite(quoted_price) or quoted_price <= 0
+        ):
+            logger.error("Order failed for %s: no market price available", signal.symbol)
+            self.ledger.record_risk_event(
+                "order_failed",
+                "warning",
+                symbol=signal.symbol,
+                detail="no market price available",
+            )
+            return False
+        if quote_resolved:
+            result = self.broker.place_market_order(
+                symbol=signal.symbol,
+                side=signal.side.value,
+                quantity=decision.quantity,
+                expected_price=signal.price,
+                quoted_price=quoted_price,
+            )
+        else:
+            result = self.broker.place_market_order(
+                symbol=signal.symbol,
+                side=signal.side.value,
+                quantity=decision.quantity,
+                expected_price=signal.price,
+            )
 
         if not result.success:
             logger.error("Order failed for %s: %s", signal.symbol, result.error)
@@ -1849,7 +1991,10 @@ class TradingEngine:
                 "rather than holding it unprotected.",
                 signal.symbol,
             )
-            self.broker.close_position(signal.symbol)
+            if isinstance(self.broker, PaperBroker):
+                self.broker.close_position(signal.symbol, quoted_price=fill_price)
+            else:
+                self.broker.close_position(signal.symbol)
             self.ledger.record_risk_event(
                 "stops_failed",
                 "critical",
@@ -1936,16 +2081,12 @@ class TradingEngine:
         closed = 0
 
         if isinstance(self.broker, PaperBroker):
-            # Peek, then commit the cash event and the trade together.
-            # check_stops() journals cash before the trade row and is not used here.
-            for trigger in self.broker.peek_exit_triggers():
-                closed += self._settle_paper_exit(
-                    trigger.symbol,
-                    trigger.reason,
-                    at_mark=trigger.at_mark,
-                    mark_price=trigger.mark_price,
-                )
-            closed += self._timeout_paper_positions()
+            # Quotes and funding are read before the lock. The lock covers
+            # every ledger close and the matching RAM update together.
+            prepared = self._prepare_paper_exits()
+            with self.book_guard:
+                for item in prepared:
+                    closed += self._commit_prepared_exit(item)
             return closed
 
         if not getattr(self, "_allow_live_exchange_close", True):
@@ -1961,7 +2102,7 @@ class TradingEngine:
             if position.symbol in broker_symbols:
                 continue
 
-            exit_price = self.broker.get_price(position.symbol) or position.entry_price
+            exit_price = _limited_price(self.broker, position.symbol) or position.entry_price
             self.ledger.close_position(
                 position_id=position.id,
                 exit_price=exit_price,
@@ -1977,30 +2118,119 @@ class TradingEngine:
 
         return closed
 
+    def _prepare_paper_exits(self) -> list[_PreparedExit]:
+        """Peek stops and expired holds, then read funding, all outside the lock."""
+        broker = self.broker
+        if not isinstance(broker, PaperBroker):
+            return []
+        prepared: list[_PreparedExit] = []
+        seen: set[str] = set()
+        for trigger in broker.peek_exit_triggers():
+            prepared.append(
+                _PreparedExit(
+                    symbol=trigger.symbol,
+                    reason=trigger.reason,
+                    at_mark=trigger.at_mark,
+                    mark_price=trigger.mark_price,
+                    quoted_at=trigger.quoted_at,
+                )
+            )
+            seen.add(trigger.symbol)
+        now = _now()
+        for position in list(self.ledger.open_positions()):
+            expiry = getattr(position, "expiry_at", None)
+            if expiry is None or now < expiry or position.symbol in seen:
+                continue
+            prepared.append(
+                _PreparedExit(
+                    symbol=position.symbol,
+                    reason="timeout",
+                    at_mark=False,
+                    mark_price=broker.get_price(position.symbol),
+                    quoted_at=_now(),
+                )
+            )
+            seen.add(position.symbol)
+        self._attach_observed_funding(prepared)
+        return prepared
+
+    def _attach_observed_funding(self, prepared: list[_PreparedExit]) -> None:
+        """Observed F111 funding for closes we already decided to attempt.
+
+        The HTTP read stays outside the book lock. ``funding_checked`` tells
+        the commit step not to fetch again.
+        """
+        broker = self.broker
+        if not isinstance(broker, PaperBroker) or not prepared:
+            return
+        wanted = {item.symbol for item in prepared}
+        with self.book_guard:
+            snaps = []
+            for symbol, ram in broker._positions.items():
+                if symbol not in wanted or not ram.observed_funding_only:
+                    continue
+                snaps.append(
+                    (
+                        symbol,
+                        ram.side,
+                        ram.entry_price,
+                        ram.opened_at,
+                        dict(ram.funding_settlements),
+                    )
+                )
+        if not snaps:
+            return
+        from core.execution.f111_funding import observed_funding_fraction
+
+        found: dict[str, tuple[float | None, str | None, datetime]] = {}
+        for symbol, side, entry, opened, cache in snaps:
+            observed_at = broker._now()
+            fraction, source = observed_funding_fraction(
+                symbol=symbol,
+                side=1 if side == "LONG" else -1,
+                entry_price=entry,
+                opened=opened,
+                now=observed_at,
+                data=broker._data,
+                cache=cache,
+            )
+            found[symbol] = (fraction, source, observed_at)
+        for item in prepared:
+            if item.symbol not in found:
+                continue
+            fraction, source, observed_at = found[item.symbol]
+            item.funding_checked = True
+            item.funding_fraction = fraction
+            item.funding_source = source
+            item.funding_asof = observed_at
+
     def _timeout_paper_positions(self) -> int:
         """Flatten paper rows whose ``max_holding_bars`` window has elapsed.
 
         Stops are polled first so a last-bar TP/SL still wins, matching
         ``find_exit_on_path``. Replay uses the candle path; this is the live
-        sampled-clock equivalent (F04).
+        sampled-clock equivalent (F04). The price is read before the lock.
         """
         if not isinstance(self.broker, PaperBroker):
             return 0
         now = _now()
-        closed = 0
+        prepared: list[_PreparedExit] = []
         for position in list(self.ledger.open_positions()):
             expiry = getattr(position, "expiry_at", None)
-            if expiry is None:
+            if expiry is None or now < expiry:
                 continue
-            if now < expiry:
-                continue
-            closed += self._settle_paper_exit(
-                position.symbol,
-                "timeout",
-                at_mark=False,
-                mark_price=None,
+            prepared.append(
+                _PreparedExit(
+                    symbol=position.symbol,
+                    reason="timeout",
+                    at_mark=False,
+                    mark_price=self.broker.get_price(position.symbol),
+                    quoted_at=_now(),
+                )
             )
-        return closed
+        self._attach_observed_funding(prepared)
+        with self.book_guard:
+            return sum(self._commit_prepared_exit(item) for item in prepared)
 
     def _settle_paper_exit(
         self,
@@ -2012,8 +2242,28 @@ class TradingEngine:
     ) -> int:
         """Commit one paper close. RAM cash moves only after the trade commits.
 
-        Strategy and exit reason come from the open row and this caller.
-        They are not invented for a journal line that lacks them.
+        The quote and any observed-funding read happen before the book lock.
+        The ledger commit and the broker update then run together under it.
+        """
+        broker = self.broker
+        if not isinstance(broker, PaperBroker):
+            return 0
+        price = mark_price if mark_price is not None else broker.get_price(symbol)
+        item = _PreparedExit(
+            symbol=symbol,
+            reason=reason,
+            at_mark=at_mark,
+            mark_price=price,
+            quoted_at=_now(),
+        )
+        self._attach_observed_funding([item])
+        with self.book_guard:
+            return self._commit_prepared_exit(item)
+
+    def _commit_prepared_exit(self, item: _PreparedExit) -> int:
+        """Ledger close and broker update. Caller holds ``book_guard``.
+
+        Does not fetch funding. A missing or stale quote is one short ticker.
         """
         from core.execution.paper_settle import (
             CloseSettlementError,
@@ -2021,9 +2271,23 @@ class TradingEngine:
             settle_paper_close,
         )
 
+        symbol = item.symbol
+        reason = item.reason
         broker = self.broker
         if not isinstance(broker, PaperBroker):
             return 0
+
+        price = item.mark_price
+        refreshed = price is None or _quote_is_stale(item.quoted_at)
+        if refreshed:
+            price = _limited_price(broker, symbol)
+            ram = broker._positions.get(symbol)
+            # A quote that aged out is checked again. A fresh caller-supplied
+            # mark is applied as given.
+            if reason in ("stop_loss", "take_profit") and (
+                ram is None or price is None or not _trigger_still_hit(ram, float(price), reason)
+            ):
+                return 0
 
         position = self.ledger.find_open_position(symbol)
         if position is None:
@@ -2038,29 +2302,27 @@ class TradingEngine:
 
         ram = broker._positions.get(symbol)
         if ram is not None and ram.observed_funding_only:
-            from core.execution.f111_funding import observed_funding_fraction
-
-            observed_at = broker._now()
-            fraction, source = observed_funding_fraction(
-                symbol=symbol, side=1 if ram.side == "LONG" else -1,
-                entry_price=ram.entry_price, opened=ram.opened_at, now=observed_at,
-                data=broker._data, cache=ram.funding_settlements,
-            )
-            if fraction is None:
+            if item.funding_fraction is None:
                 ram.funding_complete = False
             else:
-                broker.record_observed_funding(symbol, fraction * ram.notional,
-                                               asof=observed_at, source=source)
+                broker.record_observed_funding(
+                    symbol,
+                    item.funding_fraction * ram.notional,
+                    asof=item.funding_asof or broker._now(),
+                    source=item.funding_source or "explicit research input",
+                )
         broker.accrue_funding()
-        if at_mark:
-            fill = float(mark_price if mark_price is not None else (broker.get_price(symbol) or 0.0))
+        if price is None:
+            return 0
+        if item.at_mark:
+            fill = float(price)
             expected = fill
             ram = broker._positions.get(symbol)
             if ram is not None and reason == "stop_loss" and ram.stop_loss is not None:
                 expected = float(ram.stop_loss)
             quoted = broker.quote_mark_close(symbol, fill, expected)
         else:
-            quoted = broker.quote_market_close(symbol, quoted_price=mark_price)
+            quoted = broker.quote_market_close(symbol, quoted_price=price)
         if quoted is None:
             return 0
 
@@ -2101,6 +2363,7 @@ class TradingEngine:
             return 0
 
         # Replay applies the committed payload, not a freshly quoted price.
+        # This stays in the same lock acquisition as the ledger commit.
         applied = broker.apply_journal_close(result.payload)
         if not applied.success and symbol in broker._positions:
             logger.error("Paper close %s committed but RAM still shows the position", symbol)
