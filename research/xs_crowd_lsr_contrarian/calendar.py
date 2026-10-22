@@ -23,6 +23,17 @@ RESTATEMENT_START = pd.Timestamp("2025-05-01", tz="UTC")
 RESTATEMENT_END = pd.Timestamp("2025-06-01", tz="UTC")
 YEAR_2026_TS = pd.Timestamp(YEAR_2026)
 
+# Addendum d0cc64c8. Holdout evidence is the 25 Mondays 2025-07-07 through
+# 2025-12-22. The 2025-12-29 rebalance would be marked with bars after that
+# Monday, so it is veto-only and is not a week of evidence. The data bound
+# is the 2025-12-29 00:00 open, which closes the 2025-12-22 hold.
+HOLDOUT_EVIDENCE_FIRST = pd.Timestamp("2025-07-07", tz="UTC")
+HOLDOUT_EVIDENCE_LAST = pd.Timestamp("2025-12-22", tz="UTC")
+HOLDOUT_VETO_ONLY = pd.Timestamp("2025-12-29", tz="UTC")
+HOLDOUT_EVIDENCE_WEEKS = 25
+MAIN_LAST_REBALANCE = pd.Timestamp("2025-06-30", tz="UTC")
+MAIN_DATA_CAP = pd.Timestamp("2025-07-07", tz="UTC")
+
 
 class WindowError(RuntimeError):
     """The requested window is not runnable."""
@@ -48,11 +59,11 @@ def is_dropped_monday(t: pd.Timestamp) -> bool:
     return feature_window_touches_restatement(t)
 
 
-def rebalance_mondays(window: str) -> list[pd.Timestamp]:
-    """Monday 00:00 UTC dates inside the frozen window, inclusive.
+def _mondays_in_bounds(window: str) -> list[pd.Timestamp]:
+    """Every Monday 00:00 UTC inside the frozen calendar bounds.
 
-    2026 is not a window. A Monday at or after 2026-01-01 is refused even
-    if a caller extends the bounds.
+    This includes the holdout Monday that the addendum then takes out of
+    the evidence book. ``rebalance_mondays`` is what the book trades.
     """
     try:
         start_s, end_s = WINDOWS[window]
@@ -79,17 +90,64 @@ def rebalance_mondays(window: str) -> list[pd.Timestamp]:
     return times
 
 
-def exit_cap(window: str) -> pd.Timestamp:
-    """Open time of the bar that closes the last in-window hold.
+def rebalance_mondays(window: str) -> list[pd.Timestamp]:
+    """Monday 00:00 UTC rebalances that are evidence.
 
-    Main's last Monday is 2025-06-30, so the cap is 2025-07-07 and no 2026
-    bar is read. Holdout's last Monday is 2025-12-29, so the cap is
-    2026-01-05 00:00 UTC. That single exit, and the hours of that hold, are
-    the only timestamps at or after 2026-01-01 the loader may return, and
-    only when the holdout has been unlocked.
+    2026 is not a window. Holdout evidence is 2025-07-07 through 2025-12-22
+    (25 weeks). 2025-12-29 is not in this list.
     """
-    last = rebalance_mondays(window)[-1]
-    return last + pd.Timedelta(days=HOLD_DAYS)
+    times = _mondays_in_bounds(window)
+    if window == "main":
+        if times[-1] != MAIN_LAST_REBALANCE:
+            raise WindowError(f"main last rebalance {times[-1]} is not {MAIN_LAST_REBALANCE}")
+        return times
+    if window != "holdout":
+        raise WindowError(f"refusing window {window!r}")
+    evidence = [stamp for stamp in times if stamp <= HOLDOUT_EVIDENCE_LAST]
+    veto = [stamp for stamp in times if stamp > HOLDOUT_EVIDENCE_LAST]
+    if (
+        not evidence
+        or evidence[0] != HOLDOUT_EVIDENCE_FIRST
+        or evidence[-1] != HOLDOUT_EVIDENCE_LAST
+        or len(evidence) != HOLDOUT_EVIDENCE_WEEKS
+        or veto != [HOLDOUT_VETO_ONLY]
+    ):
+        raise WindowError(
+            "holdout evidence is not the 25 Mondays 2025-07-07..2025-12-22 "
+            f"(got {len(evidence)} weeks, veto {veto})"
+        )
+    return evidence
+
+
+def veto_only_mondays(window: str) -> list[pd.Timestamp]:
+    """Rebalances that may be reported and must not be scored.
+
+    Holdout has one: 2025-12-29. Its hold would need bars after that open,
+    and 2026 data is veto-only. The line cannot turn a FAIL into a PASS.
+    Main has none. The 2025-06-30 hold still closes on 2025-07-07.
+    """
+    if window == "main":
+        rebalance_mondays("main")
+        return []
+    if window != "holdout":
+        raise WindowError(f"refusing window {window!r}")
+    rebalance_mondays("holdout")
+    return [HOLDOUT_VETO_ONLY]
+
+
+def exit_cap(window: str) -> pd.Timestamp:
+    """Last price or funding timestamp this window may load. Inclusive.
+
+    Main's last evidence Monday is 2025-06-30, so the cap is the 2025-07-07
+    00:00 open. Holdout's last evidence Monday is 2025-12-22, so the cap is
+    the 2025-12-29 00:00 open. A bar opened after that instant is not read.
+    """
+    cap = rebalance_mondays(window)[-1] + pd.Timedelta(days=HOLD_DAYS)
+    if window == "main" and cap != MAIN_DATA_CAP:
+        raise WindowError(f"main data bound {cap} is not {MAIN_DATA_CAP}")
+    if window == "holdout" and cap != HOLDOUT_VETO_ONLY:
+        raise WindowError(f"holdout data bound {cap} is not {HOLDOUT_VETO_ONLY}")
+    return cap
 
 
 def assert_dropped_monday_list(window: str = "main") -> list[str]:

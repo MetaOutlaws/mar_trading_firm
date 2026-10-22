@@ -28,7 +28,12 @@ import pandas as pd
 
 from research.significance import bootstrap_expectancy
 from research.validate import DEFAULT_CRITERIA
-from research.xs_crowd_lsr_contrarian.calendar import as_utc, calendar_years
+from research.xs_crowd_lsr_contrarian.calendar import (
+    as_utc,
+    calendar_years,
+    rebalance_mondays,
+    veto_only_mondays,
+)
 from research.xs_crowd_lsr_contrarian.hashing import sha256_file
 from research.xs_crowd_lsr_contrarian.pins import (
     BEATS_RANDOM_ALPHA,
@@ -160,6 +165,8 @@ def evaluate(
 ) -> dict[str, object]:
     """Apply the frozen gates. Does not read a tape and does not print."""
     assert_house_gates()
+    if window == "holdout":
+        _refuse_veto_only_evidence(weekly)
     if funding_coverage.get("leg_mean_fill") is not False:
         raise ScoreError("funding coverage does not record leg_mean_fill = false")
     if funding_coverage.get("missing_books_zero") is not True:
@@ -283,6 +290,7 @@ def evaluate(
         applied = list(gates)
     elif window == "holdout":
         # Binding holdout rule: week-mean > 0 and PF >= 1.15. No 30-week floor.
+        # 2025-12-29 was refused above, before this mean was computed.
         passed = bool(n_weeks > 0 and mean > 0.0 and pf_ok)
         verdict = "PASS" if passed else "FAIL"
         p_value = None
@@ -327,6 +335,22 @@ def evaluate(
             "sign_veto": sign_veto if window == "main" else False,
         },
     }
+
+
+def _refuse_veto_only_evidence(weekly: pd.DataFrame) -> None:
+    """A veto-only rebalance cannot enter the holdout mean or the verdict."""
+    if weekly.empty or "rebalance_time" not in weekly.columns:
+        return
+    last = rebalance_mondays("holdout")[-1]
+    banned = {as_utc(stamp) for stamp in veto_only_mondays("holdout")}
+    times = pd.to_datetime(weekly["rebalance_time"], utc=True)
+    for stamp in times:
+        as_of = as_utc(stamp)
+        if as_of in banned or as_of > last:
+            raise ScoreError(
+                f"{as_of.strftime('%Y-%m-%d')} is not holdout evidence. "
+                "The veto-only line cannot enter metrics or turn a FAIL into a PASS."
+            )
 
 
 def assert_random_book(payload: dict[str, object]) -> np.ndarray:

@@ -10,9 +10,9 @@ symbol that is in both. Funding is the same union: a name with no row in
 either books 0 later, and is disclosed. The LSR input is the raw daily
 buyRatio. It is not rescaled.
 
-2026 rows are dropped, except price and funding timestamps up to the
-holdout's last exit (2026-01-05 00:00 UTC) when that window is the one
-being loaded. No 2026 rebalance is formed by the calendar.
+2026 rows are not loaded. Holdout price and funding stop at the
+2025-12-29 00:00 UTC open, which closes the 2025-12-22 evidence week.
+A bar opened after that instant is not read. No 2026 rebalance is formed.
 """
 
 from __future__ import annotations
@@ -219,6 +219,53 @@ def load_funding_table(path: Path) -> dict[str, pd.Series]:
         rates = rates[~rates.index.duplicated(keep="last")].sort_index()
         out[str(symbol)] = rates
     return out
+
+
+def clip_loaded_inputs(
+    panel: dict[str, pd.DataFrame],
+    funding: dict[str, pd.Series],
+    ratios: pd.DataFrame,
+    cap: pd.Timestamp,
+    *,
+    window: str,
+) -> tuple[dict[str, pd.DataFrame], dict[str, pd.Series], pd.DataFrame]:
+    """Apply the window bound and refuse if anything past it remains.
+
+    Price and funding keep a timestamp equal to ``cap`` (the exit open).
+    Holdout ratios at or after ``cap`` are dropped. Nothing later survives.
+    """
+    panel = _clip_panel(panel, cap)
+    funding = _clip_funding(funding, cap)
+    if window == "holdout" and len(ratios):
+        ratios = ratios.loc[ratios["ts"] < cap].reset_index(drop=True)
+    assert_loaded_within_cap(panel, funding, ratios, cap, window=window)
+    return panel, funding, ratios
+
+
+def assert_loaded_within_cap(
+    panel: dict[str, pd.DataFrame],
+    funding: dict[str, pd.Series],
+    ratios: pd.DataFrame,
+    cap: pd.Timestamp,
+    *,
+    window: str,
+) -> None:
+    """The loader's bound. A timestamp after ``cap`` refuses the run.
+
+    ``cap`` is inclusive for price and funding because it is the Monday
+    open that closes the last evidence hold. Holdout ratios at or after
+    ``cap`` are not evidence; those rows are dropped before this check.
+    """
+    for symbol, bars in panel.items():
+        if len(bars) and bars.index.max() > cap:
+            raise TapeIntegrityError(f"{symbol} has a price bar after the data bound {cap}")
+    for symbol, rates in funding.items():
+        if len(rates) and rates.index.max() > cap:
+            raise TapeIntegrityError(f"{symbol} has a funding print after the data bound {cap}")
+    if window == "holdout" and len(ratios) and ratios["ts"].max() >= cap:
+        raise TapeIntegrityError(
+            f"holdout evidence read a ratio at {ratios['ts'].max()}, at or after {cap}"
+        )
 
 
 def _clip_funding(funding: dict[str, pd.Series], cap: pd.Timestamp) -> dict[str, pd.Series]:
@@ -490,13 +537,12 @@ def load_research_tapes(
         per_symbol_glob="per_symbol/*.perp.parquet",
     )
     panel, price_overlap = merge_panels(tape_c_panel, n_panel)
-    panel = _clip_panel(panel, cap)
     tape_c_funding = load_funding_table(paths["tape_c"] / "funding.parquet")
     n_funding_path = paths["n_tape"] / "funding.parquet"
     n_funding = load_funding_table(n_funding_path) if n_funding_path.is_file() else {}
     funding, funding_overlap = merge_funding(tape_c_funding, n_funding)
-    funding = _clip_funding(funding, cap)
     ratios = load_ratio_frame(paths["ls_tape"])
+    panel, funding, ratios = clip_loaded_inputs(panel, funding, ratios, cap, window=window)
     membership, member_overlap = union_membership(
         load_tape_c_membership(paths["tape_c"]),
         load_n_membership(paths["n_tape"]),

@@ -32,6 +32,7 @@ from research.xs_crowd_lsr_contrarian.calendar import (
     exit_cap,
     is_dropped_monday,
     rebalance_mondays,
+    veto_only_mondays,
 )
 from research.xs_crowd_lsr_contrarian.harness import (
     BOOK_STAGE_FILES,
@@ -40,8 +41,9 @@ from research.xs_crowd_lsr_contrarian.harness import (
     print_run_hashes,
     run_prepared,
     stage_digest,
+    veto_only_frame,
 )
-from research.xs_crowd_lsr_contrarian.hashing import HashSeedError, sha256_file
+from research.xs_crowd_lsr_contrarian.hashing import HashSeedError, assert_documents, sha256_file
 from research.xs_crowd_lsr_contrarian.paths import (
     BlockedRun,
     funding_over_hold,
@@ -66,9 +68,9 @@ from research.xs_crowd_lsr_contrarian.regime import (
     regime_gate,
     regimes_for,
 )
-from research.xs_crowd_lsr_contrarian.scorer import evaluate, max_drawdown
+from research.xs_crowd_lsr_contrarian.scorer import ScoreError, evaluate, max_drawdown
 from research.xs_crowd_lsr_contrarian.signal import assign_terciles, leg_weights, mean_buy_ratio, usable_at
-from research.xs_crowd_lsr_contrarian.tape import load_ratio_frame
+from research.xs_crowd_lsr_contrarian.tape import clip_loaded_inputs, load_ratio_frame
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -323,9 +325,97 @@ def test_2026_window_is_refused():
     with pytest.raises(WindowError):
         rebalance_mondays("veto")
     assert exit_cap("main") == pd.Timestamp("2025-07-07", tz="UTC")
-    assert exit_cap("holdout") == pd.Timestamp("2026-01-05", tz="UTC")
-    assert rebalance_mondays("holdout")[-1] == pd.Timestamp("2025-12-29", tz="UTC")
-    assert all(t < pd.Timestamp("2026-01-01", tz="UTC") for t in rebalance_mondays("holdout"))
+    assert rebalance_mondays("main")[-1] == pd.Timestamp("2025-06-30", tz="UTC")
+    assert exit_cap("holdout") == pd.Timestamp("2025-12-29", tz="UTC")
+    assert all(t <= pd.Timestamp("2025-12-22", tz="UTC") for t in rebalance_mondays("holdout"))
+
+
+def test_holdout_evidence_is_the_25_mondays_through_dec_22():
+    """Addendum d0cc64c8. 2025-12-29 is veto-only and is not a metric week."""
+    mondays = rebalance_mondays("holdout")
+    days = [stamp.strftime("%Y-%m-%d") for stamp in mondays]
+    assert days[0] == "2025-07-07"
+    assert days[-1] == "2025-12-22"
+    assert len(days) == 25
+    assert days == list(pd.date_range("2025-07-07", "2025-12-22", freq="W-MON").strftime("%Y-%m-%d"))
+    assert "2025-12-29" not in days
+    assert veto_only_mondays("holdout") == [pd.Timestamp("2025-12-29", tz="UTC")]
+    assert veto_only_mondays("main") == []
+    assert exit_cap("holdout") == pd.Timestamp("2025-12-29T00:00:00Z")
+    assert exit_cap("main") == pd.Timestamp("2025-07-07T00:00:00Z")
+    line = veto_only_frame("holdout")
+    assert list(line["rebalance_time"]) == [pd.Timestamp("2025-12-29", tz="UTC")]
+    assert set(line["label"]) == {"veto_only"}
+    assert line["evidence"].eq(False).all()
+    assert line["binds_gates"].eq(False).all()
+    assert line["can_rescue_a_fail"].eq(False).all()
+    assert line["in_metrics"].eq(False).all()
+    assert "net_return" not in line.columns
+    assert veto_only_frame("main").empty
+    docs = assert_documents()
+    assert docs["COUNTERSIGN_ADDENDUM.md"] == pins.COUNTERSIGN_ADDENDUM_SHA256
+
+
+def test_holdout_loader_reads_nothing_after_the_dec_29_open():
+    """The 2025-12-22 hold closes at the 2025-12-29 00:00 open. Nothing later."""
+    cap = exit_cap("holdout")
+    opened = pd.Timestamp("2025-12-22", tz="UTC")
+    index = pd.date_range(opened, pd.Timestamp("2026-01-05", tz="UTC"), freq="1h")
+    opens = np.full(len(index), 100.0)
+    opens[index.get_loc(cap)] = 123.0
+    bars = pd.DataFrame(
+        {"open": opens, "high": 100.0, "low": 100.0, "close": 100.0},
+        index=index,
+    )
+    funding = pd.Series(
+        [0.001, 0.002, 0.009],
+        index=pd.to_datetime(
+            ["2025-12-22 08:00", "2025-12-29 00:00", "2025-12-29 08:00"],
+            utc=True,
+        ),
+    )
+    ratios = pd.DataFrame(
+        {
+            "symbol": ["AAA", "AAA", "AAA"],
+            "ts": pd.to_datetime(["2025-12-21", "2025-12-29", "2026-01-01"], utc=True),
+            "buy_ratio": [0.2, 0.8, 0.9],
+        }
+    )
+    panel, kept_funding, kept_ratios = clip_loaded_inputs(
+        {"AAA": bars},
+        {"AAA": funding},
+        ratios,
+        cap,
+        window="holdout",
+    )
+    loaded = panel["AAA"]
+    assert loaded.index.max() == cap
+    assert (loaded.index > cap).sum() == 0
+    assert pd.Timestamp("2025-12-29 01:00", tz="UTC") not in loaded.index
+    assert pd.Timestamp("2026-01-05", tz="UTC") not in loaded.index
+    assert kept_funding["AAA"].index.max() == cap
+    assert pd.Timestamp("2025-12-29 08:00", tz="UTC") not in kept_funding["AAA"].index
+    assert (kept_ratios["ts"] >= cap).sum() == 0
+    path = path_for_side(loaded, opened, cap, "long", kept_funding["AAA"])
+    assert path is not None
+    assert path.reason == "hold"
+    assert path.exit_time == cap
+    assert path.exit_price == pytest.approx(123.0)
+    assert path.funding_sum == pytest.approx(0.003)
+
+
+def test_dec_29_cannot_enter_holdout_metrics_or_rescue_a_fail():
+    # -0.02 then +0.50 would pass on the mean if 2025-12-29 were evidence.
+    rescued = _weekly([-0.02, 0.50], start="2025-12-22")
+    with pytest.raises(ScoreError):
+        evaluate(rescued, window="holdout", random_means=None, funding_coverage=_coverage())
+    evidence = _weekly([0.02], start="2025-12-22")
+    metrics = evaluate(evidence, window="holdout", random_means=None, funding_coverage=_coverage())
+    assert metrics["n_weeks"] == 1
+    assert metrics["verdict"] == "PASS"
+    assert pd.Timestamp("2025-12-29", tz="UTC") not in set(
+        pd.to_datetime(evidence["rebalance_time"], utc=True)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -863,6 +953,10 @@ def test_blind_run_seals_hashseed_and_score_does_not_move_it(
     assert manifest["random_book_draws"] == 1000
     assert manifest["random_book_seed"] == RANDOM_SEED
     assert manifest["documents"]["COUNTERSIGN.md"] == pins.COUNTERSIGN_SHA256
+    assert manifest["documents"]["COUNTERSIGN_ADDENDUM.md"] == pins.COUNTERSIGN_ADDENDUM_SHA256
+    assert manifest["veto_only"]["rebalances"] == []
+    assert manifest["veto_only"]["in_metrics"] is False
+    assert manifest["veto_only"]["can_rescue_a_fail"] is False
     assert manifest["documents"]["proposal_status_fix_sha256"] == pins.PROPOSAL_STATUS_FIX_SHA256
     assert manifest["documents"]["proposal_status_fix_bytes_in_checkout"] is False
     assert manifest["book_stage_sha256"] == stage_digest(out, BOOK_STAGE_FILES)

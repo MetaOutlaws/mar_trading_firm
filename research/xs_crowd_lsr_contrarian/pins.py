@@ -18,6 +18,8 @@ CELL = "xs_crowd_lsr_contrarian"
 # time from those bytes; the constant is the check, not a substitute.
 PREREG_SHA256 = "8000c73384cbfb86b51e6f90d54febddb3f7bdc222ffc16764efb000ba042173"
 COUNTERSIGN_SHA256 = "8c3bd709ee4a8a46d300fe4b6e254faab07d462c7f492249244e0790c936740a"
+# Addendum d0cc64c8. Item 5 of the harness readings: 2026 is veto-only.
+COUNTERSIGN_ADDENDUM_SHA256 = "d0cc64c84221ba9212b76fdc9361f74773d11b8415f8e92aca66dba7a321cea9"
 LOCK_SHA256 = "f50257a1ca974ff6f2e3e9ee75e9a081e900d4c5e85060b2c4e8afbc81034515"
 RULES_SHA256 = "5e1fac2c493ae45ab1fbd143896eb2f64291fd5ea13a97880d40e87c5c01b4e5"
 SIZING_SHA256 = "5f6e436f83c66b08dff254a9ac091dfb8c15a2d19ec83889f27cb91f30888e0a"
@@ -96,6 +98,7 @@ DROPPED_MONDAYS: tuple[str, ...] = (
 DOC_FILES: tuple[tuple[str, str], ...] = (
     ("PREREG.md", PREREG_SHA256),
     ("COUNTERSIGN.md", COUNTERSIGN_SHA256),
+    ("COUNTERSIGN_ADDENDUM.md", COUNTERSIGN_ADDENDUM_SHA256),
     ("LOCK.md", LOCK_SHA256),
     ("PRESTATED_THRESHOLD_lsr_v2.md", RULES_SHA256),
     ("PRESTATED_SIZING_lsr_v2.md", SIZING_SHA256),

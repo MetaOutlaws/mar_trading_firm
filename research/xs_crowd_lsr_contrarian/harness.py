@@ -40,7 +40,7 @@ from research.xs_crowd_lsr_contrarian.book import (
     skips_frame,
     survivor_split,
 )
-from research.xs_crowd_lsr_contrarian.calendar import WindowError
+from research.xs_crowd_lsr_contrarian.calendar import WindowError, veto_only_mondays
 from research.xs_crowd_lsr_contrarian.costs import cost_snapshot
 from research.xs_crowd_lsr_contrarian.hashing import (
     assert_documents,
@@ -75,6 +75,7 @@ BOOK_STAGE_FILES: tuple[str, ...] = (
     "name_pnl.csv",
     "skips.csv",
     "survivor_split.json",
+    "veto_only.csv",
     "weekly_returns.csv",
     "weights.csv",
 )
@@ -298,6 +299,38 @@ def _with_columns(frame: pd.DataFrame, columns: tuple[str, ...]) -> pd.DataFrame
     return out
 
 
+def veto_only_frame(window: str) -> pd.DataFrame:
+    """The 2025-12-29 line, labelled so it cannot be read as a return.
+
+    There is no net column. The scorer reads ``weekly_returns.csv`` only.
+    """
+    columns = [
+        "rebalance_time",
+        "label",
+        "evidence",
+        "binds_gates",
+        "can_rescue_a_fail",
+        "in_metrics",
+        "reason",
+    ]
+    rows = [
+        {
+            "rebalance_time": stamp,
+            "label": "veto_only",
+            "evidence": False,
+            "binds_gates": False,
+            "can_rescue_a_fail": False,
+            "in_metrics": False,
+            "reason": (
+                "2026 data is veto-only and never evidence. "
+                "This rebalance is excluded from holdout metrics and gates."
+            ),
+        }
+        for stamp in veto_only_mondays(window)
+    ]
+    return pd.DataFrame(rows, columns=columns)
+
+
 def _progress(done: int, total: int) -> None:
     # Counts only. The means stay in the file.
     sys.stdout.write(f"random_book {done}/{total}\n")
@@ -347,6 +380,16 @@ def _base_manifest(
         "funding_coverage": coverage,
         "tape": tape_report or {},
         "holdout_unlocked_with_seal": holdout_seal,
+        "veto_only": {
+            "label": "veto_only",
+            "evidence": False,
+            "binds_gates": False,
+            "can_rescue_a_fail": False,
+            "in_metrics": False,
+            "rebalances": [
+                stamp.strftime("%Y-%m-%dT%H:%M:%SZ") for stamp in veto_only_mondays(window)
+            ],
+        },
         "random_book_draws": N_RANDOM_DRAWS if window == "main" else 0,
         "random_book_seed": RANDOM_SEED if window == "main" else None,
     }
@@ -392,6 +435,7 @@ def run_prepared(
     frames["eligible"] = _with_columns(frames["eligible"], _ELIGIBLE_COLUMNS)
     frames["name_pnl"] = _with_columns(frames["name_pnl"], _PNL_COLUMNS)
     frames["skips"] = skips_frame(schedule.skips)
+    frames["veto_only"] = veto_only_frame(window)
     coverage = funding_coverage(frames["name_pnl"], schedule)
     # Countersign: no leg-mean fill, and a name with no prints books 0.
     # Checked before the null so a bad booking cannot be sealed.
@@ -422,6 +466,7 @@ def run_prepared(
         "eligible": frames["eligible"],
         "name_pnl": frames["name_pnl"],
         "skips": frames["skips"],
+        "veto_only": frames["veto_only"],
     }
     for name, frame in csv_names.items():
         _frame_for_csv(frame).to_csv(
