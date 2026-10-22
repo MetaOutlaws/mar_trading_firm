@@ -1,0 +1,41 @@
+{
+  "research_date": "2026-10-22 Asia/Dubai",
+  "scope": "Public-data collection code, synthetic tests and instructions only; no research datasets or account records.",
+  "offline_tests_passed": 15,
+  "live_download_verified": false,
+  "strategy_backtester_included": false,
+  "files": {
+    ".gitignore": {
+      "bytes": 38,
+      "sha256": "8566ba48a83bb2dd1c5ffce1c171de9385bc98ee2978e9711bcaf3bcfad109e9"
+    },
+    "DATA_REQUEST_spot_perpetual.txt": {
+      "bytes": 1594,
+      "sha256": "7229d2f45ad22da772ff0e12798cf20db43d38fcd5ca7b3c89a88f5d808606ec"
+    },
+    "HANDOFF_GROKBOT.md": {
+      "bytes": 8343,
+      "sha256": "5a080d25aa53709b019e69fc55e86523c9fd2016198f30f2edc7d1e4f112bf26"
+    },
+    "README.md": {
+      "bytes": 4542,
+      "sha256": "50eaf053b03e0d99272d5f684931a370f8b870af8ff5fc22960d2fa33889300a"
+    },
+    "code/collect_funding_history.py": {
+      "bytes": 6249,
+      "sha256": "75e718a5c52cf2accd6397b341332c4185a6d2e7a897cefdd1bde0106d5fab91"
+    },
+    "code/collect_matched_history.py": {
+      "bytes": 8966,
+      "sha256": "6a6fba2c43a056e12423b51e9b1deae613cd7dd42452b698f7a01bfab3031616"
+    },
+    "code/test_collector.py": {
+      "bytes": 3806,
+      "sha256": "07d2887a72c75f8c4a36e9e55e46f63fcea78e103fd1b118d05feb839dfaf0a2"
+    },
+    "code/test_funding_collector.py": {
+      "bytes": 2882,
+      "sha256": "12f72bb28561aef7361006fa0314cd37412ace046305f05fb2dd848764361b9e"
+    }
+  }
+}
