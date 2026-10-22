@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Same-token funding carry — blocked before results</title>
+<style>
+  body { font-family: Georgia, "Iowan Old Style", serif; max-width: 920px; margin: 2rem auto; padding: 0 1.25rem; color: #1c1917; line-height: 1.45; }
+  h1 { font-size: 1.6rem; line-height: 1.25; }
+  h2 { font-size: 1.15rem; margin-top: 2rem; }
+  table { border-collapse: collapse; width: 100%; margin: 0.75rem 0 1.25rem; font-variant-numeric: tabular-nums; }
+  th, td { border-bottom: 1px solid #d6d3d1; text-align: left; padding: 0.35rem 0.5rem; vertical-align: top; }
+  th { font-size: 0.85rem; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86rem; }
+  pre { background: #f5f5f4; padding: 0.75rem 1rem; overflow-x: auto; }
+  .verdict { background: #fef3c7; border: 1px solid #d6d3d1; padding: 0.75rem 1rem; }
+  .pending { color: #57534e; }
+</style>
+</head>
+<body>
+<h1>Same-token funding carry is unresolved</h1>
+<p class="verdict">Long spot against a short perpetual in the same token was not tested. Bybit’s public API refused this host, so there is no 2022–2025 result to compare with the approved historical strategies. This is not a finding that the carry loses or wins.</p>
+
+<p>Research only. Live trading stayed off. No 2026 data was opened. The paper book, risk limits and deploy configs were not touched. Nothing here is a merge.</p>
+
+<h2>Where the prompt and the handoff differ</h2>
+<p>The handoff is the spec. Both texts agree on BTCUSDT and ETHUSDT, 2022–2025, long paid-for spot versus short linear perpetual, collector probes before any download, a protocol commit before outcomes, and no arbitrary maximum holding period.</p>
+<p>They differ on cost. The handoff makes <strong>baseline and moderate</strong> the primary economic views and keeps <strong>severe</strong> as a secondary stress. The owner prompt says the desk’s official <strong>0.31%</strong> cost is primary, with severe still a stress. Because the handoff governs, 0.31% would not have been the sole primary model.</p>
+<p>That 0.31% is the inherited linear-perpetual round trip in <code>research/costs.py</code>: two times (0.055% taker fee + 0.10% slippage). Funding is outside that percentage. It is not a measured spot-plus-perpetual cost. No cost model was applied, because no backtest ran.</p>
+
+<h2>What completed</h2>
+<table>
+  <thead><tr><th>Step</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Start commit</td><td><code>2732dec7029ae96fb0601a1ce55ce068f054a358</code></td></tr>
+    <tr><td>Manifest</td><td>8/8 handoff files match <code>MANIFEST.json</code></td></tr>
+    <tr><td>Offline tests</td><td>15 passed, 0 failed</td></tr>
+    <tr><td>Candle/mark probe</td><td>HTTP 403. Zero rows. Required: six responses, ten rows each.</td></tr>
+    <tr><td>Funding probe</td><td>HTTP 403. Zero settlements. Required: both symbols, nonempty and in window.</td></tr>
+    <tr><td>Full download</td><td>Not started</td></tr>
+    <tr><td>Protocol commit</td><td>Not made. Readiness was not established.</td></tr>
+    <tr><td>Results commit</td><td>Not made. There are no outcomes.</td></tr>
+  </tbody>
+</table>
+
+<h2>Blocker</h2>
+<p>On 22 October 2026 the collector called <code>https://api.bybit.com</code> with user agent <code>MAR-public-research-audit/1</code>. CloudFront (pop HIO52-P4) returned HTTP 403:</p>
+<pre>{ error:The Amazon CloudFront distribution is configured to block access from your country }</pre>
+<p>The host was a US AWS address, <code>54.184.235.255</code> (us-west-2). Workspace egress is allow-all. Spot kline, mark kline, funding history and <code>/v5/market/time</code> all returned that body. A retry of server time also returned 403. The collectors correctly stopped. No proxy, alternate API domain, paid feed or account key was used.</p>
+<p><code>https://public.bybit.com/</code> returned an HTTP 200 directory index. No file from that host was downloaded. It was not used to bypass the API denial.</p>
+<p>Official URLs to resume, unchanged, once a host is not country-blocked:</p>
+<ul>
+  <li><code>https://api.bybit.com/v5/market/kline</code></li>
+  <li><code>https://api.bybit.com/v5/market/mark-price-kline</code></li>
+  <li><code>https://api.bybit.com/v5/market/funding/history</code></li>
+</ul>
+<p>The fetch script is the handoff itself: <code>code/collect_matched_history.py</code> and <code>code/collect_funding_history.py</code>. Probe first. Pass <code>--download</code> only after both summaries are valid. Keep <code>downloads/</code> out of Git and publish SHA256 hashes of the monthly files.</p>
+
+<h2>Data audit</h2>
+<p>There are no series hashes. Zero of 288 candle/mark month files and zero of 96 funding month files were stored. Coverage, gaps, settlement counts, settlement timing, spot-versus-perpetual basis and mark-price differences are all unmeasured. Historical fees, tick size and margin rules were not established. Price-download success did not happen, and would not by itself have meant strategy readiness.</p>
+<p>Evidence SHA256 (this report’s own hash is recorded only in <code>SHA256SUMS.txt</code>, because writing it here would change the file):</p>
+<table>
+  <thead><tr><th>File</th><th>SHA256</th></tr></thead>
+  <tbody>
+    <tr><td>DATA_AUDIT.md</td><td><code>570239e4fff9c8c59964fb817fbcf1265c0dcf4cfb03afe0589e30f586fe92f8</code></td></tr>
+    <tr><td>FUNDING_PROBE_SUMMARY.json</td><td><code>1a8558a8b3dbec60eb2ae3dd505f94ffac64ee1720a5959a91b7e6f424effbd2</code></td></tr>
+    <tr><td>OFFLINE_TEST_LOG.txt</td><td><code>8918f5bbe2fd4c4fe313bc278956104bfde415bb39bab9b3de420af5daf6d57e</code></td></tr>
+    <tr><td>PROBE_SUMMARY.json</td><td><code>90ff7dbed1c4fd9789eceb781476b68d891a42c0bf3df3719703a1224788c85d</code></td></tr>
+    <tr><td>http_403_evidence.json</td><td><code>63117b4cf9587dc98c32f9071b1e13c4349d218c139d1c6946b8a41edd11491b</code></td></tr>
+    <tr><td>probe_stdout.log</td><td><code>2ff608012e9e8911f71c55f31a199ed5a98c8069764d41e7695900484735010e</code></td></tr>
+  </tbody>
+</table>
+
+<h2>Results</h2>
+<p>Every performance cell is pending. Blank would look like zero, so the cells say pending.</p>
+<table>
+  <thead>
+    <tr><th>Slice</th><th>Net return</th><th>Max drawdown</th><th>Trades</th><th>Win rate</th><th>Profit factor</th><th>Expectancy</th><th>Total costs</th><th>R</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>BTC 2022</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>BTC 2023</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>BTC 2024</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>BTC 2025</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>BTC overall</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>ETH 2022</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>ETH 2023</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>ETH 2024</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>ETH 2025</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>ETH overall</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>Combined 2022</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>Combined 2023</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>Combined 2024</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>Combined 2025</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+    <tr><td>Combined overall</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td><td class="pending">pending</td></tr>
+  </tbody>
+</table>
+<p>R is not applicable. The handoff allows R only with an explicit ex-ante risk denominator, and no denominator was frozen. A funding-rate sum would not be R or ROI.</p>
+
+<h2>Comparison</h2>
+<p>The approved hourly sleeves and BL8 were not re-run. The handoff requires the same dates, the same cost assumptions and the same total capital. Those inputs do not exist yet. Comparing a missing carry ROI with previously published per-trade research R would be the comparison the handoff forbids. Existing write-ups of hourly compression and Connors were left unread as performance inputs.</p>
+<table>
+  <thead><tr><th>Comparator</th><th>Same capital, dates and costs</th><th>Account result</th></tr></thead>
+  <tbody>
+    <tr><td>Cash</td><td class="pending">not run</td><td class="pending">pending</td></tr>
+    <tr><td>Passive same-token carry</td><td class="pending">not run</td><td class="pending">pending</td></tr>
+    <tr><td>Hourly compression / Connors sleeves</td><td class="pending">not reproduced</td><td class="pending">comparison unavailable</td></tr>
+    <tr><td>BL8</td><td class="pending">not reproduced</td><td class="pending">comparison unavailable</td></tr>
+    <tr><td>Carry minus comparator</td><td class="pending">not run</td><td class="pending">pending</td></tr>
+  </tbody>
+</table>
+
+<h2>Commit order</h2>
+<p>There is no protocol commit and no results commit. The handoff requires the protocol only after data readiness, and it requires that commit to land before any outcome is inspected. Readiness failed, so freezing rules or publishing numbers would invent the sequence. The only research commit on this branch records this audit.</p>
+
+<h2>Still pending</h2>
+<ol>
+  <li>Re-run both probes from a host Bybit’s CloudFront does not country-block.</li>
+  <li>If, and only if, the probes match the handoff’s row and settlement checks, run both resumable downloads for 2022-01 through 2025-12.</li>
+  <li>Audit all 288 candle/mark units and 96 funding units. Publish hashes, URLs and logs. Keep the files out of Git.</li>
+  <li>Set measured versus assumed costs, including how the inherited 0.31% perpetual round trip relates to baseline, moderate and severe.</li>
+  <li>Commit the protocol, including dataset hashes, before any outcome exists.</li>
+  <li>Implement and test the long-spot/short-perpetual rules, with no arbitrary maximum hold.</li>
+  <li>Fill the result table and a same-capital comparison. Then say whether the carry is better, complementary, worse, or still unresolved.</li>
+</ol>
+</body>
+</html>

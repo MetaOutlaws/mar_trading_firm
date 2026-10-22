@@ -1,0 +1,31 @@
+{
+  "labels": [
+    "baseline_BTC_d1_passive",
+    "baseline_BTC_d1_selective",
+    "baseline_ETH_d1_passive",
+    "baseline_ETH_d1_selective",
+    "baseline_combined_d1_passive",
+    "baseline_combined_d1_selective",
+    "baseline_combined_d5_selective",
+    "desk_031_BTC_d1_passive",
+    "desk_031_BTC_d1_selective",
+    "desk_031_ETH_d1_passive",
+    "desk_031_ETH_d1_selective",
+    "desk_031_combined_d1_passive",
+    "desk_031_combined_d1_selective",
+    "desk_031_combined_d5_selective",
+    "moderate_BTC_d1_passive",
+    "moderate_BTC_d1_selective",
+    "moderate_ETH_d1_passive",
+    "moderate_ETH_d1_selective",
+    "moderate_combined_d1_passive",
+    "moderate_combined_d1_selective",
+    "moderate_combined_d5_selective",
+    "severe_BTC_d1_passive",
+    "severe_BTC_d1_selective",
+    "severe_ETH_d1_passive",
+    "severe_ETH_d1_selective",
+    "severe_combined_d1_passive",
+    "severe_combined_d1_selective"
+  ]
+}

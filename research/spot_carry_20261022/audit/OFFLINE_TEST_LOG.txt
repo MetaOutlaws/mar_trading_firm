@@ -1,0 +1,21 @@
+test_complete_month_resume_and_corruption (test_collector.CollectorTests.test_complete_month_resume_and_corruption) ... ok
+test_duplicate_rejected (test_collector.CollectorTests.test_duplicate_rejected) ... ok
+test_future_and_out_of_window_rejected (test_collector.CollectorTests.test_future_and_out_of_window_rejected) ... ok
+test_gap_is_counted_not_filled (test_collector.CollectorTests.test_gap_is_counted_not_filled) ... ok
+test_no_2026_month (test_collector.CollectorTests.test_no_2026_month) ... ok
+test_nonfinite_invalid_ohlc_rejected (test_collector.CollectorTests.test_nonfinite_invalid_ohlc_rejected) ... ok
+test_nonjson_site_unavailable_rejected (test_collector.CollectorTests.test_nonjson_site_unavailable_rejected) ... ok
+test_reverse_response_sorted (test_collector.CollectorTests.test_reverse_response_sorted) ... ok
+test_wrong_market_rejected (test_collector.CollectorTests.test_wrong_market_rejected) ... ok
+test_duplicates_future_and_nan (test_funding_collector.FundingTests.test_duplicates_future_and_nan) ... ok
+test_missing_grid_is_not_filled (test_funding_collector.FundingTests.test_missing_grid_is_not_filled) ... ok
+test_month_pagination_and_resume (test_funding_collector.FundingTests.test_month_pagination_and_resume) ... ok
+test_nonjson_rejected (test_funding_collector.FundingTests.test_nonjson_rejected) ... ok
+test_signed_rate_and_order (test_funding_collector.FundingTests.test_signed_rate_and_order) ... ok
+test_wrong_symbol (test_funding_collector.FundingTests.test_wrong_symbol) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.130s
+
+OK
+EXIT:0

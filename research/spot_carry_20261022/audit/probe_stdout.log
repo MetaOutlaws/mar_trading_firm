@@ -1,0 +1,8 @@
+# Working directory: research/spot_carry_20261022
+# Command: python3 code/collect_matched_history.py --output downloads
+{"error_type": "HTTPError", "message": "HTTP Error 403: Forbidden"}
+# shell exit: 1
+# Command: python3 code/collect_funding_history.py --output downloads
+{"error_type": "HTTPError", "message": "HTTP Error 403: Forbidden"}
+# shell exit: 1
+# --download was not started. Probe failure is not readiness.
