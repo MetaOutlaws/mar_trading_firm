@@ -1,0 +1,34 @@
+<!-- V2 FREEZE HEADER (Shumba). Frozen/written at box time 2026-10-21T14:59:50+0400 GST (UTC+4); this equals the file's box mtime to the second. Paper only, live off. Written BEFORE lsr_counts_v2.py was run; no outcome returns read at any point. Rules body below = v1 05d58470 verbatim plus ONE inserted line (V2 DECLARED EXCLUSION). The diff section at the end covers the rules body only (this header and the diff section are excluded from it). -->
+
+# xs_crowd_lsr_contrarian: rules + kill stated BEFORE the Bybit long/short tape exists on the box (Shumba, written 2026-10-20T03:36:38+0400 per box clock)
+Paper only. Live off. No long/short data on box at writing; nothing counted; Shumba never computes returns.
+Citation: Dunbar, K. & Owusu-Amoako, J. (2023) Predictability of crypto returns: The impact of trading behavior. JBEF 39, 100812. DOI 10.1016/j.jbef.2023.100812 (peer-reviewed; Crossref + RePEc). Claim: net-short behaviour of speculative retail traders predicts crypto returns. GAP (disclosed): paper uses CME/CFTC trader categories, time-series, BTC/ETH; this cell transfers the retail-positioning idea to a cross-section of Bybit perps using Bybit's account long/short ratio. Context (not support): Kogan, Makarov, Niessner & Schoar (2024) JFE 159:103897 find crypto retail trades momentum-like.
+Input: Bybit /v5/market/account-ratio, period 1d, field buyRatio (share of accounts net long), per symbol; a value is usable at t only if its timestamp + 1d <= t (period closed) and timestamp < t.
+Feature at Monday 00:00 UTC rebalance t: L = mean buyRatio of the last 7 closed daily periods (min 5).
+Universe: tape C 96 + N-tape USDT LinearPerpetual names, PIT eligible (>=31d perp history, listed at t), valid L. Terciles on L.
+Side (contrarian): LONG bottom tercile (crowd most short), SHORT top tercile (crowd most long); equal-weight, dollar-neutral; hold 7d; stop 12% per coin, re-entry next rebalance; fill next_open; ts < close; 0.31% per leg-trade.
+Windows: main 2023-10-15..2025-06-30; holdout H2 2025; 2026 veto only. Grade cap B (delisted names likely absent from the ratio endpoint).
+V2 DECLARED EXCLUSION (the only change vs v1 05d58470; ruling Brian 2026-10-21 14:58 GST option (a)): drop every Monday 00:00 UTC rebalance t whose feature window (the 7 daily periods dated t-7d..t-1d UTC that feed L) touches any date 2025-05-01..2025-06-01 inclusive, i.e. drop t iff t-7d <= 2025-06-01 and t-1d >= 2025-05-01. By calendar this is exactly Mondays 2025-05-05, 2025-05-12, 2025-05-19, 2025-05-26, 2025-06-02 (all in main; holdout and 2026 untouched). A dropped rebalance opens no position, is not counted as an ISO week, and contributes no kill-test row; the next kept rebalance enters fresh. The account-ratio tape is used as is, with no rescaling. Reason: Bybit restated pre-cutover account-ratio history (published_then = 0.35 + 0.30 x tape), cutover between 2025-05-01 21:00Z and 2025-06-01 00:00Z (Tsuro, research/bybit_lsratio_20261020/pit_check_20261021/REPORT.md, SHA256SUMS 6c6f27be); a positive common affine map preserves cross-sectional ranks except in 7d windows that may straddle the unknown cutover hour, which are the windows dropped here. Annualisation denominators (calendar span of each window) are unchanged.
+Gates: PF>=1.15 net; week-cluster CI excludes 0; beats random (1000 draws, seed 20261016, same leg sizes from eligible set); >=100 leg-trades/yr; main >=30 ISO weeks; holdout week-mean R>0 and PF>=1.15.
+KILL (main), NOT_FILED if mean |Spearman rho| > 0.50 OR mean leg Jaccard > 0.50 (larger-overlap orientation) vs any of:
+ toptrader_crowd_divergence crowd leg: dACC = ln(L_t / L_{t-24h}) on the same Bybit ratio (period 1h if pulled, else 1d) [explicit leg-drop/variant test]
+ OI cells: 7d Bybit OI change ln(OI_t/OI_{t-7d}) and 24h OI change (oi_delta_agree / oi_funding_z d-feature) on Tsuro's 1h OI tape
+ ret60, mom3, skew168, BAB beta90, TK60, ivol30, max7, size30, amih30 (definitions as in tk_counts.py c143f354 / bab_counts.py e682ddd9 / counts.py c6fe438a)
+ new_listing_drift_short: Jaccard of (symbol,hour) in-position hours vs NL main-cohort first 14d.
+ funding family: |rho| vs 7d mean funding rate rank (tape C funding) > 0.50 also kills (funding_fade / xs_funding_rank proximity).
+Coverage gate: NOT_FILED if ratio history starts after 2023-10-08 for BTCUSDT, or median main-week coverage < 80% of PIT-eligible names, or median eligible with valid L < 30.
+Nothing here may change after hashing.
+
+## Unified diff vs v1 (rules body only)
+```diff
+--- PRESTATED_THRESHOLD_lsr.md (v1, sha256 05d58470572af3507d15e148ef2cccb1e1f14a9b16ec505391a4605d6065aa2d)
++++ PRESTATED_THRESHOLD_lsr_v2.md (v2 rules body)
+@@ -6,6 +6,7 @@
+ Universe: tape C 96 + N-tape USDT LinearPerpetual names, PIT eligible (>=31d perp history, listed at t), valid L. Terciles on L.
+ Side (contrarian): LONG bottom tercile (crowd most short), SHORT top tercile (crowd most long); equal-weight, dollar-neutral; hold 7d; stop 12% per coin, re-entry next rebalance; fill next_open; ts < close; 0.31% per leg-trade.
+ Windows: main 2023-10-15..2025-06-30; holdout H2 2025; 2026 veto only. Grade cap B (delisted names likely absent from the ratio endpoint).
++V2 DECLARED EXCLUSION (the only change vs v1 05d58470; ruling Brian 2026-10-21 14:58 GST option (a)): drop every Monday 00:00 UTC rebalance t whose feature window (the 7 daily periods dated t-7d..t-1d UTC that feed L) touches any date 2025-05-01..2025-06-01 inclusive, i.e. drop t iff t-7d <= 2025-06-01 and t-1d >= 2025-05-01. By calendar this is exactly Mondays 2025-05-05, 2025-05-12, 2025-05-19, 2025-05-26, 2025-06-02 (all in main; holdout and 2026 untouched). A dropped rebalance opens no position, is not counted as an ISO week, and contributes no kill-test row; the next kept rebalance enters fresh. The account-ratio tape is used as is, with no rescaling. Reason: Bybit restated pre-cutover account-ratio history (published_then = 0.35 + 0.30 x tape), cutover between 2025-05-01 21:00Z and 2025-06-01 00:00Z (Tsuro, research/bybit_lsratio_20261020/pit_check_20261021/REPORT.md, SHA256SUMS 6c6f27be); a positive common affine map preserves cross-sectional ranks except in 7d windows that may straddle the unknown cutover hour, which are the windows dropped here. Annualisation denominators (calendar span of each window) are unchanged.
+ Gates: PF>=1.15 net; week-cluster CI excludes 0; beats random (1000 draws, seed 20261016, same leg sizes from eligible set); >=100 leg-trades/yr; main >=30 ISO weeks; holdout week-mean R>0 and PF>=1.15.
+ KILL (main), NOT_FILED if mean |Spearman rho| > 0.50 OR mean leg Jaccard > 0.50 (larger-overlap orientation) vs any of:
+  toptrader_crowd_divergence crowd leg: dACC = ln(L_t / L_{t-24h}) on the same Bybit ratio (period 1h if pulled, else 1d) [explicit leg-drop/variant test]
+```
