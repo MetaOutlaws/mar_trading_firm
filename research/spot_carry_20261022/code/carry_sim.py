@@ -95,11 +95,13 @@ def _finite_bar(book: SymbolBook, i: int, use_close: bool) -> bool:
 
 
 class CarryAccount:
-    def __init__(self, books: list[SymbolBook], cost: Cost, delay: int, passive: bool):
+    def __init__(self, books: list[SymbolBook], cost: Cost, delay: int, passive: bool, complete: bool = False):
         self.books = books
         self.cost = cost
         self.delay = delay
         self.passive = passive
+        # Historical minutes were audited as finite. Synthetic gaps leave this false.
+        self.complete = complete
         self.n = len(books[0].spot_c)
         self.cash = STARTING_EQUITY_USDT
         self.peak = STARTING_EQUITY_USDT
@@ -135,6 +137,12 @@ class CarryAccount:
         if int(timestamps[0]) < 0 or int(timestamps[-1]) >= SERIES_END_EXCLUSIVE_MS:
             raise ValueError("clock is outside 2022–2025")
         year_of = _year_index(timestamps, year_ends)
+        self._econ_enter = []
+        self._econ_exit = []
+        for book in self.books:
+            enter, exit_ = _econ_arrays(book, self.cost.hurdle, self.passive)
+            self._econ_enter.append(enter)
+            self._econ_exit.append(exit_)
         year_peak = STARTING_EQUITY_USDT
         current_year = int(year_of[0]) if len(year_of) else 0
         self.year_max_dd[current_year] = 0.0
@@ -242,7 +250,7 @@ class CarryAccount:
             pos = self.positions.get(book.name)
             if pos is None:
                 continue
-            if not _finite_bar(book, i, use_close=False):
+            if not self.complete and not _finite_bar(book, i, use_close=False):
                 self._flatten(book, i, reason="missing_data", at_close=False, previous=True)
                 continue
             mark = float(book.mark_o[i])
@@ -276,10 +284,10 @@ class CarryAccount:
             return
         dd_block = equity <= (1.0 - DRAWDOWN_ENTRY_STOP) * self.peak
         open_positions = len(self.positions)
-        for book in self.books:
+        for b, book in enumerate(self.books):
             held = book.name in self.positions
-            econ_exit = self._exit_econ(book, i)
-            econ_enter = self._enter_econ(book, i)
+            econ_exit = bool(self._econ_exit[b][i])
+            econ_enter = bool(self._econ_enter[b][i])
             if held and econ_exit and book.name not in self._inflight_exit:
                 self._exit_at.setdefault(fill_i, []).append(book.name)
                 self._inflight_exit.add(book.name)
@@ -294,7 +302,7 @@ class CarryAccount:
             if open_positions + len(self._inflight_entry) >= MAX_POSITIONS:
                 self.blocked["position_cap"] += 1
                 continue
-            if not _finite_bar(book, i, use_close=True):
+            if not self.complete and not _finite_bar(book, i, use_close=True):
                 self.blocked["missing"] += 1
                 continue
             lots = self._size_lots(book, i, equity)
@@ -528,6 +536,21 @@ class CarryAccount:
             "mean_gross_exposure": self.gross_sum / self.n if self.n else 0.0,
             "minutes": self.n,
         }
+
+
+def _econ_arrays(book: SymbolBook, hurdle: float, passive: bool):
+    """Path-independent entry and exit economics. Position state is applied later."""
+    n = len(book.spot_c)
+    if passive:
+        return np.ones(n, dtype=bool), np.zeros(n, dtype=bool)
+    spot = book.spot_c
+    perp = book.perp_c
+    basis = (perp - spot) / spot
+    funding_ok = (book.known >= TRAILING_SETTLEMENTS) & (book.r3 > 0) & (book.mean3 > hurdle)
+    enter = funding_ok & np.isfinite(basis) & (basis > BASIS_FLOOR)
+    # A missing basis or a failed funding print is an exit, same as _exit_econ.
+    exit_ = ~(funding_ok & np.isfinite(basis) & (basis > BASIS_FLOOR))
+    return enter, exit_
 
 
 def _basis(book: SymbolBook, i: int):

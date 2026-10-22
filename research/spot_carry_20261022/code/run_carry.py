@@ -6,6 +6,7 @@ No threshold is changed here. A cash mismatch larger than one cent stops the run
 from __future__ import annotations
 
 import json
+import multiprocessing as mp
 import sys
 import time
 from pathlib import Path
@@ -58,7 +59,7 @@ def _cost(model: str) -> Cost:
 
 
 def _execute(books, cost, delay, passive, timestamps, year_ends):
-    account = CarryAccount(books, cost, delay, passive)
+    account = CarryAccount(books, cost, delay, passive, complete=True)
     result = account.run(timestamps, year_ends)
     if result["open_positions"]:
         raise RuntimeError(f"positions left open: {result['open_positions']}")
@@ -71,6 +72,15 @@ def _execute(books, cost, delay, passive, timestamps, year_ends):
 
 def _write(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+_STATE = {}
+
+
+def _null_pnl(days: int) -> float:
+    books = [roll_funding(book, int(days) * 1440) for book in _STATE["books"]]
+    result = _execute(books, _STATE["cost"], PRIMARY_DELAY_MINUTES, False, _STATE["timestamps"], _STATE["year_ends"])
+    return result["ending_equity"] - STARTING_EQUITY_USDT
 
 
 def main() -> None:
@@ -114,22 +124,22 @@ def main() -> None:
         )
     rng = np.random.default_rng(20261022)
     offsets = rng.integers(NULL_SHIFT_MIN_DAYS, NULL_SHIFT_MAX_DAYS + 1, size=NULL_SHIFTS)
+    workers = min(4, mp.cpu_count())
     for model in ("baseline", "moderate", "desk_031"):
-        nulls = []
-        base = prepared["combined"]
+        _STATE["books"] = prepared["combined"]
+        _STATE["cost"] = _cost(model)
+        _STATE["timestamps"] = timestamps
+        _STATE["year_ends"] = year_ends
         started = time.time()
-        for n, days in enumerate(offsets, start=1):
-            rolled = [roll_funding(book, int(days) * 1440) for book in base]
-            result = _execute(rolled, _cost(model), PRIMARY_DELAY_MINUTES, False, timestamps, year_ends)
-            nulls.append(result["ending_equity"] - STARTING_EQUITY_USDT)
-            if n % 20 == 0:
-                print(f"null {model} {n}/{NULL_SHIFTS} {time.time() - started:.0f}s", flush=True)
+        # Fork after the arrays exist so workers share the price pages.
+        with mp.get_context("fork").Pool(workers) as pool:
+            nulls = pool.map(_null_pnl, [int(days) for days in offsets], chunksize=5)
         summary = summaries[f"{model}_combined_d1_selective"]
         summary["gates"] = gates(summary, nulls)
         summary["null_pnl_mean"] = float(np.mean(nulls))
         _write(out / f"{model}_combined_d1_selective.json", summary)
         _write(out / f"{model}_nulls.json", {"offsets": offsets.tolist(), "pnls": nulls})
-        print(f"gates {model} pass={summary['gates']['pass']}", flush=True)
+        print(f"gates {model} pass={summary['gates']['pass']} in {time.time() - started:.0f}s", flush=True)
     _write(out / "INDEX.json", {"labels": sorted(summaries)})
     print(f"done in {time.time() - t0:.1f}s", flush=True)
 
