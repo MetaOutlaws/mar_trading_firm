@@ -1243,33 +1243,44 @@ class TradingEngine:
         report.crowding_size_cuts = 0
 
         # Imported here so paper_bar_eval can import this module at load time.
+        from core.execution.entry_ordering import entry_ordering_gbn_enabled
         from core.execution.paper_bar_eval import cycle_paper_bar, is_known_timeframe
 
         # Diary notes for the Inbox. They are not read by the risk engine.
         book_notes: list[dict[str, Any]] = []
         cycle_notes: list[dict[str, Any]] = []
+        # Paper-only. Off (the default) keeps the loop below in plan order.
+        gbn = entry_ordering_gbn_enabled()
+        pending_gbn: list[dict[str, Any]] = []
 
-        for entry in self.plan.entries:
+        for plan_index, entry in enumerate(self.plan.entries):
             report.symbols_scanned += 1
             # Paper sleeves on a known bar clock (15m, 1h, 4h, and any other
             # timeframe in the approval key) are evaluated on the 15s poll.
             # If that poll already stored this bar, do not run the strategy
             # again. A bar still inside the latency window and not yet stored
             # is evaluated here, once, through the same cursor.
-            fast = cycle_paper_bar(self, entry, equity=equity, marks=marks)
+            fast = cycle_paper_bar(
+                self, entry, equity=equity, marks=marks, defer_submit=gbn
+            )
             if fast.handled:
-                if fast.error:
-                    report.errors.append(fast.error)
-                if fast.price is not None:
-                    marks[entry.symbol] = fast.price
-                if fast.signal is not None:
-                    report.signals_found += 1
-                    if fast.ordered:
-                        report.orders_placed += 1
-                    elif fast.rejection:
-                        report.rejections.append((fast.signal.symbol, fast.rejection))
-                if fast.evaluated and fast.bar_open is not None:
-                    _remember_cycle_book_note(book_notes, entry, fast.bar_open, fast)
+                if fast.deferred:
+                    # Held for one GBN pass over this cycle's candidate set.
+                    # signals_found is counted when the risk engine sees it.
+                    if fast.price is not None:
+                        marks[entry.symbol] = fast.price
+                    pending_gbn.append(
+                        {
+                            "kind": "paper",
+                            "plan_index": plan_index,
+                            "entry": entry,
+                            "signal": fast.signal,
+                            "price": fast.price,
+                            "bar_open": fast.bar_open,
+                        }
+                    )
+                    continue
+                self._absorb_handled_bar(entry, fast, report, marks, book_notes)
                 continue
             sitout = paper_regime_sitout_reason(entry)
             if sitout:
@@ -1295,26 +1306,26 @@ class TradingEngine:
                     _remember_flat_note(book_notes, entry, bar_open, reason)
                 continue
 
+            if gbn:
+                pending_gbn.append(
+                    {
+                        "kind": "scan",
+                        "plan_index": plan_index,
+                        "entry": entry,
+                        "signal": signal,
+                        "bar_open": bar_open,
+                    }
+                )
+                continue
+
             report.signals_found += 1
             decision = self._attempt_entry(signal, equity, marks)
+            self._record_scan_decision(
+                entry, signal, bar_open, decision, report, book_notes, cycle_notes
+            )
 
-            if decision.is_approved:
-                report.orders_placed += 1
-                _remember_order_note(
-                    book_notes,
-                    cycle_notes,
-                    entry,
-                    bar_open,
-                    ordered=True,
-                    rejection="",
-                    filled=bool(getattr(self, "_last_entry_filled", False)),
-                )
-            else:
-                rejection = "; ".join(decision.reasons)
-                report.rejections.append((signal.symbol, rejection))
-                _remember_order_note(
-                    book_notes, cycle_notes, entry, bar_open, ordered=False, rejection=rejection
-                )
+        if pending_gbn:
+            self._submit_gbn_batch(pending_gbn, report, equity, marks, book_notes, cycle_notes)
 
         # Diary only, and only on the unarmed paper worker. Live and an armed
         # paper broker do not write these rows. A failure here is logged.
@@ -1453,27 +1464,23 @@ class TradingEngine:
                 decision.warnings.append(overlay.reason)
         return decision
 
-    def _attempt_entry(
-        self, signal: Signal, equity: float, marks: dict[str, float]
-    ) -> RiskDecision:
-        """Risk-check a signal and, if approved, place the order."""
+    def _intent_for_signal(self, signal: Signal) -> TradeIntent:
+        """The intent ``_attempt_entry`` sends to the risk engine.
+
+        GBN previews size with this same object. Stops still use the signal
+        close; ``_place_order`` rebuilds protection from the fill (F04).
+        """
         universe = get_universe()
         # This is the label the sector cap counts, including SECTOR_OVERRIDES.
         # The near-miss row copies it; it does not look the symbol up again.
         sector = universe.sector_of(signal.symbol)
-
-        # Levels for the *risk check* still use the signal close: we do not
-        # have a fill yet. Protection levels are rebuilt from the slipped
-        # fill in ``_place_order`` (F04). Using signal.price here keeps the
-        # stop distance the risk engine sized against.
         if signal.side is SignalSide.LONG:
             stop_price = signal.price * (1.0 - signal.stop_loss_pct)
             take_profit = signal.price * (1.0 + signal.take_profit_pct)
         else:
             stop_price = signal.price * (1.0 + signal.stop_loss_pct)
             take_profit = signal.price * (1.0 - signal.take_profit_pct)
-
-        intent = TradeIntent(
+        return TradeIntent(
             symbol=signal.symbol,
             side=signal.side.value,
             entry_price=signal.price,
@@ -1484,6 +1491,184 @@ class TradingEngine:
             sector=sector,
             contributing_agents=list(self.active_agent_context),
         )
+
+    def _absorb_handled_bar(
+        self,
+        entry: PlanEntry,
+        fast: Any,
+        report: CycleReport,
+        marks: dict[str, float],
+        book_notes: list[dict[str, Any]],
+    ) -> None:
+        """Count one paper-bar outcome on the cycle report. Does not trade."""
+        if fast.error:
+            report.errors.append(fast.error)
+        if fast.price is not None:
+            marks[entry.symbol] = fast.price
+        if fast.signal is not None:
+            report.signals_found += 1
+            if fast.ordered:
+                report.orders_placed += 1
+            elif fast.rejection:
+                report.rejections.append((fast.signal.symbol, fast.rejection))
+        if fast.evaluated and fast.bar_open is not None:
+            _remember_cycle_book_note(book_notes, entry, fast.bar_open, fast)
+
+    def _record_scan_decision(
+        self,
+        entry: PlanEntry,
+        signal: Signal,
+        bar_open: datetime | None,
+        decision: RiskDecision,
+        report: CycleReport,
+        book_notes: list[dict[str, Any]],
+        cycle_notes: list[dict[str, Any]],
+    ) -> None:
+        """Record one slow-path risk decision. The order was already attempted."""
+        if decision.is_approved:
+            report.orders_placed += 1
+            _remember_order_note(
+                book_notes,
+                cycle_notes,
+                entry,
+                bar_open,
+                ordered=True,
+                rejection="",
+                filled=bool(getattr(self, "_last_entry_filled", False)),
+            )
+            return
+        rejection = "; ".join(decision.reasons)
+        report.rejections.append((signal.symbol, rejection))
+        _remember_order_note(
+            book_notes, cycle_notes, entry, bar_open, ordered=False, rejection=rejection
+        )
+
+    def _submit_gbn_batch(
+        self,
+        pending: list[dict[str, Any]],
+        report: CycleReport,
+        equity: float,
+        marks: dict[str, float],
+        book_notes: list[dict[str, Any]],
+        cycle_notes: list[dict[str, Any]],
+    ) -> None:
+        """Send this cycle's held signals to the risk engine in GBN order.
+
+        Flag off never calls this. Each candidate is still removed after one
+        attempt. The book the next candidate is sized against is the ledger
+        after that attempt, not a shadow fill.
+        """
+        from core.execution.entry_ordering import (
+            DAILY_LOOKBACK_BARS,
+            GbnCandidate,
+            SubmitResult,
+            cycle_day_utc,
+            execute_entry_ordering,
+            finite_score,
+            legs_from_portfolio,
+            load_betas,
+        )
+        from core.execution.paper_bar_eval import commit_deferred_paper_entry
+
+        candidates: list[GbnCandidate] = []
+        for item in pending:
+            signal = item["signal"]
+            side = signal.side.value if hasattr(signal.side, "value") else str(signal.side)
+            candidates.append(
+                GbnCandidate(
+                    symbol=signal.symbol,
+                    side=side,
+                    score=finite_score(signal.score),
+                    plan_index=int(item["plan_index"]),
+                    payload=item,
+                )
+            )
+
+        def book() -> list[Any]:
+            return legs_from_portfolio(self.ledger.portfolio_state(equity, marks))
+
+        def fetch_daily(symbol: str) -> Any:
+            return self._data.fetch_latest(symbol, "1d", bars=DAILY_LOOKBACK_BARS)
+
+        day = cycle_day_utc(_now())
+        symbols = {candidate.symbol for candidate in candidates}
+        try:
+            symbols |= {leg.symbol for leg in book()}
+            betas, failures = load_betas(fetch_daily, symbols, day)
+        except Exception:
+            logger.exception("GBN beta load failed; this cycle stays in plan order")
+            betas, failures = {}, {"*": "beta load failed"}
+
+        def size_notional(candidate: GbnCandidate) -> float:
+            intent = self._intent_for_signal(candidate.payload["signal"])
+            state = self.ledger.portfolio_state(equity, marks)
+            return float(self.risk._size_position(intent, state)[1])
+
+        def submit(candidate: GbnCandidate) -> SubmitResult:
+            item = candidate.payload
+            if item["kind"] == "paper":
+                outcome = commit_deferred_paper_entry(
+                    self,
+                    item["entry"],
+                    item["signal"],
+                    equity=equity,
+                    marks=marks,
+                    source="cycle",
+                    price=item["price"],
+                    bar_open=item["bar_open"],
+                )
+                self._absorb_handled_bar(item["entry"], outcome, report, marks, book_notes)
+                return SubmitResult(
+                    approved=bool(outcome.ordered),
+                    reasons=outcome.rejection or outcome.error or "",
+                )
+            signal = item["signal"]
+            report.signals_found += 1
+            decision = self._attempt_entry(signal, equity, marks)
+            self._record_scan_decision(
+                item["entry"],
+                signal,
+                item["bar_open"],
+                decision,
+                report,
+                book_notes,
+                cycle_notes,
+            )
+            return SubmitResult(
+                approved=bool(decision.is_approved),
+                reasons="; ".join(decision.reasons),
+            )
+
+        try:
+            gross_cap = float(self.risk.limits.max_total_exposure_pct)
+        except Exception:
+            gross_cap = None
+        execute_entry_ordering(
+            candidates,
+            enabled=True,
+            betas=betas,
+            beta_failures=failures,
+            book_legs=book,
+            size_notional=size_notional,
+            submit=submit,
+            cycle_day=day,
+            gross_cap=gross_cap,
+        )
+
+    def _attempt_entry(
+        self, signal: Signal, equity: float, marks: dict[str, float]
+    ) -> RiskDecision:
+        """Risk-check a signal and, if approved, place the order."""
+        intent = self._intent_for_signal(signal)
+        # Levels for the *risk check* still use the signal close: we do not
+        # have a fill yet. Protection levels are rebuilt from the slipped
+        # fill in ``_place_order`` (F04). Using signal.price here keeps the
+        # stop distance the risk engine sized against.
+        stop_price = intent.stop_price
+        take_profit = (
+            intent.take_profit_price if intent.take_profit_price is not None else signal.price
+        )
+        sector = intent.sector
 
         state = self.ledger.portfolio_state(equity, marks)
         decision = self.risk.evaluate(intent, state)

@@ -382,6 +382,9 @@ class PaperBarOutcome:
     #: Paper broker filled this bar's order before the note was written.
     #: Reporting only. A rejected or unfilled approval stays False.
     filled: bool = False
+    #: Signal is known but ``_attempt_entry`` has not run. GBN holds these
+    #: until the whole cycle's candidate set is ordered. Flag off never sets it.
+    deferred: bool = False
 
 
 def _flat_reason(strategy: Any, signal: Signal | None) -> str:
@@ -423,6 +426,7 @@ def _evaluate_published(
     marks: dict[str, float],
     source: str,
     expected: datetime,
+    defer_submit: bool = False,
 ) -> PaperBarOutcome:
     """Run the existing evaluator on the just-closed bar, then remember it.
 
@@ -465,6 +469,22 @@ def _evaluate_published(
     ordered = False
     filled = False
     rejection: str | None = None
+    if signal is not None and defer_submit:
+        # Hold the signal. Duplicate checks and the risk engine run later, in
+        # GBN order, via ``commit_deferred_paper_entry``. The cursor stays
+        # unmarked so a crash before that commit can still take the bar.
+        if price is not None:
+            marks[entry.symbol] = price
+        return PaperBarOutcome(
+            handled=True,
+            signal=signal,
+            price=price,
+            ordered=False,
+            evaluated=False,
+            bar_open=bar_open,
+            reason=(signal.reason or reason or "signal"),
+            deferred=True,
+        )
     if signal is not None:
         block = duplicate_order_block(engine, entry)
         if block.uncertain:
@@ -513,12 +533,81 @@ def _evaluate_published(
     )
 
 
+def commit_deferred_paper_entry(
+    engine: Any,
+    entry: Any,
+    signal: Signal,
+    *,
+    equity: float,
+    marks: dict[str, float],
+    source: str,
+    price: float | None,
+    bar_open: datetime | None,
+) -> PaperBarOutcome:
+    """Risk-check one signal that GBN held back, then mark the bar.
+
+    Same duplicate gate and ``_attempt_entry`` as ``_evaluate_published``.
+    The cursor is written only after that attempt, except when the book
+    cannot be read: that bar stays unmarked so the next poll can retry.
+    """
+    if bar_open is None:
+        return PaperBarOutcome(
+            handled=True,
+            signal=signal,
+            price=price,
+            error=f"{entry.key}: deferred bar has no open time",
+        )
+    block = duplicate_order_block(engine, entry)
+    if block.uncertain:
+        return PaperBarOutcome(
+            handled=True,
+            error=f"{entry.key}: open book unreadable",
+        )
+    ordered = False
+    filled = False
+    rejection: str | None = None
+    reason = signal.reason or "signal"
+    if block.reason:
+        reason = block.reason
+        rejection = block.reason
+    else:
+        decision = engine._attempt_entry(signal, equity, marks)
+        if decision.is_approved:
+            ordered = True
+            filled = bool(getattr(engine, "_last_entry_filled", False))
+            reason = signal.reason or reason
+        else:
+            rejection = "; ".join(decision.reasons) or "rejected"
+            reason = rejection
+    if price is not None:
+        marks[entry.symbol] = price
+    _state(engine).mark(
+        sleeve_key(entry),
+        bar_open,
+        signal=signal.side.value,
+        reason=reason,
+    )
+    _log_eval(entry, bar_open, signal, reason, source)
+    return PaperBarOutcome(
+        handled=True,
+        signal=signal,
+        price=price,
+        ordered=ordered,
+        rejection=rejection,
+        evaluated=True,
+        bar_open=bar_open,
+        reason=reason,
+        filled=filled,
+    )
+
+
 def cycle_paper_bar(
     engine: Any,
     entry: Any,
     *,
     equity: float,
     marks: dict[str, float],
+    defer_submit: bool = False,
 ) -> PaperBarOutcome:
     """Cycle hook. ``handled=False`` means the existing scan path should run.
 
@@ -549,7 +638,13 @@ def cycle_paper_bar(
         # window ends, a later poll may still take the bar.
         return PaperBarOutcome(handled=False)
     return _evaluate_published(
-        engine, entry, equity=equity, marks=marks, source="cycle", expected=expected
+        engine,
+        entry,
+        equity=equity,
+        marks=marks,
+        source="cycle",
+        expected=expected,
+        defer_submit=defer_submit,
     )
 
 
@@ -612,6 +707,20 @@ def _poll_due_sleeves(
     notes: list[dict[str, Any]],
 ) -> int:
     """The poll body. Split out so the Inbox flush runs in a finally."""
+    from core.execution.entry_ordering import entry_ordering_gbn_enabled
+
+    # Flag off: the loop below is the plan-order path, unchanged.
+    if entry_ordering_gbn_enabled():
+        return _poll_due_sleeves_gbn(
+            engine,
+            state=state,
+            clock=clock,
+            deadline=deadline,
+            budget_seconds=budget_seconds,
+            equity=equity,
+            marks=marks,
+            notes=notes,
+        )
     evaluated = 0
     refreshed = False
     for entry in list(engine.plan.entries):
@@ -669,6 +778,221 @@ def _poll_due_sleeves(
                 rejection=_note_rejection(outcome),
                 filled=outcome.filled,
             )
+    return evaluated
+
+
+def _poll_due_sleeves_gbn(
+    engine: Any,
+    *,
+    state: BarEvalState,
+    clock: Callable[[], float],
+    deadline: float,
+    budget_seconds: float,
+    equity: float,
+    marks: dict[str, float],
+    notes: list[dict[str, Any]],
+) -> int:
+    """Same due-sleeve walk as the poll, then one GBN submit of the whole set.
+
+    The 8s budget is not allowed to split the candidate set: a later poll
+    would already see the first poll's fills and could not neutralise across
+    the batch. Flag off does not use this function. ``deadline`` is only a
+    log threshold.
+    """
+    from core.execution.entry_ordering import (
+        DAILY_LOOKBACK_BARS,
+        GbnCandidate,
+        SubmitResult,
+        cycle_day_utc,
+        execute_entry_ordering,
+        finite_score,
+        legs_from_portfolio,
+        load_betas,
+    )
+
+    started = clock()
+    evaluated = 0
+    refreshed = False
+    pending: list[tuple[int, Any, PaperBarOutcome]] = []
+    for plan_index, entry in enumerate(list(engine.plan.entries)):
+        if not is_known_timeframe(entry.timeframe):
+            continue
+        now = _clock()
+        expected = last_closed_bar_open(now, entry.timeframe)
+        if not bar_is_actionable(now, entry.timeframe, expected):
+            continue
+        if state.seen(sleeve_key(entry), expected):
+            continue
+        sitout = _engine_mod().paper_regime_sitout_reason(entry)
+        if sitout:
+            token = f"{sleeve_key(entry)}|{expected.isoformat()}"
+            if token not in state._sitout_logged:
+                state._sitout_logged.add(token)
+                logger.info(
+                    "paper bar eval sleeve=%s bar=%s signal=none reason=%s source=poll",
+                    sleeve_key(entry),
+                    expected.isoformat(),
+                    sitout,
+                )
+            _remember_book_note(
+                notes, entry, expected, signal=False, ordered=False, rejection=sitout
+            )
+            continue
+        if not refreshed:
+            engine._refresh_crowding()
+            refreshed = True
+        outcome = _evaluate_published(
+            engine,
+            entry,
+            equity=equity,
+            marks=marks,
+            source="poll",
+            expected=expected,
+            defer_submit=True,
+        )
+        if outcome.deferred and outcome.signal is not None:
+            pending.append((plan_index, entry, outcome))
+            continue
+        if outcome.evaluated:
+            evaluated += 1
+            _remember_book_note(
+                notes,
+                entry,
+                outcome.bar_open or expected,
+                signal=outcome.signal is not None,
+                ordered=outcome.ordered,
+                rejection=_note_rejection(outcome),
+                filled=outcome.filled,
+            )
+
+    if pending:
+        evaluated = _submit_poll_gbn(
+            engine,
+            pending=pending,
+            equity=equity,
+            marks=marks,
+            notes=notes,
+            load_betas=load_betas,
+            legs_from_portfolio=legs_from_portfolio,
+            execute_entry_ordering=execute_entry_ordering,
+            candidate_type=GbnCandidate,
+            result_type=SubmitResult,
+            finite_score=finite_score,
+            cycle_day_utc=cycle_day_utc,
+            daily_bars=DAILY_LOOKBACK_BARS,
+            evaluated=evaluated,
+        )
+
+    elapsed = clock() - started
+    if elapsed > float(budget_seconds):
+        logger.info(
+            "GBN poll scanned the full due set in %.1fs (budget %.1fs, deadline %.1f). "
+            "The budget does not split a GBN candidate set.",
+            elapsed,
+            budget_seconds,
+            deadline,
+        )
+    return evaluated
+
+
+def _submit_poll_gbn(
+    engine: Any,
+    *,
+    pending: list[tuple[int, Any, PaperBarOutcome]],
+    equity: float,
+    marks: dict[str, float],
+    notes: list[dict[str, Any]],
+    load_betas: Callable[..., Any],
+    legs_from_portfolio: Callable[[Any], list[Any]],
+    execute_entry_ordering: Callable[..., str],
+    candidate_type: type,
+    result_type: type,
+    finite_score: Callable[[Any], float | None],
+    cycle_day_utc: Callable[[datetime], Any],
+    daily_bars: int,
+    evaluated: int,
+) -> int:
+    """Order the poll's deferred signals and mark each bar after the attempt."""
+    candidates = []
+    for plan_index, entry, outcome in pending:
+        signal = outcome.signal
+        assert signal is not None
+        side = signal.side.value if hasattr(signal.side, "value") else str(signal.side)
+        candidates.append(
+            candidate_type(
+                symbol=signal.symbol,
+                side=side,
+                score=finite_score(signal.score),
+                plan_index=plan_index,
+                payload=(entry, outcome),
+            )
+        )
+
+    def book() -> list[Any]:
+        return legs_from_portfolio(engine.ledger.portfolio_state(equity, marks))
+
+    def fetch_daily(symbol: str) -> Any:
+        return engine._data.fetch_latest(symbol, "1d", bars=daily_bars)
+
+    day = cycle_day_utc(_clock())
+    symbols = {item.symbol for item in candidates}
+    try:
+        symbols |= {leg.symbol for leg in book()}
+        betas, failures = load_betas(fetch_daily, symbols, day)
+    except Exception:
+        logger.exception("GBN beta load failed; this poll stays in plan order")
+        betas, failures = {}, {"*": "beta load failed"}
+
+    def size_notional(candidate: Any) -> float:
+        _entry, outcome = candidate.payload
+        intent = engine._intent_for_signal(outcome.signal)
+        state = engine.ledger.portfolio_state(equity, marks)
+        return float(engine.risk._size_position(intent, state)[1])
+
+    def submit(candidate: Any) -> Any:
+        nonlocal evaluated
+        entry, outcome = candidate.payload
+        committed = commit_deferred_paper_entry(
+            engine,
+            entry,
+            outcome.signal,
+            equity=equity,
+            marks=marks,
+            source="poll",
+            price=outcome.price,
+            bar_open=outcome.bar_open,
+        )
+        if committed.evaluated:
+            evaluated += 1
+            _remember_book_note(
+                notes,
+                entry,
+                committed.bar_open or outcome.bar_open,
+                signal=committed.signal is not None,
+                ordered=committed.ordered,
+                rejection=_note_rejection(committed),
+                filled=committed.filled,
+            )
+        return result_type(
+            approved=bool(committed.ordered),
+            reasons=committed.rejection or committed.error or "",
+        )
+
+    try:
+        gross_cap = float(engine.risk.limits.max_total_exposure_pct)
+    except Exception:
+        gross_cap = None
+    execute_entry_ordering(
+        candidates,
+        enabled=True,
+        betas=betas,
+        beta_failures=failures,
+        book_legs=book,
+        size_notional=size_notional,
+        submit=submit,
+        cycle_day=day,
+        gross_cap=gross_cap,
+    )
     return evaluated
 
 
