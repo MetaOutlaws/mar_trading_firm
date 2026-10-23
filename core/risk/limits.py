@@ -44,7 +44,13 @@ class RiskLimits:
 
     #: Combined notional across all open positions, as a fraction of equity.
     #: Below 1.0 means the account is never fully committed.
-    max_total_exposure_pct: float = 0.80
+    #:
+    #: This is the original conservative default from the first version of
+    #: this file (``e0127da``, 2026-08-30), which was 0.50. ``a977119`` raised
+    #: the shared default to 0.80 so paper could run wider, and every bare
+    #: ``RiskLimits()`` plus testnet inherited it. Paper now passes 0.80 on
+    #: ``PAPER_LIMITS`` instead. Do not raise this default to widen paper.
+    max_total_exposure_pct: float = 0.50
 
     #: Equity fraction lost if a stop is hit. This, not notional, is the real
     #: risk measure: a 10% position with a 5% stop risks 0.5% of equity.
@@ -96,11 +102,15 @@ class RiskLimits:
         ]
 
 
-#: Limits used in paper mode. Same as the RiskLimits defaults except the
-#: concurrent-position cap, which is the in-effect SGP1 paper value.
-#: Live keeps INITIAL_LIVE_LIMITS; this cap must not be copied there.
+#: Limits used in paper mode. Same as the RiskLimits defaults except two
+#: fields: the concurrent-position cap (the in-effect SGP1 paper value) and
+#: the gross exposure cap. 0.80 is passed here so paper keeps the wider book
+#: from ``a977119`` without making that number the dataclass default.
+#: Live keeps INITIAL_LIVE_LIMITS; neither override is copied there.
+#: Testnet must not use this object, or it picks up the paper gross cap.
 PAPER_LIMITS = RiskLimits(
     max_concurrent_positions=15,
+    max_total_exposure_pct=0.80,
 )
 
 #: Starting limits for first live capital. Half the paper exposure, because the
