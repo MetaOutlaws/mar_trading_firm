@@ -1,13 +1,16 @@
-# Four-book 3R forward comparison — preparation
+# Four-book 3R forward paper comparison
 
-Status: **candidate port verified; funded forward worker not implemented or
-activated by this change**. This is the next preparation step after
-MAR-3R-ALLOCATION-08, not another performance-optimization sweep.
+Status: **candidate parity and isolated execution tests pass; server installation
+and first future scan are still pending**. The user authorized paper deployment
+after the preparation commit. See [DEPLOYMENT.md](DEPLOYMENT.md) for the runnable
+installer, exact isolation boundary, operational checks and resume instructions.
 
-The branch contains a frozen candidate evaluator, four-book routing and sizing
-contracts, a private-fixture parity command, a read-only runtime audit, and the
-prospective protocol. None is registered with the production strategy worker.
-No balance, position, risk setting, timer, kill switch or deployed file changes.
+The branch now includes the public-data worker, persistent indicator seed,
+durable accounts, cost scenarios, opportunity records and prospective report.
+The installer creates its own service and state. It does not register strategies
+with the existing worker or change its balances, positions, risk limits or flags.
+The preparation receipts and protocol retain their original content and date;
+the new runtime receipt is `RUNTIME_VALIDATION.json`.
 
 ## Exact comparison
 
@@ -54,8 +57,9 @@ target to pass that gate silently changes the strategy and is prohibited.
 
 The historical candidate inputs cover only 2022–2025. The endpoint labelled
 2026-01-01 00:00 is the final completed 2025 candle, not a 2026 trading sample.
-The parity verifier does not score new outcomes or tune rules. Full execution,
-ledger, funding, cash and forward-feed parity remain separate required checks.
+The parity verifier does not score new outcomes or tune rules. Runtime cash,
+funding, restart, quote and causal-order checks are a separate test suite;
+actual server market-data coverage and execution latency still need evidence.
 
 ```bash
 python -m pytest -q tests/test_cipher_forward.py
@@ -100,19 +104,21 @@ worker activity, cash, fills, configured overrides or reconciliation. Attach
 fresh worker and ledger evidence separately; never infer deployment from a PR
 merge or a local test. No remote execution was performed for this preparation.
 
-## Remaining implementation and start condition
+## Installation and start condition
 
-Follow `INTEGRATION_HANDOFF.md`. Build one isolated four-book executor and
-independent opportunity recorder, reusing reviewed concepts from PR #149 while
-preserving newer production fixes. Do not run its account-resize installer.
-Fix and record the forward quote sampling/exit cadence in the execution release;
-research OHLC and forward depth fills are different observation models.
+The original `INTEGRATION_HANDOFF.md` is retained as the acceptance checklist.
+The implementation now satisfies the local execution checks; follow
+`DEPLOYMENT.md` for the separate server build, warmup and activation evidence.
+The runtime reuses reviewed concepts from PR #149 without replacing production.
+Do not run its account-resize installer. The quote tick is fixed at 15 seconds;
+research OHLC and forward depth fills remain different observation models.
 
 Warm indicators separately before activation. Record a fixed seed boundary,
 complete warmup source hashes and subsequent incremental inputs; never reseed
 from a moving 800-hour window. Warmup is not a historical 2026 performance test.
-The trial starts only at the first full future signal after the verified
-activation timestamp. There are no retrospective fills or synthetic start date.
+After preparation, the worker records its first future hourly cutoff. Technical
+activation is verified after that first completed forward scan, not before it.
+There are no retrospective fills or synthetic start date.
 
 Baseline and moderate cost accounts are primary. Severe is a secondary stress,
 not the sole rejection gate. Cost sidecars must re-admit and resize independently,
