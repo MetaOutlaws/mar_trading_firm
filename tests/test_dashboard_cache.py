@@ -333,19 +333,42 @@ def test_trading_path_does_not_import_the_desk_cache() -> None:
 
 
 def test_observers_poll_is_slow_and_pauses_while_hidden() -> None:
-    """The heavy panel is not on the 15s desk loop."""
+    """#152 poller: 60s on success, 4s abort, one loop, pause while hidden.
+
+    The 15s desk load() does not fetch /api/observers, and the page does
+    not arm a second observers interval beside ObserverPoll.
+    """
     html = (ROOT / "api" / "static" / "index.html").read_text(encoding="utf-8")
-    assert "const OBSERVERS_POLL_MS = 60000;" in html
+    script = (ROOT / "api" / "static" / "observers_poll.js").read_text(encoding="utf-8")
+
+    assert "var SUCCESS_MS = 60000;" in script
+    assert "var DEFAULT_TIMEOUT_MS = 4000;" in script
+    assert "var timeoutMs = opts.timeoutMs || DEFAULT_TIMEOUT_MS;" in script
+    # A poll already running is the in-flight guard. It does not start another.
+    assert "if (stopped || paused || inFlight) return Promise.resolve(view);" in script
+    assert "inFlight = true;" in script
+    assert "function pause()" in script
+    assert "paused = true;" in script
+    assert "if (retryTimer) clearTimeout(retryTimer);" in script
+    assert "function resume()" in script
+    assert "return poll();" in script
+    # Failure backoff stays 2s doubling up to 60s. Only the success wait moved.
+    assert "var FAILURE_BASE_MS = 2000;" in script
+    assert "var MAX_BACKOFF_MS = 60000;" in script
+
     assert "const OBSERVERS_TIMEOUT_MS = 4000;" in html
-    assert "AbortSignal.timeout(timeoutMs)" in html
-    assert "function observersHidden()" in html
-    assert 'document.visibilityState === "hidden"' in html
-    assert "observersInflight" in html
-    assert 'get("/api/observers", OBSERVERS_TIMEOUT_MS)' in html
-    assert 'get("/api/f111")' not in html
+    assert html.count("ObserverPoll.create(") == 1
+    visibility = html.split('document.addEventListener("visibilitychange"', 1)[1].split("});", 1)[0]
+    assert 'document.visibilityState === "hidden"' in visibility
+    assert "observerPoll.pause()" in visibility
+    assert "observerPoll.resume()" in visibility
+
+    assert html.count("setInterval(load, 15000);") == 1
     load = html.split("async function load(", 1)[1].split("function tickClock(", 1)[0]
-    # The 15s load must not start this request. The slow poll function does.
-    assert 'get("/api/observers", OBSERVERS_TIMEOUT_MS)' not in load
-    assert "setInterval(load, 15000);" in html
-    assert "function whyNoTrade(" in html
-    assert "Why no trade" in html
+    assert "/api/observers" not in load
+    # Clock (1s) and the desk load (15s) are the only intervals on the page.
+    assert html.count("setInterval(") == 2
+    assert "OBSERVERS_POLL_MS" not in html
+    assert "function loadObservers(" not in html
+    assert "function armObservers(" not in html
+    assert html.count('get("/api/observers"') == 1

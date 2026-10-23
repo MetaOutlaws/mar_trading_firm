@@ -6,11 +6,12 @@
  * payload is not an empty book. Polls do not overlap, and stop() aborts
  * the request in flight (page hide / unmount).
  *
- * This is the only /api/observers loop. The 15s desk load does not fetch
- * observers, and there is no second timer in index.html. pause() is the
- * hidden-tab guard: it clears the next-poll timer and does not start a
- * request. An in-flight request is left to the 4s abort. resume() polls
- * once. stop() is permanent (navigation away).
+ * This is the only /api/observers loop. A successful poll waits 60s
+ * (restored from #145). The 15s desk load does not fetch observers, and
+ * there is no second timer in index.html. pause() is the hidden-tab
+ * guard: it clears the next-poll timer and does not start a request. An
+ * in-flight request is left to the 4s abort. resume() polls once. stop()
+ * is permanent (navigation away).
  *
  * Loaded as a classic script by the desk and as a CommonJS module by tests.
  */
@@ -21,7 +22,7 @@
   }
   if (root) root.ObserverPoll = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
-  var SUCCESS_MS = 15000;
+  var SUCCESS_MS = 60000;
   var FAILURE_BASE_MS = 2000;
   var MAX_BACKOFF_MS = 60000;
   var JITTER_RATIO = 0.2;
@@ -89,7 +90,7 @@
     return Math.max(0, Math.round(ms + (roll * 2 - 1) * delta));
   }
 
-  // Success waits the base interval. Failures double from 2s up to 60s.
+  // Success waits 60s. Failures double from 2s up to 60s.
   // `random` in [0, 1) spreads that delay by ±20%.
   function nextDelayMs(outcome, failures, random) {
     var roll = typeof random === "function" ? random : Math.random;
