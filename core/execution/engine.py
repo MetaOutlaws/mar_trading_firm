@@ -2437,7 +2437,7 @@ def build_engine(
     mode = settings.trading_mode
     ledger = Ledger(mode=mode.value, starting_equity=starting_equity)
 
-    from core.risk.limits import INITIAL_LIVE_LIMITS, PAPER_LIMITS
+    from core.risk.limits import INITIAL_LIVE_LIMITS, PAPER_LIMITS, RiskLimits
 
     if mode is TradingMode.PAPER:
         broker: Broker = PaperBroker(
@@ -2446,13 +2446,23 @@ def build_engine(
         )
         # Restore order lives in PaperBroker.hydrate: cash journal, then rows.
         broker.hydrate(ledger.open_positions())
+        # Paper is the only mode that takes the explicit 0.80 gross cap.
         limits = PAPER_LIMITS
         plan = build_plan(require_approval=False, candidates=candidates)
     else:
         from core.execution.bybit import BybitBroker
 
         broker = BybitBroker(mode=mode)
-        limits = INITIAL_LIVE_LIMITS if mode is TradingMode.LIVE else PAPER_LIMITS
+        if mode is TradingMode.LIVE:
+            limits = INITIAL_LIVE_LIMITS
+        else:
+            # Testnet used to share PAPER_LIMITS, which is how the paper
+            # gross cap leaked here. Keep the concurrent cap testnet already
+            # ran with, and take the dataclass default for every other field,
+            # including gross exposure. Do not pass 0.80.
+            limits = RiskLimits(
+                max_concurrent_positions=PAPER_LIMITS.max_concurrent_positions,
+            )
         plan = build_plan(require_approval=True)
 
         if not plan.entries:
