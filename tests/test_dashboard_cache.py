@@ -21,9 +21,9 @@ NOW = datetime(2026, 10, 16, 15, 30, tzinfo=timezone.utc)
 # Blobs of the trading path and the book. A desk patch that edits one of
 # these has changed more than the dashboard.
 _UNTOUCHED = {
-    # Manual closes drain after the book lock. Previous pin:
-    # 96d213af8bd2fba886b6f72aa09342b23c8e28b3.
-    "core/execution/engine.py": "dd5492d0ae8ca6f629f690348a224169b2712103",
+    # Testnet takes the dataclass gross default, not PAPER_LIMITS. Previous pin:
+    # dd5492d0ae8ca6f629f690348a224169b2712103.
+    "core/execution/engine.py": "52f4e678922dbb81e03dba79514b4df7943f1ad1",
     # The funding hook runs between plan and book while the lock is held.
     # Previous pin: 66479045eda3fd04ebe1c9cad50d6ebfe996bdee.
     "core/execution/paper.py": "821ec3eace98334565a11a7d5a8a22c447e97c68",
