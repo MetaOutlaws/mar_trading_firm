@@ -1,0 +1,57 @@
+{
+  "inspected_default_branch": "feat/employee-floor-and-openai",
+  "inspected_default_sha": "4d70db57ba6c665a25d9c54bf3aacc386baf697b",
+  "inspected_recovery_branch": "codex/recovery-paper-20261017",
+  "inspected_recovery_sha": "0519f425369b0fde68f6559719ab4a233f59e013",
+  "recovery_PR": 149,
+  "recovery_PR_draft": true,
+  "recovery_PR_merged": false,
+  "saved_state_recovery_sha_superseded": "ecf709dcc819d8b1bb5298e4fbd295d494be4b40",
+  "fresh_remote_shell_available": false,
+  "fresh_runtime_state_observed": false,
+  "last_owner_runtime_evidence_date": "2026-10-14",
+  "default_branch_paper_declarations": {
+    "risk": 0.01,
+    "position": 0.1,
+    "gross": 0.8,
+    "max_positions": 15,
+    "drawdown": 0.15
+  },
+  "matched_historical_comparison": {
+    "risk": 0.01,
+    "position": 0.1,
+    "gross": 0.5,
+    "max_positions": 15,
+    "drawdown": 0.7,
+    "recovery": "C24"
+  },
+  "prepared_forward_comparison": {
+    "risk_incumbent": 0.01,
+    "position_incumbent": 0.1,
+    "gross": 0.5,
+    "max_positions": 15,
+    "drawdown": 0.15,
+    "recovery": "C24",
+    "max_hold": null
+  },
+  "differences": [
+    "Default-branch declarations do not prove effective server settings.",
+    "Default branch does not contain BL8/recovery trial modules; these remain on the open PR149 branch.",
+    "Four-book trial is an isolated experiment, not a replacement deployment or migration of existing positions.",
+    "The historical 70% drawdown guard is not copied to prospective paper. Prior return figures cannot be claimed for the 15% prospective guard.",
+    "Research A00 is L01-long/F111-short; the current account may contain unrelated strategies, which are not copied into the comparison.",
+    "Research minute OHLC fills differ from forward timestamped quote/depth paper fills; measure the execution bridge, do not assert equivalence.",
+    "Newer main-branch changes include exit-cadence and ledger fixes. Do not deploy the older recovery branch over the running application."
+  ],
+  "unchanged_source_since_historical_pin": [
+    "core/strategy/f111_semantics.py",
+    "core/strategy/l01_context.py"
+  ],
+  "missing_before_start": [
+    "effective runtime strategy/account overrides and current release receipt",
+    "full four-book durable executor, forward feed, seed and recorder integration",
+    "crash/replay/funding/quote-fanout portfolio parity",
+    "first future cutoff and actual runtime verification"
+  ],
+  "already_known_good_research": "candidate, account replay, and source provenance are separate evidence categories"
+}

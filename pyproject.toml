@@ -28,6 +28,7 @@ packages = [
     "firm",
     "firm.employees",
     "research",
+    "research.cipher_forward",
     "research.token_expansion",
     "research.xs_crowd_lsr_contrarian",
 ]
