@@ -1,0 +1,15 @@
+{
+  "status": "PASS_CANDIDATE_PREPARATION_ONLY",
+  "new_tests_passed": 17,
+  "risk_and_L01_regression_tests_passed": 73,
+  "total_tests_passed": 90,
+  "candidate_parity_receipt": "CANDIDATE_PARITY.json",
+  "python_compilation": true,
+  "diff_check": true,
+  "local_audit_script_smoke_test": true,
+  "historical_2026_opened": false,
+  "runtime_activated": false,
+  "portfolio_executor_implemented": false,
+  "remote_configuration_observed": false,
+  "scope": "The port and sizing contracts pass. No four-book execution/cash/funding/restart parity or forward activation is claimed."
+}

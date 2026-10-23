@@ -1,0 +1,57 @@
+{
+  "status": "local_runtime_validation_passed_server_installation_pending",
+  "preparation_commit": "def69ecaa71b4858f76c78167914acb4ab6ae4e0",
+  "paper_deployment_authorized": true,
+  "live_money_authorized": false,
+  "tests": {
+    "full_suites": 193,
+    "skipped": 1,
+    "focused_candidate_runtime": 51,
+    "isolated_image_file_tree": 51
+  },
+  "python": "3.12.14",
+  "docker_available_locally": false,
+  "docker_build_verified": false,
+  "server_runtime_verified": false,
+  "activation_verified": false,
+  "config_sha256": "9c3b4c39c53f84afa3250ce9aa46c0f5db7587ade45b934c59a81b05f466415d",
+  "source_sha256": {
+    "research/cipher_forward/seed.py": "9e7b35ecf7b9695a1e29d714f9004423992df01b8acea8ca1263823b2606d91e",
+    "research/cipher_forward/allocation.py": "a3d774d91c9aa15f3b75affb2371ed05aeaa7fbbdc699979c35010f7cbe6380d",
+    "research/cipher_forward/reporting.py": "190374aec6dc37572f14dd9b42355e51283382bbd05f304bb6b22d5d350c5af6",
+    "research/cipher_forward/public.py": "488e54ef4b18db2793f26f02bb6c1259b326f5656efd7eaa796e3466768eded8",
+    "research/cipher_forward/quotes.py": "cc66f6b7a071128f5b0e759c1540f73d19f82d40ec816c96abf8306f88db4337",
+    "research/cipher_forward/bl8.py": "ce150ed0a9bd250a6ace6ea4423aae2b477bb09002161901f086d9785075d99c",
+    "research/cipher_forward/strategy.py": "f5f7f083b8e68bc9280840aac7c3d50e63c1c0e52d45400fccd6d256556353bf",
+    "research/cipher_forward/ledger.py": "bbb4889557ce027a7b9d7d1c116b8c11d4e5889853cd79eea70396786132ea20",
+    "research/cipher_forward/config.py": "d3485332d691124e5274b84e53db49c5b7636bfa7dfbb29bc7294a0254d7ebf1",
+    "research/cipher_forward/features.py": "0a2df35e046b98b52c8518de4627d380afe166b29f23136ad67e3e65faf4178e",
+    "research/cipher_forward/__init__.py": "2d6f2f9c6ce7e7b1d22d286afb270ce33f795431f723532b091888f6a633bce6",
+    "research/cipher_forward/feed.py": "eec5a78377937f2313590f94d38387aef27a7cb82aff1a5c58a0115d98fe2234",
+    "scripts/run_cipher_forward_paper.py": "179d421be07a5e92215ec7f968fe7a4a3bf70ba83e9e7fa9434c78b377bec5ab",
+    "scripts/deploy_cipher_forward_paper.sh": "7a067b4bb0196342c23d7a5b7c3b5399fabcb4d8f5ed9bc1dc88c24116434d59",
+    "docker/cipher-forward.Dockerfile": "78ed9132da544508eefad422b45ad333532dddd91daa20e143015e99c8b7fe61",
+    "docker/cipher-forward-requirements.txt": "32bdda3b94a887cd6e335a21408050e796cc985b82eb93d17f89f35d1c17fff1",
+    "docker/cipher-forward-research-init.py": "f29a2887bbe050b69d92d8b0e60a5bffc61d5d35c26ad2dd69f5494b725d5655"
+  },
+  "checks": [
+    "12 independent funded accounts and 3 opportunity books",
+    "shared snapshots and cost-specific admission",
+    "quarter-minute short/long exits and next-minute hourly floor",
+    "transaction rollback and abrupt subprocess death",
+    "idempotent replay, restart reconciliation and conflict rejection",
+    "unknown funding, exact-once signed funding and continued exits",
+    "risk/sector/daily limits, C24 and independent persistent holds",
+    "immutable seed, actual turnover, missing minutes and causal continuation",
+    "first future cutoff, zero-fill verification and stale-heartbeat rejection",
+    "shell syntax and source compilation"
+  ],
+  "limitations": [
+    "No remote SSH key in this workspace; owner key remains on Windows PC",
+    "Docker/image dependency build and actual public endpoint behavior must pass destination preflight",
+    "Local isolated-file-tree test is not Docker execution",
+    "First actual forward scan and measured latency/coverage remain pending",
+    "One existing optional private F111 fixture test is skipped when fixture absent"
+  ],
+  "environment_note": "Broader F111 suite initially needed socksio for the workspace HTTP proxy; installed that test-environment dependency, then 193 passed/1 skipped. No production code was changed for it."
+}

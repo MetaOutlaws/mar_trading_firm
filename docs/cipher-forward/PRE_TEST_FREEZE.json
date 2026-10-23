@@ -1,0 +1,14 @@
+{
+  "stage": "before parity verification",
+  "files": {
+    "docs/cipher-forward/protocol.json": "2060f13b0ba63b8129b66509cb5d5d2286402b956a3595a43a195dd3027fc835",
+    "research/cipher_forward/features.py": "0a2df35e046b98b52c8518de4627d380afe166b29f23136ad67e3e65faf4178e",
+    "research/cipher_forward/strategy.py": "f5f7f083b8e68bc9280840aac7c3d50e63c1c0e52d45400fccd6d256556353bf",
+    "research/cipher_forward/allocation.py": "a3d774d91c9aa15f3b75affb2371ed05aeaa7fbbdc699979c35010f7cbe6380d",
+    "scripts/verify_cipher_forward_parity.py": "e6226c4fceae3dcbdb1b9d2025763d768b50b904110e01562e5acb2c09bf70d6"
+  },
+  "pre_completion_clarifications": [
+    "Undefined research planned-RR NaN maps to JSON null; parity comparator handles the representation without changing candidate eligibility.",
+    "90-day primary review remains fixed; no arbitrary 100-trade gate. Insufficient statistical evidence is explicitly inconclusive, with unchanged collection continuing."
+  ]
+}
