@@ -1,0 +1,19 @@
+test_ambiguous_bar_stop_first (test_study.StudyTests.test_ambiguous_bar_stop_first) ... ok
+test_ambiguous_exit_funding_uses_worse_case (test_study.StudyTests.test_ambiguous_exit_funding_uses_worse_case) ... ok
+test_boundary_purge (test_study.StudyTests.test_boundary_purge) ... ok
+test_costs (test_study.StudyTests.test_costs) ... ok
+test_entry_funding_excluded (test_study.StudyTests.test_entry_funding_excluded) ... ok
+test_funding_direction (test_study.StudyTests.test_funding_direction) ... ok
+test_incomplete_signal_bar (test_study.StudyTests.test_incomplete_signal_bar) ... ok
+test_long_gap_stop (test_study.StudyTests.test_long_gap_stop) ... ok
+test_missing_data_blocks (test_study.StudyTests.test_missing_data_blocks) ... ok
+test_no_future_signal_leak (test_study.StudyTests.test_no_future_signal_leak) ... ok
+test_nonoverlap (test_study.StudyTests.test_nonoverlap) ... ok
+test_opportunity_tie_is_not_a_win (test_study.StudyTests.test_opportunity_tie_is_not_a_win) ... ok
+test_short_gap_stop (test_study.StudyTests.test_short_gap_stop) ... ok
+test_time_exit (test_study.StudyTests.test_time_exit) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.209s
+
+OK
