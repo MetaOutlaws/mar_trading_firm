@@ -1,0 +1,10 @@
+BTC/ETH SAME-TOKEN CARRY: DATA REQUIREMENTS
+Scope: BTCUSDT and ETHUSDT, Bybit spot and USDT linear perpetual, 2022-01-01 through 2025-12-31 UTC. Keep 2026 historical outcomes unopened.
+
+Required: matched one-minute spot/perpetual OHLCV; historical mark OHLC; realized funding rates and timestamps; instrument identity and volume units; effective-dated fees, size/tick rules, funding intervals, collateral/margin rules where available; execution spread/depth evidence or explicitly labeled assumptions. No paid data or account credentials required by these public collectors.
+
+Never substitute a perpetual price for a spot price. Do not use current margin/fee snapshots as proof of historical rules. Do not fill missing market intervals silently. A minute-open mark may be a settlement-price proxy rather than an exact settlement record; identify and stress that approximation. Realized future funding cannot determine earlier entries.
+
+Deliver machine-readable per-month coverage, common usable intervals, source URLs, retrieval timestamps, raw response evidence, dataset hashes, discrepancy log and data-readiness decision. Downloading prices alone does not establish strategy readiness.
+
+Use a paid-for long-spot/short-perpetual implementation for the first study. A short-spot implementation requires historical borrow availability, rates and recall constraints. Owning offsetting spot does not automatically fund an isolated perpetual margin account. Define total tied-up capital, inventory after fees, funding cash, basis changes and forced-liquidation mechanics before strategy outcomes.
