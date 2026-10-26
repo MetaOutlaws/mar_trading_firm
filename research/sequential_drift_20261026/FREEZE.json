@@ -1,0 +1,9 @@
+{
+  "frozen_at": "2026-10-26T13:02:45.194709+00:00",
+  "files": {
+    "PROTOCOL.json": "22aa5759f63de0e75d2fcbdef373eac5a37c4f894f6b4f1c8511c04b03e239a0",
+    "code/run_study.py": "5a9b94683d7c26b74d62681170b85e055531f979b3c523f9a4744a2287faa18a",
+    "code/test_study.py": "129572bb88a1a29c3f80cc25ad19213b3a2b3dbde9dd0857cfc07dd6aa347af8"
+  },
+  "synthetic_tests_passed": 10
+}
