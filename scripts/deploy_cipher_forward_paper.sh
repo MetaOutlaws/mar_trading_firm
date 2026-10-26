@@ -4,8 +4,26 @@ set -euo pipefail
 umask 077
 test "$(hostname)" = mo-paper-vm-sgp1
 test "$(id -u)" = 0
-release=${1:?Usage: deploy_cipher_forward_paper.sh FULL_40_CHARACTER_COMMIT}
-[[ "$release" =~ ^[0-9a-f]{40}$ ]]
+release=
+no_start=0
+audit_production=0
+for arg in "$@"; do
+    case "$arg" in
+        --no-start) no_start=1 ;;
+        --audit-production) audit_production=1 ;;
+        *)
+            if [[ -n "$release" ]]; then
+                echo "unexpected argument: $arg" >&2
+                exit 2
+            fi
+            release=$arg
+            ;;
+    esac
+done
+if [[ ! "$release" =~ ^[0-9a-f]{40}$ ]]; then
+    echo 'Usage: deploy_cipher_forward_paper.sh FULL_40_CHARACTER_COMMIT [--no-start] [--audit-production]' >&2
+    exit 2
+fi
 command -v docker >/dev/null
 command -v git >/dev/null
 command -v python3 >/dev/null
@@ -33,6 +51,9 @@ if docker ps --format '{{.Names}}' | grep -qx mar-cipher-forward-paper; then
     echo 'Existing comparison container is running outside this service; inspect before proceeding.' >&2
     exit 1
 fi
+# Halt file before fetch, build, or unit write, so a later manual start
+# admits no funded entries until an operator removes it.
+touch "$state/entries_disabled"
 test "$(docker inspect --format '{{.State.Running}}' mo-paper-paper-1)" = true
 if [[ ! -d "$base/source.git" ]]; then
     git init --bare "$base/source.git"
@@ -101,6 +122,7 @@ main_name=$(basename "$main_db")
 test -f "$main_db"
 [[ "$main_dir" =~ ^/[A-Za-z0-9_./-]+$ ]]
 [[ "$main_name" =~ ^[A-Za-z0-9_.-]+$ ]]
+if [[ "$audit_production" == 1 ]]; then
 docker exec -i -w /app mo-paper-paper-1 python - < "$dest/scripts/audit_cipher_forward_runtime.py" > "$receipt/current-runtime-source.json"
 docker exec -i -w /app mo-paper-paper-1 python - > "$receipt/current-paper-mode.json" <<'PY'
 import json,os
@@ -112,6 +134,9 @@ assert not s.is_live and not os.environ.get('GO_LIVE_CONFIRMED')
 print(json.dumps({'paper_only':True,'trading_mode':s.trading_mode.value,
  'scope':'paper-mode assertion; existing paper-book balances and overrides not changed'}))
 PY
+else
+    echo 'Production container audit skipped. Pass --audit-production to opt in.'
+fi
 image="mar-cipher-forward:$release"
 docker build --pull -f "$dest/docker/cipher-forward.Dockerfile" -t "$image" "$dest" > "$receipt/build.log" 2>&1
 common=(--rm --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m)
@@ -136,7 +161,6 @@ Requires=docker.service
 Type=oneshot
 TimeoutStartSec=2h
 ExecStart=/usr/bin/docker run --rm --name mar-cipher-forward-prepare --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --mount type=bind,src=$state,dst=/state --mount type=bind,src=$context,dst=/context,readonly --mount type=bind,src=$main_dir,dst=/main-paper,readonly -e CIPHER_FORWARD_MAIN_PAPER_DB=/main-paper/$main_name -e CIPHER_FORWARD_MIN_FREE_BYTES=2147483648 -e CIPHER_FORWARD_LEDGER_MAX_BYTES=1073741824 -e CIPHER_FORWARD_LEDGER_MAX_AGE_MS=1209600000 $image python scripts/run_cipher_forward_paper.py --db /state/trial.db --warmup --context-root /context
-ExecStartPost=/usr/bin/systemctl start --no-block $service
 EOF
 python3 - "$state" "$receipt" "$release" "$context" <<'PY'
 import json,sys
@@ -148,14 +172,14 @@ value=dict(release=sys.argv[3],image_id=(receipt/'image-id.txt').read_text().str
  local_runtime_tests_passed=True,server_tests_passed=True,activation_verified=False)
 path=state/'deployment.json';tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(value,indent=2)+'\n');tmp.replace(path)
 PY
-# Initializing is separate and exclusive. A missing ledger beside a previous
-# deployment is NOT permission to silently reset accumulated results.
+# A missing ledger beside a previous deployment is NOT permission to reset
+# accumulated results. Creating the ledger stays a manual operator step.
 if [[ ! -f "$state/trial.db" ]]; then
     if [[ -f "$state/status.json" || -f "$state/initialized.json" ]]; then
         echo 'Ledger missing beside prior trial state; restore/reconcile before continuing.' >&2
         exit 1
     fi
-    docker run "${common[@]}" --network none --mount "type=bind,src=$state,dst=/state" --mount "type=bind,src=$main_dir,dst=/main-paper,readonly" -e CIPHER_FORWARD_MAIN_PAPER_DB=/main-paper/$main_name -e CIPHER_FORWARD_MIN_FREE_BYTES=2147483648 -e CIPHER_FORWARD_LEDGER_MAX_BYTES=1073741824 -e CIPHER_FORWARD_LEDGER_MAX_AGE_MS=1209600000 "$image" python scripts/run_cipher_forward_paper.py --db /state/trial.db --initialize > "$state/initialized.json"
+    echo 'No ledger yet. Creating one stays manual; this installer does not create one.'
 else
     docker run "${common[@]}" --network none --mount "type=bind,src=$state,dst=/state" "$image" python scripts/run_cipher_forward_paper.py --db /state/trial.db --audit > "$receipt/ledger-reconciliation.json"
 fi
@@ -177,20 +201,17 @@ ExecStop=/usr/bin/docker stop --timeout 30 mar-cipher-forward-paper
 WantedBy=multi-user.target
 EOF
 systemctl daemon-reload
-systemctl enable "$service"
-if python3 - "$state/warmup.json" <<'PY'
-import json,sys
-from pathlib import Path
-p=Path(sys.argv[1])
-raise SystemExit(0 if p.exists() and json.loads(p.read_text()).get('ready') else 1)
-PY
-then
-    systemctl start --no-block "$service"
-    echo 'Resuming the existing isolated PAPER books; no balances or seed were reset.'
-else
-    systemctl start --no-block mar-cipher-forward-prepare.service
-    echo 'Installed isolated PAPER comparison. Indicator preparation is running first.'
+echo 'Unit files written. Nothing was enabled or started.'
+echo 'entries_disabled is set, so a later manual start still admits no funded entries until an operator removes it.'
+if [[ "$no_start" == 1 ]]; then
+    echo '--no-start dry run: fetch, archive, build, in-container tests, and unit-file write are done.'
 fi
+echo 'Manual next steps, only after the operator deploy OK via Tsuro:'
+echo '  initialize the ledger'
+echo '  start indicator preparation if it has not already passed'
+echo '  start the paper service'
+echo '  enable the paper service'
+echo 'This installer did not do those steps.'
 echo 'This is not activation verification; the first complete future hourly scan is still required.'
-echo 'Progress: journalctl -u mar-cipher-forward-prepare -u mar-cipher-forward-paper -f'
+echo 'Progress, after a manual start: journalctl -u mar-cipher-forward-prepare -u mar-cipher-forward-paper -f'
 echo 'Evidence: /data/state/cipher-forward-v1/activation_evidence.json'

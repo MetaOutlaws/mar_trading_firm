@@ -2,6 +2,7 @@ import copy
 import json
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,7 +12,8 @@ import pytest
 from research.cipher_forward.config import frozen_config
 from research.cipher_forward.freeze import freeze_before_warmup
 from research.cipher_forward.ledger import (
-    PaperTrial, BOOKS, MINUTE, DAY, EXIT_TICK, canonical, make_account, observe_close, recover)
+    PaperTrial, BOOKS, MINUTE, DAY, EXIT_TICK, canonical, digest as book_digest,
+    make_account, observe_close, recover)
 from research.cipher_forward.seed import SeedStore, aggregate, atomic_json
 from research.cipher_forward.reporting import report, render, report_and_verify
 from research.cipher_forward.feed import advance_retest, parse_bars
@@ -58,15 +60,15 @@ def edit(b,**values):
     b.db.execute('UPDATE state SET body=?',(canonical(s),))
 
 
-def test_12_independent_books_and_three_opportunities(book):
+def test_16_independent_books_and_four_opportunities(book):
     r=cycle(book,signals=[signal()])
-    assert (r['new_entries'],r['opportunity_entries'])==(12,3)
+    assert (r['new_entries'],r['opportunity_entries'])==(16,4)
     ps=book.positions()
     for p in ps:
         if p['book'] in BOOKS:
             assert p['planned_loss_usdt']<=200+1e-9
             assert p['quantity']*p['entry']<=2000+1e-9
-    for cost in ('baseline','moderate','severe'):
+    for cost in ('desk031','baseline','moderate','severe'):
         pair=[p for p in ps if p['book'].startswith(cost+':') and p['book'] in BOOKS]
         assert len({(p['entry'],p['quantity']) for p in pair})==1
     assert book.reconcile()
@@ -76,18 +78,18 @@ def test_challenger_membership_half_size_and_filter(book):
     cycle(book,signals=[short(filtered=False)])
     names={p['book'] for p in book.positions()}
     assert all(not n.endswith(':I') and not n.endswith(':IF') for n in names)
-    for cost in ('baseline','moderate','severe'):
+    for cost in ('desk031','baseline','moderate','severe'):
         full=next(p for p in book.positions() if p['book']==cost+':IC')
         half=next(p for p in book.positions() if p['book']==cost+':IM')
         assert half['quantity']<=full['quantity']/2+.001
-    assert len(book.positions())==9
-    assert book.db.execute('SELECT count(*) FROM decisions').fetchone()[0]==15
+    assert len(book.positions())==12
+    assert book.db.execute('SELECT count(*) FROM decisions').fetchone()[0]==20
 
 
 def test_same_snapshot_costs_have_separate_cash_and_gates(book):
     cycle(book,signals=[short()])
     ps={p['book']:p for p in book.positions()}
-    assert ps['baseline:IC']['entry']>ps['moderate:IC']['entry']>ps['severe:IC']['entry']
+    assert ps['baseline:IC']['entry']>ps['desk031:IC']['entry']>ps['moderate:IC']['entry']>ps['severe:IC']['entry']
     assert ps['baseline:IC']['entry_quote']==ps['severe:IC']['entry_quote']
     # Costs can reject separately even though the extended 3R target is unchanged.
     s=short('other','ETHUSDT',T+MINUTE);s.update(stop=101.,original_target=98.,target=97.)
@@ -142,7 +144,7 @@ def test_corrupt_missing_or_changed_book_is_not_reinitialized(book,tmp_path):
     dict(entries_daily={str(T//DAY):20})])
 def test_account_rejections_preserve_opportunity(book,halt):
     edit(book,**halt);r=cycle(book,signals=[signal()])
-    assert (r['new_entries'],r['opportunity_entries'])==(0,3)
+    assert (r['new_entries'],r['opportunity_entries'])==(0,4)
 
 
 def test_c24_boundary_keeps_raw_streak_and_other_halts():
@@ -155,13 +157,13 @@ def test_c24_boundary_keeps_raw_streak_and_other_halts():
 
 def test_manual_halt_blocks_entries_exits_continue(book):
     cycle(book,signals=[signal()]);r=cycle(book,T+MINUTE,[signal('next','ETHUSDT',T+MINUTE,stop=98.,target=125.)],bid=111,ask=111.1,manual=True)
-    assert r['exits']==15 and r['new_entries']==0 and r['opportunity_entries']==3
+    assert r['exits']==20 and r['new_entries']==0 and r['opportunity_entries']==4
 
 
 def test_sector_cap_and_shared_source_priority(book):
     symbols=['BTCUSDT','ETHUSDT','SOLUSDT']
     r=cycle(book,signals=[signal(str(i),s) for i,s in enumerate(symbols)])
-    assert (r['new_entries'],r['opportunity_entries'])==(24,9)
+    assert (r['new_entries'],r['opportunity_entries'])==(32,12)
     assert all(sum(p['book']==b for p in book.positions())==2 for b in BOOKS)
 
 
@@ -186,9 +188,9 @@ def test_stale_or_future_quote_has_no_fill(book,offset):
     assert r['new_entries']==r['opportunity_entries']==0
 
 
-def test_missed_window_records_all_15_decisions(book):
+def test_missed_window_records_all_20_decisions(book):
     cycle(book,T+MINUTE,[signal()]);assert not book.positions()
-    assert book.db.execute('SELECT count(*) FROM decisions').fetchone()[0]==15
+    assert book.db.execute('SELECT count(*) FROM decisions').fetchone()[0]==20
 
 
 def test_short_target_and_roundtrip_accounting(book):
@@ -212,7 +214,7 @@ def test_short_stop_and_insufficient_depth_exit_remains_latched(book):
 def test_exit_minute_occupancy_survives_restart(book):
     cycle(book,signals=[signal()]);cycle(book,T+MINUTE,bid=111,ask=111.1)
     r=cycle(book,T+MINUTE+1000,[signal('new',t=T+MINUTE)])
-    assert r['new_entries']==0 and r['opportunity_entries']==3
+    assert r['new_entries']==0 and r['opportunity_entries']==4
 
 
 def test_funding_short_credit_exact_once_unknown_blocks_but_exits_continue(book):
@@ -221,7 +223,7 @@ def test_funding_short_credit_exact_once_unknown_blocks_but_exits_continue(book)
     assert all(p['status']=='pending_funding' for p in book.positions())
     r=cycle(book,t+MINUTE+1000,[signal('new','ETHUSDT',t+MINUTE)])
     # Only I has no open C3/funding obligation; the other three arms are held.
-    assert r['new_entries']==3 and r['opportunity_entries']==3
+    assert r['new_entries']==4 and r['opportunity_entries']==4
     funding={'BTCUSDT':dict(through_ms=t+2*MINUTE,rows=[dict(t=t+MINUTE,rate=.001,price=100.)])}
     cycle(book,t+2*MINUTE,funding=funding)
     old={p['book']:p['funding'] for p in book.positions(None) if p['symbol']=='BTCUSDT'}
@@ -321,8 +323,69 @@ def test_zero_fills_only_verify_after_fresh_future_scan_and_receipts(book,tmp_pa
     book.save_feed('last_scan',dict(hour=cutoff,coverage=96,errors=0,available=79,unavailable=17,completed_ms=now))
     v=report_and_verify(book,now,tmp_path,tmp_path/'seed')['verification']
     assert v['activation_verified'] and v['zero_fills_valid'] and not book.positions()
+    from research.cipher_forward.pace import SCAN_OFFSET_MS
+    book.save_feed('last_scan',dict(hour=cutoff,coverage=96,errors=0,available=79,unavailable=17,
+        completed_ms=cutoff+SCAN_OFFSET_MS+110_000))
+    atomic_json(tmp_path/'status.json',dict(heartbeat_ms=now,release='a'*40))
+    v=report_and_verify(book,now,tmp_path,tmp_path/'seed')['verification']
+    assert 'scan missed 110-second latency budget' in v['failures']
     v=report_and_verify(book,now+45001,tmp_path,tmp_path/'seed')['verification']
     assert not v['activation_verified'] and 'worker heartbeat not fresh' in v['failures']
+
+
+def test_full_depth_fills_and_storage_keeps_top_25(book):
+    bids=[[f'{100-i*0.01:.2f}','0.5'] for i in range(200)]
+    asks=[[f'{100.01+i*0.01:.2f}','0.5'] for i in range(200)]
+    full=dict(s='BTCUSDT', ts=T, b=bids, a=asks)
+    r=book.cycle('deep', T, {'BTCUSDT': full}, {'BTCUSDT': instrument()}, [signal()])
+    assert r['new_entries']==16
+    stored=next(p for p in book.positions() if p['book']=='desk031:IC')
+    assert len(stored['entry_quote']['b'])==25 and len(stored['entry_quote']['a'])==25
+    assert stored['entry_quote']['full_sha256']==book_digest(full)
+    raw=book.db.execute('SELECT payload FROM events').fetchone()[0]
+    payload=json.loads(zlib.decompress(raw))
+    assert len(payload['quotes']['BTCUSDT']['b'])==25
+    assert payload['levels_included'] is True
+    # A later cycle omits levels. Replaying the first full quote is still the same event.
+    cycle(book, T+MINUTE)
+    second=book.db.execute('SELECT payload FROM events ORDER BY at_ms DESC LIMIT 1').fetchone()[0]
+    omitted=json.loads(zlib.decompress(second))
+    assert omitted['quotes']['BTCUSDT']['levels_omitted'] is True
+    assert 'b' not in omitted['quotes']['BTCUSDT']
+    assert book.cycle('deep', T, {'BTCUSDT': full}, {'BTCUSDT': instrument()}, [signal()])['duplicate']
+
+
+def test_year_summary_matches_full_scan_and_bounds_the_read(book):
+    from research.cipher_forward.ledger import calendar_from_samples
+    for step in range(30):
+        cycle(book, T+step*MINUTE)
+    later=T+400*DAY
+    cycle(book, later)
+    samples=[dict(row) for row in book.db.execute(
+        'SELECT * FROM equity_samples WHERE book=? ORDER BY minute', ('baseline:I',))]
+    expected=calendar_from_samples(samples)
+    calls=[]
+    book.db.set_trace_callback(calls.append)
+    value=report(book, later)
+    book.db.set_trace_callback(None)
+    assert value['accounts']['baseline:I']['calendar_years']==expected
+    assert set(expected)=={'2024','2025'}
+    assert not any('FROM equity_samples' in str(sql) for sql in calls)
+    assert any('equity_year_summaries' in str(sql) for sql in calls)
+    sample_count=book.db.execute('SELECT count(*) FROM equity_samples').fetchone()[0]
+    summary_count=book.db.execute('SELECT count(*) FROM equity_year_summaries').fetchone()[0]
+    assert sample_count>=16*31
+    assert summary_count<=16*2
+    assert summary_count<sample_count
+
+
+def test_prune_quotes_keeps_open_and_due_symbols():
+    from scripts.run_cipher_forward_paper import prune_quotes
+    quotes={'BTCUSDT': {'s': 'BTCUSDT'}, 'ETHUSDT': {'s': 'ETHUSDT'}, 'SOLUSDT': {'s': 'SOLUSDT'}}
+    positions=[{'symbol': 'ETHUSDT', 'status': 'open'}, {'symbol': 'SOLUSDT', 'status': 'closed'}]
+    ready={'one': {'symbol': 'SOLUSDT', 'action_ms': T}}
+    kept=prune_quotes(quotes, positions, ready, T)
+    assert set(kept)=={'ETHUSDT', 'SOLUSDT'}
 
 
 def test_history_snapshot_revisions_are_visible_not_overwritten(book):

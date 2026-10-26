@@ -6,21 +6,18 @@ import json
 from pathlib import Path
 
 from .desk_cost import desk_cost_read
-from .freeze import TWELVE_LOOKS, enforce_identity
-from .ledger import BOOKS, OPPORTUNITIES, funding_known
+from .freeze import PORTFOLIO_LOOKS, enforce_identity
+from .ledger import BOOKS, OPPORTUNITIES, calendar_from_samples, funding_known
+from .pace import SCAN_OFFSET_MS
 from .seed import SeedStore, atomic_json
 
 COMPARISON_ORDER = ('I', 'IC', 'IM', 'IF')
-PROMINENT_COSTS = ('baseline', 'moderate')
+PROMINENT_COSTS = ('desk031', 'baseline', 'moderate')
 ONE_SERVICE = (
-    'One paper service holds 12 internal simulated portfolios. They are not '
+    'One paper service holds 16 internal simulated portfolios. They are not '
     'exchange accounts, testnet accounts, or subaccounts, and they do not add '
     'capital or an API key per portfolio. '
-) + TWELVE_LOOKS
-
-
-def year(ms):
-    return str(datetime.fromtimestamp(ms/1000, timezone.utc).year)
+) + PORTFOLIO_LOOKS
 
 
 def trade_stats(positions, now):
@@ -65,15 +62,35 @@ def _forward(rows, cutoff, time_key):
     return kept, len(rows) - len(kept)
 
 
+def _calendar(ledger, book, tainted, cutoff):
+    """Read stored year summaries. Raw samples are only the cutoff fallback."""
+    if tainted:
+        return {}
+    rows = [dict(row) for row in ledger.db.execute(
+        'SELECT * FROM equity_year_summaries WHERE book=? ORDER BY year', (book,))]
+    if cutoff is not None and rows and min(int(row['min_at_ms']) for row in rows) < int(cutoff):
+        samples = [dict(row) for row in ledger.db.execute(
+            'SELECT * FROM equity_samples WHERE book=? AND at_ms>=? ORDER BY minute',
+            (book, int(cutoff)))]
+        return calendar_from_samples(samples)
+    calendar = {}
+    for row in rows:
+        calendar[row['year']] = dict(
+            start_equity=row['start_equity'], end_equity=row['end_equity'],
+            complete=bool(row['complete']), net_usdt=row['net_usdt'],
+            return_pct=row['return_pct'])
+    return calendar
+
+
 def report(ledger,now):
     state=ledger.state();positions=ledger.positions(None)
     # `accounts` is the persisted simulated-cash key. The report also exposes
-    # the same 12 records as internal portfolios. Nothing here is ranked.
+    # the same records as internal portfolios. Nothing here is ranked.
     output=dict(paper_only=True,observed_ms=now,accounts={},opportunities={},
         historical_backtest=False,severe_is_secondary=True,
-        one_paper_service=True,internal_simulated_portfolios=12,
+        one_paper_service=True,internal_simulated_portfolios=len(BOOKS),
         exchange_accounts=0,testnet_accounts=0,subaccounts=0,extra_capital=False,
-        twelve_looks_statement=TWELVE_LOOKS,service_statement=ONE_SERVICE,
+        portfolio_looks_statement=PORTFOLIO_LOOKS,service_statement=ONE_SERVICE,
         ranks_portfolios=False,crowns_a_config_or_cost=False,
         comparison_order=list(COMPARISON_ORDER),
         prominent_costs=list(PROMINENT_COSTS),secondary_cost='severe',
@@ -88,23 +105,10 @@ def report(ledger,now):
     tainted=omitted_positions>0
     for book,account in state['accounts'].items():
         ps=[p for p in positions if p['book']==book]
-        samples=[dict(r) for r in ledger.db.execute('SELECT * FROM equity_samples WHERE book=? ORDER BY minute',(book,))]
-        if cutoff is not None:
-            samples=[sample for sample in samples if int(sample['at_ms'])>=int(cutoff)]
-        calendar={};prior=20000.
         # Warmup P&L stays out of the performance calendar. Book equity is not
-        # shown as a return when any warmup trade was dropped.
-        if not tainted:
-            for sample in samples:
-                y=year(sample['at_ms'])
-                if y not in calendar:
-                    calendar[y]=dict(start_equity=prior,end_equity=prior,complete=True)
-                calendar[y]['end_equity']=sample['equity']
-                calendar[y]['complete'] &= bool(sample['complete_marks'] and sample['funding_known'])
-                prior=sample['equity']
-            for val in calendar.values():
-                val['net_usdt']=val['end_equity']-val['start_equity']
-                val['return_pct']=100*(val['end_equity']/val['start_equity']-1) if val['start_equity']>0 else None
+        # shown as a return when any warmup trade was dropped. Summaries are
+        # written in the cycle that inserts the sample, so this read stays bounded.
+        calendar=_calendar(ledger, book, tainted, cutoff)
         reasons=Counter(reason for d in decisions if d['book']==book
                         for reason in json.loads(d['body'])['reasons'])
         attrs={}
@@ -139,7 +143,7 @@ def report(ledger,now):
     output['cost_contrasts']={cost:{arm:dict(
         incremental_return_percentage_points=_sub(output['accounts'][cost+':'+arm]['return_pct'], output['accounts'][cost+':I']['return_pct']),
         incremental_closed_R=_sub(output['accounts'][cost+':'+arm]['closed_net_R'], output['accounts'][cost+':I']['closed_net_R']))
-        for arm in ('IC','IM','IF')} for cost in ('baseline','moderate','severe')}
+        for arm in ('IC','IM','IF')} for cost in PROMINENT_COSTS+('severe',)}
     output['comparisons']={}
     for arm in COMPARISON_ORDER:
         output['comparisons'][arm]=dict(
@@ -163,7 +167,7 @@ def verification(ledger,now,root,seed_root):
     if cutoff is None or scan.get('hour',0)<cutoff: failures.append('first future scan pending')
     if scan.get('coverage')!=len(ledger.config['universe']) or scan.get('errors',1): failures.append('scan coverage/errors')
     if now-scan.get('hour',0)>3700000: failures.append('hourly scan stale')
-    if scan.get('completed_ms',0)-scan.get('hour',0)>=110000: failures.append('scan missed 110-second latency budget')
+    if scan.get('completed_ms',0)-(scan.get('hour',0)+SCAN_OFFSET_MS)>=110000: failures.append('scan missed 110-second latency budget')
     if not scan.get('available',0): failures.append('no available instruments scanned')
     if (Path(root)/'entries_disabled').exists(): failures.append('manual entry halt present')
     for book,account in state['accounts'].items():
@@ -200,13 +204,13 @@ def _cell(value, suffix=''):
 
 def _cost_lines(roles):
     lines=[]
-    for name in ('baseline','moderate','severe'):
+    for name in ('desk031','baseline','moderate','severe'):
         row=roles['settings'][name]
         lines.append(
-            f"{name}: entry {row['entry']['percent']} ({row['entry']['role']}), "
-            f"non-stop exit {row['nonstop_exit']['percent']} ({row['nonstop_exit']['role']}), "
-            f"stop exit {row['stop_exit']['percent']} ({row['stop_exit']['role']}). "
-            f"Setting label: {row['role']}. Display: {row['display']}."
+            f"{name}: entry {row['entry']['percent']}, "
+            f"non-stop exit {row['nonstop_exit']['percent']}, "
+            f"stop exit {row['stop_exit']['percent']}. "
+            f"Display: {row['display']}."
         )
     return ' '.join(lines)
 
@@ -228,12 +232,12 @@ def render(value):
             primary.append('<tr>'+''.join('<td>'+html.escape(_cell(x))+'</td>' for x in
                 [cost, _cell(a['return_pct'], '%'), _cell(a['closed_net_R']),
                  _cell(a['max_drawdown_pct'], '%'), a['closed'], a['open'],
-                 roles['settings'][cost]['role']])+'</tr>')
+                 roles['cells'][f'{cost}:{arm}']])+'</tr>')
         severe=comp['secondary']['severe']
         severe_row='<tr>'+''.join('<td>'+html.escape(_cell(x))+'</td>' for x in
             ['severe', _cell(severe['return_pct'], '%'), _cell(severe['closed_net_R']),
              _cell(severe['max_drawdown_pct'], '%'), severe['closed'], severe['open'],
-             'secondary display only'])+'</tr>'
+             roles['cells'][f'severe:{arm}']])+'</tr>'
         sections.append(
             f'<section id="comparison-{html.escape(arm)}"><h2>Strategy comparison {html.escape(arm)}</h2>'
             '<table><thead><tr><th>Cost</th><th>Marked return</th><th>Closed net R</th>'
@@ -245,11 +249,11 @@ def render(value):
 <title>MAR forward paper comparison</title><style>body{font:16px system-ui;margin:2rem auto;max-width:1150px;padding:0 1rem;color:#17243b}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:.6rem;border-bottom:1px solid #ccd6e0}pre{white-space:pre-wrap;overflow-wrap:anywhere}p,h1,h2{line-height:1.5}#void{background:#7a1020;color:#fff;padding:1rem}</style>
 '''+banner+'''<h1>Forward paper comparison</h1>
 <p>'''+html.escape(value['service_statement'])+'''</p>
-<p>'''+html.escape(value['twelve_looks_statement'])+''' Reports do not rank these portfolios and do not select a config or cost.</p>
-<p>Results are four strategy comparisons, in fixed order I, IC, IM, IF. Inside each comparison, baseline and moderate are prominent. Severe is secondary display only and stays collapsed. Each of the 12 simulated portfolios keeps its own record.</p>
+<p>'''+html.escape(value['portfolio_looks_statement'])+''' Reports do not rank these portfolios and do not select a config or cost.</p>
+<p>Results are four strategy comparisons, in fixed order I, IC, IM, IF. Inside each comparison, desk031, baseline, and moderate are prominent, with desk031 first. Severe is secondary display only and stays collapsed. Each of the 16 simulated portfolios keeps its own record.</p>
 <p>I = hourly L01/F111 + BL8. IC = I + original 3R short. IM = I + half-size 3R short. IF = I + fixed-filter 3R short. BL8: port verified byte-identical to PR #149 @0519f425; strategy logic not desk-reviewed.</p>
 <p>Technical activation verified: '''+html.escape(str(verified))+'''. Returns below are new forward paper observations, not the 2022–2025 backtest. No superiority claim is made. Warmup bars are indicator state only and are omitted from performance.</p>
-<p>Desk binding cost is 0.31% per leg on entry and on exit. '''+html.escape(roles['escalation'])+''' '''+html.escape(_cost_lines(roles))+'''</p>
+<p>Desk binding cost is 0.31% per leg on entry and on exit. '''+html.escape(roles['statement'])+''' '''+html.escape(_cost_lines(roles))+'''</p>
 '''+''.join(sections)+'''
 <p>R uses original entry-to-stop price risk. Marked returns include accrued fees and funding but no hypothetical exit fee. Unknown funding and stale marks remain provisional. Opportunity totals are not simulated-portfolio returns. Simulated cash starts at 20,000 USDT inside each portfolio record.</p>
 <details><summary>Full calendar-year, token, sector, source, cost and blocked-opportunity breakdown</summary><pre>'''+html.escape(json.dumps(value,indent=2,allow_nan=False))+'''</pre></details></html>'''

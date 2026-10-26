@@ -32,6 +32,21 @@
     },
     "promotion_gates_are_not_the_paper_risk_set": true
   },
+  "primary": {
+    "arm": "IC",
+    "portfolio": "desk031:IC",
+    "definition": "incumbent L01/F111 plus original BL8, plus the original unfiltered 3R short at full size 1%/10%",
+    "declared_by": "Brian",
+    "rationale": "It is the cipher study's original unfiltered hypothesis, the exact claim under test; half-size and filtered variants are derivative choices."
+  },
+  "interim_review": {
+    "veto_only": true,
+    "can_stop_or_void": true,
+    "can_promote": false,
+    "can_repick_primary": false,
+    "can_change_config": false,
+    "statement": "Interim reviews are veto-only. An interim review can stop or void the run. It cannot promote, re-pick PRIMARY, or change any config. No config is swapped after LOCK."
+  },
   "start_time_utc": null,
   "start_rule": "first complete hourly signal strictly after verified activation; no retrospective fills",
   "universe": [
@@ -205,6 +220,11 @@
     "same_input_snapshot_for_all_books": true,
     "residual_exposure_headroom_not_scaled_twice": true,
     "paper_cost_model": "visible spread/depth plus adverse assumption, not measured exchange fills",
+    "desk031": {
+      "fee_each_leg": 0.00055,
+      "entry_and_nonstop_slip": 0.00255,
+      "total_extra_stop_slip": 0.00255
+    },
     "baseline": {
       "fee_each_leg": 0.00055,
       "entry_and_nonstop_slip": 0.002,
@@ -282,7 +302,7 @@
     "confidence": "paired weekly simulated-portfolio increments, predeclared contrasts IC-I, IM-I, IF-I; short samples descriptive; do not rank or crown a config or cost",
     "success": "positive incremental net return at primary costs with drawdown trade-off reported; investigate whether gaps or concentration overturn conclusion; severe secondary, not sole veto",
     "no_inflight_parameter_selection": true,
-    "presentation": "Four strategy comparisons, one per config, in fixed order I, IC, IM, IF. Baseline and moderate are prominent. Severe is secondary display only. The 12 portfolios are 12 looks at one idea, not 12 tests."
+    "presentation": "Four strategy comparisons, one per config, in fixed order I, IC, IM, IF. desk031, baseline, and moderate are prominent, with desk031 first. Severe is secondary display only. Only IC at desk031 is labelled BINDING. Every other cell is REPORT-ONLY. The 16 portfolios are 16 looks at one idea, not 16 tests. Interim reviews are veto-only and cannot swap a config after LOCK."
   },
   "required_before_activation": [
     "fresh current deployment and effective-settings receipt",
@@ -307,14 +327,14 @@
   "implementation_scope_this_step": "Frozen specification, candidate port, sizing/routing contract and historical candidate parity. Portfolio execution adapter and runtime activation remain separate, explicitly required work.",
   "internal_simulation": {
     "one_paper_service": true,
-    "internal_simulated_portfolios": 12,
+    "internal_simulated_portfolios": 16,
     "exchange_accounts": 0,
     "testnet_accounts": 0,
     "subaccounts": 0,
     "extra_capital": false,
     "api_keys_per_portfolio": false,
     "initial_simulated_cash_usdt_each": 20000,
-    "statement": "One paper service holds 12 internal simulated portfolios. The 12 portfolios are 12 looks at one idea, not 12 tests. Simulated cash is not a deposit, not new capital, and not an exchange, testnet, or subaccount balance.",
+    "statement": "One paper service holds 16 internal simulated portfolios. The 16 portfolios are 16 looks at one idea, not 16 tests. Simulated cash is not a deposit, not new capital, and not an exchange, testnet, or subaccount balance.",
     "no_ranking_across_portfolios": true,
     "comparison_order": [
       "I",
@@ -323,25 +343,62 @@
       "IF"
     ],
     "prominent_costs": [
+      "desk031",
       "baseline",
       "moderate"
     ],
     "secondary_cost": "severe"
   },
   "twelve_looks": {
-    "statement": "The 12 portfolios are 12 looks at one idea, not 12 tests.",
+    "statement": "The 16 portfolios are 16 looks at one idea, not 16 tests.",
     "selects_a_config_or_cost": false
   },
   "desk_cost_read": {
     "binding_per_leg": "0.0031",
     "binding_per_leg_percent": "0.31%",
     "binding_applies_to": "entry and exit",
-    "any_setting_equals_0_31pct_per_leg": false,
-    "settings_changed": false,
-    "escalation": "None of the three cost settings equals 0.31% per leg on entry and on exit. Cost settings were not changed. None is labelled BINDING.",
+    "primary": "IC",
+    "binding_cell": "desk031:IC",
+    "binding_cells": [
+      "desk031:IC"
+    ],
+    "prior_three_cost_settings_unchanged": true,
+    "added_setting": "desk031",
+    "statement": "Only IC at desk031 is labelled BINDING. Every other cell is REPORT-ONLY. Severe stays secondary display only.",
     "settings": {
+      "desk031": {
+        "display": "prominent",
+        "equals_0_31pct_per_leg": true,
+        "every_leg_cheaper_than_0_31pct": false,
+        "fee_each_leg": "0.00055",
+        "entry_and_nonstop_slip": "0.00255",
+        "stop_slip": "0.00255",
+        "entry": {
+          "fee": "0.00055",
+          "slip": "0.00255",
+          "total": "0.00310",
+          "percent": "0.31%",
+          "equals_binding": true,
+          "cheaper_than_binding": false
+        },
+        "nonstop_exit": {
+          "fee": "0.00055",
+          "slip": "0.00255",
+          "total": "0.00310",
+          "percent": "0.31%",
+          "equals_binding": true,
+          "cheaper_than_binding": false
+        },
+        "stop_exit": {
+          "fee": "0.00055",
+          "slip": "0.00255",
+          "total": "0.00310",
+          "percent": "0.31%",
+          "equals_binding": true,
+          "cheaper_than_binding": false
+        }
+      },
       "baseline": {
-        "role": "REPORT-ONLY",
         "display": "prominent",
         "equals_0_31pct_per_leg": false,
         "every_leg_cheaper_than_0_31pct": true,
@@ -354,8 +411,7 @@
           "total": "0.00255",
           "percent": "0.255%",
           "equals_binding": false,
-          "cheaper_than_binding": true,
-          "role": "REPORT-ONLY"
+          "cheaper_than_binding": true
         },
         "nonstop_exit": {
           "fee": "0.00055",
@@ -363,8 +419,7 @@
           "total": "0.00255",
           "percent": "0.255%",
           "equals_binding": false,
-          "cheaper_than_binding": true,
-          "role": "REPORT-ONLY"
+          "cheaper_than_binding": true
         },
         "stop_exit": {
           "fee": "0.00055",
@@ -372,12 +427,10 @@
           "total": "0.00055",
           "percent": "0.055%",
           "equals_binding": false,
-          "cheaper_than_binding": true,
-          "role": "REPORT-ONLY"
+          "cheaper_than_binding": true
         }
       },
       "moderate": {
-        "role": "not_binding",
         "display": "prominent",
         "equals_0_31pct_per_leg": false,
         "every_leg_cheaper_than_0_31pct": false,
@@ -390,8 +443,7 @@
           "total": "0.00355",
           "percent": "0.355%",
           "equals_binding": false,
-          "cheaper_than_binding": false,
-          "role": "above_binding_not_equal"
+          "cheaper_than_binding": false
         },
         "nonstop_exit": {
           "fee": "0.00055",
@@ -399,8 +451,7 @@
           "total": "0.00355",
           "percent": "0.355%",
           "equals_binding": false,
-          "cheaper_than_binding": false,
-          "role": "above_binding_not_equal"
+          "cheaper_than_binding": false
         },
         "stop_exit": {
           "fee": "0.00055",
@@ -408,12 +459,10 @@
           "total": "0.00255",
           "percent": "0.255%",
           "equals_binding": false,
-          "cheaper_than_binding": true,
-          "role": "REPORT-ONLY"
+          "cheaper_than_binding": true
         }
       },
       "severe": {
-        "role": "secondary_display_only",
         "display": "secondary",
         "equals_0_31pct_per_leg": false,
         "every_leg_cheaper_than_0_31pct": false,
@@ -426,8 +475,7 @@
           "total": "0.01055",
           "percent": "1.055%",
           "equals_binding": false,
-          "cheaper_than_binding": false,
-          "role": "above_binding_not_equal"
+          "cheaper_than_binding": false
         },
         "nonstop_exit": {
           "fee": "0.00055",
@@ -435,8 +483,7 @@
           "total": "0.01055",
           "percent": "1.055%",
           "equals_binding": false,
-          "cheaper_than_binding": false,
-          "role": "above_binding_not_equal"
+          "cheaper_than_binding": false
         },
         "stop_exit": {
           "fee": "0.00055",
@@ -444,10 +491,27 @@
           "total": "0.01055",
           "percent": "1.055%",
           "equals_binding": false,
-          "cheaper_than_binding": false,
-          "role": "above_binding_not_equal"
+          "cheaper_than_binding": false
         }
       }
+    },
+    "cells": {
+      "desk031:I": "REPORT-ONLY",
+      "desk031:IC": "BINDING",
+      "desk031:IM": "REPORT-ONLY",
+      "desk031:IF": "REPORT-ONLY",
+      "baseline:I": "REPORT-ONLY",
+      "baseline:IC": "REPORT-ONLY",
+      "baseline:IM": "REPORT-ONLY",
+      "baseline:IF": "REPORT-ONLY",
+      "moderate:I": "REPORT-ONLY",
+      "moderate:IC": "REPORT-ONLY",
+      "moderate:IM": "REPORT-ONLY",
+      "moderate:IF": "REPORT-ONLY",
+      "severe:I": "REPORT-ONLY",
+      "severe:IC": "REPORT-ONLY",
+      "severe:IM": "REPORT-ONLY",
+      "severe:IF": "REPORT-ONLY"
     }
   },
   "warmup_rule": {

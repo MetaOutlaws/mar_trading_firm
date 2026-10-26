@@ -14,10 +14,16 @@ MINUTE = 60_000
 HOUR = 60 * MINUTE
 MIN_TURNOVER = 2_835_443.3309875005
 MAX_STRUCTURAL_STOP_PERCENT = 4.818264711062109
-# Desk reads use 0.31% per leg. None of these three settings is that rate.
-# Do not edit these tuples to manufacture a match. Labels live in desk_cost.py.
+# Desk read is 0.31% per leg. desk031 is fee 0.00055 plus slip 0.00255 on
+# entry, on a non-stop exit, and on a stop exit. baseline, moderate, and
+# severe are unchanged. Do not edit those three tuples. Labels live in desk_cost.py.
 FEE = .00055
-COSTS = {"baseline": (.002, 0.), "moderate": (.003, .002), "severe": (.01, .01)}
+COSTS = {
+    "desk031": (.00255, .00255),
+    "baseline": (.002, 0.),
+    "moderate": (.003, .002),
+    "severe": (.01, .01),
+}
 
 
 def validate_history(bars, seed_start_ms: int, asof_ms: int):

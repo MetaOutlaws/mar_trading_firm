@@ -183,6 +183,48 @@ def test_size_cap_stops_writes_without_deleting_positions(book):
     assert len(book.positions()) == positions
 
 
+def test_quote_storage_day_stays_under_the_cap():
+    import zlib
+    from research.cipher_forward.ledger import (
+        BOOKS, CYCLES_PER_DAY, HISTORY_SNAPSHOT_BYTES_PER_DAY_QUOTED,
+        QUOTE_SNAPSHOTS_PER_DAY, STORED_LEVELS, canonical, compact_event_payload,
+        project_quote_event_bytes_per_day,
+    )
+    quotes = {}
+    for i in range(96):
+        symbol = f'SYM{i:02d}USDT'
+        quotes[symbol] = dict(
+            s=symbol, ts=T,
+            b=[[f'{100 - level * 0.01:.2f}', '1.5'] for level in range(200)],
+            a=[[f'{100.01 + level * 0.01:.2f}', '1.5'] for level in range(200)],
+        )
+    def nbytes(include):
+        payload = compact_event_payload(T, quotes, {}, [], {}, False, include_levels=include)
+        if include:
+            assert len(payload['quotes'][next(iter(quotes))]['b']) == STORED_LEVELS
+        return len(zlib.compress(canonical(payload).encode()))
+    snapshot = nbytes(True)
+    hash_only = nbytes(False)
+    raw_full = len(zlib.compress(canonical(quotes).encode()))
+    assert snapshot < raw_full
+    day = project_quote_event_bytes_per_day(snapshot, hash_only)
+    equity_row = len(canonical(dict(
+        book='desk031:IC', minute=1, at_ms=T, equity=20000.0, peak=20000.0,
+        complete_marks=1, funding_known=1)))
+    equity_day = equity_row * len(BOOKS) * 1440
+    total = day + HISTORY_SNAPSHOT_BYTES_PER_DAY_QUOTED + equity_day
+    assert len(BOOKS) == 16
+    assert QUOTE_SNAPSHOTS_PER_DAY == 96 and CYCLES_PER_DAY == 5760
+    # Sixteen portfolios share one quote feed, so they do not multiply this payload.
+    assert 'desk031' not in canonical(compact_event_payload(
+        T, quotes, {}, [], {}, False, include_levels=False))
+    assert day < 80 * 1024 * 1024
+    assert total < LEDGER_MAX_BYTES
+    print(
+        f'quote_event_bytes_per_day={day} snapshot={snapshot} hash_only={hash_only} '
+        f'equity_bytes_per_day={equity_day} quoted_history={HISTORY_SNAPSHOT_BYTES_PER_DAY_QUOTED} total={total}')
+
+
 def test_protocol_clause_is_what_the_runtime_loads():
     protocol = json.loads((ROOT / 'docs/cipher-forward/protocol.json').read_text())
     text = protocol['promotion']['statement']

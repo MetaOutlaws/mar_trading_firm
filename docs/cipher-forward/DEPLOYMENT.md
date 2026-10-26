@@ -14,14 +14,21 @@ by that clause.
 
 - I: hourly L01 long/F111 short + original BL8. IC adds original 3R short;
   IM adds half-size original 3R; IF adds the already-fixed filtered 3R.
-- One paper service holds 12 internal simulated portfolios: the four strategy
-  variants I, IC, IM, and IF, each at baseline, moderate, and severe costs.
-  These are not exchange accounts, testnet accounts, or subaccounts. They do
-  not add capital and they do not use an API key per portfolio. Each portfolio
-  record starts with 20,000 USDT of simulated cash. The 12 portfolios are 12
-  looks at one idea, not 12 tests. Reports do not rank them or crown a config
-  or cost. Three opportunity records track 2,000-USDT-per-signal
+- One paper service holds 16 internal simulated portfolios: the four strategy
+  variants I, IC, IM, and IF, each at desk031, baseline, moderate, and severe
+  costs. These are not exchange accounts, testnet accounts, or subaccounts. They
+  do not add capital and they do not use an API key per portfolio. Each portfolio
+  record starts with 20,000 USDT of simulated cash. The 16 portfolios are 16
+  looks at one idea, not 16 tests. Reports do not rank them or crown a config
+  or cost. Four opportunity records track 2,000-USDT-per-signal
   counterfactuals, including capacity blocks.
+- PRIMARY is IC: incumbent L01/F111 plus original BL8, plus the original
+  unfiltered 3R short at full size. Only IC at desk031 is labelled BINDING.
+  Every other cell is REPORT-ONLY. Interim reviews are veto-only. An interim
+  review can stop or void the run. It cannot promote, re-pick PRIMARY, or
+  change any config. No config is swapped after LOCK. Freeze and start refuse
+  an empty PRIMARY. `docs/cipher-forward/config_freeze.json` carries the same
+  PRIMARY id and the same config hash the runtime freeze writes.
 - 15 positions, 50% gross admission, 1% planned cost-aware risk/10% notional;
   IM challenger alone is 0.5%/5%. Two per sector, one per token including exit
   minute, twenty daily entries, 3% daily closed loss/current equity, C24 after
@@ -72,7 +79,17 @@ are reconciled and backed up, never reset. A different release cannot silently
 take ownership of existing books. Existing production containers are not
 stopped/restarted or resized. Installation logs are under `install-TIMESTAMP`.
 
-Initial preparation runs under `mar-cipher-forward-prepare.service`, so closing
+The installer does not enable the service, does not start it, and does not
+initialize the ledger. It writes `entries_disabled` before fetch and build, so
+a later manual start still admits no funded entries until an operator removes
+that file. `--no-start` is the explicit dry run and does the same non-starting
+work: fetch, archive, build, in-container tests, and unit-file write, then it
+prints the manual next steps. Those steps stay manual and need the operator's
+deploy OK via Tsuro. `docker exec` audits of `mo-paper-paper-1` run only with
+`--audit-production`, which is off by default.
+
+Initial preparation, once an operator starts it, runs under
+`mar-cipher-forward-prepare.service`, so closing
 SSH does not interrupt it. Allow roughly 15–30 minutes for public-data warmup;
 rate limits or stale L01 context can take longer or fail the preparation. It
 persists an absolute UTC seed about 804 hours before preparation and appends
@@ -81,8 +98,13 @@ Missing hours remain missing. Preparation evaluates indicator state only,
 never historical trade returns. Failed token requests remain explicit failures;
 observed unavailable instruments are retained without ticker aliases.
 
-Successful preparation starts `mar-cipher-forward-paper.service`. Its first
+The installer does not start `mar-cipher-forward-paper.service` after
+preparation. An operator starts it only after the deploy OK. Its first
 eligible signal cutoff is the next whole UTC hour after the worker starts.
+Funded quote requests peak at 4/s (0.25s spacing, concurrency 2). The hourly
+scan keeps a separate 10/s pacer and is requested 6 minutes after the hour.
+The scan as-of time stays the hour boundary. The 110-second completion budget
+is measured from that delayed request, not from the top of the hour.
 After reboots, existing books resume exit supervision immediately; warmup does
 not block exits on restart. Missing/corrupt indicator state blocks new signals
 without disabling existing exits. One worker lock prevents duplicate supervisors.
@@ -97,9 +119,9 @@ cat /data/state/cipher-forward-v1/activation_evidence.json
 
 The worker writes technical evidence and a complete report each minute. It
 does **not** mark activation verified merely because a container starts. Require
-the correct release/image/config/seed receipts, reconciled twelve internal simulated portfolios,
+the correct release/image/config/seed receipts, reconciled sixteen internal simulated portfolios,
 fresh heartbeat/execution cycle, first complete future scan, explicit coverage,
-no scan errors, scan completion within 110 seconds, current marks and known
+no scan errors, scan completion within 110 seconds of the request at minute 6, current marks and known
 funding, and no entry holds. Zero fills can be valid. Pending funding or temporary
 data gaps can make a later check incomplete; inspect the reasons, never reset
 the ledger or relax a gate to turn the indicator green.
@@ -119,9 +141,11 @@ has been sent by this release.
 ## Reports and operation
 
 - `report.html`: self-contained browser view of four strategy comparisons, in
-  fixed order I, IC, IM, IF. Baseline and moderate are prominent. Severe is
-  secondary, collapsed, and display only. The page states that the 12
-  portfolios are 12 looks at one idea, not 12 tests. It does not rank them.
+  fixed order I, IC, IM, IF. desk031, baseline, and moderate are prominent,
+  with desk031 first. Severe is secondary, collapsed, and display only. Only
+  IC at desk031 is labelled BINDING. Every other cell is REPORT-ONLY. The page
+  states that the 16 portfolios are 16 looks at one idea, not 16 tests. It
+  does not rank them.
   Year, token, sector, source, costs, R, and blocked-opportunity details stay
   expandable.
 - `report.json`: full machine-readable metrics, I-relative comparisons and
@@ -137,14 +161,13 @@ token portfolio returns. Unknown funding and stale marks remain provisional.
 Opportunity totals overlap and are not simulated-portfolio returns. Short samples
 are descriptive. The 30/60/90-day reviews are report and veto only.
 
-No frozen cost setting equals the desk binding cost of 0.31% per leg on entry
-and on exit, so none is labelled BINDING and the cost settings were not changed.
-Baseline is 0.255% on entry and on a non-stop exit, and 0.055% on a stop exit:
-every leg is cheaper than 0.31%, so baseline is REPORT-ONLY and stays prominent.
-Moderate is 0.355% on entry and on a non-stop exit, and 0.255% on a stop exit.
-It is not 0.31% per leg. The cheaper stop leg is REPORT-ONLY. Moderate stays
+desk031 is 0.31% on entry, on a non-stop exit, and on a stop exit. Only IC at
+desk031 is labelled BINDING. Every other cell is REPORT-ONLY. Baseline,
+moderate, and severe were not repriced. Baseline is 0.255% on entry and on a
+non-stop exit, and 0.055% on a stop exit, and stays prominent. Moderate is
+0.355% on entry and on a non-stop exit, and 0.255% on a stop exit, and stays
 prominent. Severe is 1.055% on entry and on both exits. It stays secondary
-display only. Anything cheaper than 0.31% per leg is not a desk read.
+display only. I, IM, and IF at desk031 are REPORT-ONLY.
 
 Before warmup fetches a bar, the service writes `config_freeze.json` with a
 hash of every portfolio config and the code SHA. Startup and every cycle
@@ -154,7 +177,21 @@ and disables entries. The run stays VOID. Warmup bars compute indicator state
 only. A trade, signal outcome, or P&L on a warmup bar is not written as
 performance and is left out of the report.
 
-Visible depth inputs can grow the ledger substantially. Archive consistent
+Cycle events store a hash of each full quote. Level arrays are the top 25,
+and they are written at most every 15 minutes; other cycles store the hash
+without the levels. Fills still use the full in-memory book. Position
+entry and exit quotes stored on the book are the top 25 plus that hash.
+The worker drops quote cache entries that are not an open position or a
+signal still inside its entry minute. A synthetic day of 96 symbols at 200
+levels, with no exchange bars, measures quote-event payloads at 26,403,744
+bytes/day (about 25.2 MiB). Sixteen equity-sample rows add about 2.7 MiB/day.
+The capacity review's history figure, not remeasured here, is 51 MiB/day.
+The sum is about 79 MiB/day. Fourteen days of that sum is about 1.08 GiB, so
+the 1 GiB write cap remains the backstop if history stays at that quoted size.
+Sixteen portfolios do not multiply the shared quote feed or the history
+snapshots. The size cap stops ledger writes: `block_writes` makes the next
+transaction raise `StorageWriteBlocked`, and the worker skips the cycle while
+writes are blocked. It does not merely stop new entries. Archive consistent
 SQLite backups to protected storage. Do not delete open positions, cash,
 decisions or signals to make room.
 

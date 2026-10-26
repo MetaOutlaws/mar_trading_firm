@@ -1,8 +1,8 @@
 """Public-data paper comparison. No order endpoint and no broker dependency.
 
 One SQLite transaction commits decisions, fills, cash, recovery state and the
-opportunity ledgers together. Twelve internal simulated portfolios share one
-service: four strategy variants at three frozen cost settings. The persisted
+opportunity ledgers together. Sixteen internal simulated portfolios share one
+service: four strategy variants at four cost settings. The persisted
 `accounts` key is simulated cash and risk for those portfolios. It is not an
 exchange account, a testnet account, or a subaccount.
 Opportunity books are overlapping counterfactuals, not simulated-portfolio returns.
@@ -10,6 +10,7 @@ Opportunity books are overlapping counterfactuals, not simulated-portfolio retur
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from decimal import Decimal, ROUND_DOWN
 import hashlib
@@ -30,10 +31,18 @@ from core.strategy.f111_semantics import initial_brackets, new_protection_state,
 
 MINUTE = 60_000
 DAY = 1_440 * MINUTE
+# Event payloads keep the top of book, not the full 200-level array, and they
+# repeat that array at most once per interval. The event hash is the full quote.
+STORED_LEVELS = 25
+QUOTE_SNAPSHOT_INTERVAL_MS = 15 * MINUTE
 BOOKS = tuple(f'{cost}:{arm}' for cost in COSTS for arm in ('I','IC','IM','IF'))
 OPPORTUNITIES = tuple(f'{cost}:OPPORTUNITY' for cost in COSTS)
 ALL_BOOKS = BOOKS + OPPORTUNITIES
 EXIT_TICK = 15_000
+CYCLES_PER_DAY = 24 * 60 * 60 * 1000 // EXIT_TICK
+QUOTE_SNAPSHOTS_PER_DAY = 24 * 60 * 60 * 1000 // QUOTE_SNAPSHOT_INTERVAL_MS
+# Quoted from the 2026-10-26 capacity review. Not remeasured on exchange bars.
+HISTORY_SNAPSHOT_BYTES_PER_DAY_QUOTED = 51 * 1024 * 1024
 FEE = .00055
 SLIP = .002
 
@@ -44,6 +53,84 @@ def canonical(value):
 
 def digest(value):
     return hashlib.sha256(canonical(value).encode()).hexdigest()
+
+
+def calendar_year(ms: int) -> str:
+    return str(datetime.fromtimestamp(int(ms) / 1000, timezone.utc).year)
+
+
+def calendar_from_samples(samples) -> dict:
+    """Year rows from ordered equity samples. Prior cash starts at 20,000."""
+    calendar = {}
+    prior = 20000.
+    for sample in samples:
+        y = calendar_year(sample['at_ms'])
+        if y not in calendar:
+            calendar[y] = dict(start_equity=prior, end_equity=prior, complete=True)
+        calendar[y]['end_equity'] = sample['equity']
+        calendar[y]['complete'] &= bool(sample['complete_marks'] and sample['funding_known'])
+        prior = sample['equity']
+    for val in calendar.values():
+        val['net_usdt'] = val['end_equity'] - val['start_equity']
+        val['return_pct'] = (
+            100 * (val['end_equity'] / val['start_equity'] - 1) if val['start_equity'] > 0 else None)
+    return calendar
+
+
+def stored_quote(quote: dict, *, include_levels: bool) -> dict:
+    """Copy a quote for disk. The full-book hash stays even when levels are omitted."""
+    kept = {key: quote[key] for key in quote if key not in ('b', 'a')}
+    kept['full_sha256'] = digest(quote)
+    if include_levels:
+        kept['b'] = list(quote.get('b') or [])[:STORED_LEVELS]
+        kept['a'] = list(quote.get('a') or [])[:STORED_LEVELS]
+        kept['stored_levels'] = STORED_LEVELS
+        kept['levels_omitted'] = False
+    else:
+        kept['levels_omitted'] = True
+    return kept
+
+
+def persist_quote(quote):
+    """Trim a position quote once. A quote already stored is left unchanged."""
+    if not quote:
+        return quote
+    bids = quote.get('b') or []
+    asks = quote.get('a') or []
+    if quote.get('full_sha256') and len(bids) <= STORED_LEVELS and len(asks) <= STORED_LEVELS:
+        return quote
+    return stored_quote(quote, include_levels=True)
+
+
+def event_identity(now, quotes, instruments, candidates, settlements, manual_halt) -> dict:
+    """Hash input. Depends on the full quotes, not on which levels were stored."""
+    return dict(
+        now=now,
+        quote_sha256={symbol: digest(quote) for symbol, quote in quotes.items()},
+        instruments=instruments,
+        candidates=list(candidates),
+        settlements=settlements or {},
+        manual_halt=manual_halt,
+    )
+
+
+def compact_event_payload(now, quotes, instruments, candidates, settlements, manual_halt, *, include_levels: bool) -> dict:
+    return dict(
+        now=now,
+        quotes={symbol: stored_quote(quote, include_levels=include_levels) for symbol, quote in quotes.items()},
+        instruments=instruments,
+        candidates=list(candidates),
+        settlements=settlements or {},
+        manual_halt=manual_halt,
+        levels_included=bool(include_levels),
+        stored_levels=STORED_LEVELS,
+    )
+
+
+def project_quote_event_bytes_per_day(snapshot_bytes: int, hash_only_bytes: int) -> int:
+    """One shared feed. Portfolio count does not multiply these payloads."""
+    snapshots = QUOTE_SNAPSHOTS_PER_DAY
+    return snapshots * int(snapshot_bytes) + (CYCLES_PER_DAY - snapshots) * int(hash_only_bytes)
 
 
 def finite(value):
@@ -146,6 +233,7 @@ class PaperTrial:
                 CREATE TABLE observations (id INTEGER PRIMARY KEY, at_ms INTEGER, kind TEXT, body TEXT);
                 CREATE TABLE history_snapshots (hour INTEGER PRIMARY KEY, sha256 TEXT NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE equity_samples (book TEXT, minute INTEGER, at_ms INTEGER, equity REAL, peak REAL, complete_marks INTEGER, funding_known INTEGER, PRIMARY KEY(book,minute));
+                CREATE TABLE equity_year_summaries (book TEXT NOT NULL, year TEXT NOT NULL, start_equity REAL NOT NULL, end_equity REAL NOT NULL, complete INTEGER NOT NULL, net_usdt REAL NOT NULL, return_pct REAL, min_at_ms INTEGER NOT NULL, max_at_ms INTEGER NOT NULL, PRIMARY KEY(book, year));
                 CREATE INDEX positions_status ON positions(status);
             ''')
             with self.transaction():
@@ -153,6 +241,11 @@ class PaperTrial:
                 self.db.execute('INSERT INTO meta VALUES (?,?)', ('config_sha256', digest(config)))
                 self.db.execute('INSERT INTO state VALUES (1,?)', (canonical(
                     dict(version=1, last_cycle_ms=None, accounts={b: make_account() for b in BOOKS})),))
+        self.db.execute('''CREATE TABLE IF NOT EXISTS equity_year_summaries (
+            book TEXT NOT NULL, year TEXT NOT NULL, start_equity REAL NOT NULL,
+            end_equity REAL NOT NULL, complete INTEGER NOT NULL, net_usdt REAL NOT NULL,
+            return_pct REAL, min_at_ms INTEGER NOT NULL, max_at_ms INTEGER NOT NULL,
+            PRIMARY KEY(book, year))''')
         if self.db.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
             raise ValueError('paper ledger integrity check failed')
         row = self.db.execute("SELECT value FROM meta WHERE key='config_sha256'").fetchone()
@@ -220,8 +313,43 @@ class PaperTrial:
         return [json.loads(r[0]) for r in self.db.execute(query, args)]
 
     def save_position(self, p):
+        if p.get('entry_quote') is not None:
+            p['entry_quote'] = persist_quote(p['entry_quote'])
+        if p.get('exit_quote') is not None:
+            p['exit_quote'] = persist_quote(p['exit_quote'])
         self.db.execute('INSERT OR REPLACE INTO positions VALUES (?,?,?,?)',
                         (p['book'], p['uid'], p['status'], canonical(p)))
+
+    def _fold_equity_sample(self, book, at_ms, equity, complete_marks, funding_known):
+        """Update the year summary in this same transaction as the sample insert."""
+        y = calendar_year(at_ms)
+        rows = [dict(row) for row in self.db.execute(
+            'SELECT * FROM equity_year_summaries WHERE book=?', (book,))]
+        current = next((row for row in rows if row['year'] == y), None)
+        fresh = bool(complete_marks and funding_known)
+        if current is None:
+            earlier = [row for row in rows if row['year'] < y]
+            prior = max(earlier, key=lambda row: row['year'])['end_equity'] if earlier else 20000.
+            start = prior
+            end = equity
+            complete = fresh
+            net = end - start
+            ret = 100 * (end / start - 1) if start > 0 else None
+            self.db.execute(
+                'INSERT INTO equity_year_summaries VALUES (?,?,?,?,?,?,?,?,?)',
+                (book, y, start, end, int(complete), net, ret, int(at_ms), int(at_ms)))
+            return
+        start = current['start_equity']
+        end = equity
+        complete = bool(current['complete']) and fresh
+        net = end - start
+        ret = 100 * (end / start - 1) if start > 0 else None
+        self.db.execute(
+            '''UPDATE equity_year_summaries
+               SET end_equity=?, complete=?, net_usdt=?, return_pct=?, min_at_ms=?, max_at_ms=?
+               WHERE book=? AND year=?''',
+            (end, int(complete), net, ret, min(int(current['min_at_ms']), int(at_ms)),
+             max(int(current['max_at_ms']), int(at_ms)), book, y))
 
     def feed(self, key, default=None):
         row = self.db.execute('SELECT body FROM feed WHERE key=?', (key,)).fetchone()
@@ -381,9 +509,8 @@ class PaperTrial:
     def cycle(self, event_id, now, quotes, instruments, candidates=(), settlements=None, *, manual_halt=False):
         """Inputs contain only observations known now. An exact replay cannot trade twice."""
         candidates = list(candidates)
-        payload = dict(now=now, quotes=quotes, instruments=instruments, candidates=list(candidates),
-                       settlements=settlements or {}, manual_halt=manual_halt)
-        input_hash = digest(payload)
+        identity = event_identity(now, quotes, instruments, candidates, settlements or {}, manual_halt)
+        input_hash = digest(identity)
         with self.transaction():
             previous = self.db.execute('SELECT hash FROM events WHERE id=?', (event_id,)).fetchone()
             if previous:
@@ -391,6 +518,14 @@ class PaperTrial:
                     raise ValueError('conflicting event replay')
                 return {'duplicate': True, 'new_entries': 0}
             state = self.state()
+            last_snapshot = state.get('last_quote_snapshot_ms')
+            include_levels = (
+                last_snapshot is None or int(now) - int(last_snapshot) >= QUOTE_SNAPSHOT_INTERVAL_MS)
+            payload = compact_event_payload(
+                now, quotes, instruments, candidates, settlements or {}, manual_halt,
+                include_levels=include_levels)
+            if include_levels:
+                state['last_quote_snapshot_ms'] = int(now)
             if state['last_cycle_ms'] is not None and now <= state['last_cycle_ms']:
                 raise ValueError('out-of-order cycle')
             accounts = state['accounts']
@@ -550,6 +685,8 @@ class PaperTrial:
                             if p['book']==book and p['status']!='closed')
                 self.db.execute('INSERT OR REPLACE INTO equity_samples VALUES (?,?,?,?,?,?,?)',
                     (book,now//MINUTE,now,account['equity'],account['peak'],int(complete[book]),int(known)))
+                self._fold_equity_sample(
+                    book, now, account['equity'], int(complete[book]), int(known))
             state['last_cycle_ms'] = now
             self.db.execute('UPDATE state SET body=? WHERE id=1', (canonical(state),))
             self.db.execute('INSERT INTO events VALUES (?,?,?,?,?)', (event_id,input_hash,now,canonical(output),zlib.compress(canonical(payload).encode())))
@@ -639,8 +776,8 @@ class PaperTrial:
         return dict(paper_only=True, config_sha256=digest(self.config), observed_ms=now,
                     last_cycle_ms=state['last_cycle_ms'], accounts=state['accounts'], decisions=counts,
                     one_paper_service=True, internal_simulated_portfolios=len(BOOKS),
-                    twelve_looks_statement='The 12 portfolios are 12 looks at one idea, not 12 tests.',
-                    simulation='One paper service, 12 internal simulated portfolios. Not exchange accounts, testnet accounts, subaccounts, or new capital.',
+                    portfolio_looks_statement='The 16 portfolios are 16 looks at one idea, not 16 tests.',
+                    simulation='One paper service, 16 internal simulated portfolios. Not exchange accounts, testnet accounts, subaccounts, or new capital.',
                     opportunity_basis='independent 2000 USDT notional per signal; not a simulated-portfolio return',
                     pricing=self.config['costs'], exit_tick_ms=EXIT_TICK,
                     open_positions=[{k:p[k] for k in ('book','uid','symbol','quantity','entry','status')} for p in opens],

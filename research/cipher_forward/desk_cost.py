@@ -1,13 +1,14 @@
-"""Desk cost read for the three frozen paper settings.
+"""Desk cost labels for the paper settings.
 
-The binding desk cost is 0.31% of price per leg, on entry and on exit.
-This module only labels the settings that already exist. It does not edit
-``FEE`` or ``COSTS``.
+``desk031`` is 0.31% of price on entry, on a non-stop exit, and on a stop
+exit. baseline, moderate, and severe keep their previous numbers. Only the
+PRIMARY arm at desk031 is labelled BINDING. Every other cell is REPORT-ONLY.
 """
 from __future__ import annotations
 
 from decimal import Decimal
 
+from .config import require_primary
 from .strategy import COSTS, FEE
 
 # Exact written literals. They are checked against the runtime floats so a
@@ -15,10 +16,13 @@ from .strategy import COSTS, FEE
 BINDING_PER_LEG = Decimal('0.0031')
 _FEE = Decimal('0.00055')
 _SLIP = {
+    'desk031': (Decimal('0.00255'), Decimal('0.00255')),
     'baseline': (Decimal('0.002'), Decimal('0')),
     'moderate': (Decimal('0.003'), Decimal('0.002')),
     'severe': (Decimal('0.01'), Decimal('0.01')),
 }
+COST_ORDER = ('desk031', 'baseline', 'moderate', 'severe')
+ARMS = ('I', 'IC', 'IM', 'IF')
 
 
 def _percent(rate: Decimal) -> str:
@@ -32,12 +36,6 @@ def _leg(fee: Decimal, slip: Decimal) -> dict:
     total = fee + slip
     cheaper = total < BINDING_PER_LEG
     equal = total == BINDING_PER_LEG
-    if equal:
-        role = 'BINDING'
-    elif cheaper:
-        role = 'REPORT-ONLY'
-    else:
-        role = 'above_binding_not_equal'
     return dict(
         fee=format(fee, 'f'),
         slip=format(slip, 'f'),
@@ -45,7 +43,6 @@ def _leg(fee: Decimal, slip: Decimal) -> dict:
         percent=_percent(total),
         equals_binding=equal,
         cheaper_than_binding=cheaper,
-        role=role,
     )
 
 
@@ -53,7 +50,7 @@ def assert_cost_literals_unchanged() -> None:
     """Refuse to label costs if the frozen numbers have drifted."""
     if Decimal(str(FEE)) != _FEE:
         raise RuntimeError('fee literal drifted; refusing to relabel costs')
-    if tuple(COSTS) != ('baseline', 'moderate', 'severe'):
+    if tuple(COSTS) != COST_ORDER:
         raise RuntimeError('cost setting names drifted')
     for name, pair in _SLIP.items():
         slip, stop = COSTS[name]
@@ -61,14 +58,26 @@ def assert_cost_literals_unchanged() -> None:
             raise RuntimeError(f'{name} cost literal drifted; refusing to relabel costs')
 
 
-def desk_cost_read() -> dict:
-    """Exact per-leg cost of each setting, plus the desk label.
+def cell_role(arm: str, cost: str, primary: str) -> str:
+    """BINDING only for the one PRIMARY x desk031 cell."""
+    if arm == primary and cost == 'desk031':
+        return 'BINDING'
+    return 'REPORT-ONLY'
 
-    A setting is BINDING only when entry, non-stop exit, and stop exit are
-    each exactly 0.31%. Anything cheaper is REPORT-ONLY. Severe stays a
-    secondary display regardless. No number in ``COSTS`` is modified.
+
+def desk_cost_read() -> dict:
+    """Per-leg rates plus the one binding cell.
+
+    Severe stays a secondary display. The column itself is not the label:
+    I, IM, and IF at desk031 are REPORT-ONLY, as are baseline, moderate,
+    and severe on every arm.
     """
+    from .config import ROOT
+    import json
+
     assert_cost_literals_unchanged()
+    protocol = json.loads((ROOT / 'docs/cipher-forward/protocol.json').read_text())
+    primary = require_primary(protocol)
     settings = {}
     for name, (entry_slip, stop_slip) in _SLIP.items():
         entry = _leg(_FEE, entry_slip)
@@ -77,22 +86,8 @@ def desk_cost_read() -> dict:
         legs = (entry, nonstop_exit, stop_exit)
         equals = all(leg['equals_binding'] for leg in legs)
         cheaper = all(leg['cheaper_than_binding'] for leg in legs)
-        if name == 'severe':
-            # Operator display rule: severe is secondary. It is not a desk read.
-            role = 'secondary_display_only'
-            display = 'secondary'
-        elif equals:
-            role = 'BINDING'
-            display = 'prominent'
-        elif cheaper:
-            role = 'REPORT-ONLY'
-            display = 'prominent'
-        else:
-            role = 'not_binding'
-            display = 'prominent'
         settings[name] = dict(
-            role=role,
-            display=display,
+            display='secondary' if name == 'severe' else 'prominent',
             equals_0_31pct_per_leg=equals,
             every_leg_cheaper_than_0_31pct=cheaper,
             fee_each_leg=format(_FEE, 'f'),
@@ -102,16 +97,26 @@ def desk_cost_read() -> dict:
             nonstop_exit=nonstop_exit,
             stop_exit=stop_exit,
         )
+    cells = {
+        f'{cost}:{arm}': cell_role(arm, cost, primary)
+        for cost in COST_ORDER for arm in ARMS
+    }
+    binding = [name for name, role in cells.items() if role == 'BINDING']
+    if binding != [f'desk031:{primary}']:
+        raise RuntimeError('binding cell drifted')
     return dict(
         binding_per_leg=format(BINDING_PER_LEG, 'f'),
         binding_per_leg_percent='0.31%',
         binding_applies_to='entry and exit',
-        any_setting_equals_0_31pct_per_leg=any(
-            row['equals_0_31pct_per_leg'] for row in settings.values()),
-        settings_changed=False,
-        escalation=(
-            'None of the three cost settings equals 0.31% per leg on entry and '
-            'on exit. Cost settings were not changed. None is labelled BINDING.'
+        primary=primary,
+        binding_cell=f'desk031:{primary}',
+        binding_cells=binding,
+        prior_three_cost_settings_unchanged=True,
+        added_setting='desk031',
+        statement=(
+            f'Only {primary} at desk031 is labelled BINDING. '
+            'Every other cell is REPORT-ONLY. Severe stays secondary display only.'
         ),
         settings=settings,
+        cells=cells,
     )

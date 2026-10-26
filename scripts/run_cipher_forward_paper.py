@@ -19,6 +19,9 @@ from research.cipher_forward.config import frozen_config
 from research.cipher_forward.freeze import ExperimentVoid, entries_halted, freeze_before_warmup
 from research.cipher_forward.seed import SeedStore, atomic_json
 from research.cipher_forward.reporting import report_and_verify
+from research.cipher_forward.pace import (
+    FUNDED_CONCURRENCY, FUNDED_MIN_INTERVAL_S, SCAN_CONCURRENCY, SCAN_MIN_INTERVAL_S,
+    SCAN_OFFSET_MS)
 from research.cipher_forward.public import PublicClient
 from research.cipher_forward.ledger import PaperTrial, BOOKS, MINUTE, canonical, fresh_quote, funding_known
 from research.cipher_forward.feed import SignalFeed, advance_retest, HOUR
@@ -164,6 +167,15 @@ def retests(feed,pending,minute):
     return dict(pending=next_pending,ready=ready,observations=observations,minute=minute)
 
 
+def prune_quotes(quotes, positions, ready, now):
+    """Keep quotes for open positions and signals still inside the entry minute."""
+    open_symbols = {p['symbol'] for p in positions if p.get('status') == 'open'}
+    due = {s['symbol'] for s in ready.values()
+           if s['action_ms'] <= now < s['action_ms'] + MINUTE}
+    keep = open_symbols | due
+    return {symbol: quote for symbol, quote in quotes.items() if symbol in keep}
+
+
 def storage_tick(ledger, db_path, storage, announcer, now, last_retention):
     """Measure the main paper volume and the ledger volume, then retain or halt.
 
@@ -263,7 +275,9 @@ def main():
     halted, guard = entries_halted(args.db.parent, started)
     pending=ledger.feed('pending',{});ready=ledger.feed('ready',{})
     instruments=ledger.feed('instruments',{})
-    market=Market(.1,6);funded_market=Market(.05,8);opportunity_market=Market(.1,4)
+    market=Market(SCAN_MIN_INTERVAL_S, SCAN_CONCURRENCY)
+    funded_market=Market(FUNDED_MIN_INTERVAL_S, FUNDED_CONCURRENCY)
+    opportunity_market=Market(.1,4)
     funding_market=Market(.25,2)
     # Indicator corruption must not disable exits for already-open positions.
     feed=None
@@ -272,7 +286,7 @@ def main():
     last_scan=ledger.feed('last_scan',{})
     if not ledger.writes_blocked:
         ledger.observe(started,'startup',dict(release=release,first_forward_hour=first_hour,paper_only=True))
-    with cf.ThreadPoolExecutor(max_workers=2) as work_pool, cf.ThreadPoolExecutor(max_workers=8) as quote_pool, \
+    with cf.ThreadPoolExecutor(max_workers=2) as work_pool, cf.ThreadPoolExecutor(max_workers=FUNDED_CONCURRENCY) as quote_pool, \
          cf.ThreadPoolExecutor(max_workers=4) as opportunity_pool, cf.ThreadPoolExecutor(max_workers=2) as funding_pool:
         while True:
             now=now_ms();minute=now//MINUTE*MINUTE;hour=now//HOUR*HOUR
@@ -313,7 +327,9 @@ def main():
                     elif kind=='funding': settlements[key]=result
                 except Exception as exc:
                     ledger.observe(now,'error',dict(operation=kind,key=str(key),error=f'{type(exc).__name__}: {exc}'))
-            if hour!=last_requested_hour and not any(k=='scan' for k,_ in busy):
+            # The as-of hour is unchanged. Only the request waits six minutes.
+            if (hour!=last_requested_hour and now>=hour+SCAN_OFFSET_MS
+                    and not any(k=='scan' for k,_ in busy)):
                 last_requested_hour=hour
                 try:
                     if feed is None:
@@ -372,6 +388,7 @@ def main():
                     announcer.announce(ledger.block_reason or 'ledger writes blocked', now)
                 settlements.clear()
             for s in batch: ready.pop(s['uid'],None)
+            quotes = prune_quotes(quotes, ledger.positions(), ready, now)
             if not ledger.writes_blocked:
                 with ledger.transaction():
                     for key,value in [('pending',pending),('ready',ready),('instruments',instruments),('last_scan',last_scan)]:

@@ -1,4 +1,4 @@
-"""Garwe ruling and the one-service / twelve-portfolio display rules."""
+"""Garwe ruling and the one-service / sixteen-portfolio display rules."""
 import inspect
 import json
 import re
@@ -6,10 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from research.cipher_forward.config import assert_no_promotion_clause, frozen_config
+from research.cipher_forward.config import (
+    assert_interim_review_veto_only, assert_no_promotion_clause, frozen_config, require_primary)
 from research.cipher_forward.desk_cost import desk_cost_read
 from research.cipher_forward.freeze import (
-    TWELVE_LOOKS, current_identity, digest as freeze_digest, enforce_identity,
+    PORTFOLIO_LOOKS, current_identity, digest as freeze_digest, enforce_identity,
     entries_halted, freeze_before_warmup, warmup_begun)
 from research.cipher_forward.ledger import BOOKS, DAY, MINUTE, PaperTrial, digest as ledger_digest
 from research.cipher_forward.reporting import report, render
@@ -65,36 +66,50 @@ def _walk(value):
         assert WORD.search(value) is None, value
 
 
-def test_no_cost_setting_equals_binding_and_numbers_stay():
+def test_only_primary_desk031_is_binding_and_other_numbers_stay():
     roles = desk_cost_read()
     protocol = _protocol()
     assert protocol['desk_cost_read'] == roles
-    assert roles['any_setting_equals_0_31pct_per_leg'] is False
-    assert roles['settings_changed'] is False
     assert roles['binding_per_leg'] == '0.0031'
-    baseline, moderate, severe = (roles['settings'][name] for name in ('baseline', 'moderate', 'severe'))
+    assert roles['primary'] == 'IC'
+    assert roles['binding_cell'] == 'desk031:IC'
+    assert roles['binding_cells'] == ['desk031:IC']
+    assert roles['prior_three_cost_settings_unchanged'] is True
+    desk, baseline, moderate, severe = (
+        roles['settings'][name] for name in ('desk031', 'baseline', 'moderate', 'severe'))
+    assert (desk['entry']['percent'], desk['nonstop_exit']['percent'], desk['stop_exit']['percent']) == ('0.31%', '0.31%', '0.31%')
+    assert desk['equals_0_31pct_per_leg'] is True and desk['display'] == 'prominent'
     assert (baseline['entry']['percent'], baseline['nonstop_exit']['percent'], baseline['stop_exit']['percent']) == ('0.255%', '0.255%', '0.055%')
-    assert baseline['role'] == 'REPORT-ONLY' and baseline['display'] == 'prominent'
+    assert baseline['display'] == 'prominent'
     assert (moderate['entry']['percent'], moderate['stop_exit']['percent']) == ('0.355%', '0.255%')
-    assert moderate['role'] == 'not_binding' and moderate['stop_exit']['role'] == 'REPORT-ONLY'
     assert moderate['display'] == 'prominent'
     assert severe['entry']['percent'] == severe['stop_exit']['percent'] == '1.055%'
-    assert severe['role'] == 'secondary_display_only' and severe['display'] == 'secondary'
-    assert all(row['role'] != 'BINDING' for row in roles['settings'].values())
-    # The paper tuples themselves are untouched.
+    assert severe['display'] == 'secondary'
+    assert [name for name, role in roles['cells'].items() if role == 'BINDING'] == ['desk031:IC']
+    assert all(role == 'REPORT-ONLY' for name, role in roles['cells'].items() if name != 'desk031:IC')
     assert FEE == .00055
-    assert COSTS == {'baseline': (.002, 0.), 'moderate': (.003, .002), 'severe': (.01, .01)}
+    assert tuple(COSTS) == ('desk031', 'baseline', 'moderate', 'severe')
+    assert COSTS['desk031'] == (.00255, .00255)
+    assert COSTS['baseline'] == (.002, 0.) and COSTS['moderate'] == (.003, .002) and COSTS['severe'] == (.01, .01)
     cfg = frozen_config()
-    assert cfg['costs'] == {'baseline': [.002, 0.], 'moderate': [.003, .002], 'severe': [.01, .01]}
+    assert cfg['primary'] == 'IC'
+    assert cfg['costs']['desk031'] == [.00255, .00255]
+    assert cfg['costs']['baseline'] == [.002, 0.]
+    assert cfg['costs']['moderate'] == [.003, .002]
+    assert cfg['costs']['severe'] == [.01, .01]
     assert cfg['fee_each_leg'] == .00055
     assert cfg['gross_fraction'] == .5 and cfg['drawdown_fraction'] == .15
     assert cfg['daily_realised_loss'] == .03 and cfg['risk_fraction'] == .01
     assert cfg['position_fraction'] == .1 and cfg['starting_equity_usdt'] == 20000
+    assert protocol['execution']['desk031']['entry_and_nonstop_slip'] == 0.00255
+    assert protocol['execution']['desk031']['total_extra_stop_slip'] == 0.00255
     assert protocol['execution']['baseline']['entry_and_nonstop_slip'] == 0.002
     assert protocol['execution']['moderate_sidecar']['total_extra_stop_slip'] == 0.002
     assert protocol['execution']['severe_secondary_sidecar']['entry_and_nonstop_slip'] == 0.01
     assert protocol['accounts']['gross_admission'] == .5
     assert protocol['accounts']['drawdown_entry_latch'] == .15
+    assert 'None is labelled BINDING' not in json.dumps(roles)
+    assert 'none of the three' not in json.dumps(roles).lower()
 
 
 def test_report_has_no_best_of_selection_and_groups_four_comparisons(book):
@@ -103,27 +118,29 @@ def test_report_has_no_best_of_selection_and_groups_four_comparisons(book):
     html = render(value | {'verification': {'activation_verified': False}})
     _walk(value)
     assert WORD.search(html) is None
-    assert value['twelve_looks_statement'] == TWELVE_LOOKS
-    assert TWELVE_LOOKS in html
+    assert value['portfolio_looks_statement'] == PORTFOLIO_LOOKS
+    assert PORTFOLIO_LOOKS in html
     assert 'internal simulated portfolios' in html
     assert 'not exchange accounts' in html
     assert list(value['comparisons']) == ['I', 'IC', 'IM', 'IF']
     assert value['comparison_order'] == ['I', 'IC', 'IM', 'IF']
     for arm in ('I', 'IC', 'IM', 'IF'):
-        assert list(value['comparisons'][arm]['primary']) == ['baseline', 'moderate']
+        assert list(value['comparisons'][arm]['primary']) == ['desk031', 'baseline', 'moderate']
         assert list(value['comparisons'][arm]['secondary']) == ['severe']
         assert 'severe' not in value['comparisons'][arm]['primary']
-    assert len(value['accounts']) == 12
-    assert len({id(value['accounts'][name]) for name in BOOKS}) == 12
+    assert len(value['accounts']) == 16
+    assert len({id(value['accounts'][name]) for name in BOOKS}) == 16
     assert html.index('Strategy comparison I') < html.index('Strategy comparison IC')
     assert html.index('Strategy comparison IC') < html.index('Strategy comparison IM')
     assert html.index('Strategy comparison IM') < html.index('Strategy comparison IF')
     assert '<details open' not in html
     assert html.count('secondary display only') >= 4
+    assert html.count('>BINDING<') == 1
     assert 'REPORT-ONLY' in html and 'not the 2022' in html and '<table>' in html
-    assert value['cost_roles']['settings']['baseline']['role'] == 'REPORT-ONLY'
+    assert value['cost_roles']['cells']['desk031:IC'] == 'BINDING'
+    assert value['cost_roles']['cells']['desk031:I'] == 'REPORT-ONLY'
     assert value['cost_roles']['settings']['severe']['display'] == 'secondary'
-    assert _protocol()['twelve_looks']['statement'] == TWELVE_LOOKS
+    assert _protocol()['twelve_looks']['statement'] == PORTFOLIO_LOOKS
     assert _protocol()['twelve_looks']['selects_a_config_or_cost'] is False
 
 
@@ -134,7 +151,9 @@ def test_freeze_precedes_warmup_and_mismatch_voids_entries(book, tmp_path, monke
     def stop_before_bars(*_args, **_kwargs):
         frozen = json.loads((tmp_path / 'config_freeze.json').read_text())
         assert frozen['frozen_before_warmup'] is True
-        assert len(frozen['portfolio_hashes']) == 12
+        assert len(frozen['portfolio_hashes']) == 16
+        assert frozen['primary'] == 'IC'
+        assert frozen['primary_portfolio'] == 'desk031:IC'
         assert frozen['code_sha']
         raise RuntimeError('stop before bars')
 
@@ -224,6 +243,70 @@ def test_config_hash_matches_ledger_and_lists_every_portfolio():
     assert freeze_digest({'arm': 'I', 'n': 1}) == ledger_digest({'n': 1, 'arm': 'I'})
     identity = current_identity()
     assert identity['portfolio_order'] == [
-        f'{cost}:{arm}' for cost in ('baseline', 'moderate', 'severe') for arm in ('I', 'IC', 'IM', 'IF')]
-    assert len(set(identity['portfolio_hashes'].values())) == 12
+        f'{cost}:{arm}' for cost in ('desk031', 'baseline', 'moderate', 'severe') for arm in ('I', 'IC', 'IM', 'IF')]
+    assert len(set(identity['portfolio_hashes'].values())) == 16
     assert set(identity['portfolio_hashes']) == set(BOOKS)
+    assert identity['primary'] == 'IC'
+    assert identity['primary_portfolio'] == 'desk031:IC'
+    declared = json.loads((ROOT / 'docs/cipher-forward/config_freeze.json').read_text())
+    assert declared['frozen_before_warmup'] is False
+    assert declared['primary'] == identity['primary']
+    assert declared['primary_portfolio'] == identity['primary_portfolio']
+    assert declared['primary_config_sha256'] == identity['primary_config_sha256']
+    filing = (ROOT / 'docs/cipher-forward/v2.2_filing_pr172.md').read_text()
+    assert identity['primary_config_sha256'] in filing
+    assert 'PRIMARY config ID: IC' in filing
+
+
+def test_empty_primary_refuses_freeze_and_start(tmp_path, monkeypatch):
+    import copy
+    import research.cipher_forward.config as cfgmod
+    real = cfgmod.json.loads
+
+    def loads(text):
+        value = real(text)
+        if isinstance(value, dict) and isinstance(value.get('primary'), dict) and value['primary'].get('arm') == 'IC':
+            value = copy.deepcopy(value)
+            value['primary']['arm'] = ''
+        return value
+
+    monkeypatch.setattr(cfgmod.json, 'loads', loads)
+    with pytest.raises(ValueError, match='PRIMARY'):
+        frozen_config()
+    with pytest.raises(ValueError, match='PRIMARY'):
+        freeze_before_warmup(tmp_path, 1)
+    assert not (tmp_path / 'config_freeze.json').exists()
+    assert require_primary({'primary': {'arm': 'IC'}}) == 'IC'
+
+
+def test_interim_review_is_veto_only():
+    protocol = _protocol()
+    assert_interim_review_veto_only(protocol)
+    review = protocol['interim_review']
+    assert review['veto_only'] is True and review['can_stop_or_void'] is True
+    assert review['can_promote'] is False
+    assert review['can_repick_primary'] is False
+    assert review['can_change_config'] is False
+    assert 'veto-only' in (ROOT / 'docs/cipher-forward/DEPLOYMENT.md').read_text().lower()
+    stripped = json.loads(json.dumps(protocol))
+    stripped['interim_review']['can_repick_primary'] = True
+    with pytest.raises(ValueError, match='can_repick_primary'):
+        assert_interim_review_veto_only(stripped)
+    stripped = json.loads(json.dumps(protocol))
+    del stripped['interim_review']
+    with pytest.raises(ValueError, match='interim-review'):
+        assert_interim_review_veto_only(stripped)
+
+
+def test_installer_does_not_enable_start_or_initialize():
+    text = (ROOT / 'scripts/deploy_cipher_forward_paper.sh').read_text()
+    assert 'entries_disabled' in text and '--no-start' in text and '--audit-production' in text
+    forbidden = ('systemctl enable', 'systemctl start', 'ExecStartPost', '--initialize')
+    for lineno, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#') or stripped.startswith('echo ') or stripped.startswith('printf '):
+            continue
+        for token in forbidden:
+            assert token not in stripped, f'{lineno}: {stripped}'
+    assert text.index('--audit-production') < text.index('docker exec')
+    assert 'if [[ "$audit_production" == 1 ]]; then' in text

@@ -11,20 +11,22 @@ import json
 import subprocess
 from pathlib import Path
 
-from .config import ROOT, frozen_config
+from .config import ROOT, frozen_config, require_primary
 from .seed import atomic_json
 from .storage import disable_entries
 
 FREEZE_NAME = 'config_freeze.json'
 VOID_NAME = 'void.json'
-TWELVE_LOOKS = 'The 12 portfolios are 12 looks at one idea, not 12 tests.'
+PORTFOLIO_LOOKS = 'The 16 portfolios are 16 looks at one idea, not 16 tests.'
 VOID_BANNER = (
     'VOID: portfolio config or code hash does not match the freeze recorded '
     'before warmup. Entries are disabled. This run is not evidence.'
 )
 _IDENTITY_FIELDS = (
+    'primary', 'primary_portfolio', 'primary_config_sha256',
     'portfolio_hashes', 'portfolio_order', 'code_sha', 'sources_sha256', 'protocol_sha256',
 )
+COST_ORDER = ('desk031', 'baseline', 'moderate', 'severe')
 
 
 class ExperimentVoid(RuntimeError):
@@ -78,7 +80,7 @@ def portfolio_specs() -> list[dict]:
     cfg = frozen_config()
     protocol = json.loads((ROOT / 'docs' / 'cipher-forward' / 'protocol.json').read_text())
     specs = []
-    for cost in ('baseline', 'moderate', 'severe'):
+    for cost in COST_ORDER:
         for arm in ('I', 'IC', 'IM', 'IF'):
             specs.append(dict(
                 portfolio=f'{cost}:{arm}',
@@ -102,7 +104,16 @@ def portfolio_specs() -> list[dict]:
 
 def current_identity() -> dict:
     specs = portfolio_specs()
+    protocol = json.loads((ROOT / 'docs' / 'cipher-forward' / 'protocol.json').read_text())
+    arm = require_primary(protocol)
+    primary_portfolio = f'desk031:{arm}'
+    by_name = {row['portfolio']: row for row in specs}
+    if primary_portfolio not in by_name:
+        raise ValueError('PRIMARY portfolio is not in the frozen spec list')
     return dict(
+        primary=arm,
+        primary_portfolio=primary_portfolio,
+        primary_config_sha256=digest(by_name[primary_portfolio]),
         portfolio_hashes={row['portfolio']: digest(row) for row in specs},
         portfolio_order=[row['portfolio'] for row in specs],
         **code_identity(),
@@ -197,7 +208,7 @@ def freeze_before_warmup(state_dir: Path, now_ms: int) -> dict:
         version=1,
         frozen_before_warmup=True,
         recorded_at_ms=int(now_ms),
-        statement=TWELVE_LOOKS,
+        statement=PORTFOLIO_LOOKS,
         **current,
     )
     atomic_json(path, record)

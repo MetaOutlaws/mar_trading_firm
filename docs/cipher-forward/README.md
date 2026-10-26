@@ -6,7 +6,7 @@ after the preparation commit. See [DEPLOYMENT.md](DEPLOYMENT.md) for the runnabl
 installer, exact isolation boundary, operational checks and resume instructions.
 
 The branch now includes the public-data worker, persistent indicator seed,
-12 internal simulated portfolios, cost scenarios, opportunity records and a
+16 internal simulated portfolios, cost scenarios, opportunity records and a
 prospective report. One paper service holds those portfolios. They are not
 exchange accounts, testnet accounts, or subaccounts, and they are not new capital.
 The installer creates its own service and state. It does not register strategies
@@ -125,11 +125,12 @@ After preparation, the worker records its first future hourly cutoff. Technical
 activation is verified after that first completed forward scan, not before it.
 There are no retrospective fills or synthetic start date.
 
-Reports show four strategy comparisons, in fixed order I, IC, IM, IF. Baseline
-and moderate stay prominent. Severe is secondary display only. The 12 portfolios
-are 12 looks at one idea, not 12 tests, and the report does not rank them.
-No cost setting equals 0.31% per leg, so none is labelled BINDING. Baseline is
-cheaper on every leg and is REPORT-ONLY. Severe stays secondary. Cost sidecars
+Reports show four strategy comparisons, in fixed order I, IC, IM, IF. desk031,
+baseline, and moderate stay prominent, with desk031 first. Severe is secondary
+display only. The 16 portfolios are 16 looks at one idea, not 16 tests, and the
+report does not rank them. Only IC at desk031 is labelled BINDING. Every other
+cell is REPORT-ONLY. Baseline, moderate, and severe keep their previous rates.
+Severe stays secondary. Cost sidecars
 must re-admit and resize independently, not simply subtract fees from another
 portfolio's already-selected trades. The four variants never share simulated
 budgets with each other or with cost sidecars.
