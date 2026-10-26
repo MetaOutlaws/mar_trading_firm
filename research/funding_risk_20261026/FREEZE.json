@@ -1,0 +1,9 @@
+{
+  "frozen_at": "2026-10-26T14:51:22.951083+00:00",
+  "files": {
+    "PROTOCOL.json": "5678791ba16a96422ae190c82d1b881b8059fdc827938f47161c097d3ab37809",
+    "code/run_funding.py": "06192f2545e0f13e5eadfdaeba49ae453f70123676480d20f2b0702929245ad4",
+    "code/test_funding.py": "1999fe8d0cf8a8a16586688c89e9deecda5b8190ea7d1202033cc1662d0abb84"
+  },
+  "parent_freeze_sha256": "af38fbf8fbe1ad5a6f199b2037ebad986bba74c7ed8517e11e8ef5cce5dc5a0d"
+}
