@@ -553,8 +553,8 @@
     "looks": 1,
     "extension_allowed": false,
     "bear_spell_required": true,
-    "bear_spell_classifier": "UNAVAILABLE",
-    "bear_spell_note": "A BEAR spell is required before the one look. The Garwe memo is not in this checkout and the cipher docs do not define the spell's price rule, so this change does not invent a classifier and does not read bars to decide it.",
+    "bear_spell_classifier": "Desk rule from Garwe LSR v2 countersign 8c3bd709 A3: BTC 4h EMA50 vs EMA200, +/-1% band; loss as in c90d9e3c. BEAR = EMA50 < EMA200*0.99; BULL = EMA50 > EMA200*1.01; CHOP otherwise. Each week-cluster is labelled by the regime at its Monday 00:00 UTC open. Soko's live label is not used. No-losing-regime gate: each of BULL, BEAR and CHOP needs >=4 non-empty clusters, otherwise the result is INCOMPLETE, not PASS.",
+    "bear_spell_note": "The regime rule is regime_rule, copied verbatim from Garwe. The classifier has not been run on real bars or on 2026.",
     "second_config_alpha": "alpha/4",
     "fixed_2026_window": {
       "enabled": false,
@@ -584,5 +584,6 @@
     "weekly_pnl_rho_not_for_promotion": true,
     "refuse_bars_on_or_after": "2026-01-01",
     "statement": "Weekly P&L rho is SEEN, already-seen in-sample, on 2022-01-01 through 2025-12-31. It is a disqualifier only: rho above 0.50 is FAIL. It is not supporting evidence, it is not part of the case for the edge, and it is not used for promotion. Entry-timestamp Jaccard above 0.50 is also FAIL. No 2026 bars are read."
-  }
+  },
+  "regime_rule": "Desk rule from Garwe LSR v2 countersign 8c3bd709 A3: BTC 4h EMA50 vs EMA200, +/-1% band; loss as in c90d9e3c. BEAR = EMA50 < EMA200*0.99; BULL = EMA50 > EMA200*1.01; CHOP otherwise. Each week-cluster is labelled by the regime at its Monday 00:00 UTC open. Soko's live label is not used. No-losing-regime gate: each of BULL, BEAR and CHOP needs >=4 non-empty clusters, otherwise the result is INCOMPLETE, not PASS."
 }
