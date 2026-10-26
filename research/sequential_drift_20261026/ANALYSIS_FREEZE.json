@@ -1,0 +1,5 @@
+{
+  "created_before_saved_results_inspected": true,
+  "sha256": "6d0859a584130a2b64f4b6bdf102fd4d0953ab57e2d5042e2e260ea3d93ad11a",
+  "note": "Scoring run completed calculations then failed at first parquet write because pyarrow absent. Installed pyarrow and reran unchanged frozen strategy. No candidate outcomes inspected or parameters modified."
+}
