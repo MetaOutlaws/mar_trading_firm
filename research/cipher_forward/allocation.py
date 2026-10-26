@@ -1,7 +1,8 @@
-"""Four independent paper-book routing and cost-aware sizing contracts.
+"""Four internal simulated portfolios and their cost-aware sizing contracts.
 
-No account mutation or default production risk import. A funded execution
-adapter must enforce the other pinned gates before admitting these plans.
+No mutation of the production paper book and no default production risk import.
+The execution adapter must enforce the other pinned gates before admitting these
+plans. These records are not exchange accounts.
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ def planned_notional(book: str, source: str, equity: float, gross: float,
     if not membership(book, source, filter_pass=filter_pass):
         return 0.
     scale = .5 if book == 'IM' and source == 'C3' else 1.
-    # Scale only challenger caps. Remaining account headroom is not scaled.
+    # Scale only challenger caps. Remaining simulated headroom is not scaled.
     return max(0., min(scale * BASE_RISK * equity / loss_fraction,
                        scale * BASE_POSITION * equity, GROSS * equity - gross))
 

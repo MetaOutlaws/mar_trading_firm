@@ -1,20 +1,27 @@
 # Deploy the authorized 3R paper comparison
 
-This release runs the four-book comparison as paper only. It does not authorize
-real-money trading, a broker, exchange order credentials, or an order API. The
-process refuses to start unless `TRADING_MODE` is paper and `GO_LIVE_CONFIRMED`
-is unset. It is an isolated companion to the existing application. PR149
-migration/top-up and unrelated research are separate workstreams. This is a
-non-promotional experiment: moving it onto the approved book requires the full
-desk gates in `protocol.json`.
+This release runs one paper service. It does not authorize real-money trading,
+a broker, exchange order credentials, or an order API. The process refuses to
+start unless `TRADING_MODE` is paper and `GO_LIVE_CONFIRMED` is unset. It is an
+isolated companion to the existing application. PR149 migration/top-up and
+unrelated research are separate workstreams. This is a non-promotional
+experiment. Its own pass rule is REPORT-ONLY. It cannot size up, join the book,
+or feed walk-forward. Promotion requires a filing, a Garwe LOCK, the desk gates
+in `protocol.json`, and a holdout. BL8 and the filtered W11S variant are covered
+by that clause.
 
 ## What runs
 
 - I: hourly L01 long/F111 short + original BL8. IC adds original 3R short;
   IM adds half-size original 3R; IF adds the already-fixed filtered 3R.
-- Four independent accounts **per** cost scenario (baseline, moderate, severe):
-  twelve funded books, each initially 20,000 USDT. Three independent opportunity
-  books track 2,000-USDT-per-signal counterfactuals, including capacity blocks.
+- One paper service holds 12 internal simulated portfolios: the four strategy
+  variants I, IC, IM, and IF, each at baseline, moderate, and severe costs.
+  These are not exchange accounts, testnet accounts, or subaccounts. They do
+  not add capital and they do not use an API key per portfolio. Each portfolio
+  record starts with 20,000 USDT of simulated cash. The 12 portfolios are 12
+  looks at one idea, not 12 tests. Reports do not rank them or crown a config
+  or cost. Three opportunity records track 2,000-USDT-per-signal
+  counterfactuals, including capacity blocks.
 - 15 positions, 50% gross admission, 1% planned cost-aware risk/10% notional;
   IM challenger alone is 0.5%/5%. Two per sector, one per token including exit
   minute, twenty daily entries, 3% daily closed loss/current equity, C24 after
@@ -32,7 +39,7 @@ desk gates in `protocol.json`.
 Signal/risk code is frozen; the prospective execution bridge is intentionally
 observable. Historical 2022–25 returns are not forecasts under the 15% guard or
 this quote-sampled execution. I represents the named incumbent combination,
-not every strategy or runtime override in the existing account.
+not every strategy or runtime override on the existing production paper book.
 
 ## Install from an existing authenticated root SSH session
 
@@ -90,7 +97,7 @@ cat /data/state/cipher-forward-v1/activation_evidence.json
 
 The worker writes technical evidence and a complete report each minute. It
 does **not** mark activation verified merely because a container starts. Require
-the correct release/image/config/seed receipts, reconciled twelve accounts,
+the correct release/image/config/seed receipts, reconciled twelve internal simulated portfolios,
 fresh heartbeat/execution cycle, first complete future scan, explicit coverage,
 no scan errors, scan completion within 110 seconds, current marks and known
 funding, and no entry holds. Zero fills can be valid. Pending funding or temporary
@@ -111,8 +118,12 @@ has been sent by this release.
 
 ## Reports and operation
 
-- `report.html`: self-contained browser view with account comparison; expandable
-  year/token/sector/source, costs, R and blocked-opportunity details.
+- `report.html`: self-contained browser view of four strategy comparisons, in
+  fixed order I, IC, IM, IF. Baseline and moderate are prominent. Severe is
+  secondary, collapsed, and display only. The page states that the 12
+  portfolios are 12 looks at one idea, not 12 tests. It does not rank them.
+  Year, token, sector, source, costs, R, and blocked-opportunity details stay
+  expandable.
 - `report.json`: full machine-readable metrics, I-relative comparisons and
   coverage. `daily/YYYY-MM-DD.json` retains each day's latest snapshot.
 - `trial.db`: transactions, raw compressed cycle inputs, first observed hourly
@@ -123,8 +134,25 @@ has been sent by this release.
 R uses original price risk. Calendar-year returns are prospective marked-equity
 increments; trade R and token/sector/source P&L are attribution, not independent
 token portfolio returns. Unknown funding and stale marks remain provisional.
-Opportunity totals overlap and have no account ROI. Short samples are descriptive;
-the predeclared 30/60-day operational checks and 90-day primary review remain.
+Opportunity totals overlap and are not simulated-portfolio returns. Short samples
+are descriptive. The 30/60/90-day reviews are report and veto only.
+
+No frozen cost setting equals the desk binding cost of 0.31% per leg on entry
+and on exit, so none is labelled BINDING and the cost settings were not changed.
+Baseline is 0.255% on entry and on a non-stop exit, and 0.055% on a stop exit:
+every leg is cheaper than 0.31%, so baseline is REPORT-ONLY and stays prominent.
+Moderate is 0.355% on entry and on a non-stop exit, and 0.255% on a stop exit.
+It is not 0.31% per leg. The cheaper stop leg is REPORT-ONLY. Moderate stays
+prominent. Severe is 1.055% on entry and on both exits. It stays secondary
+display only. Anything cheaper than 0.31% per leg is not a desk read.
+
+Before warmup fetches a bar, the service writes `config_freeze.json` with a
+hash of every portfolio config and the code SHA. Startup and every cycle
+recheck those hashes. A missing freeze, or any mismatch after warmup has begun,
+writes `void.json`, prints a VOID line, shows VOID at the top of the report,
+and disables entries. The run stays VOID. Warmup bars compute indicator state
+only. A trade, signal outcome, or P&L on a warmup bar is not written as
+performance and is left out of the report.
 
 Visible depth inputs can grow the ledger substantially. Archive consistent
 SQLite backups to protected storage. Do not delete open positions, cash,
@@ -160,13 +188,13 @@ Only after resolving the recorded cause should an operator remove that manual
 flag; it cannot clear drawdown or supervision-gap latches. To stop the isolated
 service completely, use `systemctl stop mar-cipher-forward-paper`; this also
 stops simulated exit supervision, so preserve the ledger and record the gap.
-Do not stop the production containers or run the PR149 account installer here.
+Do not stop the production containers or run the PR149 resize installer here.
 
 ## Grokbot/operator handoff
 
 1. Check out the supplied immutable release, read this document, and run the
    installer on the existing Singapore droplet through your authorized session.
-2. Keep the production account and PR149 workstream intact. Inspect preparation
+2. Keep the production paper book and PR149 workstream intact. Inspect preparation
    failures (including stale read-only L01 context) rather than bypassing them.
 3. After the first future hourly scan, return `deployment.json`,
    `activation_evidence.json`, selected service status and the first report.

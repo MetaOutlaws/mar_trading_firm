@@ -1,8 +1,11 @@
 """Public-data paper comparison. No order endpoint and no broker dependency.
 
 One SQLite transaction commits decisions, fills, cash, recovery state and the
-opportunity ledgers together. Four independent funded arms per cost scenario.
-Opportunity books are overlapping counterfactuals, NOT funded portfolios.
+opportunity ledgers together. Twelve internal simulated portfolios share one
+service: four strategy variants at three frozen cost settings. The persisted
+`accounts` key is simulated cash and risk for those portfolios. It is not an
+exchange account, a testnet account, or a subaccount.
+Opportunity books are overlapping counterfactuals, not simulated-portfolio returns.
 """
 from __future__ import annotations
 
@@ -203,7 +206,7 @@ class PaperTrial:
             closed=sum(p['net_pnl'] for p in ps if p['status']=='closed')
             if (not finite(account['cash']) or abs(expected-account['cash'])>1e-6
                     or not finite(account['realised_pnl']) or abs(closed-account['realised_pnl'])>1e-6):
-                raise ValueError('account cash or realised P&L does not reconcile')
+                raise ValueError('simulated-portfolio cash or realised P&L does not reconcile')
             if account['streak']<0 or account['raw_streak']<account['streak'] or account['peak']<=0:
                 raise ValueError('invalid persisted risk state')
         return True
@@ -627,9 +630,19 @@ class PaperTrial:
     def report(self, now):
         state = self.state()
         counts = [dict(row) for row in self.db.execute('SELECT book,status,count(*) AS count FROM decisions GROUP BY book,status')]
+        cutoff = self.feed('first_forward_hour')
+        # Status lists open risk for supervision, but a fill dated inside the
+        # warmup window is not shown as a performance position.
+        opens = self.positions()
+        if cutoff is not None:
+            opens = [p for p in opens if int(p['entry_ms']) >= int(cutoff)]
         return dict(paper_only=True, config_sha256=digest(self.config), observed_ms=now,
                     last_cycle_ms=state['last_cycle_ms'], accounts=state['accounts'], decisions=counts,
-                    opportunity_basis='independent 2000 USDT notional per signal; NOT portfolio ROI',
+                    one_paper_service=True, internal_simulated_portfolios=len(BOOKS),
+                    twelve_looks_statement='The 12 portfolios are 12 looks at one idea, not 12 tests.',
+                    simulation='One paper service, 12 internal simulated portfolios. Not exchange accounts, testnet accounts, subaccounts, or new capital.',
+                    opportunity_basis='independent 2000 USDT notional per signal; not a simulated-portfolio return',
                     pricing=self.config['costs'], exit_tick_ms=EXIT_TICK,
-                    open_positions=[{k:p[k] for k in ('book','uid','symbol','quantity','entry','status')} for p in self.positions()],
+                    open_positions=[{k:p[k] for k in ('book','uid','symbol','quantity','entry','status')} for p in opens],
+                    warmup_performance_suppressed=True,
                     activation_verified=False)

@@ -1,4 +1,4 @@
-"""Causal shared H/B/C3 feed for every independent comparison account."""
+"""Causal shared H/B/C3 feed for every internal simulated portfolio."""
 from dataclasses import replace
 import math
 from pathlib import Path

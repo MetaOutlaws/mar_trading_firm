@@ -110,12 +110,12 @@ assert_f111_paper_only()
 s=get_settings()
 assert not s.is_live and not os.environ.get('GO_LIVE_CONFIRMED')
 print(json.dumps({'paper_only':True,'trading_mode':s.trading_mode.value,
- 'scope':'paper-mode assertion; existing account balances and overrides not changed'}))
+ 'scope':'paper-mode assertion; existing paper-book balances and overrides not changed'}))
 PY
 image="mar-cipher-forward:$release"
 docker build --pull -f "$dest/docker/cipher-forward.Dockerfile" -t "$image" "$dest" > "$receipt/build.log" 2>&1
 common=(--rm --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m)
-docker run "${common[@]}" --network none "$image" python -m pytest -q -p no:cacheprovider tests/test_cipher_forward.py tests/test_cipher_forward_runtime.py tests/test_cipher_forward_storage.py > "$receipt/tests.log" 2>&1
+docker run "${common[@]}" --network none "$image" python -m pytest -q -p no:cacheprovider tests/test_cipher_forward.py tests/test_cipher_forward_runtime.py tests/test_cipher_forward_storage.py tests/test_cipher_forward_ruling.py > "$receipt/tests.log" 2>&1
 docker image inspect --format '{{.Id}}' "$image" > "$receipt/image-id.txt"
 if [[ -f "$state/trial.db" ]]; then
     python3 - "$state/trial.db" "$receipt/trial-before.db" <<'PY'
@@ -124,7 +124,8 @@ with sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True) as source, sqlite3
     source.backup(target)
 PY
 fi
-# Warmup continues its persisted seed and cannot place simulated entries.
+# Warmup freezes portfolio-config hashes and the code SHA first, then computes
+# indicator state only. It cannot place simulated entries.
 # This runs as a service so a disconnected SSH session does not kill the job.
 cat > /etc/systemd/system/mar-cipher-forward-prepare.service <<EOF
 [Unit]

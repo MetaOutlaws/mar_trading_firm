@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from research.cipher_forward.config import frozen_config
+from research.cipher_forward.freeze import freeze_before_warmup
 from research.cipher_forward.ledger import (
     PaperTrial, BOOKS, MINUTE, DAY, EXIT_TICK, canonical, make_account, observe_close, recover)
 from research.cipher_forward.seed import SeedStore, aggregate, atomic_json
@@ -309,6 +310,7 @@ def test_retest_missing_candle_never_uses_old_open():
 def test_zero_fills_only_verify_after_fresh_future_scan_and_receipts(book,tmp_path):
     hour=60*MINUTE;cutoff=T//hour*hour+hour;now=cutoff+65000
     seed=SeedStore(tmp_path/'seed',frozen_config()['universe'],initialize_asof=cutoff)
+    freeze_before_warmup(tmp_path, now)
     atomic_json(tmp_path/'warmup.json',dict(ready=True,seed=seed.receipt()))
     atomic_json(tmp_path/'deployment.json',dict(image_id='test-only-image',release='a'*40))
     atomic_json(tmp_path/'status.json',dict(heartbeat_ms=now,release='a'*40))

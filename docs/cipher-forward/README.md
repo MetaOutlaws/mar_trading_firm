@@ -6,7 +6,9 @@ after the preparation commit. See [DEPLOYMENT.md](DEPLOYMENT.md) for the runnabl
 installer, exact isolation boundary, operational checks and resume instructions.
 
 The branch now includes the public-data worker, persistent indicator seed,
-durable accounts, cost scenarios, opportunity records and prospective report.
+12 internal simulated portfolios, cost scenarios, opportunity records and a
+prospective report. One paper service holds those portfolios. They are not
+exchange accounts, testnet accounts, or subaccounts, and they are not new capital.
 The installer creates its own service and state. It does not register strategies
 with the existing worker or change its balances, positions, risk limits or flags.
 The preparation receipts and protocol retain their original content and date;
@@ -21,19 +23,22 @@ the new runtime receipt is `RUNTIME_VALIDATION.json`.
 | IM | I + original 3R short | 0.5% / 5% |
 | IF | I + already-fixed filtered 3R short | 1% / 10% |
 
-Each book starts with its **own 20,000 USDT**, 15 slots and 50% marked gross
-admission cap. Hourly and BL8 retain 1% risk / 10% position caps in every book.
+Each internal simulated portfolio starts with **20,000 USDT of simulated cash**,
+15 slots and a 50% marked gross admission cap. That cash is not a deposit and
+not an exchange balance. Hourly and BL8 retain 1% risk / 10% position caps in
+every portfolio.
 Half size scales only the challenger's two caps; remaining gross headroom is
 not halved again. The same timestamped input snapshot feeds all books, but
 their cash, positions, daily gates, C24 streaks and drawdown latches are separate.
 
 Use the 15% paper drawdown entry stop in this prospective specification. The
 70% stop was for the completed historical simulation. Changing it on the
-running account was not authorized by that simulation instruction. This is
-a material bridge: do not present the historical returns as expected results
-under the prospective 15% guard. Exits continue after entry stops. Independent
-2,000-USDT-per-signal opportunity records continue through account restrictions;
-they are overlapping counterfactuals, not attainable account ROI.
+running production paper book was not authorized by that simulation instruction.
+This is a material bridge: do not present the historical returns as expected
+results under the prospective 15% guard. Exits continue after entry stops.
+Independent 2,000-USDT-per-signal opportunity records continue through
+portfolio restrictions; they are overlapping counterfactuals, not simulated-portfolio
+returns.
 
 No token whitelist, new target, late profit lock, maximum holding period,
 new ranking rule or parameter grid. The fixed filtered variant uses prior
@@ -109,8 +114,8 @@ merge or a local test. No remote execution was performed for this preparation.
 The original `INTEGRATION_HANDOFF.md` is retained as the acceptance checklist.
 The implementation now satisfies the local execution checks; follow
 `DEPLOYMENT.md` for the separate server build, warmup and activation evidence.
-The runtime reuses reviewed concepts from PR #149 without replacing production.
-Do not run its account-resize installer. The quote tick is fixed at 15 seconds;
+BL8 is a port verified byte-identical to PR #149 @0519f425; strategy logic not desk-reviewed. The runtime does not replace production.
+Do not run its resize installer. The quote tick is fixed at 15 seconds;
 research OHLC and forward depth fills remain different observation models.
 
 Warm indicators separately before activation. Record a fixed seed boundary,
@@ -120,12 +125,16 @@ After preparation, the worker records its first future hourly cutoff. Technical
 activation is verified after that first completed forward scan, not before it.
 There are no retrospective fills or synthetic start date.
 
-Baseline and moderate cost accounts are primary. Severe is a secondary stress,
-not the sole rejection gate. Cost sidecars must re-admit and resize independently,
-not simply subtract fees from another book's already-selected trades. The four
-portfolio variants never share budgets with each other or with cost sidecars.
+Reports show four strategy comparisons, in fixed order I, IC, IM, IF. Baseline
+and moderate stay prominent. Severe is secondary display only. The 12 portfolios
+are 12 looks at one idea, not 12 tests, and the report does not rank them.
+No cost setting equals 0.31% per leg, so none is labelled BINDING. Baseline is
+cheaper on every leg and is REPORT-ONLY. Severe stays secondary. Cost sidecars
+must re-admit and resize independently, not simply subtract fees from another
+portfolio's already-selected trades. The four variants never share simulated
+budgets with each other or with cost sidecars.
 
-Daily reports include account returns, net R, drawdown, fees/funding, token,
+Daily reports include simulated-portfolio returns, net R, drawdown, fees/funding, token,
 sector, source and rejection breakdowns. Review operation at 30/60 days and the
 fixed experiment at 90 days. Report the actual sample and uncertainty; elapsed
 time alone does not establish profitability. Sparse or inconclusive evidence

@@ -4,12 +4,32 @@ import json
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# Full desk gates. These are promotion requirements, not the paper risk set.
+# Full desk gates. These are promotion requirements, not the paper risk set
+# (50% gross, 15% drawdown latch, 3% daily loss, C24, 1%/10%, 0.5%/5%).
 REQUIRED_PROMOTION_GATES = {
     'profit_factor_min': 1.15,
+    'profit_factor_net_at_binding_cost_per_leg': 0.0031,
     'confidence_interval_excludes_zero': True,
     'beats_random': True,
     'week_clusters': True,
+    'folds_pass_fraction_min': 0.5,
+    'no_losing_regime': True,
+    'max_drawdown_lt': 0.25,
+    'min_weeks': 30,
+    'min_leg_trades_per_year': 100,
+}
+
+# Flags that keep this paper run, BL8, and the filtered W11S variant off the book.
+REQUIRED_PROMOTION_FLAGS = {
+    'pass_rule': 'REPORT-ONLY',
+    'covers_bl8': True,
+    'covers_filtered_w11s': True,
+    'can_size_up': False,
+    'can_join_book': False,
+    'can_feed_walk_forward': False,
+    'requires_filing': True,
+    'requires_garwe_lock': True,
+    'requires_holdout': True,
 }
 
 
@@ -22,9 +42,14 @@ def assert_no_promotion_clause(protocol: dict) -> None:
         raise ValueError('protocol.json no-promotion clause is not in force')
     if clause.get('required_gates') != REQUIRED_PROMOTION_GATES:
         raise ValueError('protocol.json promotion gates are not the full desk gates')
+    for key, expected in REQUIRED_PROMOTION_FLAGS.items():
+        if clause.get(key) != expected:
+            raise ValueError(f'protocol.json no-promotion clause missing {key}')
     statement = str(clause.get('statement') or '').lower()
     for phrase in ('non-promotional', '1.15', 'excluding zero', 'beats random',
-                   'week cluster', 'veto-only'):
+                   'week cluster', 'veto-only', 'report-only', 'bl8',
+                   'filtered w11s', 'filing', 'garwe lock', 'holdout',
+                   'size up', 'join the book', 'walk-forward'):
         if phrase not in statement:
             raise ValueError(f'protocol.json no-promotion statement is missing {phrase!r}')
 

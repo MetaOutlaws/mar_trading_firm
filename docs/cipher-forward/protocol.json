@@ -8,13 +8,29 @@
   "promotion": {
     "non_promotional": true,
     "promotion_authorized": false,
-    "statement": "This is a non-promotional experiment. Any promotion requires the full desk gates: profit factor at least 1.15, a confidence interval excluding zero, beats random, and week clusters. 2026 warmup counts as veto-only and is not a promotion sample.",
+    "pass_rule": "REPORT-ONLY",
+    "covers_bl8": true,
+    "covers_filtered_w11s": true,
+    "can_size_up": false,
+    "can_join_book": false,
+    "can_feed_walk_forward": false,
+    "requires_filing": true,
+    "requires_garwe_lock": true,
+    "requires_holdout": true,
+    "statement": "This is a non-promotional experiment. Its own pass rule is REPORT-ONLY. It can never size up, join the book, or feed walk-forward. Promotion requires the full desk path: a filing, a Garwe LOCK, the desk gates (profit factor at least 1.15 net at 0.31% per leg, a confidence interval excluding zero, beats random, week clusters, at least 50% of folds, no losing regime, max drawdown under 25%, at least 30 weeks and at least 100 leg-trades per year), and a holdout. BL8 and the filtered W11S variant are covered by this clause. 2026 warmup counts as veto-only and is not a promotion sample.",
     "required_gates": {
       "profit_factor_min": 1.15,
+      "profit_factor_net_at_binding_cost_per_leg": 0.0031,
       "confidence_interval_excludes_zero": true,
       "beats_random": true,
-      "week_clusters": true
-    }
+      "week_clusters": true,
+      "folds_pass_fraction_min": 0.5,
+      "no_losing_regime": true,
+      "max_drawdown_lt": 0.25,
+      "min_weeks": 30,
+      "min_leg_trades_per_year": 100
+    },
+    "promotion_gates_are_not_the_paper_risk_set": true
   },
   "start_time_utc": null,
   "start_rule": "first complete hourly signal strictly after verified activation; no retrospective fills",
@@ -263,9 +279,10 @@
     ],
     "decision_review": "90 calendar days primary review; report actual sample size and paired uncertainty. Inconclusive evidence continues unchanged. 30/60-day reviews check operation and risk, with no outcome-driven parameter changes.",
     "calendar_years": "prospective years only; historical 2022-25 results remain separately labelled",
-    "confidence": "paired weekly account increments, predeclared contrasts IC-I, IM-I, IF-I; short samples descriptive, multiplicity-adjust before superiority claims",
+    "confidence": "paired weekly simulated-portfolio increments, predeclared contrasts IC-I, IM-I, IF-I; short samples descriptive; do not rank or crown a config or cost",
     "success": "positive incremental net return at primary costs with drawdown trade-off reported; investigate whether gaps or concentration overturn conclusion; severe secondary, not sole veto",
-    "no_inflight_parameter_selection": true
+    "no_inflight_parameter_selection": true,
+    "presentation": "Four strategy comparisons, one per config, in fixed order I, IC, IM, IF. Baseline and moderate are prominent. Severe is secondary display only. The 12 portfolios are 12 looks at one idea, not 12 tests."
   },
   "required_before_activation": [
     "fresh current deployment and effective-settings receipt",
@@ -280,10 +297,164 @@
   ],
   "incumbent": {
     "H": "A00 saved control = L01 long entry gate / unchanged F111 short; original 3ATR/4ATR brackets and 1.25R activation / +0.25 netR floor",
-    "B": "unchanged original BL8 rebound long",
+    "B": "port verified byte-identical to PR #149 @0519f425; strategy logic not desk-reviewed",
     "not_every_active_account_strategy": true,
     "f111_and_l01_source_unchanged_since_pinned_868f1c9": true,
-    "BL8_source_available_in_PR149_not_default_branch": true
+    "BL8_source_available_in_PR149_not_default_branch": true,
+    "bl8_label": "port verified byte-identical to PR #149 @0519f425; strategy logic not desk-reviewed",
+    "bl8_byte_identity_sha256_before_label_comment": "ce150ed0a9bd250a6ace6ea4423aae2b477bb09002161901f086d9785075d99c"
   },
-  "implementation_scope_this_step": "Frozen specification, candidate port, sizing/routing contract and historical candidate parity. Portfolio execution adapter and runtime activation remain separate, explicitly required work."
+  "implementation_scope_this_step": "Frozen specification, candidate port, sizing/routing contract and historical candidate parity. Portfolio execution adapter and runtime activation remain separate, explicitly required work.",
+  "internal_simulation": {
+    "one_paper_service": true,
+    "internal_simulated_portfolios": 12,
+    "exchange_accounts": 0,
+    "testnet_accounts": 0,
+    "subaccounts": 0,
+    "extra_capital": false,
+    "api_keys_per_portfolio": false,
+    "initial_simulated_cash_usdt_each": 20000,
+    "statement": "One paper service holds 12 internal simulated portfolios. The 12 portfolios are 12 looks at one idea, not 12 tests. Simulated cash is not a deposit, not new capital, and not an exchange, testnet, or subaccount balance.",
+    "no_ranking_across_portfolios": true,
+    "comparison_order": [
+      "I",
+      "IC",
+      "IM",
+      "IF"
+    ],
+    "prominent_costs": [
+      "baseline",
+      "moderate"
+    ],
+    "secondary_cost": "severe"
+  },
+  "twelve_looks": {
+    "statement": "The 12 portfolios are 12 looks at one idea, not 12 tests.",
+    "selects_a_config_or_cost": false
+  },
+  "desk_cost_read": {
+    "binding_per_leg": "0.0031",
+    "binding_per_leg_percent": "0.31%",
+    "binding_applies_to": "entry and exit",
+    "any_setting_equals_0_31pct_per_leg": false,
+    "settings_changed": false,
+    "escalation": "None of the three cost settings equals 0.31% per leg on entry and on exit. Cost settings were not changed. None is labelled BINDING.",
+    "settings": {
+      "baseline": {
+        "role": "REPORT-ONLY",
+        "display": "prominent",
+        "equals_0_31pct_per_leg": false,
+        "every_leg_cheaper_than_0_31pct": true,
+        "fee_each_leg": "0.00055",
+        "entry_and_nonstop_slip": "0.002",
+        "stop_slip": "0",
+        "entry": {
+          "fee": "0.00055",
+          "slip": "0.002",
+          "total": "0.00255",
+          "percent": "0.255%",
+          "equals_binding": false,
+          "cheaper_than_binding": true,
+          "role": "REPORT-ONLY"
+        },
+        "nonstop_exit": {
+          "fee": "0.00055",
+          "slip": "0.002",
+          "total": "0.00255",
+          "percent": "0.255%",
+          "equals_binding": false,
+          "cheaper_than_binding": true,
+          "role": "REPORT-ONLY"
+        },
+        "stop_exit": {
+          "fee": "0.00055",
+          "slip": "0",
+          "total": "0.00055",
+          "percent": "0.055%",
+          "equals_binding": false,
+          "cheaper_than_binding": true,
+          "role": "REPORT-ONLY"
+        }
+      },
+      "moderate": {
+        "role": "not_binding",
+        "display": "prominent",
+        "equals_0_31pct_per_leg": false,
+        "every_leg_cheaper_than_0_31pct": false,
+        "fee_each_leg": "0.00055",
+        "entry_and_nonstop_slip": "0.003",
+        "stop_slip": "0.002",
+        "entry": {
+          "fee": "0.00055",
+          "slip": "0.003",
+          "total": "0.00355",
+          "percent": "0.355%",
+          "equals_binding": false,
+          "cheaper_than_binding": false,
+          "role": "above_binding_not_equal"
+        },
+        "nonstop_exit": {
+          "fee": "0.00055",
+          "slip": "0.003",
+          "total": "0.00355",
+          "percent": "0.355%",
+          "equals_binding": false,
+          "cheaper_than_binding": false,
+          "role": "above_binding_not_equal"
+        },
+        "stop_exit": {
+          "fee": "0.00055",
+          "slip": "0.002",
+          "total": "0.00255",
+          "percent": "0.255%",
+          "equals_binding": false,
+          "cheaper_than_binding": true,
+          "role": "REPORT-ONLY"
+        }
+      },
+      "severe": {
+        "role": "secondary_display_only",
+        "display": "secondary",
+        "equals_0_31pct_per_leg": false,
+        "every_leg_cheaper_than_0_31pct": false,
+        "fee_each_leg": "0.00055",
+        "entry_and_nonstop_slip": "0.01",
+        "stop_slip": "0.01",
+        "entry": {
+          "fee": "0.00055",
+          "slip": "0.01",
+          "total": "0.01055",
+          "percent": "1.055%",
+          "equals_binding": false,
+          "cheaper_than_binding": false,
+          "role": "above_binding_not_equal"
+        },
+        "nonstop_exit": {
+          "fee": "0.00055",
+          "slip": "0.01",
+          "total": "0.01055",
+          "percent": "1.055%",
+          "equals_binding": false,
+          "cheaper_than_binding": false,
+          "role": "above_binding_not_equal"
+        },
+        "stop_exit": {
+          "fee": "0.00055",
+          "slip": "0.01",
+          "total": "0.01055",
+          "percent": "1.055%",
+          "equals_binding": false,
+          "cheaper_than_binding": false,
+          "role": "above_binding_not_equal"
+        }
+      }
+    }
+  },
+  "warmup_rule": {
+    "indicator_state_only": true,
+    "trades_outcomes_and_pnl_are_performance": false,
+    "config_hashes_frozen_before_warmup": true,
+    "mismatch_after_warmup": "VOID",
+    "void_disables_entries": true
+  }
 }

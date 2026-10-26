@@ -14,6 +14,8 @@ MINUTE = 60_000
 HOUR = 60 * MINUTE
 MIN_TURNOVER = 2_835_443.3309875005
 MAX_STRUCTURAL_STOP_PERCENT = 4.818264711062109
+# Desk reads use 0.31% per leg. None of these three settings is that rate.
+# Do not edit these tuples to manufacture a match. Labels live in desk_cost.py.
 FEE = .00055
 COSTS = {"baseline": (.002, 0.), "moderate": (.003, .002), "severe": (.01, .01)}
 

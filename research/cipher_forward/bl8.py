@@ -2,6 +2,10 @@
 
 Standalone standard-library implementation for the isolated public-data paper
 observer. It imports neither credentials nor any exchange order client.
+
+port verified byte-identical to PR #149 @0519f425; strategy logic not desk-reviewed.
+The byte check was against the port before this label comment. The decision,
+fill gate, and window sum below are unchanged.
 """
 from __future__ import annotations
 

@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from research.cipher_forward.config import frozen_config
+from research.cipher_forward.freeze import ExperimentVoid, entries_halted, freeze_before_warmup
 from research.cipher_forward.seed import SeedStore, atomic_json
 from research.cipher_forward.reporting import report_and_verify
 from research.cipher_forward.public import PublicClient
@@ -106,6 +107,11 @@ def scan(feed,asof):
 
 
 def warmup(seed_root,context_root):
+    # Hashes are durable before any seed, bar, or network call in this function.
+    state_dir=Path(seed_root).parent
+    frozen=freeze_before_warmup(state_dir, now_ms())
+    if frozen.get('void'):
+        raise ExperimentVoid(frozen.get('banner') or 'experiment void')
     config=frozen_config();asof=now_ms()//HOUR*HOUR
     seed=SeedStore(seed_root,config['universe'],initialize_asof=asof)
     market=Market(.15,6);feed=SignalFeed(market.get,config['universe'],context_root,seed_root)
@@ -132,9 +138,10 @@ def warmup(seed_root,context_root):
     failures=[r for r in results if 'error' in r]
     available=sum(r.get('ready',False) for r in results)
     receipt=dict(ready=not failures and available>0,asof_ms=asof,available=available,
-        failures=failures,instruments=sorted(results,key=lambda r:r['symbol']),seed=seed.receipt())
+        failures=failures,instruments=sorted(results,key=lambda r:r['symbol']),seed=seed.receipt(),
+        indicator_state_only=True,trades=0,signal_outcomes=0,performance_recorded=False,pnl=None)
     atomic_json(Path(seed_root).parent/'warmup.json',receipt)
-    if not receipt['ready']: raise ValueError('warmup incomplete; see warmup.json; no account reset')
+    if not receipt['ready']: raise ValueError('warmup incomplete; see warmup.json; no simulated-portfolio reset')
 
 
 def retests(feed,pending,minute):
@@ -253,6 +260,7 @@ def main():
         first_hour=(started//HOUR+1)*HOUR
         if not ledger.writes_blocked:
             ledger.save_feed('first_forward_hour',first_hour)
+    halted, guard = entries_halted(args.db.parent, started)
     pending=ledger.feed('pending',{});ready=ledger.feed('ready',{})
     instruments=ledger.feed('instruments',{})
     market=Market(.1,6);funded_market=Market(.05,8);opportunity_market=Market(.1,4)
@@ -269,6 +277,7 @@ def main():
         while True:
             now=now_ms();minute=now//MINUTE*MINUTE;hour=now//HOUR*HOUR
             decision=storage_tick(ledger,args.db,storage,announcer,now,last_retention)
+            halted, guard = entries_halted(args.db.parent, now)
             for job in list(jobs):
                 if not job.done(): continue
                 kind,key=jobs.pop(job);busy.discard((kind,key))
@@ -344,7 +353,7 @@ def main():
             try:
                 if not ledger.writes_blocked and (batch or now//15000 != last_cycle_tick):
                     ledger.cycle(f'cycle:{now}',now,quotes,instruments,batch,settlements,
-                                 manual_halt=(args.db.parent/'entries_disabled').exists())
+                                 manual_halt=halted)
                     last_cycle_tick=now//15000
             except StorageWriteBlocked as exc:
                 ledger.block_writes(str(exc))
@@ -377,7 +386,9 @@ def main():
                     ledger_bytes=decision.ledger_bytes,
                     storage_writes_blocked=ledger.writes_blocked,
                     storage_guard=decision.reason,
-                    manual_entry_halt=(args.db.parent/'entries_disabled').exists())
+                    manual_entry_halt=halted,
+                    run_void=bool(guard.get('void')),
+                    void_banner=guard.get('banner') or '')
                 try: atomic_json(args.db.parent/'status.json',status)
                 except OSError as exc: loud(f'could not write status.json: {exc}')
             if not ledger.writes_blocked and now-last_report>=60000:

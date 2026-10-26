@@ -11,10 +11,10 @@ This handoff is committed for review; no external message was sent.
    mounted source hashes and effective runtime overrides with the read-only
    audit plus worker/ledger receipts. Do not print credentials or copy `.env`.
 2. Keep the production checkout, balances, open positions and kill flags intact.
-   No account migration is necessary for four newly isolated paper books.
+   No migration is necessary. This trial adds internal simulated portfolios, not exchange accounts.
    In particular, do not invoke `deploy_recovery_paper.sh` for this trial.
 3. Pin hourly L01/F111 and original BL8 source identities. This baseline contains
-   those two strategies, not every unrelated strategy on the existing account.
+   those two strategies, not every unrelated strategy on the existing production paper book.
    Record old A00-to-current-source and research-to-forward-execution differences.
 
 ## Implement the isolated runtime
@@ -27,7 +27,7 @@ This handoff is committed for review; no external message was sent.
   complete UTC hourly OHLCV/turnover from verified public data, a fixed persisted
   EMA seed and a causal incremental feed. Every missing/unavailable instrument
   is an observation; never silently replace a delisted token with an alias.
-- Four funded books each begin flat at 20,000 USDT. Enforce all protocol gates,
+- Twelve internal simulated portfolios each begin flat at 20,000 USDT of simulated cash. Enforce all protocol gates,
   including same-symbol inclusive exit-minute occupancy, two per sector,
   20 daily entries, fee-aware planned risk, remaining gross headroom, C24 and
   the independent 15% drawdown entry latch. Keep all raw losses and manual stops.
@@ -52,8 +52,9 @@ This handoff is committed for review; no external message was sent.
   daily loss, streak, drawdown or the fixed IF filter. Link outcomes to all four
   decisions. Invalid/missed price observations remain recorded without a fake
   trade. Overlapping opportunities have no funded-portfolio ROI.
-- Baseline/moderate/severe scenarios use separate admissions and accounts; mark
-  severe as secondary. Quote snapshots are observations; fees and extra slippage
+- Baseline, moderate, and severe keep separate simulated admissions and cash.
+  Reports show four strategy comparisons. Baseline and moderate are prominent.
+  Severe is secondary display only. Quote snapshots are observations; fees and extra slippage
   are model assumptions. Do not describe paper fills as exchange execution.
 - Provide daily overall/calendar-year/token/sector/source returns and R,
   drawdown, count, expectancy, win rate, profit factor, costs, exposure, blocked
