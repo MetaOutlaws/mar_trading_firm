@@ -1,0 +1,24 @@
+{
+  "as_of": "Monday 00:00 UTC. The last 4h close at or before that open is used. A close after 2025-12-31 23:00:00 UTC is excluded.",
+  "classifier": "research.cipher_forward.regime.label_week_cluster",
+  "counts": {
+    "BEAR": 84,
+    "BULL": 92,
+    "CHOP": 28,
+    "UNLABELLED": 5
+  },
+  "ema": "pandas ewm span 50 and span 200, adjust=False, on the 4h close",
+  "label": "SEEN",
+  "loss_evaluated": false,
+  "monday_count": 209,
+  "no_2026_bars_read": true,
+  "not_evidence": true,
+  "not_for_promotion": true,
+  "role": "planning_context_only",
+  "status": "COUNTED",
+  "symbol": "BTCUSDT",
+  "timeframe": "4h",
+  "warmup_closed_4h_bars": 200,
+  "window_end": "2025-12-31T23:00:00Z",
+  "window_start": "2022-01-01T00:00:00Z"
+}
