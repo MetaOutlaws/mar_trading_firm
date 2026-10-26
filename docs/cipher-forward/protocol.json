@@ -592,7 +592,27 @@
       "F111": "core/strategy/mar_f111_r12_extension_latefloor_v1.py",
       "BL8": "research/cipher_forward/bl8.py"
     },
-    "statement": "Weekly P&L rho is SEEN, already-seen in-sample, on 2022-01-01 00:00 UTC through 2025-12-31 23:00 UTC. It is a disqualifier only: rho above 0.50 is FAIL. It is not supporting evidence, it is not part of the case for the edge, and it is not used for promotion. Entry-timestamp Jaccard above 0.50 is also FAIL. Any bar timestamp after 2025-12-31 23:00 UTC raises, which includes every 2026 bar. The screen reads CIPHER_FORWARD_TAPE_DIR and does not fetch."
+    "statement": "Weekly P&L rho is SEEN, already-seen in-sample, on 2022-01-01 00:00 UTC through 2025-12-31 23:00 UTC. It is a disqualifier only: rho above 0.50 is FAIL. It is not supporting evidence, it is not part of the case for the edge, and it is not used for promotion. Entry-timestamp Jaccard above 0.50 is also FAIL. Any bar timestamp after 2025-12-31 23:00 UTC raises, which includes every 2026 bar. The screen reads CIPHER_FORWARD_TAPE_DIR and does not fetch.",
+    "fetch_attempt": {
+      "endpoint": "https://api.bybit.com/v5/market/kline",
+      "category": "linear",
+      "symbol": "BTCUSDT",
+      "interval": "60",
+      "limit": 1000,
+      "start": "2022-01-01T00:00:00Z",
+      "end": "2025-12-31T23:00:00Z",
+      "auth": false,
+      "proxy": false,
+      "mirror": false,
+      "http_status": 403,
+      "server": "CloudFront",
+      "x_cache": "Error from cloudfront",
+      "x_amz_cf_pop": "HIO52-P4",
+      "x_amz_cf_id": "emtulbUarS3mhtMtmnsidHwPuk828ORLx4U94yhZ1wwlc6TPqrOwsg==",
+      "error": "The Amazon CloudFront distribution is configured to block access from your country",
+      "bars_written": 0,
+      "screen_ran": false
+    }
   },
   "planning_sim": {
     "label": "SEEN",
