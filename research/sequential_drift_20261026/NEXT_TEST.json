@@ -1,0 +1,27 @@
+{
+  "study_id": "MAR-FUNDING-AWARE-RISK-01",
+  "status": "specified_not_run",
+  "specified_at": "2026-10-26T13:19:38.619932+00:00",
+  "parent": "MAR-SEQUENTIAL-DRIFT-01",
+  "historical_2026_opened": false,
+  "motivation": "Parent price gains+19412.65USDT were erased by34948.77net funding plus2726.00fills/fees atdesk. Long net=-239.05;short net=-18023.07. Not all loss is funding; do not select only historical winning sides/tokens. Test total-risk accounting rather than assume an indicator predicts profitable prices.",
+  "single_change": "Ratchet the original protective stop to preserve the original planned cost-aware loss budget after observed funding settlements. No entry/parameter/side/token/size/holding-time change.",
+  "notation": {
+    "q": "fixed positive quantity",
+    "E": "actual entry fill price",
+    "s": "side +1long/-1short",
+    "f": "fee per leg .00055",
+    "a": "cost-case protective stop slippage",
+    "F": "cumulative signed funding paid since entry; credits negative",
+    "L0": "original planned loss at initial protective stop, including entry/exit fees and protective-stop slippage; excludes unknown future funding"
+  },
+  "long_required_stop": "[E*(1+f)+(F-L0)/q] / [(1-a)*(1-f)]",
+  "short_required_stop": "[E*(1-f)+(L0-F)/q] / [(1+a)*(1+f)]",
+  "rule": "After each observed funding settlement, compute required stop from updated signedF; long=max(previousstop,requiredstop);short=min(previousstop,requiredstop). Credits never loosen protection. Activate from settlement+1minute; if quote already beyond level, exit on the next observed minute-open under original stop execution. Gaps and further costs can exceed the planned loss; this is not a guarantee of capped realized risk. No new price target or max hold.",
+  "cases": "Both original entry arms S01/S00, original versus funding-aware stop; baseline/moderate/desk primary,severe secondary. Mainentry+1 andadditional5min central sensitivity. Funding activation remainssettlement+1 forboth timing views. Each arm independently rebuilds occupancy; allrawthresholdsignalsremainavailableafterearlierexits.",
+  "required_controls": "Reproduce all14parentbooks and7801events byte/numeric-equivalently before scoring new books. Preserve parentcode/protocol hashes; implementation changes only new module. No silent post-hoc parameter search.",
+  "gates": "Carry forward exact original positive full/later cohort ANDcalendar economics, closed-only, annual2of3, delay, support andfundingproxy gates. An overlay that merely loses less is not a profitable candidate. Parent-to-overlay pairedentryeffect and occupancy additions separated.",
+  "reporting": "Full/yearly R, net/gross/funding/fills, duration, token/sector/side/regime, tailrisk and lossbudget overruns, pairedcalendarblock uncertainty, funded I/IC benchmarks clearlyseparate. If screeningpasses, freeze matched funded account comparison, not auto paper/live promotion.",
+  "tests_before_scoring": "Long/short formula exactlyrecoversinitialstopatF0; paymentsratchet; creditsdonotloosen; fundingcountedonce; applyafteravailability; gapovershoot; closesbeforefundingexcluded; stop/oppositesignalpriority; causalprefixinvariance.",
+  "research_status": "Post-result hypothesis on reused2022-25; not untouched holdout; no production change or current trial configuration alteration."
+}
