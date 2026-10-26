@@ -1,0 +1,39 @@
+{
+  "decision": {
+    "study_id": "MAR-SEQUENTIAL-DRIFT-01",
+    "primary": "S01 bounded evidence",
+    "gates": {
+      "positive_full_and_later_cohort_and_calendar": false,
+      "later_closed_only_positive": false,
+      "two_positive_later_calendar_years": true,
+      "delay_positive_full_and_later": false,
+      "support": true,
+      "funding_proxy_stress_positive": false
+    },
+    "decision": "REJECT_FROZEN_SPECIFICATION",
+    "paper_nomination": false,
+    "best_strategy_superiority_established": false,
+    "historical_2026_opened": false
+  },
+  "protocol_library_file_id": "libfile_2607a8c2964081919a591b46ef05d9f5",
+  "scope": "Independent1000USDTnotional opportunities, not account ROI. Full2022-25, all96tokens, 2026unopened.",
+  "desk_cost_per_leg": 0.0031,
+  "full_desk": {
+    "trades": 414,
+    "net_R": -152.303947,
+    "mean_trade_net_pct": -4.411138,
+    "gross_usdt": 19412.654513,
+    "funding_paid_usdt": 34948.766552,
+    "fees_slippage_usdt": 2725.999779,
+    "net_usdt": -18262.111818
+  },
+  "verification": {
+    "independent_event_paths_and_cashflows": 7801,
+    "independent_all_decisions": 10360,
+    "independent_signal_rows": 1480,
+    "funding_settlement_evaluations": 843124,
+    "token_to_total_daily_reconciliation": true,
+    "historical_2026_opened": false
+  },
+  "next_test": "NEXT_TEST.json; specified, not run. No funded comparison or nomination."
+}
