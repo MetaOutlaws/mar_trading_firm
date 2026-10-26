@@ -12,6 +12,9 @@ historical October close.
 
 from __future__ import annotations
 
+import hashlib
+import threading
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, select
@@ -162,20 +165,83 @@ def _trades_net(mode: str) -> float:
     return float(total or 0.0)
 
 
+# ``/api/risk`` builds the live statement on every desk poll. The journal
+# parse is kept until the file or the sqlite sidecar changes. A matching
+# sha256 after a touch does not parse again. This is the display read;
+# ``PaperCashStore.record`` still writes the file the engine uses.
+_JOURNAL_LOCK = threading.Lock()
+_JOURNAL_CACHE: dict[str, Any] = {"token": None, "digest": "", "events": None}
+
+
+def clear_journal_cache() -> None:
+    """Drop the cached cash journal. Tests use this after a path swap."""
+    with _JOURNAL_LOCK:
+        _JOURNAL_CACHE["token"] = None
+        _JOURNAL_CACHE["digest"] = ""
+        _JOURNAL_CACHE["events"] = None
+
+
+def _stat_token(path: Path) -> tuple[str, int, int, int] | None:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (str(path), int(st.st_ino), int(st.st_mtime_ns), int(st.st_size))
+
+
 def load_journal_events() -> list[dict[str, Any]]:
     """JSON journal plus durable closes not yet in that file. Read-only.
 
     The path is read from ``paper_cash`` at call time so a test can point the
-    live read at a throwaway journal without touching production cash.
+    live read at a throwaway journal without touching production cash. A poll
+    that sees the same inode, mtime, and size does not parse the file. A
+    changed mtime hashes the bytes and reuses the parsed events when the
+    sha256 is unchanged.
     """
     from core.execution import paper_cash
-    from core.execution.paper_settle import load_durable_close_payloads
+    from core.execution.paper_settle import _sqlite_path, load_durable_close_payloads
 
+    path = Path(paper_cash.PAPER_CASH_PATH)
+    db = _sqlite_path()
+    db_path = Path(db) if db is not None else None
+    wal = Path(str(db_path) + "-wal") if db_path is not None else None
+    token = (
+        _stat_token(path),
+        _stat_token(db_path) if db_path is not None else None,
+        _stat_token(wal) if wal is not None else None,
+    )
+    with _JOURNAL_LOCK:
+        cached = _JOURNAL_CACHE["events"]
+        if _JOURNAL_CACHE["token"] == token and isinstance(cached, list):
+            return list(cached)
+    digest = ""
+    raw: bytes | None = None
+    if path.is_file():
+        raw = path.read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()
+    with _JOURNAL_LOCK:
+        cached = _JOURNAL_CACHE["events"]
+        # Same bytes and the same database token: a touch of the JSON file
+        # does not rebuild the event list. A database change still misses.
+        if (
+            isinstance(cached, list)
+            and _JOURNAL_CACHE["digest"] == digest
+            and _JOURNAL_CACHE["token"] is not None
+            and _JOURNAL_CACHE["token"][1:] == token[1:]
+        ):
+            _JOURNAL_CACHE["token"] = token
+            return list(cached)
     events: list[dict[str, Any]] = []
-    path = paper_cash.PAPER_CASH_PATH
-    if path.exists():
+    if raw is not None:
+        # PaperCashStore parses the path itself. The bytes were only hashed
+        # here; a content change falls through to that one parse.
         events = paper_cash.PaperCashStore(path).events()
-    return merge_cash_events(events, load_durable_close_payloads())
+    merged = merge_cash_events(events, load_durable_close_payloads())
+    with _JOURNAL_LOCK:
+        _JOURNAL_CACHE["token"] = token
+        _JOURNAL_CACHE["digest"] = digest
+        _JOURNAL_CACHE["events"] = merged
+    return list(merged)
 
 
 def live_book_statement(

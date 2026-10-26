@@ -14,7 +14,6 @@ this module.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 import threading
@@ -162,17 +161,12 @@ def book_fingerprint(path: Path | None = None) -> tuple[str, int, str]:
     """Live book identity: path, mtime_ns, and sha256 of the file bytes.
 
     The sha is the content key. mtime lets a caller see which write produced
-    it. A missing book is an empty sha so the panel still renders.
+    it. A missing book is an empty sha so the panel still renders. The bytes
+    are hashed once per change; a quiet poll only stats the file.
     """
-    from api.desk_status import live_approvals_path
+    from api.desk_status import approval_book_stat
 
-    target = live_approvals_path(path)
-    try:
-        st = target.stat()
-    except OSError:
-        return (str(target), 0, "")
-    digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    return (str(target), int(st.st_mtime_ns), digest)
+    return approval_book_stat(path)
 
 
 def telemetry_scan_id(path: Path | None) -> str:

@@ -316,10 +316,10 @@ def llm_ping(body: PingBody, _: None = Depends(require_token)) -> dict[str, Any]
 @app.get("/api/cycle")
 def last_cycle() -> dict[str, Any]:
     """Last paper/live engine cycle, plus a plain-language 'why quiet' read."""
-    from core.execution.engine import load_last_cycle
+    from api.desk_status import read_cached_last_cycle
     from firm.llm import provider_status
 
-    cycle = load_last_cycle()
+    cycle = read_cached_last_cycle()
     snapshot = provider_status()
     employee_ok = any(
         bool(t.get("configured"))
@@ -421,10 +421,11 @@ def _strategy_name_from_record(record: dict[str, Any]) -> str:
 def strategies() -> dict[str, Any]:
     """Research verdicts from the live mounted book, not a cached snapshot.
 
-    ``get_universe`` is process-cached. This endpoint opens
-    ``config/approved_strategies.json`` (symlink followed) on every call,
-    which is the file the paper engine scans. A dated snapshot beside it
-    is not read.
+    ``get_universe`` is process-cached. This endpoint reads the mounted
+    ``config/approved_strategies.json`` (symlink followed), which is the
+    file the paper engine scans. The parse is kept by mtime and content
+    hash, so a quiet poll does not build the book again. A dated snapshot
+    beside it is not read.
     """
     from config.universe import Universe, parse_approval_key
     from core.strategy.registry import list_strategies
