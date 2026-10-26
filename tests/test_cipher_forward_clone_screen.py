@@ -10,6 +10,7 @@ from research.cipher_forward.clone_screen import (
     entry_timestamp_jaccard, run_default, score_archive, score_comparator,
     weekly_pnl_rho,
 )
+from research.cipher_forward.tape import HARD_END_MS, BarAfterHardCap
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,7 +19,11 @@ def _ms(year, month, day):
     return int(datetime(year, month, day, tzinfo=timezone.utc).timestamp() * 1000)
 
 
-def test_screen_refuses_bars_on_or_after_2026():
+def test_screen_refuses_bars_after_the_hard_cap_and_on_2026():
+    # Exactly 23:00 UTC on the last day is inside the window.
+    assert_no_2026_bars([{'t': HARD_END_MS}])
+    with pytest.raises(BarAfterHardCap, match='23:00:00'):
+        assert_no_2026_bars([{'t': HARD_END_MS + 1}])
     with pytest.raises(BarsOnOrAfter2026, match='2026-01-01'):
         assert_no_2026_bars([{'t': REFUSAL_MS}])
     with pytest.raises(BarsOnOrAfter2026):
@@ -28,13 +33,11 @@ def test_screen_refuses_bars_on_or_after_2026():
             [{'exit_ms': _ms(2024, 1, 8), 'net_pnl': 1.}],
             [{'exit_ms': _ms(2024, 1, 8), 'net_pnl': 1.}],
             bars=[{'open_ms': _ms(2025, 12, 31), 'close_ms': REFUSAL_MS}])
-    # The last millisecond of 2025 is still inside the window.
-    assert_no_2026_bars([REFUSAL_MS - 1])
     with pytest.raises(BarsOnOrAfter2026):
         entry_timestamp_jaccard(
             [{'symbol': 'BTCUSDT', 'entry_ms': REFUSAL_MS}], [])
-    with pytest.raises(BarsOnOrAfter2026):
-        weekly_pnl_rho([{'exit_ms': REFUSAL_MS, 'net_pnl': 1.}], [])
+    with pytest.raises(BarAfterHardCap):
+        weekly_pnl_rho([{'exit_ms': HARD_END_MS + 1, 'net_pnl': 1.}], [])
 
 
 def test_jaccard_and_rho_thresholds_are_disqualifiers():
@@ -73,11 +76,13 @@ def test_jaccard_and_rho_thresholds_are_disqualifiers():
     assert clear['verdict'] == 'PASS'
 
 
-def test_missing_archive_is_unavailable_and_not_a_pass():
+def test_missing_tape_is_not_staged_and_not_a_pass(monkeypatch):
+    monkeypatch.delenv('CIPHER_FORWARD_TAPE_DIR', raising=False)
     report = run_default()
-    assert report['status'] == 'UNAVAILABLE'
+    assert report['status'] == 'NOT_STAGED'
     assert report['no_2026_bars_read'] is True
     assert 'No Jaccard or rho was computed' in report['reason']
+    assert report['candidate_module'] == 'research/cipher_forward/strategy.py'
     assert list(report['comparators']) == [key for key, _label in COMPARATORS]
     for row in report['comparators'].values():
         assert row['verdict'] == 'UNAVAILABLE'

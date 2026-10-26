@@ -108,6 +108,9 @@ def assert_lock_terms(protocol: dict) -> None:
         raise ValueError('evidence window is one look and N is not extended')
     if window.get('extension_allowed') is not False or window.get('bear_spell_required') is not True:
         raise ValueError('evidence window cannot be extended and requires a BEAR spell')
+    from research.cipher_forward.regime import REGIME_RULE
+    if protocol.get('regime_rule') != REGIME_RULE or window.get('bear_spell_classifier') != REGIME_RULE:
+        raise ValueError('regime rule must be Garwe\'s verbatim text')
     if window.get('second_config_alpha') != 'alpha/4':
         raise ValueError('a second config uses alpha/4')
     carve = window.get('fixed_2026_window')

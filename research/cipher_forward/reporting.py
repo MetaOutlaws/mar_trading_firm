@@ -220,6 +220,7 @@ def report(ledger,now):
     protocol = json.loads((ROOT / 'docs/cipher-forward/protocol.json').read_text())
     output['grade_cap'] = protocol['grade_cap']
     output['evidence_window'] = protocol['evidence_window']
+    output['regime_rule'] = protocol['regime_rule']
     output['clone_screen_rule'] = protocol['clone_screen']['statement']
     return output
 
@@ -323,6 +324,7 @@ def render(value):
 <p id="binding-statistic">'''+html.escape(value['binding_statistic']['definition'])+''' Grade cap B. '''+html.escape(roles['statement'])+'''</p>
 <p>Weekly P&amp;L rho on the clone screen is SEEN and is a disqualifier only. It is not supporting evidence, it is not part of the case for the edge, and it is not used for promotion.</p>
 <p>Evidence window: forward, N fixed at 30 non-empty week-clusters, one look, no extension, BEAR spell required. A second config uses alpha/4. The fixed 2026 window is off unless the operator approves the carve-out.</p>
+<p id="regime-rule">'''+html.escape(value['regime_rule'])+'''</p>
 <p>Desk binding cost is 0.31% per leg on entry and on exit. '''+html.escape(_cost_lines(roles))+'''</p>
 '''+''.join(sections)+'''
 <p>R uses original entry-to-stop price risk. Marked returns include accrued fees and funding but no hypothetical exit fee. Unknown funding and stale marks remain provisional. Opportunity totals are not simulated-portfolio returns. Simulated cash starts at 20,000 USDT inside each portfolio record.</p>

@@ -1,0 +1,2893 @@
+{
+ "agg": "open=first high=max low=min close=last volume=sum turnover=sum; UTC-aligned; no forward fill",
+ "cap_1h_open": "2025-12-31 23:00:00+00:00",
+ "cap_4h_open": "2025-12-31 20:00:00+00:00",
+ "source": "/workspace/token_pool_run_20261009_r2/audited_cache",
+ "source_files": "<SYMBOL>_1m.parquet only (audit.json not opened)",
+ "symbols": {
+  "1000BONKUSDT": {
+   "1h": {
+    "first_open": "2023-01-06 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 26175,
+    "sha256": "3506efa51b496c26068248b73f4fa2ca523d6accf0ffe1501098085fb86b474c"
+   },
+   "4h": {
+    "first_open": "2023-01-06 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 6544,
+    "sha256": "e53de61d55e213c48d5841aa62b4982264aca9ad8ade1552bdfc92d2fe0c2a62"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-01-06 09:15:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1570485,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "c3676e7beaab752cbc0e124396f9f62f244084c72d14878afdfc568798ab3b88"
+  },
+  "1000FLOKIUSDT": {
+   "1h": {
+    "first_open": "2023-02-24 11:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 24997,
+    "sha256": "767dac7f7b7a3d6e65adaf1a050c5b51ef7ae7cba07a467e557e60e3fa67a50d"
+   },
+   "4h": {
+    "first_open": "2023-02-24 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 6250,
+    "sha256": "fe99c81a920969f7943a8238659bf2beb00a7f8749dc1898aee70bed1d683fbd"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-02-24 11:03:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1499817,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "bf918bdf77bb62bd3cacc873e9e53ca2854351e721b055b3d75d4bafceb0ca6f"
+  },
+  "1000PEPEUSDT": {
+   "1h": {
+    "first_open": "2023-05-03 11:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 23365,
+    "sha256": "e02b79dfe0928f7c6eaf2eb99d7145e75a7b60410f1d0aa039b71e9f06ddb0d3"
+   },
+   "4h": {
+    "first_open": "2023-05-03 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 5842,
+    "sha256": "a6e6c13cced4520239b337137b184fa8f5972e549a1256bc78af5fb3f81d8169"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-05-03 11:12:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1401888,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "a3af7d538712ced4a35050770eac507724d6829a70262018ab86741309125d99"
+  },
+  "1000RATSUSDT": {
+   "1h": {
+    "first_open": "2023-11-22 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 18495,
+    "sha256": "c8d2c2525ecac820d58fb5730d92ea3e171c4145a97b952408be41247d875d41"
+   },
+   "4h": {
+    "first_open": "2023-11-22 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4624,
+    "sha256": "45c03458f5c18e9b42c2b0cf0ed472c1d8c90616266b7be6a9e5208171bf6af0"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-11-22 09:37:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1109663,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "0149a8638b4344bcf1a9d0fb84378095087e1c2953c802f4e135360d34127f15"
+  },
+  "AAVEUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "d9c45d92d0ce4532fa96782f704ff4b63f9ab3909893c2b8f9c35d96b351a67b"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "a7449acfbc7d6b9cce3d4ce882adb0f160e9efc01d8e1e07d930139196888f1e"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "4a42b5ceaa77a6569d3f4b060d05a72cc07a34a3929a98bbc510148be9d212dd"
+  },
+  "ADAUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "52631adb9e4b28306c9a3605664cda0004c0015675107818ec80f9cecd795cc3"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "9f08b3aa023e3d4b5ecdc20bef0fdda69af0dd8430edc77880a5718bc9e74f8f"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "dabcf85d8e4d361f8f5869134b61cd59ee8e3687704c29c84b7a115565040bdb"
+  },
+  "AERGOUSDT": {
+   "1h": {
+    "first_open": "2023-11-16 13:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 18635,
+    "sha256": "494ee3a89de352b96e7cda00140c7dfe18ee3562716d4a4ef3f845e525380015"
+   },
+   "4h": {
+    "first_open": "2023-11-16 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4659,
+    "sha256": "3473b97d674cf1b90fb512fcc32ee68d547ea888fb481e6475bbb92cdadf70ce"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-11-16 13:09:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1118091,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "24b387f32f7048b581805ba6488cf1f1dcfbeb7de3c7701861cb4de60c3c444a"
+  },
+  "AKROUSDT": {
+   "1h": {
+    "first_open": "2022-05-25 11:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-12-24 09:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 22655,
+    "sha256": "6c3faa96678728c9eb3f3ef225236b2d514a4be2cdce9cd1abe5bd57f930df8f"
+   },
+   "4h": {
+    "first_open": "2022-05-25 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-12-24 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 2,
+    "rows": 5665,
+    "sha256": "87433511c0370c8510303fecf72a3d0bd25942b783846fa3fea3c445339e5750"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-05-25 11:24:00+00:00",
+   "m1_last": "2024-12-24 09:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1359276,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "2108d495f0918fd52398ba525f15b0568df8836ba6586860acdedfda7dfb2531"
+  },
+  "APEUSDT": {
+   "1h": {
+    "first_open": "2022-03-18 03:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 33237,
+    "sha256": "0bb11df839c27033b9dad66932119ec87b6c82651baccf4f53f38d8e202773ba"
+   },
+   "4h": {
+    "first_open": "2022-03-18 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 8310,
+    "sha256": "c5411b342d234056cbde1e5c5299ab21d0c97c6e5f27458cde3a68a1134e4a7f"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-03-18 03:57:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1994163,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "8af991f1819d143ec25f090c5cc9dd76e7fbc1ee5530d5f8d167465c536899a9"
+  },
+  "APTUSDT": {
+   "1h": {
+    "first_open": "2022-10-19 02:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 28078,
+    "sha256": "c8bd7f80cde8f82bbd702f0b947f6b10cb63a354073765c345ccaa4473de820c"
+   },
+   "4h": {
+    "first_open": "2022-10-19 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 7020,
+    "sha256": "62516b21bfce389ca2e3fa4686e03492db868366420d9687dbfb669ce7db7487"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-10-19 02:48:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1684632,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "e070591b6b6a97a7799dfbbc1ac87c03e3e20fdc5f7c266fe93bd2d0ce2a229e"
+  },
+  "ARBUSDT": {
+   "1h": {
+    "first_open": "2023-03-23 14:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 24346,
+    "sha256": "8d2e6847be5142e12caa34708734b57e2fe358bd28b080e382816a3b5fbb9a92"
+   },
+   "4h": {
+    "first_open": "2023-03-23 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 6087,
+    "sha256": "8bced62ba99d784f9daed38fe9ee947ebf55c490df64d6d8723577c6757c8ae7"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-03-23 14:47:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1460713,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "5c52cbdd57dc41f6e925fdd0ad22dccb6c034c1a03550dde7303087b40ed1a51"
+  },
+  "ARPAUSDT": {
+   "1h": {
+    "first_open": "2022-04-20 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 32436,
+    "sha256": "8b4217b2f749cdfdc7750874a68c99563d7921c0b3ab7b3fb0c651d8e2bbd737"
+   },
+   "4h": {
+    "first_open": "2022-04-20 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 8109,
+    "sha256": "09af6037f8732ee8e1dd64fa7e8c47afa492075d9266861fb4f33f00386521e6"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-04-20 12:43:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1946117,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "a9d8f703359dcd4f493a397b1d6dbc4183975e579e4b796de0d4e9b0eee7be93"
+  },
+  "ATOMUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "cc74e66824ef958549304be78f8e8251c5599ce7e4265e7f22770c60d5cb5925"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "8ff954ca416ed5bc16f04d1b1c9d6cf4a571e0ba771a1f78f664e0ca05170872"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "53f20bee40595f88aac9d3effe2519d7c05a64d97e21f6ade809f84860adcaac"
+  },
+  "AUCTIONUSDT": {
+   "1h": {
+    "first_open": "2023-07-28 10:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 21302,
+    "sha256": "b36e05e4b3fba77767014232f4e7731d36567f864fbca871bfa644f5474c1952"
+   },
+   "4h": {
+    "first_open": "2023-07-28 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 5326,
+    "sha256": "358af099a05a5413bea34268188dfafc37fcfba3cbe8126046ebea7862e4de02"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-07-28 10:16:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1278104,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "311d0ce3ad074e6f1e279228f25390424fb7c57b70c73d1e89b7640abeebe9b7"
+  },
+  "AVAXUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "a1d5759ea3e044b400c813917d1f3453c96752cb8363f44e86c7fb781881ecbb"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "1bca52fd1ec14bf1a475c88423f9bf37e121f3f0158474373cdf55a262e927bf"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "69dddb17e40a7ac153370dddeef0fb93d8eb5f930bbd7f155e26668064a5876c"
+  },
+  "AXSUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "0b696151a8c69afbc0fd922b0079305c3191f3377ca3c4ff1c274a120350a2e0"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "f8175d641d6147fb56d6fb2fe8f2ed891fd52ea0cdd0e25c541f323dff0a34e5"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "60acb4514e2fbfe8322debb593ac9555e2567ec9836d0720d3504b9fc94bf7aa"
+  },
+  "BCHUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "cc24d57f8897ed53eb77fd65d2dc659be61339ece9bd88e85e011acb9385e487"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "d1ac0b81602f140b18442a053b363bde129df1851b3019fa7f63d1d5462c6f2d"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "fc93598c8ca46ef7f3822de5ec52f075075cf4ecfebb67573c53e7d095657a57"
+  },
+  "BLURUSDT": {
+   "1h": {
+    "first_open": "2023-02-15 07:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 25217,
+    "sha256": "82a43d9e6b602500615cc45db8329e6a5238fb2faf604ebe4bdcf68b770770fc"
+   },
+   "4h": {
+    "first_open": "2023-02-15 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 6305,
+    "sha256": "2b9662a52acfd9bace10c650f16126663bfb1fa3c0f20a87cf2526e543fd5f45"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-02-15 07:37:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1512983,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "5b74ac343056b6ca033bef53bfd9c3cfa8ea42f804393973d6a56d2aa3ca8e3d"
+  },
+  "BLZUSDT": {
+   "1h": {
+    "first_open": "2022-06-06 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-12-24 09:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 22369,
+    "sha256": "b19530c9ea3ff798b624a1d083b70e623c65d903d76d6b91198cedb90c257fb4"
+   },
+   "4h": {
+    "first_open": "2022-06-06 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-12-24 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 2,
+    "rows": 5593,
+    "sha256": "5c2b0f9db6a2d3ac02a6125fc16aee6476c15623ad42fbb4777c87a53a808889"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-06-06 09:40:00+00:00",
+   "m1_last": "2024-12-24 09:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1342100,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "8862095b1a62538865a000463e93acafcb7d4f77e359f929f495214d29426adc"
+  },
+  "BNBUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "456eca53b2d60e17a8b62c0f3fe9c1e347dc2a98920d0fbaa7f2b431cd345832"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "ceaf2b3319dd58053f19eb86d7b4ff5c96a80d9df9f20106f299b9753bf0c36d"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "2fcd58aa373d4ddadaae483a48aeb07476421b5e46b341ecf2e672f1f0160023"
+  },
+  "BTCUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "e3dc29e0b2b0cfb2f98723522992a8ef6fd80e0058561bc3a59fa0d0eabc4316"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "f0c3d2e71cb45c0e152064b4dbe5d9c8b9caaa7fbdbf5025568006d7076d5de2"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "413cf711ae13f2040748fbe086a39a311896b2b3fd8a2a100d49f98947e65520"
+  },
+  "CFXUSDT": {
+   "1h": {
+    "first_open": "2023-02-21 02:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 25078,
+    "sha256": "189dac01807aa33653f756909872c7dc2708a110a857ce8082b37afbf71d7a5e"
+   },
+   "4h": {
+    "first_open": "2023-02-21 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 6270,
+    "sha256": "1d6f20c115bdff905e2bcce11cfa979152da1a4b5881e72ec3ce5201641d0346"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-02-21 02:07:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1504673,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "32475209f44d960306118424b1b331c07a4e905f72e8f9bdcae24d2b0477fdfa"
+  },
+  "CHZUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "c3ca2f449f23a0accd4a7c6cc72997d6b36de0434354391ebb63852652ca2aaa"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "8441788b5d153677642c57c11374a6bbe657fd9fb68bafbcb972a9c736739d47"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "73afa11c9cb44739d499b4a2d1db235c78ff39111922161f9e5abdc8789951d0"
+  },
+  "COMPUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "69fcc1147d568faa7978c6e461003aa280c4fd8a4139e4b6180349f264572a93"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "d865cf8142536baaeab2a242eada47dd9fff625238ada4a25a6ecff712071211"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "18810c3099c739a01aee6e5a4d9f8003639f98e5ae2be182578265bee6a632f8"
+  },
+  "CRVUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "a9c087c5d5929c9b9e88c3ceccc3243758f8d0074ba282b306d529984a248eca"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "7eccd268fb01c4c86a9ef1d34b88f9096a0335152bd0542cc7af8309cb19bbff"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "2a9790d0e100d876b497f66bf7bdc083553f963eb563ab1454ca1d6325b33068"
+  },
+  "DOGEUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "d71d735393e9cbe569a155e9218f8eeb87f0565cddfa2385f50a5ebd7ee7217f"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "f081236afa29f5e8a98edd572d4bee03bb12472a5ace748515bd49390fb589ce"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "b4b8b1e6a0a53d4ac28c8929ccf81b2116c4f3b46534e65a06b7f1b3288126fc"
+  },
+  "DOTUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "88c75d96e4e119de7eb86364ca03b0c040979cd9023c5be421649a4d6fee7794"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "4354756471ad0d956f8e7070d84219929f5c4807fbb103ed1eb329f30a7bf9d1"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "ab67b50f69a3daba1e8152f1f4a69b0823c2fd7c223cc668983ba6352cb2cb57"
+  },
+  "DYDXUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "f3f1d7e1ff6bfbed827d74af9c5bf008c988b17559dbff28b9051323106ff75b"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "549b33bf8bd6daf358c3d6bb77d041b212eb4954a59145435d9503c88d527842"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "785fdfc7b0576a1ea5fe42ea983a527e4cdaa12ffb941be329e41ca2a0136106"
+  },
+  "ENAUSDT": {
+   "1h": {
+    "first_open": "2024-04-02 11:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 15325,
+    "sha256": "0522fc7d86916ad8fc4c590c6b26eb3d46db726a905140e5005fd70a8e64e252"
+   },
+   "4h": {
+    "first_open": "2024-04-02 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 3832,
+    "sha256": "5cba64bb851f193119f603823515d48d6ab333050ce6868261f0eb4ea4e2858e"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-04-02 11:42:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 919458,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "b169f1e0f3c31df2a62537bca986a8d45d14433f2e38feab809d59908ad64d68"
+  },
+  "EOSUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-05-21 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 29673,
+    "sha256": "83b0a75118a8bda3eca01feadf44873b5a9a99230a15f43b148fa856d3e64103"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-05-21 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 7419,
+    "sha256": "cfed082aef2b9ac669f1e814bb1ede8f3f2f837f4ab0d11d0ff59abe87266082"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-05-21 08:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1780380,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "19ec7c9a6394a488a4667b07b6529fb1332a9ab78bff5faee7bb3ece199522d0"
+  },
+  "ETCUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "de545d8063ac159459afcf2772bdd9032c7f672e944a16b5e4581a2478196a21"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "4b4f054fcb021040ae07151a9b3bc09a4772ec50729829b958bdd6cfde319456"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "d9c819d13a0862167991695bbf288f7fb85ce90fa7618e678bd4dc8fbc493bb2"
+  },
+  "ETHUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "7835d62be67c3be594d4725dbc1367bd71434b4f1227a987ad7a985befffc688"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "e4a2b74dda2e446e934a3ab21a7c9f7d88f3b6d9e23a51312cc9afc7ff6ac5c1"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "d9ba7760f516ca5ae8210e1bcc9ef15df85764e8b2665fe15a0d9aec6ec1c67b"
+  },
+  "FARTCOINUSDT": {
+   "1h": {
+    "first_open": "2024-12-20 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 9039,
+    "sha256": "f0fd050ea09307434c2ab77d80ccca0cceb226f4ea8e48b14f0ae820c646accb"
+   },
+   "4h": {
+    "first_open": "2024-12-20 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 2260,
+    "sha256": "57e3467e692dd4afa13cf82bc17e263131d62d44d0ecbcc151bd2751b3b50bc3"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-12-20 09:21:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 542319,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "114de6c2d2cb7e7f805095c51a0e44aaab40813d96b23a0144dd15ab0e0ba389"
+  },
+  "FETUSDT": {
+   "1h": {
+    "first_open": "2023-02-09 07:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-06-07 09:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 11619,
+    "sha256": "2c2f287fbf66cd1cdc4e91ff451de8b1f3237a1748d5667de33ab604b4a10118"
+   },
+   "4h": {
+    "first_open": "2023-02-09 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-06-07 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 2,
+    "rows": 2906,
+    "sha256": "358c445381533561743439ed4ec7b004ca58f214c3d16711347d380268daed71"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-02-09 07:55:00+00:00",
+   "m1_last": "2024-06-07 09:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 697085,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "5542c2cd4c94dd21500803b0768ec3c369b9feaed05856c1bffb26574dfdb828"
+  },
+  "FLMUSDT": {
+   "1h": {
+    "first_open": "2022-05-02 10:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-11-01 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 30695,
+    "sha256": "6d3eb02fbf4b71b5fc20082ec0ff90a74220b52fc15a30cf1eed9b371c2e8d40"
+   },
+   "4h": {
+    "first_open": "2022-05-02 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-11-01 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 2,
+    "rows": 7675,
+    "sha256": "e02b5128a82db8d2b14538558f6261f3aa545629d14389c65e16f58f767567ce"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-05-02 10:49:00+00:00",
+   "m1_last": "2025-11-01 08:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1841651,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "cf80b9add629e59698bbf024f7f2622dacef65f46bbc922138b92f37c974b345"
+  },
+  "FTMUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-01-10 09:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 26530,
+    "sha256": "fcdc996b678b15e7cc5a4dc1220d5724be2d2d41aceed430f9d4d0ad9c4d6763"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-01-10 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 6633,
+    "sha256": "314de9954b39e8494da1c480ac7d331aa003f28cc16cf0b72e4f7092e9ad2e20"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-01-10 09:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1591800,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "942d70e8572b3a82a97994a4dca146c8a78adef1ca6e86a892783a961bf2aa38"
+  },
+  "GALAUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "aed54b16cc4134c41926a356990ebc37efa66233219a9882b4b4d114466d8e22"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "5ebf4b14a243e4a3b9aed9c5d55ba0a28695b9260dd5dce77beaca8a7e1937ab"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "a1c7b2cc4afa8695f83dcb664041c6866d0a7e07f27a5b20f07cacfdc3459387"
+  },
+  "GMTUSDT": {
+   "1h": {
+    "first_open": "2022-03-19 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 33208,
+    "sha256": "973f14ac6233730ced7c19afe9ca82bca3eb8ce770137901a650172c338fb5c5"
+   },
+   "4h": {
+    "first_open": "2022-03-19 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 8302,
+    "sha256": "570d088484bbc6a5c51318701b9c6885a05a62cdfe3d4e736be8a2e7c0f32406"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-03-19 08:53:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1992427,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "b087960d1faca85d4072dc576db59bc4b05e9414b4359ceab71ef271c3a07be8"
+  },
+  "HBARUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "c1256f100c56d262f094221eac9aa8bee0a5e2009e8b68751e2660e482c16116"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "59559ff4be634b87edbeaaf89dba877b4a7c7828fccfcc2f64cdaf33daf6deff"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "bf02c9781a793a1fc507e656b45c178a845402b4ac94bc2867b5b1a5b542e22b"
+  },
+  "HYPEUSDT": {
+   "1h": {
+    "first_open": "2024-12-05 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 9396,
+    "sha256": "da4db7103ba14d43f7f0cc78ca5dac6136f78bd1296cbfd36e30f0511ac3018a"
+   },
+   "4h": {
+    "first_open": "2024-12-05 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 2349,
+    "sha256": "9fefaa2c0633f5e49ee1a41e5b04fa5b0624f637e7df6fad28b1e145025ca6a1"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-12-05 12:55:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 563705,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "4cb131eb2c0e7672eed5a5e38666a803705b595139e737b4e3ef8aee603d04ec"
+  },
+  "ICPUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "f1c7318208f9ce19df4a900a5e3ef7e99068e6bc8851b296ddb2f095a469467c"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "2ff1125352e072bb125f55f380e58aba8e6c122a3067e7a03c20fefe02608e8e"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "3edfe5349809a078612bd2cb674930e911b64d29d4120df0dfa1a3e6a46dd228"
+  },
+  "INJUSDT": {
+   "1h": {
+    "first_open": "2022-08-17 07:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 29585,
+    "sha256": "1a5a34b509c63aadb6dd5dd14f15aaa5d50382ec946999f03e3035e3a57ef2eb"
+   },
+   "4h": {
+    "first_open": "2022-08-17 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 7397,
+    "sha256": "d86f99386885e19965a5be88afefdb030e19fbb7723d3721370b3e88c10e4932"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-08-17 07:58:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1775042,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "550a66b522c826cbf7b47f793824bafc4775bdc855a2b1be7616c5f53d75596e"
+  },
+  "JASMYUSDT": {
+   "1h": {
+    "first_open": "2022-01-19 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 34623,
+    "sha256": "a72ed87259ead95825569a00ec9fa720e89d0cf766904d402004601481f0ebc6"
+   },
+   "4h": {
+    "first_open": "2022-01-19 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 8656,
+    "sha256": "71e0cc454b92a03060fb5510815e9bf7fe721ceef87154b56fe32f3e1f3ede09"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-19 09:47:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2077333,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "8d1ab4cfc80465fd4302acbe9dfbfb001d41c32b7b25c892595392db0b8f6e6c"
+  },
+  "JUPUSDT": {
+   "1h": {
+    "first_open": "2024-01-31 17:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 16807,
+    "sha256": "0c3eb16a2a9adc55d013e35905198b7f06632a676d9aed279d2b5e26b927dedd"
+   },
+   "4h": {
+    "first_open": "2024-01-31 16:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4202,
+    "sha256": "52c9e2452d7fff68733b95a2ebfe96ec28b9d4a350dbccb49bbe7688ededf0ad"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-01-31 17:04:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1008416,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "3f2411e40e6b4bc6c328880c0c4cfda195f5e2827cc0c448acb96b7ca00faaf5"
+  },
+  "KNCUSDT": {
+   "1h": {
+    "first_open": "2022-01-10 10:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 34838,
+    "sha256": "b4f982f599d93d1fb6199392c7d145180404f2358428fa8e5df6e89d454b937b"
+   },
+   "4h": {
+    "first_open": "2022-01-10 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 8710,
+    "sha256": "f9c357f6f272135a9e02f2640cc2440a6003641a22359144c1a0e511aaa78bef"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-10 10:58:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2090222,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "2a4007ee9a7a94689131eb722de74d69931388698e8e1638c330ae27440aea4b"
+  },
+  "LDOUSDT": {
+   "1h": {
+    "first_open": "2022-07-21 07:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 30233,
+    "sha256": "14951ec2989ff45b0f2aacfedb1334a84e1b4f732b5ece0420f10471e8aa95c4"
+   },
+   "4h": {
+    "first_open": "2022-07-21 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 7559,
+    "sha256": "dbbc379cd4ec563cddc2f20172a55577f7e95bc83acd5b31f658112ac661880c"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-07-21 07:20:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1813960,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "8ed7f0da0e45d4bbf7663f2ec4a0681d63efb90206a17658e885dfee1fd8b0fb"
+  },
+  "LINAUSDT": {
+   "1h": {
+    "first_open": "2022-04-20 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-03-27 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 25725,
+    "sha256": "986899c102d6744cbd8e5a7dce1a624fbc225a1a9bacc5c9c42560039f2a2313"
+   },
+   "4h": {
+    "first_open": "2022-04-20 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-03-27 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 2,
+    "rows": 6432,
+    "sha256": "a3f585092fc6bc08db3f9ad6b622992b7c7767a25489c880fd09fc1b84846993"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-04-20 12:22:00+00:00",
+   "m1_last": "2025-03-27 08:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1543478,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "5d46ab7375d8e93ed5e6f430b8c20561388efd304731093663bab2899030f3dc"
+  },
+  "LINKUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "61feab8ea1561833d4df1607234d047c5be3f5358fb902c4127bc2cda3f46c16"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "29d92b370d7aba75a4728a129126ff522d59d69c078489ff7248e979a009f839"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "bbcc083a7a1cdadbaf67d0bf2cb18f7d8bfc4c969d1e3a4cf0ec15644d4735e2"
+  },
+  "LPTUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "d25cf7af8a421e08da80f6ac156a75cbf18dd5fa7f3cb8816bc7b34484bb0f91"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "c3f8bafaa735f42faf8f521c6eed412bbf47f9495d2a4d717729ec2dbb6a6f94"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "d2b85ad2880334f9f34d847406667ecca5d3684d4af62eaa05f72ac2caa1bfd7"
+  },
+  "LTCUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "6e2448ed83f2de213d3b9950e2630c48a4aa98ad58a246c5075787ba83986e70"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "14772c2b7afe487f0242fd0c15a904cf1ed95d9024f133161c783e8bb00ba625"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "5cf8ce70066e3beb11aa55aef9bfd7a80e1417abac5dfe6ebf405df234ca57f9"
+  },
+  "LUNA2USDT": {
+   "1h": {
+    "first_open": "2022-05-31 10:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 31454,
+    "sha256": "aafb060b7afe624ef056a978062ceea09280b11d1dc9b46d593f440103de0330"
+   },
+   "4h": {
+    "first_open": "2022-05-31 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 7864,
+    "sha256": "0b9ab8e04127af7ebca5819b57fe050e5c248ce8a5e2a245f8a084bc3b994f89"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-05-31 10:47:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1887193,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "15b8e407207985e4468d384c63faefe0e1af4667a8c0884eebb06a6745fc5930"
+  },
+  "LUNAUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2022-05-12 10:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 3155,
+    "sha256": "c69f77aa011f1db8ed92f5818fe7d90d84b620d103cd5223023ca4241b9f1ae5"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2022-05-12 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 789,
+    "sha256": "8c50a1e95de2382c22a6d3f68510ac8ef0c124fa0c2ce54490ed33911a5ea518"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2022-05-12 10:02:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 189243,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "14d8fb5ef70a02f699b98c7a5f6d7efa70e5c3deb85b704d103eec5226eb744d"
+  },
+  "MASKUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "98e48619d4765f6956f4b529c7c7dc5066bf3036e1247336b523a1602df8c490"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "9a1e3c56c9241422ff1d9a7b56afc4883544c1ac20627d204a55c2c3bf253905"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "d0609b24dfa32091f8faa1d92b06a0a16e4274573d13eea1acbae8c1b6939aa8"
+  },
+  "MATICUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-09-06 09:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 23506,
+    "sha256": "e3ad908bc43c1f39b768cad078cecae5a4dbf7a86944326473bc5399bdc2d0c4"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-09-06 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 5877,
+    "sha256": "85575e48e7d9736e2d0d42d8e08a4ccf47ac310b123209ce1dd16286ea76dca5"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2024-09-06 09:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1410360,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "9a63dbc3d4c8ecb5535f3ae8ab829bfe1d26234c284dd8da011623985ae57647"
+  },
+  "MNTUSDT": {
+   "1h": {
+    "first_open": "2023-10-02 06:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 19722,
+    "sha256": "bb7f80d09ecda98932bf4bdaf357a15ef1b3f7515597c4e5f9697c5de4701e6f"
+   },
+   "4h": {
+    "first_open": "2023-10-02 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4931,
+    "sha256": "5734788193363adf4a1059acd394f607c6708354f24d75369f463bed84c89b28"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-10-02 06:35:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1183285,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "9c877a261925c7c64463b67651e045460018ed79a9dfb9ddc2b9c7cfb7b16347"
+  },
+  "MOODENGUSDT": {
+   "1h": {
+    "first_open": "2024-10-01 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 10960,
+    "sha256": "5fd22263e1ceb185325684412fad1c69b180c465c9b76209efc25a32f1aca265"
+   },
+   "4h": {
+    "first_open": "2024-10-01 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 2740,
+    "sha256": "be6eba5bac13f238e31235940bafdce390937d16600c14d7adb2601d137f066e"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-10-01 08:28:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 657572,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "0248976cbb390c67e03a5f691118617ff0def7d24c8758b8c14cd351b680b0b0"
+  },
+  "NEARUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "b2dae463608a9ade415fbba99a73420f75edb596b7c040970105d6b7b3e793a7"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "40e32f8f0fbbf9268bd42117290e7566e14752cb21e3e261bd9d704241a7eec3"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "3066279394f1b94e0031e9c0bbcf78a62ffd0c676eec5af92ba4ee294f5dc64f"
+  },
+  "NOTUSDT": {
+   "1h": {
+    "first_open": "2024-05-16 16:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 14264,
+    "sha256": "fc112f71f866526a32747294b4666710af3b4f4f0c30654cbf682d7bce443981"
+   },
+   "4h": {
+    "first_open": "2024-05-16 16:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 3566,
+    "sha256": "62c0b776d27a889f91b883d396da73ac2579147d25d6238c8122e6fd07b29a5b"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-05-16 16:05:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 855835,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "b858f1bbda879e5f71816ca565a1c244d004abcf3c7b05034b82d68d377914fc"
+  },
+  "ONDOUSDT": {
+   "1h": {
+    "first_open": "2024-01-23 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 17007,
+    "sha256": "8db376fe000ef981866abe251e383937fd26badc3191dd51a288cd638ff5a89d"
+   },
+   "4h": {
+    "first_open": "2024-01-23 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4252,
+    "sha256": "e63fa9b55ab3be6d4e503aebce6326c25f8652a6e7e089940f05cc7178c506bd"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-01-23 09:59:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1020361,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "0d66a44fc4dddcb669829e9d0a4ec6847fa90d3b8aefb830ba5db953388ac42a"
+  },
+  "OPUSDT": {
+   "1h": {
+    "first_open": "2022-06-01 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 31431,
+    "sha256": "fc7c209d23f767d5b699b4283f951a5de99907d1f5ce3e62c7e5e934f55e09d4"
+   },
+   "4h": {
+    "first_open": "2022-06-01 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 7858,
+    "sha256": "d0d8cdd67944d2ff90becf513440bc12c8c08dd48dcf7a7e12d68ca37c0c0186"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-06-01 09:02:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1885858,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "7a5b05b9c24e3fc591e74ea46337eac6b56ee81edfc448a338bbe55dc6613249"
+  },
+  "ORDIUSDT": {
+   "1h": {
+    "first_open": "2023-05-22 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 22912,
+    "sha256": "3f3d9f7bbf5176b614f16138b9714307c2f7e882325183f8c4a1591d84c9d3b3"
+   },
+   "4h": {
+    "first_open": "2023-05-22 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 5728,
+    "sha256": "c4ee21e8ee2568e8f048208eddc726f7f95760f1359ed1632bc1ff0e450c9b1c"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-05-22 08:08:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1374712,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "2ccf64f83fd907fe1ce7f72fc4c7e0ca79695566d1404fc97136a76dcf3e2711"
+  },
+  "PENGUUSDT": {
+   "1h": {
+    "first_open": "2024-12-17 14:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 9106,
+    "sha256": "15e799a0b578cf59c458553676cbb52faab1f2bf9410dd5bbe272d986e1f610b"
+   },
+   "4h": {
+    "first_open": "2024-12-17 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 2277,
+    "sha256": "b4feee8bc3c7f1266d062575120fe720415bf086eb6513142683b32bb473bc2b"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-12-17 14:38:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 546322,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "086ea39dd27a8fa2caa6e302080f0c5ec1157de508549eec9b89ef0a2a26ab13"
+  },
+  "PEOPLEUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "c646299dfa8615253e97f6c7fdd368528f6e6a8c9aacd4e6ae86bc8c4d8480df"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "1fd680ee436ec6f7ccbddba122d6fd30aac56192ca68dd2a808478249e7ed8c3"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "3e820f64735ecc1b610928a42d2bbff8525f8c8c8885fdd404aeaf21d6f400f3"
+  },
+  "POPCATUSDT": {
+   "1h": {
+    "first_open": "2024-03-28 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 15447,
+    "sha256": "94f3b1df601aad8106179004a4af219bdf37830cbdfd51b2b68812ac32c4efd2"
+   },
+   "4h": {
+    "first_open": "2024-03-28 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 3862,
+    "sha256": "9c883826b6b03cbfb4904ab68380cd4498a6c4c44bfb99703ce2edde7d7f60ed"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-03-28 09:22:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 926798,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "f8d3dcfeebc2e40fe3ec99baa756a77b475af9df744026e15bfad21ed1aa8061"
+  },
+  "PUMPFUNUSDT": {
+   "1h": {
+    "first_open": "2025-07-10 05:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4195,
+    "sha256": "ada1cfc9714e3d6aa2c9c7383436afad316495b4d7a532911b78bcdd7eeff427"
+   },
+   "4h": {
+    "first_open": "2025-07-10 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 1049,
+    "sha256": "08f707a46ae756e5b983b5bb55edf4d7fa48e7f8f58e7cb9ec86cb8b341569c8"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2025-07-10 05:55:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 251645,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "11faacdb5b67929cc0ac6a6b027ec5d2c2e94a50a66ad0ca3e13809bcd83c106"
+  },
+  "RAREUSDT": {
+   "1h": {
+    "first_open": "2023-11-27 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 18375,
+    "sha256": "638f2359154a27106a5e36223afc6e681f1159852165b92f896880103ff72165"
+   },
+   "4h": {
+    "first_open": "2023-11-27 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4594,
+    "sha256": "53b6285d58d86c1c023a2ef13c3aaccc9ca3efb88fd34bd2242c79329f32fb08"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-11-27 09:47:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1102453,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "b9b4267f5220d6e21908c7de297b2c7dcde39fef0882f832319fba7aa914f2bb"
+  },
+  "REEFUSDT": {
+   "1h": {
+    "first_open": "2022-02-15 10:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-01-22 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 25727,
+    "sha256": "d29f0df638347400b068afb3189d9b4e3f44ec30b386c6cf78961deff96fccad"
+   },
+   "4h": {
+    "first_open": "2022-02-15 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-01-22 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 2,
+    "rows": 6433,
+    "sha256": "7bf4acfcb8e642c400fd0a0a20eb75226771cf20dab02fa26d920134561e5c04"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-02-15 10:15:00+00:00",
+   "m1_last": "2025-01-22 08:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1543605,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "7a605df98c125a8f3aa9e4aac16b39af2f769263e17b6cc10ba911fe73954980"
+  },
+  "RNDRUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-07-22 09:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 22402,
+    "sha256": "6c0ea47bd1f6d317784fa084f1d641b1362c9ab1d35350324fdae14370f35d23"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-07-22 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 5601,
+    "sha256": "236be96ec28c49b1cc3e906d06825b2ba8dcdfb8f76058562408db121bf6054d"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2024-07-22 09:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1344120,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "2d1fc42e46fcc2ef0d71746727faa05a2cca20ccdc28c03a9f9d85988ae503b0"
+  },
+  "RUNEUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "39ceef005cf381080596f12ac20ce65586217909af9615b11644a9a68f559926"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "286ca4aeac61c7ae1fd5781f9afdd62402d59c3d0fdb9ba1057d6bbd3405f0ab"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "99f08d1c72d90e990768396cc9f618437ee009350ba897b698909152f313eadb"
+  },
+  "SANDUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "4acf7bc7441baba037bf8ed339d07a5edc0b9169204b08cd17742f1558a5be07"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "c982f268a64969d3843e1841107d9e70ff051648f270f486cea93ef698c401f3"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "886c3e68245e1753def1811d6cda9b1364879216bafdc854b48e2e571a9a0a3b"
+  },
+  "SEIUSDT": {
+   "1h": {
+    "first_open": "2023-08-16 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 20852,
+    "sha256": "b0fa52bfcd8925e8afd7a0c03a658e80ce08f166ec675473d1a698df2fd8afe1"
+   },
+   "4h": {
+    "first_open": "2023-08-16 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 5213,
+    "sha256": "0a3a817c7e99752220f27f2b2e0c2354c59861319cf5f281ee58513076cb4878"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-08-16 04:59:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1251061,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "e7ef7a2040eca2696f57db4dac42c63d53c3319fa9e4e68bd82dd7beb65f61bb"
+  },
+  "SHIB1000USDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "129177da428da6e10a40d47ca4a84925a891609a97e24b353ff5b40a58e0850f"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "a6540e42e5575b2ab18d1f8be0e2c2f8c63ee71d2cf61a48b383f166622d3ca4"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "2dbfca592ef2a948464818d55ece11836993d0e71569d2c5957dccea9f95539b"
+  },
+  "SOLUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "7aa259e0d69f6ffd846994bb62a3fb7bb359bc742c098d020ca76dbcf2daf9a3"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "e150d1ab186c6d7619bd37e60b1da530e00ef86c45ce8080639120c44361e97e"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "4e1082055d969809deaea0dd9df87a352cbb000c6149536af5b9eab5ec2f4c8e"
+  },
+  "SPXUSDT": {
+   "1h": {
+    "first_open": "2024-10-29 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 10288,
+    "sha256": "2777ade13c736ea42ac41208dcb193b75069b847afd69c13e9270dd913335052"
+   },
+   "4h": {
+    "first_open": "2024-10-29 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 2572,
+    "sha256": "e03206a02ebcafe164a8651842b2fef628d6d969ae1070901e5cd0a3bc6256ef"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-10-29 08:57:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 617223,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "ec7dab572650f1706b729ba92718b413361056e32097548e134f792b830843c6"
+  },
+  "STRKUSDT": {
+   "1h": {
+    "first_open": "2024-02-20 14:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 16330,
+    "sha256": "6dbf34dcf4e52a894cf3d4dfc641c05d32a7499292e1ccf70025ce6e8305b348"
+   },
+   "4h": {
+    "first_open": "2024-02-20 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4083,
+    "sha256": "a95b61cc402f1fc343b369cbbc7f80a0c3dfa602cea71557facacfa8dac41b45"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-02-20 14:40:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 979760,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "c27d91e3bed6ec2210e461aad27731cb4a225f2f4b625911326ba6775ab5f4e6"
+  },
+  "STXUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "d9318477e12573ca475d7f00023ab0e6023ce29c50e5706135dd5b1957d6ff33"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "2c5e5e86c57307b5b9faf2d0abedf53dc41d4e908ce72c1b50a28a35f726c8df"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "55ede034a698d272b0b94c19cdc5d8faa820467d9312b70d84b30536166faa7d"
+  },
+  "SUIUSDT": {
+   "1h": {
+    "first_open": "2023-05-03 13:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 23363,
+    "sha256": "30bfc77657131105547f50df0680ed129f351f86a25d4692b2a4c5cd300c9598"
+   },
+   "4h": {
+    "first_open": "2023-05-03 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 5841,
+    "sha256": "cf6e0108b7fd203bcea26c93a76eb09f22c0972fcfcb7ca4625fa12c8243cf07"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-05-03 13:36:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1401744,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "6ad71c256af106db2c76c0f8bed1cef4ad80855dbaa7ff2dafa651bd4d801a3a"
+  },
+  "SUSHIUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "1c6db2896949c8f39b535e1e544656781c9504e37204a2dedb83f6d51d7ca52d"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "fe246e49a79495154255e3120a138a57121240839368ccf8ce9ea975c2076c73"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "dfaa6bf7070342b53d4799a134a4fe770b41e97b6f1251dd803cd9f1ea2eb5a3"
+  },
+  "SXPUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "35b2974792d8ec8a74aaeaa5826c87b5155df7c03659938ffb0c110a6978a4e5"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "3a8f27b8b16dd0e402aac6d1b7977497fee5bddb7234901a14b769d4b7dbe588"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "76f1f454ec74dd9b9fe1a5a29a1c7178825ab746456c82a5a1b2eb5e5c97349f"
+  },
+  "TIAUSDT": {
+   "1h": {
+    "first_open": "2023-10-31 17:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 19015,
+    "sha256": "9f48e4a66fb2bcb4082fedc22b656ea7c4d522893e2f84bd32086adbf9a7bd64"
+   },
+   "4h": {
+    "first_open": "2023-10-31 16:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4754,
+    "sha256": "1ae8ddc5cc27b1d5d49ff00148cc17ef78f0f7d5e6a371aa2107bfdf4cdc2ea7"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-10-31 17:28:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1140872,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "885462ab1399eb60d95d5c840d0777a78c49e13fcad85ad992f4b02360cd71d0"
+  },
+  "TOMOUSDT": {
+   "1h": {
+    "first_open": "2022-04-28 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2023-11-14 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 13560,
+    "sha256": "2823394299a54a09bc803404db93cad4701d2a980c2ce75d61a98544056022a5"
+   },
+   "4h": {
+    "first_open": "2022-04-28 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2023-11-14 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 2,
+    "rows": 3391,
+    "sha256": "c650e4f70b5a7cfa4a21582b3ad74e8f2f1b6d3e65804e9d0c27ad6529ba2542"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-04-28 09:52:00+00:00",
+   "m1_last": "2023-11-14 08:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 813548,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "b6cc548c847d49fbfc9b0f585c07d218271192033586ec35bc57b21c2e7739a6"
+  },
+  "TONUSDT": {
+   "1h": {
+    "first_open": "2023-08-31 07:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 20489,
+    "sha256": "611964a2df3487372a86b756f383741dcf04e39fd561fae3888eebe2f2fe3bb9"
+   },
+   "4h": {
+    "first_open": "2023-08-31 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 5123,
+    "sha256": "c1d5122f250616b0a98a8846bc483e0846df7e3b71bbf871e829d99f91d8b10b"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-08-31 07:34:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1229306,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "1e02dd6ad0786ae4e86a897d69da43913a2a071693001489d03e4533ec308768"
+  },
+  "TRBUSDT": {
+   "1h": {
+    "first_open": "2022-06-10 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 31215,
+    "sha256": "dd497b302310f2fa4806fd3b962cc9bf80df7ef67321c78e97b5aa1bd845b153"
+   },
+   "4h": {
+    "first_open": "2022-06-10 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 7804,
+    "sha256": "666f957535df6d873be1f4f06df5ec67c9362b896829baa8d8a0a636a94417f8"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-06-10 09:20:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1872880,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "eda486d5fcdae6587add0080cc826f0e6b264eb57f974f884c6463d65919c82d"
+  },
+  "TRUMPUSDT": {
+   "1h": {
+    "first_open": "2025-01-18 10:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 8342,
+    "sha256": "7f63496c606693058887624123a3b7787e67becc9ea068ee226799daa018fc26"
+   },
+   "4h": {
+    "first_open": "2025-01-18 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 2086,
+    "sha256": "04dab6e01b1dce12637f6e27e7aa1a92e5e0171e41ad0a0cd769de7c7610c185"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2025-01-18 10:30:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 500490,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "fe1fcca09615650b693bf796580c81f939e2b5cea82cea57ef3c4ffb5c769b05"
+  },
+  "TRXUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "84fdb60276641c6f4329f9d55e75043c7e426decaf21236ef392edd80db0d556"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "14e8bffb872b5ab25c101ee9262043fa8e0a044320790cc9c19e6897e64e66d6"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "8ccf0245f2a2445b09690c0a32db8992b57a7ec5357a30c311f5ae729fa4d8a3"
+  },
+  "UNFIUSDT": {
+   "1h": {
+    "first_open": "2022-05-30 10:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-11-04 09:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 21336,
+    "sha256": "fbebad814d1a6ba8e9ed4754e366e1b466a127a7cda04956e54a0d9ab62ab5c1"
+   },
+   "4h": {
+    "first_open": "2022-05-30 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2024-11-04 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 2,
+    "rows": 5335,
+    "sha256": "06ea7adf0f63bab0bb41f75cb3ade433efd146c0bf879c3c74ea5940e6c569ff"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-05-30 10:24:00+00:00",
+   "m1_last": "2024-11-04 09:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1280136,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "85d65530eb6420268306cb1a4ad0dd9ce8f9389a3b2573e58accc2a6bcf445c0"
+  },
+  "UXLINKUSDT": {
+   "1h": {
+    "first_open": "2024-07-19 10:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-09-26 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 10415,
+    "sha256": "49634c30619452b197fbb3be3b82e6bb6f23870e286b40a33b78ff1c6736521f"
+   },
+   "4h": {
+    "first_open": "2024-07-19 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-09-26 08:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 2,
+    "rows": 2605,
+    "sha256": "724a56cd18be274e6e97f6a4ee99b001d39c1f1eace33a24d9575f4f76c1d659"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-07-19 10:17:00+00:00",
+   "m1_last": "2025-09-26 08:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 624883,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "9a41a6f5a5379824ee740ba92493c6b3d1d76d4c5b9170a4e6c43cc4f396f0c5"
+  },
+  "VIRTUALUSDT": {
+   "1h": {
+    "first_open": "2024-11-01 09:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 10215,
+    "sha256": "0afc4617e814403c79d36df1fd05af3ac4a131eff033a0ec20f9da12f52f708c"
+   },
+   "4h": {
+    "first_open": "2024-11-01 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 2554,
+    "sha256": "2169ee8a84e7159170334117ddfa3ac0ad4559c09094086513045baa4467f841"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-11-01 09:39:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 612861,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "e347c6c47b05469fe10b161a13664cabdd73cc9d4b95719188ffe8777cd527e7"
+  },
+  "WAVESUSDT": {
+   "1h": {
+    "first_open": "2022-01-05 11:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 34957,
+    "sha256": "26a37a3666b3c567798afad98dd1c724b2f352480f39f73024af56611afebd5f"
+   },
+   "4h": {
+    "first_open": "2022-01-05 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 8740,
+    "sha256": "6b22b79b2838ab2a6b4feea9b391cc0998aa5b71faab1fab82c9939713a48f96"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-05 11:10:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2097410,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "36abe5beb4be74380407c02b710e8d71f6a56bd2f8663a58c6e28a1a8276c2dc"
+  },
+  "WIFUSDT": {
+   "1h": {
+    "first_open": "2024-01-11 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 17292,
+    "sha256": "9766eae92da711be4622594fb9d111852a1bc160798523a5c32a62050b362f49"
+   },
+   "4h": {
+    "first_open": "2024-01-11 12:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 4323,
+    "sha256": "826a0e1fb7e93fb08fc11b8b7d69358cdda877920d1715795b526b64dec3773c"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2024-01-11 12:31:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1037489,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "f25d6ca3486bae4acf20dd4e59395ebd53c1d197d5872b8c9f33a9fc22102550"
+  },
+  "WLDUSDT": {
+   "1h": {
+    "first_open": "2023-07-24 11:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 21397,
+    "sha256": "f2b122ff2baa9029981cc0a5a695345ac69eabdf996eadfb021a0bf66aba3b15"
+   },
+   "4h": {
+    "first_open": "2023-07-24 08:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 5350,
+    "sha256": "74cbc7cfa7690971564af9740e859d33f81ae37220c5a299ff21de4bc9922c23"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2023-07-24 11:02:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 1283818,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "095bf0194cb31aad86cc2d97c917917229a52c777a3fb863e3b1fc54a427a87b"
+  },
+  "XLMUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "3691c03a95cc6736cb048ff1fe399e5becaac9b055f8b535f886f980ec916204"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "e66b17b3209e08024c5dbc3c9b1bd3977ca8ed2c6ddc16460c99fa451a7d712c"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "034537eaa63b14636e4782be7177f11c4e2ab62b16bd351b7ee8416698de3ac7"
+  },
+  "XRPUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "db3d7a6817e47b18d46b16726d8e53f9405f3d709363f68ecab84d6d2442abc1"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "30cb2ef472cf9d608f8e4b777c67089881202a1e411fe9f5cfbad215487007ff"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "19af1415e5196c7e864ef19b97656d5e5de58282085ed8bba0db0e5d45263e97"
+  },
+  "YGGUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "2f37c124e7bcd9cfbfafef814add2756474bac06588f452be87cb635f92b0c57"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "ae9a446567ca950714970daa73ff460660e0ec84eb5ad423c28fc28e778c2cf1"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "8acb4e33d3765c970b3d6476f43860ddab07b5fb30397c79acc14781b82f3074"
+  },
+  "ZECUSDT": {
+   "1h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 35064,
+    "sha256": "dd9ec84636a24024c0717b161ab2fa101cc5963658bccc3b9b2bf7e8bdaa80a8"
+   },
+   "4h": {
+    "first_open": "2022-01-01 00:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 0,
+    "rows": 8766,
+    "sha256": "e4240e8956dce31a8cd5785fb89dc6aebc13d10609e7d13c235c110907e8bcec"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-01 00:00:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2103840,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "e42ac7e34ccb5c539d40fff108d237e4ae691537ef9c724640f39fceb3cbbe1c"
+  },
+  "ZILUSDT": {
+   "1h": {
+    "first_open": "2022-01-30 05:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 23:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 34363,
+    "sha256": "877fc4b5f5dc4e70f7d1cec45b1d270dfd110938011ebdb0bada53fd146b9f8d"
+   },
+   "4h": {
+    "first_open": "2022-01-30 04:00:00+00:00",
+    "gap_count": 0,
+    "gaps_sample": [],
+    "last_open": "2025-12-31 20:00:00+00:00",
+    "missing_bars": 0,
+    "partial_bars": 1,
+    "rows": 8591,
+    "sha256": "da4f2ec907c686f6a9d16a7b8536b10a7e6e84c975b3617e02406525422c348e"
+   },
+   "m1_dup_dropped": 0,
+   "m1_first": "2022-01-30 05:12:00+00:00",
+   "m1_last": "2025-12-31 23:59:00+00:00",
+   "m1_missing_minutes_inside_span": 0,
+   "m1_missing_sample": [],
+   "m1_rows": 2061768,
+   "m1_rows_with_nan_price": 0,
+   "src_sha256": "10b4165081b7f3b577d6eee2215d438e468f2a00eb39bb1abe3b713272d2644c"
+  }
+ },
+ "window_1m": [
+  "2022-01-01 00:00:00+00:00",
+  "2025-12-31 23:59:00+00:00"
+ ]
+}

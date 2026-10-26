@@ -64,6 +64,9 @@ logs/archive/
 # Reports are reproducible from code + BigQuery; keep the repo lean.
 research/artifacts/
 *.parquet
+# Pre-2026 Bybit tape for the cipher-forward screens. The manifest is
+# committed under docs/cipher-forward/. The bars are not.
+data/cipher_forward_tape/
 
 # ---- Node / Next.js dashboard ----
 node_modules/

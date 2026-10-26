@@ -1,25 +1,25 @@
 """Clone / do-not-replicate screen for the 3R short.
 
-Entry-timestamp Jaccard uses feature rows only: the set of (symbol, entry_ms)
-pairs. Weekly P&L Spearman rho uses 2022-01-01..2025-12-31 outcomes and is
-labelled SEEN. Rho is a disqualifier only. A value above 0.50 is FAIL. Rho is
-not supporting evidence, not part of the case for the edge, and not an input
-to promotion.
+Entry-timestamp Jaccard is the Jaccard of (symbol, entry_ms) on the firm's
+own pre-2026 Bybit tape. Weekly P&L Spearman rho is labelled SEEN. Rho is a
+disqualifier only. A value above 0.50 is FAIL. Rho is not supporting
+evidence, not part of the case for the edge, and not an input to promotion.
 
-Any bar timestamp on or after 2026-01-01 UTC is refused. The screen does not
-fetch market data.
+The shared loader raises on any bar after 2025-12-31 23:00:00 UTC. The
+screen does not read /PRIVATE and it does not fetch.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import math
 from pathlib import Path
 
-# Inclusive start. The first refused instant is 2026-01-01 00:00:00 UTC.
-WINDOW_START = datetime(2022, 1, 1, tzinfo=timezone.utc)
-REFUSAL_AT = datetime(2026, 1, 1, tzinfo=timezone.utc)
-WINDOW_START_MS = int(WINDOW_START.timestamp() * 1000)
-REFUSAL_MS = int(REFUSAL_AT.timestamp() * 1000)
+from .tape import (
+    YEAR_2026_MS, BarsOnOrAfter2026, TapeNotStaged, assert_bar_timestamp,
+    iso_week, load_tape, tape_dir,
+)
+
+# 2026-01-01 UTC. Anything after the hard cap raises, including this instant.
+REFUSAL_MS = YEAR_2026_MS
 
 JACCARD_FAIL_ABOVE = 0.50
 RHO_FAIL_ABOVE = 0.50
@@ -35,27 +35,14 @@ COMPARATORS = (
     ('BL8', 'BL8'),
 )
 
-# Private archives named by the cipher README. They are not in this checkout.
-DEFAULT_ARCHIVE_ROOTS = (
-    Path('/PRIVATE/mar_cipher_test_20261022'),
-    Path('/PRIVATE/mar_3r_allocation_20261023'),
-)
-
 _TIME_KEYS = ('t', 'ts', 'time_ms', 'open_ms', 'close_ms', 'entry_ms', 'exit_ms')
 
 
-class BarsOnOrAfter2026(ValueError):
-    """A bar, entry, or outcome is on or after 2026-01-01 UTC."""
-
-
 def assert_no_2026_bars(bars) -> None:
-    """Refuse every bar whose timestamp is on or after 2026-01-01 UTC."""
+    """Refuse every timestamp after 2025-12-31 23:00:00 UTC, including 2026."""
     for bar in bars or ():
-        stamps = _timestamps(bar)
-        for stamp in stamps:
-            if stamp >= REFUSAL_MS:
-                raise BarsOnOrAfter2026(
-                    f'bar timestamp {stamp} is on or after 2026-01-01 UTC')
+        for stamp in _timestamps(bar):
+            assert_bar_timestamp(int(stamp))
 
 
 def _timestamps(row) -> list[int]:
@@ -72,11 +59,9 @@ def _timestamps(row) -> list[int]:
 
 
 def _require_window(stamp: int, kind: str) -> None:
-    """Keep rows inside 2022-01-01 inclusive through 2025-12-31 inclusive."""
-    if stamp >= REFUSAL_MS:
-        raise BarsOnOrAfter2026(f'{kind} timestamp {stamp} is on or after 2026-01-01 UTC')
-    if stamp < WINDOW_START_MS:
-        raise ValueError(f'{kind} timestamp {stamp} is before 2022-01-01 UTC')
+    """Keep rows inside the shared hard window. A late stamp raises."""
+    del kind
+    assert_bar_timestamp(int(stamp))
 
 
 def _entry_identity(row: dict) -> tuple:
@@ -98,12 +83,6 @@ def entry_timestamp_jaccard(left, right) -> float | None:
     return len(a & b) / len(union)
 
 
-def _iso_week(ms: int) -> str:
-    moment = datetime.fromtimestamp(ms / 1000, timezone.utc)
-    year, week, _day = moment.isocalendar()
-    return f'{year:04d}-W{week:02d}'
-
-
 def _weekly_pnl(trades) -> dict[str, float]:
     """Sum net_pnl by the ISO week of exit_ms. Open rows are not outcomes."""
     totals: dict[str, float] = {}
@@ -112,7 +91,7 @@ def _weekly_pnl(trades) -> dict[str, float]:
             raise ValueError('outcome row needs exit_ms and net_pnl')
         stamp = int(row['exit_ms'])
         _require_window(stamp, 'outcome')
-        week = _iso_week(stamp)
+        week = iso_week(stamp)
         totals[week] = totals.get(week, 0.0) + float(row['net_pnl'])
     return totals
 
@@ -189,7 +168,7 @@ def score_comparator(candidate_entries, comparator_entries, candidate_trades, co
     return dict(
         jaccard=jaccard,
         jaccard_verdict=jaccard_verdict,
-        jaccard_definition='Jaccard of (symbol, entry_ms) sets on 2022-01-01..2025-12-31',
+        jaccard_definition='Jaccard of (symbol, entry_ms) sets on 2022-01-01 00:00 UTC through 2025-12-31 23:00 UTC',
         jaccard_fail_above=JACCARD_FAIL_ABOVE,
         rho=rho,
         rho_verdict=rho_verdict,
@@ -242,8 +221,8 @@ def score_archive(root: Path) -> dict:
         scored['label'] = label
         rows[key] = scored
     return dict(
-        window='2022-01-01..2025-12-31',
-        refusal='bars on or after 2026-01-01 UTC',
+        window='2022-01-01T00:00:00Z..2025-12-31T23:00:00Z',
+        refusal='any bar timestamp after 2025-12-31 23:00:00 UTC',
         rho_label=RHO_LABEL,
         rho_role=RHO_ROLE,
         rho_statement=(
@@ -269,8 +248,8 @@ def unavailable_report(reason: str) -> dict:
         for key, label in COMPARATORS
     }
     return dict(
-        window='2022-01-01..2025-12-31',
-        refusal='bars on or after 2026-01-01 UTC',
+        window='2022-01-01T00:00:00Z..2025-12-31T23:00:00Z',
+        refusal='any bar timestamp after 2025-12-31 23:00:00 UTC',
         rho_label=RHO_LABEL,
         rho_role=RHO_ROLE,
         rho_statement=(
@@ -285,22 +264,65 @@ def unavailable_report(reason: str) -> dict:
     )
 
 
-def default_archive_root() -> Path | None:
-    for root in DEFAULT_ARCHIVE_ROOTS:
-        if root.is_dir():
-            return root
-    return None
+def _with_modules(report: dict) -> dict:
+    """Name the repo module for each comparator even when nothing was scored."""
+    from .families import CANDIDATE_SPEC, COMPARATOR_SPECS
+    paths = {spec['key']: spec['path'] for spec in COMPARATOR_SPECS}
+    report['candidate_module'] = CANDIDATE_SPEC['path']
+    for key, row in report['comparators'].items():
+        if key in paths:
+            row['module'] = paths[key]
+    return report
+
+
+def score_prepared(prepared: dict) -> dict:
+    """Score lists already built from the family modules."""
+    rows = {}
+    for key, block in prepared['comparators'].items():
+        scored = score_comparator(
+            prepared['candidate_entries'], block['entries'],
+            prepared['candidate_trades'], block['trades'])
+        scored['label'] = block['spec']['label']
+        scored['module'] = block['spec']['path']
+        rows[key] = scored
+    return _with_modules(dict(
+        window='2022-01-01T00:00:00Z..2025-12-31T23:00:00Z',
+        refusal='any bar timestamp after 2025-12-31 23:00:00 UTC',
+        rho_label=RHO_LABEL,
+        rho_role=RHO_ROLE,
+        rho_statement=(
+            'Weekly P&L rho is SEEN, already-seen in-sample. It is a disqualifier '
+            'only: rho above 0.50 is FAIL. It is not supporting evidence, it is not '
+            'part of the case for the edge, and it is not used for promotion.'
+        ),
+        status='SCORED',
+        comparators=rows,
+        no_2026_bars_read=True,
+        ran_on_real_bars=True,
+    ))
 
 
 def run_default() -> dict:
-    """Score the private archive when it is mounted. Otherwise report UNAVAILABLE."""
-    root = default_archive_root()
-    if root is None:
-        return unavailable_report(
-            '2022-2025 feature and outcome archives are not in this checkout. '
-            'The cipher README points at /PRIVATE paths that are not mounted. '
-            'No Jaccard or rho was computed. No 2026 bars were read.')
-    report = score_archive(root)
-    report['archive'] = str(root)
-    report['status'] = 'SCORED'
+    """Score the staged tape. An unset directory is NOT_STAGED, not a pass."""
+    root = tape_dir()
+    if root is None or not root.is_dir():
+        report = unavailable_report(
+            'CIPHER_FORWARD_TAPE_DIR is not set to a parquet or CSV directory. '
+            'No Jaccard or rho was computed. Nothing was fetched. No 2026 bars were read.')
+        report['status'] = 'NOT_STAGED'
+        return _with_modules(report)
+    try:
+        tape = load_tape(root)
+    except TapeNotStaged as exc:
+        report = unavailable_report(str(exc) + ' No Jaccard or rho was computed.')
+        report['status'] = 'NOT_STAGED'
+        return _with_modules(report)
+    report = run_on_tape(tape)
+    report['tape'] = str(root)
     return report
+
+
+def run_on_tape(tape: dict) -> dict:
+    """Score W11S/C3 against the five repo families on one already-loaded tape."""
+    from .families import screen_inputs
+    return score_prepared(screen_inputs(tape))
