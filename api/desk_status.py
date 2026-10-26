@@ -8,11 +8,13 @@ next to that file (for example an Oct 1 copy) is not the book.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import subprocess
 import threading
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -61,54 +63,408 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-# Parsed telemetry keyed by path, mtime_ns, and size. An append changes
-# both mtime and size, so the next read parses again. The rows are
-# treated as read-only; the panel copies the fields it returns.
-_JSONL_CACHE: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
+# One running fold per telemetry path. The old cache stored every parsed
+# row and kept a new copy each time the file grew (mtime, size). On SGP1
+# that file is ~216 MB, a parsed copy is several hundred MB, and a scan
+# appends about every 15 minutes, so RSS climbed ~50 MB/min until the
+# host OOM-killed the API. The fold keeps the aggregates the panel
+# actually returns and reads only the bytes appended since the last poll.
+_JSONL_CACHE: dict[str, "_TelemetryFold"] = {}
 _JSONL_LOCK = threading.Lock()
+_MAX_TELEMETRY_FOLDS = 4
+# Rolling day is 24h. Two extra hours cover a desk clock slightly ahead
+# of the newest stamp without a second pass over the file.
+_REJECTION_RETAIN = timedelta(hours=26)
+_READ_CHUNK = 1024 * 1024
+# A torn last line is held until the writer finishes it. Past this size
+# it is not a telemetry row, so drop it instead of growing without bound.
+_MAX_PARTIAL_LINE = 1024 * 1024
 
 
 def clear_jsonl_cache() -> None:
-    """Drop parsed telemetry. Tests use this so a rewritten file is not required."""
+    """Drop folded telemetry. Tests use this so a rewritten file starts clean."""
     with _JSONL_LOCK:
         _JSONL_CACHE.clear()
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    """Telemetry is append-only. A bad line is skipped, not a failed panel.
+def telemetry_cache_stats() -> dict[str, int]:
+    """How many files are folded, and how many row objects those folds still hold.
 
-    The same mtime and size returns the parsed rows. ``/api/f111`` and the
-    F111 observer both walk this file, and the full parse was stacking on
-    the dashboard thread pool.
+    ``parsed_rows`` counts every object seen since the fold was reset.
+    ``retained_rows`` is the census slice, the open hour, the blotter, and
+    the rolling-day reasons. A poll must not make ``retained_rows`` track
+    ``parsed_rows``.
     """
-    if not path.exists():
-        return []
-    try:
-        st = path.stat()
-    except OSError:
-        return []
-    token = (str(path), int(st.st_mtime_ns), int(st.st_size))
     with _JSONL_LOCK:
-        cached = _JSONL_CACHE.get(token)
-        if cached is not None:
-            return cached
-    rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line:
-            continue
+        folds = list(_JSONL_CACHE.values())
+    return {
+        "files": len(folds),
+        "retained_rows": sum(fold.retained_rows for fold in folds),
+        "parsed_rows": sum(fold.parsed_rows for fold in folds),
+    }
+
+
+class _TelemetryView:
+    """What ``/api/f111`` needs from the file. Not the file itself."""
+
+    def __init__(self) -> None:
+        self.evaluated = 0
+        self.available = 0
+        self.closed_by: dict[str, int] = {}
+        self.unavailable: list[dict[str, Any]] = []
+        self.rej_hour: datetime | None = None
+        self.events: list[tuple[datetime, str]] = []
+        self.bar_close: datetime | None = None
+        self.why_rows: list[dict[str, Any]] = []
+        self.blotter: list[dict[str, Any]] = []
+        self.realised_sum = 0.0
+        self.realised_count = 0
+
+
+class _TelemetryFold:
+    """Incremental reduce of an append-only JSONL file.
+
+    The first sync walks the file line by line and throws each object away
+    after updating the fold. A later sync seeks to the previous offset and
+    parses only the new tail. A shrink, a replaced inode, or a same-length
+    rewrite starts over.
+    """
+
+    def __init__(self) -> None:
+        self.parsed_rows = 0
+        self.inode: int | None = None
+        self.mtime_ns = 0
+        self.offset = 0
+        self.partial = b""
+        self.retain_from: datetime | None = None
+        self.horizon: datetime | None = None
+        self._reset_aggregates()
+
+    def _reset_aggregates(self) -> None:
+        self.parsed_rows = 0
+        self.cur_evaluated = 0
+        self.cur_available = 0
+        self.cur_closed: dict[str, int] = {}
+        self.cur_unavailable: list[dict[str, Any]] = []
+        self.trail_evaluated = 0
+        self.trail_available = 0
+        self.trail_closed: dict[str, int] = {}
+        self.trail_unavailable: list[dict[str, Any]] = []
+        self.rej_hour: datetime | None = None
+        self.rej_counts: dict[str, int] = {}
+        self.max_rej_stamp: datetime | None = None
+        self.events: list[tuple[datetime, str]] = []
+        self.bar_close: datetime | None = None
+        self.why_hour: datetime | None = None
+        self.why_rows: list[dict[str, Any]] = []
+        self.blotter: deque[dict[str, Any]] = deque(maxlen=30)
+        self.realised_sum = 0.0
+        self.realised_count = 0
+        self._row_time = None
+        self._is_exit = None
+        self._since_compact = 0
+
+    def _reset_reader(self) -> None:
+        """Forget the file position and the aggregates. Keep ``retain_from``."""
+        self.inode = None
+        self.mtime_ns = 0
+        self.offset = 0
+        self.partial = b""
+        self.horizon = None
+        self._reset_aggregates()
+
+    @property
+    def retained_rows(self) -> int:
+        return (
+            len(self.why_rows)
+            + len(self.cur_unavailable)
+            + len(self.trail_unavailable)
+            + len(self.blotter)
+            + len(self.events)
+        )
+
+    def view(self, path: Path, now: datetime) -> _TelemetryView:
+        if not path.exists():
+            self._reset_reader()
+            self.retain_from = None
+            return _TelemetryView()
+        self.sync(path)
+        day_start = _as_utc(now) - timedelta(hours=24)
+        # A desk clock behind the newest bar needs rows the 26h horizon
+        # already dropped. One rescan, keeping that clock's day, is enough.
+        if self.horizon is not None and day_start < self.horizon and (
+            self.retain_from is None or day_start < self.retain_from
+        ):
+            self.retain_from = day_start
+            self._reset_reader()
+            self.sync(path)
+        return self._snapshot(day_start)
+
+    def sync(self, path: Path) -> None:
         try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+            st = path.stat()
+        except OSError:
+            return
+        if self._position_is_stale(st):
+            self._reset_reader()
+        if st.st_size < self.offset:
+            self._reset_reader()
+        try:
+            with path.open("rb") as handle:
+                handle.seek(self.offset)
+                while True:
+                    chunk = handle.read(_READ_CHUNK)
+                    if not chunk:
+                        break
+                    self.offset += len(chunk)
+                    self._consume(chunk)
+                self._finish_partial()
+                end = os.fstat(handle.fileno())
+        except OSError:
+            return
+        self.inode = int(end.st_ino)
+        self.mtime_ns = int(end.st_mtime_ns)
+        if int(end.st_size) < self.offset:
+            # The file was replaced under us. The next sync starts clean.
+            self._reset_reader()
+            return
+        self._compact_events()
+
+    def _position_is_stale(self, st: os.stat_result) -> bool:
+        if self.inode is None:
+            return False
+        if int(st.st_ino) != self.inode:
+            return True
+        if int(st.st_size) < self.offset:
+            return True
+        # Same length, new mtime: a rewrite, not an append. Appends grow.
+        if int(st.st_size) == self.offset and int(st.st_mtime_ns) != self.mtime_ns:
+            return True
+        return False
+
+    def _consume(self, data: bytes) -> None:
+        blob = self.partial + data
+        parts = blob.split(b"\n")
+        self.partial = parts.pop()
+        if len(self.partial) > _MAX_PARTIAL_LINE:
+            self.partial = b""
+        for raw in parts:
+            self._ingest_line(raw)
+
+    def _finish_partial(self) -> None:
+        """A file that does not end in a newline still has a last object.
+
+        An unfinished object (the writer is mid-line) fails JSON and stays
+        in ``partial`` for the next append. A finished object is folded and
+        dropped, matching ``splitlines`` on a whole-file read.
+        """
+        if not self.partial or not self.partial.strip():
+            self.partial = b""
+            return
+        try:
+            payload = json.loads(self.partial.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return
+        self.partial = b""
         if isinstance(payload, dict):
-            rows.append(payload)
+            self._ingest(payload)
+
+    def _ingest_line(self, raw: bytes) -> None:
+        raw = raw.strip()
+        if not raw:
+            return
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return
+        if isinstance(payload, dict):
+            self._ingest(payload)
+
+    def _bind_parsers(self) -> None:
+        if self._row_time is not None:
+            return
+        from api.why_no_trade import _f111_exit
+        from core.execution.f111_paper import row_recorded_time
+
+        self._row_time = row_recorded_time
+        self._is_exit = _f111_exit
+
+    def _ingest(self, row: dict[str, Any]) -> None:
+        self._bind_parsers()
+        self.parsed_rows += 1
+        self._since_compact += 1
+        registry = row.get("record_kind") == "registry"
+        deploy = bool(row.get("deploy_marker"))
+        if registry:
+            self._note_registry(row)
+        else:
+            self._end_registry_run()
+        if registry or deploy:
+            if self._since_compact >= 4096:
+                self._compact_events()
+            return
+        stamp = self._row_time(row)
+        if _is_gate_rejection(row):
+            self._note_rejection(row, stamp)
+        self._note_bar_close(row, stamp)
+        self._note_blotter(row)
+        if (
+            not self._is_exit(row)
+            and row.get("symbol")
+            and stamp is not None
+        ):
+            self._note_why(row, stamp)
+        if self._since_compact >= 4096:
+            self._compact_events()
+
+    def _note_registry(self, row: dict[str, Any]) -> None:
+        self.cur_evaluated += 1
+        if row.get("instrument_unavailable"):
+            reason = _rejection_reason(row)
+            self.cur_closed[reason] = self.cur_closed.get(reason, 0) + 1
+            features = row.get("feature_values")
+            status = features.get("exchange_status") if isinstance(features, dict) else None
+            slim: dict[str, Any] = {
+                "symbol": row.get("symbol"),
+                "side": row.get("side"),
+                "instrument_unavailable": True,
+                "rejection_reason": row.get("rejection_reason"),
+            }
+            if status is not None:
+                slim["feature_values"] = {"exchange_status": status}
+            self.cur_unavailable.append(slim)
+            return
+        self.cur_available += 1
+
+    def _end_registry_run(self) -> None:
+        if self.cur_evaluated <= 0:
+            return
+        self.trail_evaluated = self.cur_evaluated
+        self.trail_available = self.cur_available
+        self.trail_closed = dict(self.cur_closed)
+        self.trail_unavailable = self.cur_unavailable
+        self.cur_evaluated = 0
+        self.cur_available = 0
+        self.cur_closed = {}
+        self.cur_unavailable = []
+
+    def _note_rejection(self, row: dict[str, Any], stamp: datetime | None) -> None:
+        if stamp is None:
+            return
+        hour = _hour_floor(stamp)
+        if self.rej_hour is None or hour > self.rej_hour:
+            self.rej_hour = hour
+            self.rej_counts = {}
+        if hour == self.rej_hour:
+            reason = _rejection_reason(row)
+            self.rej_counts[reason] = self.rej_counts.get(reason, 0) + 1
+        else:
+            reason = _rejection_reason(row)
+        if self.max_rej_stamp is None or stamp > self.max_rej_stamp:
+            self.max_rej_stamp = stamp
+        self.events.append((stamp, reason))
+
+    def _note_bar_close(self, row: dict[str, Any], stamp: datetime | None) -> None:
+        if stamp is None:
+            return
+        if self.bar_close is not None and stamp <= self.bar_close:
+            return
+        asof = row.get("feature_asof_times")
+        has_signal = bool(row.get("source_signal_time")) or (
+            isinstance(asof, dict) and bool(asof.get("signal_close"))
+        )
+        if has_signal or self.bar_close is None:
+            self.bar_close = stamp
+
+    def _note_blotter(self, row: dict[str, Any]) -> None:
+        realised = _number(row.get("realised_net_profit"))
+        if realised is None:
+            return
+        self.realised_sum += realised
+        self.realised_count += 1
+        reason = row.get("rejection_reason")
+        self.blotter.append(
+            {
+                "symbol": row.get("symbol"),
+                "side": row.get("side"),
+                "quantity": _number(row.get("quantity")),
+                "entry_price": _number(row.get("entry_price")),
+                "exit_price": _number(row.get("simulated_fill")),
+                "closed_at": row.get("quote_time") or row.get("source_signal_time"),
+                "net_pnl": realised,
+                "reason": reason if isinstance(reason, str) else None,
+            }
+        )
+
+    def _note_why(self, row: dict[str, Any], stamp: datetime) -> None:
+        hour = _hour_floor(stamp)
+        if self.why_hour is None or hour > self.why_hour:
+            self.why_hour = hour
+            self.why_rows = [row]
+            return
+        if hour == self.why_hour:
+            self.why_rows.append(row)
+
+    def _compact_events(self) -> None:
+        self._since_compact = 0
+        if self.max_rej_stamp is None:
+            return
+        cutoff = self.max_rej_stamp - _REJECTION_RETAIN
+        if self.retain_from is not None and self.retain_from < cutoff:
+            cutoff = self.retain_from
+        if any(stamp < cutoff for stamp, _reason in self.events):
+            self.events = [item for item in self.events if item[0] >= cutoff]
+        self.horizon = cutoff
+
+    def _snapshot(self, day_start: datetime) -> _TelemetryView:
+        view = _TelemetryView()
+        if self.cur_evaluated > 0:
+            view.evaluated = self.cur_evaluated
+            view.available = self.cur_available
+            view.closed_by = dict(self.cur_closed)
+            view.unavailable = list(self.cur_unavailable)
+        else:
+            view.evaluated = self.trail_evaluated
+            view.available = self.trail_available
+            view.closed_by = dict(self.trail_closed)
+            view.unavailable = list(self.trail_unavailable)
+        view.rej_hour = self.rej_hour
+        view.events = [item for item in self.events if item[0] >= day_start or (
+            self.rej_hour is not None and self.rej_hour <= item[0] < self.rej_hour + timedelta(hours=1)
+        )]
+        # The day filter is applied again by the panel. Keeping the latest
+        # hour in this copy covers a quiet hour that started before the day.
+        view.bar_close = self.bar_close
+        view.why_rows = list(self.why_rows)
+        view.blotter = list(self.blotter)
+        view.realised_sum = self.realised_sum
+        view.realised_count = self.realised_count
+        return view
+
+
+def _fold_for(path: Path) -> _TelemetryFold:
+    try:
+        key = str(path.resolve())
+    except OSError:
+        key = str(path)
+    fold = _JSONL_CACHE.get(key)
+    if fold is None:
+        while len(_JSONL_CACHE) >= _MAX_TELEMETRY_FOLDS:
+            _JSONL_CACHE.pop(next(iter(_JSONL_CACHE)))
+        fold = _TelemetryFold()
+        _JSONL_CACHE[key] = fold
+        return fold
+    # Refresh LRU order. The live file stays; a test path that went quiet goes.
+    _JSONL_CACHE.pop(key)
+    _JSONL_CACHE[key] = fold
+    return fold
+
+
+def read_telemetry(path: Path, *, now: datetime | None = None) -> _TelemetryView:
+    """Fold ``path`` up to ``now``'s rolling day. Safe to call on every poll."""
+    moment = _as_utc(now or _utcnow())
     with _JSONL_LOCK:
-        # A handful of paths is enough. Tests use a new file each case.
-        if len(_JSONL_CACHE) > 8:
-            _JSONL_CACHE.clear()
-        _JSONL_CACHE[token] = rows
-    return rows
+        return _fold_for(path).view(path, moment)
 
 
 def is_live_book_name(name: str) -> bool:
@@ -145,46 +501,218 @@ def live_approvals_path(path: Path | None = None) -> Path:
     return path
 
 
-def read_live_approval_book(path: Path | None = None) -> dict[str, Any]:
-    """Fresh parse of the live book. Does not use ``get_universe``'s cache.
+# Parsed live book, keyed by resolved path. A poll stats the file. The
+# same inode, mtime, and size returns the parsed approvals. A new mtime
+# hashes the bytes; the same sha256 keeps the parsed object and only the
+# displayed mtime moves. ``get_universe`` is process-lifetime and is not
+# this cache. Callers must not mutate ``approvals``.
+_BOOK_LOCK = threading.Lock()
+_BOOK_CACHE: dict[str, "_BookEntry"] = {}
+_MAX_BOOK_CACHE = 4
 
-    The cache is process-lifetime. A strategies panel that reads it can keep
-    showing the file that was on disk when the API started, including a
-    snapshot copied into the image. This opens the mounted path on every call.
-    """
-    target = live_approvals_path(path)
-    empty: dict[str, Any] = {
+
+class _BookEntry:
+    def __init__(self) -> None:
+        self.inode = 0
+        self.mtime_ns = 0
+        self.size = -1
+        self.digest = ""
+        self.payload: dict[str, Any] | None = None
+
+
+def clear_book_cache() -> None:
+    """Drop parsed approval books. Tests use this after rewriting a path."""
+    with _BOOK_LOCK:
+        _BOOK_CACHE.clear()
+
+
+def _book_key(path: Path) -> str:
+    try:
+        return str(path.resolve())
+    except OSError:
+        return str(path)
+
+
+def _book_mtime_iso(st: os.stat_result) -> str:
+    return datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat()
+
+
+def _empty_book(target: Path, error: str | None) -> dict[str, Any]:
+    return {
         "source_path": str(target),
         "source_mtime": None,
         "generated_at": "",
         "verdict": "",
         "approvals": {},
-        "error": None,
+        "error": error,
     }
-    if not target.exists():
-        empty["error"] = "missing"
-        return empty
+
+
+def _book_entry(target: Path) -> _BookEntry | None:
+    """Return the cached book, parsing only when the content hash changes."""
+    key = _book_key(target)
     try:
-        raw = _read_json(target)
-    except (json.JSONDecodeError, OSError) as exc:
-        empty["error"] = f"unreadable: {exc}"
-        return empty
-    if not isinstance(raw, dict):
-        empty["error"] = "book is not a JSON object"
-        return empty
-    try:
-        mtime = datetime.fromtimestamp(target.stat().st_mtime, tz=timezone.utc).isoformat()
+        st = target.stat()
     except OSError:
-        mtime = None
-    approvals = {key: value for key, value in raw.items() if isinstance(value, dict)}
-    return {
-        "source_path": str(target),
-        "source_mtime": mtime,
-        "generated_at": str(raw.get("_generated_at") or ""),
-        "verdict": str(raw.get("_verdict") or ""),
-        "approvals": approvals,
-        "error": None,
-    }
+        with _BOOK_LOCK:
+            _BOOK_CACHE.pop(key, None)
+        return None
+    with _BOOK_LOCK:
+        current = _BOOK_CACHE.get(key)
+        if (
+            current is not None
+            and current.payload is not None
+            and current.inode == int(st.st_ino)
+            and current.mtime_ns == int(st.st_mtime_ns)
+            and current.size == int(st.st_size)
+        ):
+            return current
+    raw = target.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    with _BOOK_LOCK:
+        current = _BOOK_CACHE.get(key)
+        if current is not None and current.payload is not None and current.digest == digest:
+            current.inode = int(st.st_ino)
+            current.mtime_ns = int(st.st_mtime_ns)
+            current.size = int(st.st_size)
+            current.payload["source_mtime"] = _book_mtime_iso(st)
+            current.payload["source_path"] = str(target)
+            return current
+    try:
+        parsed = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        payload = _empty_book(target, f"unreadable: {exc}")
+        parsed = None
+    else:
+        if not isinstance(parsed, dict):
+            payload = _empty_book(target, "book is not a JSON object")
+        else:
+            payload = {
+                "source_path": str(target),
+                "source_mtime": _book_mtime_iso(st),
+                "generated_at": str(parsed.get("_generated_at") or ""),
+                "verdict": str(parsed.get("_verdict") or ""),
+                "approvals": {
+                    item_key: value
+                    for item_key, value in parsed.items()
+                    if isinstance(value, dict)
+                },
+                "error": None,
+            }
+    entry = _BookEntry()
+    entry.inode = int(st.st_ino)
+    entry.mtime_ns = int(st.st_mtime_ns)
+    entry.size = int(st.st_size)
+    entry.digest = digest
+    entry.payload = payload
+    with _BOOK_LOCK:
+        while len(_BOOK_CACHE) >= _MAX_BOOK_CACHE and key not in _BOOK_CACHE:
+            _BOOK_CACHE.pop(next(iter(_BOOK_CACHE)))
+        _BOOK_CACHE[key] = entry
+    return entry
+
+
+def read_live_approval_book(path: Path | None = None) -> dict[str, Any]:
+    """Live book for the desk. Does not use ``get_universe``'s cache.
+
+    ``get_universe`` lives for the process. A strategies panel that used it
+    could keep the file from API start, including a snapshot baked into the
+    image. This stats the mounted path on every call and parses it only when
+    the bytes change. The returned wrapper is a new dict; ``approvals`` is
+    the cached mapping and must not be mutated.
+    """
+    target = live_approvals_path(path)
+    if not target.exists():
+        with _BOOK_LOCK:
+            _BOOK_CACHE.pop(_book_key(target), None)
+        return _empty_book(target, "missing")
+    try:
+        entry = _book_entry(target)
+    except OSError as exc:
+        return _empty_book(target, f"unreadable: {exc}")
+    if entry is None or entry.payload is None:
+        return _empty_book(target, "missing")
+    return dict(entry.payload)
+
+
+def approval_book_stat(path: Path | None = None) -> tuple[str, int, str]:
+    """Path, mtime_ns, and sha256. A missing book is an empty sha.
+
+    Same identity ``book_fingerprint`` used to compute by reading the file
+    on every cache-key build. A quiet poll now stats. The hash is the one
+    stored when the bytes last changed.
+    """
+    try:
+        target = live_approvals_path(path)
+    except OSError:
+        return ("", 0, "")
+    if not target.exists():
+        return (str(target), 0, "")
+    entry = _book_entry(target)
+    if entry is None or not entry.digest:
+        return (str(target), 0, "")
+    return (str(target), int(entry.mtime_ns), entry.digest)
+
+
+# One slot for ``data/last_cycle.json``. ``/api/cycle`` and the desk header
+# both read it. The paper engine still uses ``load_last_cycle`` and is not
+# pointed at this slot.
+_CYCLE_LOCK = threading.Lock()
+_CYCLE_SLOT: dict[str, Any] = {"token": None, "digest": "", "payload": None}
+
+
+def clear_cycle_cache() -> None:
+    """Drop the cached last-cycle plan."""
+    with _CYCLE_LOCK:
+        _CYCLE_SLOT["token"] = None
+        _CYCLE_SLOT["digest"] = ""
+        _CYCLE_SLOT["payload"] = None
+
+
+def read_cached_last_cycle() -> dict[str, Any] | None:
+    """Last persisted plan for the desk. Parses only when the file changes.
+
+    The token is inode, mtime, and size. A rewrite with the same bytes keeps
+    the parsed dict after a sha256 check. Trading code does not call this.
+    """
+    from core.execution.engine import LAST_CYCLE_PATH
+
+    path = Path(LAST_CYCLE_PATH)
+    try:
+        st = path.stat()
+    except OSError:
+        clear_cycle_cache()
+        return None
+    try:
+        identity = str(path.resolve())
+    except OSError:
+        identity = str(path)
+    token = (identity, int(st.st_ino), int(st.st_mtime_ns), int(st.st_size))
+    with _CYCLE_LOCK:
+        if _CYCLE_SLOT["token"] == token:
+            payload = _CYCLE_SLOT["payload"]
+            return payload if isinstance(payload, dict) else None
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        clear_cycle_cache()
+        return None
+    digest = hashlib.sha256(raw).hexdigest()
+    with _CYCLE_LOCK:
+        if _CYCLE_SLOT["digest"] == digest and isinstance(_CYCLE_SLOT["payload"], dict):
+            _CYCLE_SLOT["token"] = token
+            return _CYCLE_SLOT["payload"]
+    try:
+        parsed = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        parsed = None
+    if not isinstance(parsed, dict):
+        parsed = None
+    with _CYCLE_LOCK:
+        _CYCLE_SLOT["token"] = token
+        _CYCLE_SLOT["digest"] = digest
+        _CYCLE_SLOT["payload"] = parsed
+    return parsed
 
 
 # Env wins, then a stamp file, then ``git rev-parse``. The SGP1 image has no
@@ -423,12 +951,11 @@ def desk_header(
     git_root: Path | None = None,
 ) -> dict[str, Any]:
     """Header payload. Reads files; does not run a cycle."""
-    from core.execution.engine import load_last_cycle
     from core.execution.paper_bar_eval import PAPER_BAR_STATE_PATH
 
     moment = _as_utc(now or _utcnow())
     if cycle is None:
-        loaded = load_last_cycle()
+        loaded = read_cached_last_cycle()
         cycle = loaded if isinstance(loaded, dict) else None
     bar_path = Path(bar_state_path) if bar_state_path is not None else PAPER_BAR_STATE_PATH
     bar_payload: dict[str, Any] | None = None
@@ -755,45 +1282,27 @@ def _f111_status_uncached(
         config = {}
         digest = None
 
-    rows = _read_jsonl(telemetry)
-    census = _latest_registry_block(rows)
-    available = 0
-    closed_by: dict[str, int] = {}
-    for row in census:
-        if row.get("instrument_unavailable"):
-            reason = _rejection_reason(row)
-            closed_by[reason] = closed_by.get(reason, 0) + 1
-        else:
-            available += 1
+    # The fold, not the raw file. Repeated polls must not keep another copy.
+    view = read_telemetry(telemetry, now=moment)
+    available = view.available
+    closed_by = view.closed_by
     closed = sum(closed_by.values())
-
-    rejections = [(row, stamp) for row, stamp in _gate_rows(rows) if _is_gate_rejection(row)]
-    stamped = [(row, stamp) for row, stamp in rejections if stamp is not None]
-    latest_hour_rows: list[dict[str, Any]] = []
-    latest_hour_start: datetime | None = None
-    if stamped:
-        latest_hour_start = _hour_floor(max(stamp for _row, stamp in stamped if stamp is not None))
-        latest_hour_end = latest_hour_start + timedelta(hours=1)
-        latest_hour_rows = [
-            row
-            for row, stamp in stamped
-            if stamp is not None and latest_hour_start <= stamp < latest_hour_end
-        ]
+    latest_hour_start = view.rej_hour
+    latest_hour_end = (
+        latest_hour_start + timedelta(hours=1) if latest_hour_start is not None else None
+    )
+    latest_hour_rows = [
+        {"rejection_reason": reason}
+        for stamp, reason in view.events
+        if latest_hour_start is not None
+        and latest_hour_end is not None
+        and latest_hour_start <= stamp < latest_hour_end
+    ]
     day_start = moment - timedelta(hours=24)
     last_day_rows = [
-        row for row, stamp in stamped if stamp is not None and stamp >= day_start
+        {"rejection_reason": reason} for stamp, reason in view.events if stamp >= day_start
     ]
-
-    bar_close: datetime | None = None
-    for row, stamp in _gate_rows(rows):
-        if stamp is not None and (bar_close is None or stamp > bar_close):
-            # Prefer the hourly close the scan evaluated over a later minute
-            # touch on the same file. ``row_recorded_time`` already returns
-            # source_signal_time (the bar close) before other clocks.
-            if row.get("source_signal_time") or (isinstance(row.get("feature_asof_times"), dict) and row["feature_asof_times"].get("signal_close")):
-                bar_close = stamp
-            elif bar_close is None:
-                bar_close = stamp
+    bar_close = view.bar_close
 
     pending_retests = 0
     protection = 0
@@ -825,9 +1334,9 @@ def _f111_status_uncached(
 
     from api.why_no_trade import build_f111_why
 
-    blotter = _f111_blotter(rows)
-    why_no_trade = build_f111_why(rows, census)
-    realised_values = [row["net_pnl"] for row in blotter if _number(row.get("net_pnl")) is not None]
+    blotter = view.blotter
+    why_no_trade = build_f111_why(view.why_rows, view.unavailable)
+    realised_values = [view.realised_sum] if view.realised_count else []
     sizing_policy = None
     strategy_version = None
     if config_error is None and config:
@@ -841,7 +1350,7 @@ def _f111_status_uncached(
         "state_path": str(state),
         "state_error": state_error,
         "registry": {
-            "evaluated": len(census),
+            "evaluated": view.evaluated,
             "available": available,
             "closed": closed,
             "closed_by_reason": dict(sorted(closed_by.items(), key=lambda item: (-item[1], item[0]))),

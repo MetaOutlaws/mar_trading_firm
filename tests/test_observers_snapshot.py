@@ -211,6 +211,49 @@ def test_autostart_can_be_switched_off(monkeypatch) -> None:
     assert snapshot_store.running is False
 
 
+def test_refreshes_keep_one_worker_thread(monkeypatch) -> None:
+    """N snapshot builds do not start N threads, and the previous result is dropped."""
+    import threading
+
+    calls = {"n": 0}
+
+    def compute() -> dict:
+        calls["n"] += 1
+        return {
+            "ok": True,
+            "observers": [{"id": "f111", "n": calls["n"]}],
+            "pulses": [],
+        }
+
+    monkeypatch.setattr("api.observer_snapshot.compute_observers_payload", compute)
+    snapshot_store.stop()
+    snapshot_store.clear()
+    snapshot_store.interval_s = 3600.0
+    try:
+        for _ in range(12):
+            snapshot_store.refresh()
+        assert calls["n"] == 12
+        assert not any(
+            thread.name == "observer-snapshot" and thread.is_alive()
+            for thread in threading.enumerate()
+        )
+        served = snapshot_store.serve()
+        assert served["observers"][0]["n"] == 12
+        snapshot_store.start()
+        for _ in range(10):
+            snapshot_store.start()
+        alive = [
+            thread
+            for thread in threading.enumerate()
+            if thread.name == "observer-snapshot" and thread.is_alive()
+        ]
+        assert len(alive) == 1
+    finally:
+        snapshot_store.interval_s = 60.0
+        snapshot_store.stop()
+        snapshot_store.clear()
+
+
 def test_stamp_marks_cards_ready() -> None:
     stamped = stamp_payload(
         {"ok": True, "observers": [{"id": "f111"}], "pulses": []},

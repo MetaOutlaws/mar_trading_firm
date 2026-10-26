@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from api.dashboard_cache import panel_cache
-from api.desk_status import _read_jsonl, clear_jsonl_cache
+from api.desk_status import clear_jsonl_cache, read_telemetry, telemetry_cache_stats
 from core.strategy import spec_sleeve
 from firm import integrity, memory
 from firm.orchestrator import Orchestrator
@@ -148,6 +148,10 @@ def test_ranking_overlay_is_read_once_per_mtime(tmp_path, monkeypatch) -> None:
 
 
 def test_jsonl_parse_is_cached_on_mtime_and_size(tmp_path) -> None:
+    """A quiet file is not parsed again. An append parses only the new line."""
+    import api.why_no_trade  # noqa: F401 — bind row parsers before counting loads
+    import core.execution.f111_paper  # noqa: F401
+
     path = tmp_path / "f111_telemetry.jsonl"
     path.write_text(json.dumps({"run_id": "scan-a", "symbol": "BTCUSDT"}) + "\n", encoding="utf-8")
     clear_jsonl_cache()
@@ -161,18 +165,18 @@ def test_jsonl_parse_is_cached_on_mtime_and_size(tmp_path) -> None:
     original = json.loads
     json.loads = wrapped
     try:
-        first = _read_jsonl(path)
-        second = _read_jsonl(path)
-        assert second == first
-        assert first[0]["run_id"] == "scan-a"
+        read_telemetry(path)
+        assert telemetry_cache_stats()["parsed_rows"] == 1
         parsed = loads["n"]
-        # Telemetry is append-only. A new line changes the size, which is
-        # the cache key along with mtime.
+        read_telemetry(path)
+        assert loads["n"] == parsed
+        # Telemetry is append-only. A new line changes the size. The fold
+        # seeks to the previous offset instead of parsing the prefix again.
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps({"run_id": "scan-b", "symbol": "ETHUSDT"}) + "\n")
-        third = _read_jsonl(path)
-        assert [row["run_id"] for row in third] == ["scan-a", "scan-b"]
-        assert loads["n"] > parsed
+        read_telemetry(path)
+        assert telemetry_cache_stats()["parsed_rows"] == 2
+        assert loads["n"] == parsed + 1
     finally:
         json.loads = original
         clear_jsonl_cache()

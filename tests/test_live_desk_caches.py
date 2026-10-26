@@ -126,7 +126,7 @@ def test_paper_imports_keep_signatures_and_soko_output(tmp_path, monkeypatch) ->
 
     # The caches run between the two reads. Soko's dict does not move.
     from api.dashboard_cache import panel_cache
-    from api.desk_status import _read_jsonl, clear_jsonl_cache, f111_status
+    from api.desk_status import clear_jsonl_cache, f111_status, read_telemetry, telemetry_cache_stats
 
     telemetry = tmp_path / "f111_telemetry.jsonl"
     state = tmp_path / "state.json"
@@ -134,7 +134,8 @@ def test_paper_imports_keep_signatures_and_soko_output(tmp_path, monkeypatch) ->
     state.write_text("{}", encoding="utf-8")
     clear_jsonl_cache()
     panel_cache.clear()
-    assert _read_jsonl(telemetry) == [{"symbol": "BTCUSDT"}]
+    read_telemetry(telemetry, now=NOW)
+    assert telemetry_cache_stats()["parsed_rows"] == 1
     f111_status(now=NOW, telemetry_path=telemetry, state_path=state)
 
     after = soko_display(now=NOW)
@@ -144,7 +145,9 @@ def test_paper_imports_keep_signatures_and_soko_output(tmp_path, monkeypatch) ->
 
 
 def test_jsonl_cache_is_present_and_used(tmp_path, monkeypatch) -> None:
-    """The same mtime and size returns the parsed rows without reading again."""
+    """The same mtime and size does not parse again. A rewrite still does."""
+    import os
+
     import api.desk_status as desk
 
     desk.clear_jsonl_cache()
@@ -158,19 +161,27 @@ def test_jsonl_cache_is_present_and_used(tmp_path, monkeypatch) -> None:
         return real_loads(text, *args, **kwargs)
 
     monkeypatch.setattr(desk.json, "loads", counting)
-    first = desk._read_jsonl(path)
+    moment = datetime(2026, 10, 16, 15, 30, tzinfo=timezone.utc)
+    desk.read_telemetry(path, now=moment)
     parsed = loads["n"]
-    assert first == [{"a": 1}, {"b": 2}]
+    assert desk.telemetry_cache_stats()["parsed_rows"] == 2
     assert parsed >= 2
-    assert any(rows is first for rows in desk._JSONL_CACHE.values())
-    second = desk._read_jsonl(path)
-    assert second is first
+    fold = next(iter(desk._JSONL_CACHE.values()))
+    desk.read_telemetry(path, now=moment)
+    assert next(iter(desk._JSONL_CACHE.values())) is fold
     assert loads["n"] == parsed
-    path.write_text('{"a": 3}\n', encoding="utf-8")
-    third = desk._read_jsonl(path)
-    assert third == [{"a": 3}]
-    assert third is not first
+    # Same length, new mtime: a rewrite, not an append. The fold starts over.
+    original = path.read_bytes()
+    rewritten = b'{"z": 9}\n' + original[len(b'{"a": 1}\n') :]
+    assert len(rewritten) == len(original)
+    path.write_bytes(rewritten)
+    st = path.stat()
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
+    desk.read_telemetry(path, now=moment)
+    assert desk.telemetry_cache_stats()["parsed_rows"] == 2
     assert loads["n"] > parsed
+    retained = desk.telemetry_cache_stats()["retained_rows"]
+    assert retained < desk.telemetry_cache_stats()["parsed_rows"] or retained == 0
     desk.clear_jsonl_cache()
 
 

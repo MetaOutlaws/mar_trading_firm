@@ -134,7 +134,13 @@ def read_scan_token() -> tuple[Any, ...]:
 
 
 class ObserverSnapshotStore:
-    """One in-process snapshot and the thread that refreshes it."""
+    """One in-process snapshot and one long-lived thread that refreshes it.
+
+    ``start`` does not spawn a thread per snapshot. A live worker is reused.
+    A finished worker is dropped before a replacement is started, so thread
+    objects do not accumulate. ``refresh`` replaces ``_snapshot``; the
+    previous payload is not kept.
+    """
 
     def __init__(
         self,
@@ -157,10 +163,18 @@ class ObserverSnapshotStore:
         return thread is not None and thread.is_alive()
 
     def start(self) -> None:
-        """Start the refresher if it is not already running."""
+        """Start the single refresher if it is not already running.
+
+        A second call while the worker is alive returns. A worker that has
+        already exited is joined and dropped before the one replacement
+        thread is created.
+        """
+        dead: threading.Thread | None = None
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
                 return
+            dead = self._thread
+            self._thread = None
             self._stop.clear()
             self._wake.clear()
             thread = threading.Thread(
@@ -170,6 +184,8 @@ class ObserverSnapshotStore:
             )
             self._thread = thread
             thread.start()
+        if dead is not None and dead is not threading.current_thread():
+            dead.join(timeout=0)
 
     def start_if_enabled(self) -> bool:
         """Start unless ``OBSERVER_SNAPSHOTS_AUTOSTART`` is turned off."""
@@ -219,8 +235,11 @@ class ObserverSnapshotStore:
             return
         snap = stamp_payload(payload)
         with self._lock:
+            # One result. The previous card is released for collection.
+            previous = self._snapshot
             self._snapshot = snap
             self._error = None
+        del previous
 
     def serve(self) -> dict[str, Any]:
         """Return the cached snapshot. Does not compute, stat, or wait on a build."""

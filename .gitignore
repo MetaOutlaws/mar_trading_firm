@@ -54,6 +54,8 @@ data/near_miss_risk/
 # Permanent scan-summary diary. Append-only; not pruned. See
 # docs/runbooks/scan_summary_log.md.
 data/scan_summaries.jsonl
+# Optional API_MEMDEBUG dumps (SIGUSR1). Off unless the env var is set.
+data/memdebug/
 logs/*.log
 logs/*.log.*
 logs/archive/
