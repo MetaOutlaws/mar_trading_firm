@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """Run the 3R clone screen and print JSON.
 
-Entry timestamps are the feature comparison. Weekly P&L rho is computed only
-for 2022-01-01..2025-12-31 and is printed as SEEN. Rho above 0.50 is FAIL and
-is not evidence for the edge. Bars on or after 2026-01-01 UTC raise.
-
-With no mounted archive the command prints UNAVAILABLE for every comparator
-and does not invent a score. Pass a directory of JSON lists to score a fixture:
+Weekly P&L rho is SEEN and is a disqualifier only. Rho above 0.50 is FAIL.
+Any bar after 2025-12-31 23:00:00 UTC raises. The default reads
+CIPHER_FORWARD_TAPE_DIR and does not fetch. An unset directory prints
+NOT_STAGED. Pass a directory of JSON lists to score a fixture:
 
   candidate_entries.json, candidate_trades.json
   <comparator>_entries.json, <comparator>_trades.json
