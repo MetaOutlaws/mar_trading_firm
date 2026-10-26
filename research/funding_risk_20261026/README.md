@@ -9,12 +9,12 @@ The 414 original entries were retained and six new opportunities became availabl
 - `PROTOCOL.json`, `FREEZE.json`, `code/run_funding.py`, and `code/test_funding.py` were published before new outcomes at commit `ca12333f459be33042425d14dea6ae8ecb9c4501`; their hashes are unchanged.
 - `code/verify_and_analyze.py` reconstructs paths with a second implementation and produces annual, token, sector, direction, regime, cashflow, risk and block-bootstrap tables.
 - `code/report.py` builds a static, self-contained HTML report from results and the retained input. No JavaScript or external chart resources are required.
-- `RESULT_SUMMARY.json` contains machine-readable conclusions. `PROVENANCE.json` records sources, versions, limitations and incidental public 2026 exposure. `NEXT_STEP.md` is proposed follow-up, not a completed test.
+- The private results checkpoint contains `RESULT_SUMMARY.json`, `PROVENANCE.json` and `NEXT_STEP.md`: machine-readable conclusions, source/version and exposure records, and the proposed follow-up. Those private result documents are not published in this Git folder.
 - Private output checkpoint: `MAR_funding_aware_stops_results_20261026.zip`. Report: `MAR_funding_aware_stops_20261026.html`. The authoritative research state links their Library identities. Raw market data and Git-backed source code are not duplicated in that output archive.
 
 ## Reproduce
 
-Create a local work root with `study/` containing this Git folder and `parent/` containing `research/sequential_drift_20261026` at parent commit `004a44f57ee5814cfa57be8e3c825985bb00eb7b`. Restore the market archive identified in `PROVENANCE.json` to `restored/MAR_relative_value_checkpoint_20261020/` under that work root. Restore the parent output archive to `parent_saved/` (its `results/` directly inside). Restore the new results checkpoint into `study/`, including `results/funded_benchmarks.csv` for the existing account references. Python dependencies and tested versions are in `PROVENANCE.json`.
+Create a local work root with `study/` containing this Git folder and `parent/` containing `research/sequential_drift_20261026` at parent commit `004a44f57ee5814cfa57be8e3c825985bb00eb7b`. Restore the market archive identified in the private checkpoint’s `PROVENANCE.json` to `restored/MAR_relative_value_checkpoint_20261020/` under that work root. Restore the parent output archive to `parent_saved/` (its `results/` directly inside). Restore the new results checkpoint into `study/`, including `results/funded_benchmarks.csv` for the existing account references. Python dependencies and tested versions are in the private checkpoint’s `PROVENANCE.json`.
 
 From that work root:
 
