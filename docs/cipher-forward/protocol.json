@@ -1,0 +1,588 @@
+{
+  "study_id": "MAR-3R-FORWARD-09",
+  "version": 1,
+  "status": "prepared_not_activated",
+  "live_authorized": false,
+  "production_account_changes": false,
+  "historical_2026_backtest_opened": false,
+  "promotion": {
+    "non_promotional": true,
+    "promotion_authorized": false,
+    "pass_rule": "REPORT-ONLY",
+    "covers_bl8": true,
+    "covers_filtered_w11s": true,
+    "can_size_up": false,
+    "can_join_book": false,
+    "can_feed_walk_forward": false,
+    "requires_filing": true,
+    "requires_garwe_lock": true,
+    "requires_holdout": true,
+    "statement": "This is a non-promotional experiment. Its own pass rule is REPORT-ONLY. It can never size up, join the book, or feed walk-forward. Promotion requires the full desk path: a filing, a Garwe LOCK, the desk gates (profit factor at least 1.15 net at 0.31% per leg, a confidence interval excluding zero, beats random, week clusters, at least 50% of folds, no losing regime, max drawdown under 25%, at least 30 weeks and at least 100 leg-trades per year), and a holdout. BL8 and the filtered W11S variant are covered by this clause. 2026 warmup counts as veto-only and is not a promotion sample.",
+    "required_gates": {
+      "profit_factor_min": 1.15,
+      "profit_factor_net_at_binding_cost_per_leg": 0.0031,
+      "confidence_interval_excludes_zero": true,
+      "beats_random": true,
+      "week_clusters": true,
+      "folds_pass_fraction_min": 0.5,
+      "no_losing_regime": true,
+      "max_drawdown_lt": 0.25,
+      "min_weeks": 30,
+      "min_leg_trades_per_year": 100
+    },
+    "promotion_gates_are_not_the_paper_risk_set": true
+  },
+  "primary": {
+    "arm": "IC",
+    "portfolio": "desk031:IC",
+    "definition": "incumbent L01/F111 plus original BL8, plus the original unfiltered 3R short at full size 1%/10%",
+    "declared_by": "Brian",
+    "rationale": "It is the cipher study's original unfiltered hypothesis, the exact claim under test; half-size and filtered variants are derivative choices."
+  },
+  "interim_review": {
+    "veto_only": true,
+    "can_stop_or_void": true,
+    "can_promote": false,
+    "can_repick_primary": false,
+    "can_change_config": false,
+    "statement": "Interim reviews are veto-only. An interim review can stop or void the run. It cannot promote, re-pick PRIMARY, or change any config. No config is swapped after LOCK."
+  },
+  "start_time_utc": null,
+  "start_rule": "first complete hourly signal strictly after verified activation; no retrospective fills",
+  "universe": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000RATSUSDT",
+    "AAVEUSDT",
+    "ADAUSDT",
+    "AERGOUSDT",
+    "AKROUSDT",
+    "APEUSDT",
+    "APTUSDT",
+    "ARBUSDT",
+    "ARPAUSDT",
+    "ATOMUSDT",
+    "AUCTIONUSDT",
+    "AVAXUSDT",
+    "AXSUSDT",
+    "BCHUSDT",
+    "BLURUSDT",
+    "BLZUSDT",
+    "BNBUSDT",
+    "BTCUSDT",
+    "CFXUSDT",
+    "CHZUSDT",
+    "COMPUSDT",
+    "CRVUSDT",
+    "DOGEUSDT",
+    "DOTUSDT",
+    "DYDXUSDT",
+    "ENAUSDT",
+    "EOSUSDT",
+    "ETCUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "FETUSDT",
+    "FLMUSDT",
+    "FTMUSDT",
+    "GALAUSDT",
+    "GMTUSDT",
+    "HBARUSDT",
+    "HYPEUSDT",
+    "ICPUSDT",
+    "INJUSDT",
+    "JASMYUSDT",
+    "JUPUSDT",
+    "KNCUSDT",
+    "LDOUSDT",
+    "LINAUSDT",
+    "LINKUSDT",
+    "LPTUSDT",
+    "LTCUSDT",
+    "LUNA2USDT",
+    "LUNAUSDT",
+    "MASKUSDT",
+    "MATICUSDT",
+    "MNTUSDT",
+    "MOODENGUSDT",
+    "NEARUSDT",
+    "NOTUSDT",
+    "ONDOUSDT",
+    "OPUSDT",
+    "ORDIUSDT",
+    "PENGUUSDT",
+    "PEOPLEUSDT",
+    "POPCATUSDT",
+    "PUMPFUNUSDT",
+    "RAREUSDT",
+    "REEFUSDT",
+    "RNDRUSDT",
+    "RUNEUSDT",
+    "SANDUSDT",
+    "SEIUSDT",
+    "SHIB1000USDT",
+    "SOLUSDT",
+    "SPXUSDT",
+    "STRKUSDT",
+    "STXUSDT",
+    "SUIUSDT",
+    "SUSHIUSDT",
+    "SXPUSDT",
+    "TIAUSDT",
+    "TOMOUSDT",
+    "TONUSDT",
+    "TRBUSDT",
+    "TRUMPUSDT",
+    "TRXUSDT",
+    "UNFIUSDT",
+    "UXLINKUSDT",
+    "VIRTUALUSDT",
+    "WAVESUSDT",
+    "WIFUSDT",
+    "WLDUSDT",
+    "XLMUSDT",
+    "XRPUSDT",
+    "YGGUSDT",
+    "ZECUSDT",
+    "ZILUSDT"
+  ],
+  "books": {
+    "I": {
+      "sources": [
+        "H",
+        "B"
+      ],
+      "challenger_risk": 0,
+      "challenger_position": 0
+    },
+    "IC": {
+      "sources": [
+        "H",
+        "B",
+        "C3"
+      ],
+      "challenger_risk": 0.01,
+      "challenger_position": 0.1
+    },
+    "IM": {
+      "sources": [
+        "H",
+        "B",
+        "C3"
+      ],
+      "challenger_risk": 0.005,
+      "challenger_position": 0.05
+    },
+    "IF": {
+      "sources": [
+        "H",
+        "B",
+        "C3"
+      ],
+      "challenger_risk": 0.01,
+      "challenger_position": 0.1,
+      "requires_fixed_filter": true
+    }
+  },
+  "accounts": {
+    "initial_cash_each": 20000,
+    "risk_incumbent": 0.01,
+    "position_incumbent": 0.1,
+    "gross_admission": 0.5,
+    "max_positions": 15,
+    "max_per_symbol": 1,
+    "max_per_sector": 2,
+    "max_daily_entries": 20,
+    "daily_closed_loss_fraction": 0.03,
+    "drawdown_entry_latch": 0.15,
+    "recovery_minutes": 1440,
+    "nonpositive_close_streak": 6,
+    "minimum_notional": 5,
+    "leverage": 1,
+    "production_guards_modified": false,
+    "historical_70_percent_guard_copied": false,
+    "max_hold_minutes": null
+  },
+  "execution": {
+    "strategy_priority": [
+      "H",
+      "B",
+      "C3"
+    ],
+    "ties": [
+      "symbol",
+      "uid"
+    ],
+    "one_position_per_symbol_inclusive_exit_minute": true,
+    "entry": "first fresh timestamped actionable quote in scheduled next-minute window, never a retrospective open",
+    "quote_age_limit_ms": 5000,
+    "same_input_snapshot_for_all_books": true,
+    "residual_exposure_headroom_not_scaled_twice": true,
+    "paper_cost_model": "visible spread/depth plus adverse assumption, not measured exchange fills",
+    "desk031": {
+      "fee_each_leg": 0.00055,
+      "entry_and_nonstop_slip": 0.00255,
+      "total_extra_stop_slip": 0.00255
+    },
+    "baseline": {
+      "fee_each_leg": 0.00055,
+      "entry_and_nonstop_slip": 0.002,
+      "total_extra_stop_slip": 0
+    },
+    "moderate_sidecar": {
+      "fee_each_leg": 0.00055,
+      "entry_and_nonstop_slip": 0.003,
+      "total_extra_stop_slip": 0.002
+    },
+    "severe_secondary_sidecar": {
+      "fee_each_leg": 0.00055,
+      "entry_and_nonstop_slip": 0.01,
+      "total_extra_stop_slip": 0.01
+    },
+    "cost_sidecars_rerun_admissions_and_cash": true,
+    "funding": "observed signed settlement rate, minute-open proxy explicitly labelled; missing never zero",
+    "exits_continue_after_entry_halt": true,
+    "missing_quotes": "no fabricated fills; record gap, keep exits active, quarantine affected outcome",
+    "no_automatic_halt_reset": true
+  },
+  "candidate": {
+    "source": "transparent W11S public-indicator research proxy",
+    "side": "SHORT",
+    "target_multiplier_signal_reference": 3,
+    "eligibility_target_multiplier_signal_reference": 2,
+    "net_planned_rr_min": 1.5,
+    "initial_price_risk_denominator_preserved": true,
+    "filter_min_turnover": 2835443.3309875005,
+    "filter_max_structural_stop_pct": 4.818264711062109,
+    "tokens_selected_by_past_profit": false,
+    "fixed_indicator_seed_required": true,
+    "context_strictly_before_signal_close": true
+  },
+  "opportunities": {
+    "separate_from_funded_books": true,
+    "notional_per_independent_signal": 2000,
+    "portfolio_limits_do_not_suppress_collection": true,
+    "strategy_and_data_validity_gates_retained": true,
+    "link_every_book_decision_to_signal_uid": true,
+    "counterfactual_returns_not_account_ROI": true,
+    "filter_rejections_retained": true
+  },
+  "reporting": {
+    "first_technical_check": "after first full scan; zero fills may be valid",
+    "daily": [
+      "net_USDT",
+      "account_return",
+      "closed_net_R",
+      "marked_R",
+      "max_drawdown_percent",
+      "drawdown_R",
+      "trades",
+      "mean_R",
+      "win_rate",
+      "profit_factor",
+      "open_exposure",
+      "fees",
+      "spread_depth_impact",
+      "assumed_slippage",
+      "signed_funding",
+      "token_sector_source_attribution",
+      "executed_and_restricted_opportunities",
+      "signal_and_quote_latency",
+      "data_gaps",
+      "unavailable_instruments"
+    ],
+    "scheduled_reviews_days": [
+      30,
+      60,
+      90
+    ],
+    "decision_review": "90 calendar days primary review; report actual sample size and paired uncertainty. Inconclusive evidence continues unchanged. 30/60-day reviews check operation and risk, with no outcome-driven parameter changes.",
+    "calendar_years": "prospective years only; historical 2022-25 results remain separately labelled",
+    "confidence": "paired weekly simulated-portfolio increments, predeclared contrasts IC-I, IM-I, IF-I; short samples descriptive; do not rank or crown a config or cost",
+    "success": "positive incremental net return at primary costs with drawdown trade-off reported; investigate whether gaps or concentration overturn conclusion; severe secondary, not sole veto",
+    "no_inflight_parameter_selection": true,
+    "presentation": "Four strategy comparisons, one per config, in fixed order I, IC, IM, IF. desk031, baseline, and moderate are prominent, with desk031 first. Severe is secondary display only. The one BINDING statistic is the paired weekly IC-minus-I P&L difference at desk031. Desk gates apply to that stream. Profit factor is taken from the challenger's own leg-trades. IC and I book metrics are REPORT-ONLY. IC book max drawdown must stay under 25% as a veto. Every cell is REPORT-ONLY. The 16 portfolios are 16 looks at one idea, not 16 tests. Interim reviews are veto-only and cannot swap a config after LOCK. Grade cap B."
+  },
+  "required_before_activation": [
+    "fresh current deployment and effective-settings receipt",
+    "explicit incumbent signal/execution mapping to saved A00 and L01/F111 plus BL8",
+    "four-book execution adapter, durable ledger and restart parity tests",
+    "fixed EMA warmup/seed provenance and feed parity",
+    "shared quote fanout and cost-sidecar validation",
+    "opportunity recording including blocked and missed-window cases",
+    "read-only production context mounts and credential-free public-data client",
+    "pinned release SHA, image digest and first future cutoff",
+    "verified cash, positions, exits, funding and first completed scan evidence"
+  ],
+  "incumbent": {
+    "H": "A00 saved control = L01 long entry gate / unchanged F111 short; original 3ATR/4ATR brackets and 1.25R activation / +0.25 netR floor",
+    "B": "port verified byte-identical to PR #149 @0519f425; strategy logic not desk-reviewed",
+    "not_every_active_account_strategy": true,
+    "f111_and_l01_source_unchanged_since_pinned_868f1c9": true,
+    "BL8_source_available_in_PR149_not_default_branch": true,
+    "bl8_label": "port verified byte-identical to PR #149 @0519f425; strategy logic not desk-reviewed",
+    "bl8_byte_identity_sha256_before_label_comment": "ce150ed0a9bd250a6ace6ea4423aae2b477bb09002161901f086d9785075d99c"
+  },
+  "implementation_scope_this_step": "Frozen specification, candidate port, sizing/routing contract and historical candidate parity. Portfolio execution adapter and runtime activation remain separate, explicitly required work.",
+  "internal_simulation": {
+    "one_paper_service": true,
+    "internal_simulated_portfolios": 16,
+    "exchange_accounts": 0,
+    "testnet_accounts": 0,
+    "subaccounts": 0,
+    "extra_capital": false,
+    "api_keys_per_portfolio": false,
+    "initial_simulated_cash_usdt_each": 20000,
+    "statement": "One paper service holds 16 internal simulated portfolios. The 16 portfolios are 16 looks at one idea, not 16 tests. Simulated cash is not a deposit, not new capital, and not an exchange, testnet, or subaccount balance.",
+    "no_ranking_across_portfolios": true,
+    "comparison_order": [
+      "I",
+      "IC",
+      "IM",
+      "IF"
+    ],
+    "prominent_costs": [
+      "desk031",
+      "baseline",
+      "moderate"
+    ],
+    "secondary_cost": "severe"
+  },
+  "twelve_looks": {
+    "statement": "The 16 portfolios are 16 looks at one idea, not 16 tests.",
+    "selects_a_config_or_cost": false
+  },
+  "desk_cost_read": {
+    "binding_per_leg": "0.0031",
+    "binding_per_leg_percent": "0.31%",
+    "binding_applies_to": "entry and exit",
+    "primary": "IC",
+    "binding_cells": [],
+    "binding_statistic": {
+      "name": "paired_weekly_ic_minus_i_pnl",
+      "count": 1,
+      "scope": "desk031",
+      "definition": "The paired weekly IC-minus-I P&L difference at desk031 only, the 3R challenger marginal contribution.",
+      "gates": "desk gates apply to this stream",
+      "profit_factor_source": "challenger_leg_trades",
+      "challenger_source": "C3",
+      "ic_book_metrics": "REPORT-ONLY",
+      "i_book_metrics": "REPORT-ONLY",
+      "ic_book_mdd_veto_lt": 0.25,
+      "book_cells_are_not_binding": true
+    },
+    "prior_three_cost_settings_unchanged": true,
+    "added_setting": "desk031",
+    "statement": "The one BINDING statistic is the paired weekly IC-minus-I P&L difference at desk031. Desk gates apply to that stream. Profit factor is taken from the challenger's own leg-trades. IC and I book metrics are REPORT-ONLY. IC book max drawdown must stay under 25% as a veto. Every cell is REPORT-ONLY. Severe stays secondary display only.",
+    "settings": {
+      "desk031": {
+        "display": "prominent",
+        "equals_0_31pct_per_leg": true,
+        "every_leg_cheaper_than_0_31pct": false,
+        "fee_each_leg": "0.00055",
+        "entry_and_nonstop_slip": "0.00255",
+        "stop_slip": "0.00255",
+        "entry": {
+          "fee": "0.00055",
+          "slip": "0.00255",
+          "total": "0.00310",
+          "percent": "0.31%",
+          "equals_binding": true,
+          "cheaper_than_binding": false
+        },
+        "nonstop_exit": {
+          "fee": "0.00055",
+          "slip": "0.00255",
+          "total": "0.00310",
+          "percent": "0.31%",
+          "equals_binding": true,
+          "cheaper_than_binding": false
+        },
+        "stop_exit": {
+          "fee": "0.00055",
+          "slip": "0.00255",
+          "total": "0.00310",
+          "percent": "0.31%",
+          "equals_binding": true,
+          "cheaper_than_binding": false
+        }
+      },
+      "baseline": {
+        "display": "prominent",
+        "equals_0_31pct_per_leg": false,
+        "every_leg_cheaper_than_0_31pct": true,
+        "fee_each_leg": "0.00055",
+        "entry_and_nonstop_slip": "0.002",
+        "stop_slip": "0",
+        "entry": {
+          "fee": "0.00055",
+          "slip": "0.002",
+          "total": "0.00255",
+          "percent": "0.255%",
+          "equals_binding": false,
+          "cheaper_than_binding": true
+        },
+        "nonstop_exit": {
+          "fee": "0.00055",
+          "slip": "0.002",
+          "total": "0.00255",
+          "percent": "0.255%",
+          "equals_binding": false,
+          "cheaper_than_binding": true
+        },
+        "stop_exit": {
+          "fee": "0.00055",
+          "slip": "0",
+          "total": "0.00055",
+          "percent": "0.055%",
+          "equals_binding": false,
+          "cheaper_than_binding": true
+        }
+      },
+      "moderate": {
+        "display": "prominent",
+        "equals_0_31pct_per_leg": false,
+        "every_leg_cheaper_than_0_31pct": false,
+        "fee_each_leg": "0.00055",
+        "entry_and_nonstop_slip": "0.003",
+        "stop_slip": "0.002",
+        "entry": {
+          "fee": "0.00055",
+          "slip": "0.003",
+          "total": "0.00355",
+          "percent": "0.355%",
+          "equals_binding": false,
+          "cheaper_than_binding": false
+        },
+        "nonstop_exit": {
+          "fee": "0.00055",
+          "slip": "0.003",
+          "total": "0.00355",
+          "percent": "0.355%",
+          "equals_binding": false,
+          "cheaper_than_binding": false
+        },
+        "stop_exit": {
+          "fee": "0.00055",
+          "slip": "0.002",
+          "total": "0.00255",
+          "percent": "0.255%",
+          "equals_binding": false,
+          "cheaper_than_binding": true
+        }
+      },
+      "severe": {
+        "display": "secondary",
+        "equals_0_31pct_per_leg": false,
+        "every_leg_cheaper_than_0_31pct": false,
+        "fee_each_leg": "0.00055",
+        "entry_and_nonstop_slip": "0.01",
+        "stop_slip": "0.01",
+        "entry": {
+          "fee": "0.00055",
+          "slip": "0.01",
+          "total": "0.01055",
+          "percent": "1.055%",
+          "equals_binding": false,
+          "cheaper_than_binding": false
+        },
+        "nonstop_exit": {
+          "fee": "0.00055",
+          "slip": "0.01",
+          "total": "0.01055",
+          "percent": "1.055%",
+          "equals_binding": false,
+          "cheaper_than_binding": false
+        },
+        "stop_exit": {
+          "fee": "0.00055",
+          "slip": "0.01",
+          "total": "0.01055",
+          "percent": "1.055%",
+          "equals_binding": false,
+          "cheaper_than_binding": false
+        }
+      }
+    },
+    "cells": {
+      "desk031:I": "REPORT-ONLY",
+      "desk031:IC": "REPORT-ONLY",
+      "desk031:IM": "REPORT-ONLY",
+      "desk031:IF": "REPORT-ONLY",
+      "baseline:I": "REPORT-ONLY",
+      "baseline:IC": "REPORT-ONLY",
+      "baseline:IM": "REPORT-ONLY",
+      "baseline:IF": "REPORT-ONLY",
+      "moderate:I": "REPORT-ONLY",
+      "moderate:IC": "REPORT-ONLY",
+      "moderate:IM": "REPORT-ONLY",
+      "moderate:IF": "REPORT-ONLY",
+      "severe:I": "REPORT-ONLY",
+      "severe:IC": "REPORT-ONLY",
+      "severe:IM": "REPORT-ONLY",
+      "severe:IF": "REPORT-ONLY"
+    }
+  },
+  "warmup_rule": {
+    "indicator_state_only": true,
+    "trades_outcomes_and_pnl_are_performance": false,
+    "config_hashes_frozen_before_warmup": true,
+    "mismatch_after_warmup": "VOID",
+    "void_disables_entries": true
+  },
+  "binding_statistic": {
+    "name": "paired_weekly_ic_minus_i_pnl",
+    "count": 1,
+    "scope": "desk031",
+    "definition": "The paired weekly IC-minus-I P&L difference at desk031 only, the 3R challenger marginal contribution.",
+    "gates": "desk gates apply to this stream",
+    "profit_factor_source": "challenger_leg_trades",
+    "challenger_source": "C3",
+    "ic_book_metrics": "REPORT-ONLY",
+    "i_book_metrics": "REPORT-ONLY",
+    "ic_book_mdd_veto_lt": 0.25,
+    "book_cells_are_not_binding": true
+  },
+  "grade_cap": "B",
+  "grade_cap_statement": "Grade cap B. This cell cannot be graded above B.",
+  "evidence_window": {
+    "mode": "forward",
+    "n_nonempty_week_clusters": 30,
+    "n_fixed": true,
+    "looks": 1,
+    "extension_allowed": false,
+    "bear_spell_required": true,
+    "bear_spell_classifier": "UNAVAILABLE",
+    "bear_spell_note": "A BEAR spell is required before the one look. The Garwe memo is not in this checkout and the cipher docs do not define the spell's price rule, so this change does not invent a classifier and does not read bars to decide it.",
+    "second_config_alpha": "alpha/4",
+    "fixed_2026_window": {
+      "enabled": false,
+      "operator_approved": false,
+      "requires_operator_carve_out": true,
+      "statement": "The fixed 2026 window applies only if the operator approves the carve-out. It is off by default. The forward window is the evidence window that is in force."
+    }
+  },
+  "clone_screen": {
+    "candidate": "3R short",
+    "comparators": [
+      "R-target shorts",
+      "breakout-fail shorts",
+      "outside_bar_fail",
+      "F111",
+      "BL8"
+    ],
+    "window_start": "2022-01-01",
+    "window_end": "2025-12-31",
+    "entry_set": "(symbol, entry_ms)",
+    "entry_timestamp_jaccard_fail_above": 0.5,
+    "weekly_pnl_rho_fail_above": 0.5,
+    "weekly_pnl_rho_label": "SEEN",
+    "weekly_pnl_rho_role": "disqualifier_only",
+    "weekly_pnl_rho_not_supporting_evidence": true,
+    "weekly_pnl_rho_not_in_case_for_the_edge": true,
+    "weekly_pnl_rho_not_for_promotion": true,
+    "refuse_bars_on_or_after": "2026-01-01",
+    "statement": "Weekly P&L rho is SEEN, already-seen in-sample, on 2022-01-01 through 2025-12-31. It is a disqualifier only: rho above 0.50 is FAIL. It is not supporting evidence, it is not part of the case for the edge, and it is not used for promotion. Entry-timestamp Jaccard above 0.50 is also FAIL. No 2026 bars are read."
+  }
+}
