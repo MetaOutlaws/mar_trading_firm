@@ -24,6 +24,7 @@ packages = [
     "core.execution",
     "core.ledger",
     "core.risk",
+    "core.soko",
     "core.strategy",
     "firm",
     "firm.employees",

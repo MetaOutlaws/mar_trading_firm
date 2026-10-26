@@ -1,9 +1,10 @@
-"""#145 desk caches on the #150 snapshot, without changing the paper imports.
+"""#145 desk caches on the #150 snapshot.
 
-``firm/scan_inbox.py`` imports ``soko_display`` (the paper worker reaches that
-module from ``firm/memory.py`` pending proposals). ``scripts/verify_l01_paper.py``
-imports ``deployed_git_sha``. Those names, signatures, and ``soko_display``
-outputs stay put. The F111 and JSONL caches sit on the desk read, not on them.
+``scripts/verify_l01_paper.py`` imports ``deployed_git_sha``. That name and
+its signature stay put. ``soko_display`` is the same function the desk
+re-exports; the paper worker imports it from ``core.soko.reader`` (the
+scan summary path in ``firm/scan_inbox.py``). The F111 and JSONL caches
+sit on the desk read, not on ``soko_display``.
 """
 
 from __future__ import annotations
@@ -66,15 +67,20 @@ def _param_shape(fn: object) -> list[tuple[str, str, bool, object]]:
 
 
 def test_paper_imports_keep_signatures_and_soko_output(tmp_path, monkeypatch) -> None:
-    """Call sites outside api/ see the same functions and the same Soko dict."""
+    """Call sites outside api/ see the same desk functions and the same Soko dict.
+
+    The scan summary no longer imports the desk. ``deployed_git_sha`` is
+    still the verifier's import, and the re-exported ``soko_display`` keeps
+    its signature and its dict.
+    """
     found = _external_desk_imports()
     assert found == {
-        "soko_display": {"firm/scan_inbox.py"},
         "deployed_git_sha": {"scripts/verify_l01_paper.py"},
     }
 
     scan_inbox = (ROOT / "firm" / "scan_inbox.py").read_text(encoding="utf-8")
-    assert "from api.desk_status import soko_display" in scan_inbox
+    assert "from core.soko.reader import soko_display" in scan_inbox
+    assert "api.desk_status" not in scan_inbox
     assert "shown = soko_display(now=now)" in scan_inbox
     verifier = (ROOT / "scripts" / "verify_l01_paper.py").read_text(encoding="utf-8")
     assert "from api.desk_status import deployed_git_sha" in verifier

@@ -692,7 +692,9 @@ def _title(scan_type: str, scan_time: datetime) -> str:
 def _read_soko(now: datetime) -> dict[str, Any]:
     """Same file the desk header reads. A failure leaves the label unknown."""
     try:
-        from api.desk_status import soko_display
+        # Engine-owned reader. The desk re-exports this same function.
+        # Importing the desk here would load its panel cache into the worker.
+        from core.soko.reader import soko_display
 
         shown = soko_display(now=now)
     except Exception:
