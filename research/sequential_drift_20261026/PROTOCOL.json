@@ -1,0 +1,88 @@
+{
+  "study_id": "MAR-SEQUENTIAL-DRIFT-01",
+  "frozen_at": "2026-10-26T13:02:45.194709+00:00",
+  "new_outcomes_scored": false,
+  "scope": "First economic discovery screen only; no runtime change or paper nomination. All history reused. No 2026 outcomes opened.",
+  "hypothesis": "Persistent directional evidence after volatility normalization can identify larger moves and avoid costly one-day shock entries. Bounded evidence S01 is the single primary; unbounded S00 is the mechanistic control. Not a probability forecast or an assumption that financial returns are Gaussian.",
+  "prior_overlap_audit": "T01 prior20day channel breakout and R01/R03 cross-sectional28day rotation already tested. Earlier hourly compression/retest, pullback, relative-value/continuation, funding exhaustion, range reversion, shock/network and Cipher tests recorded. This is sequential change evidence, not a new token whitelist or another channel length. Momentum mechanism overlaps; no statistical independence claim.",
+  "data": {
+    "window": "2022-01-01 through 2025-12-31 UTC",
+    "universe": "96 retained perpetual tokens, actual available history; historical dead tokens retained within this supplied universe, not a point-in-time whole-exchange universe",
+    "parent_library_id": "libfile_ae7bd11a19888191b6d1bd6243020434",
+    "parent_sha256": "3b89e8bc7fd11519b1e8144d04d74cae66d5da02508f2af3c020893d4ab891ef",
+    "time_split": "2022 development reporting; 2023-25 later evaluation already repeatedly researched, not clean holdout",
+    "2026_opened": false
+  },
+  "signal": {
+    "clock": "Daily midnight UTC after all24hourly closes complete; bar close timestamps belong to preceding day. No external volume/depth assumed.",
+    "scale": "Population std of60 complete DAILY log returns immediately preceding the current daily return. Exclude current observation. No filling missing daily returns. Require all60.",
+    "z": "current daily log return / prior sigma; zero drift null reference.",
+    "S01": "clip z to [-3,+3]; Cplus=max(0,Cplus+z-0.5), Cminus=max(0,Cminus-z-0.5). Long when Cplus>=5; short when Cminus>=5. Reset both after any signal, including signals while occupied. Missing z resets evidence.",
+    "S00": "Identical but z is unbounded. Only one primary and one control; no parameter grid.",
+    "parameter_rationale": "NIST conventional k=0.5,h=5 are an external initial design, not finance significance calibration. The analyst-selected3sigma cap limits one daily observation to2.5 evidence units; at least two daily observations needed. No parameters fit to historical PnL."
+  },
+  "trade": {
+    "entry": "New threshold event, next minute open (main +1min; delay +6min), one open position per token/arm/cost/timing. Signals at or before prior exit are unavailable; no immediate flip. No refilling missed signals.",
+    "stop": "Fixed raw_entry*(1-side*2*entry_sigma). Executable stop distance must be0.5%-15%; reject nonpositive stop. No target, trailing adjustment or max holding time.",
+    "exit": "Opposite subsequent threshold at its decision+delay, or first observed minute-open stop breach filled next minute. Stop wins same-clock conflict. Invalid scale exits on daily clock. End-of-history marks explicit.",
+    "funding": "Actual recorded settlements strictly after entry through exit, signed quantity*settlement minute-open price proxy; no mark-price history. Funding age <=480min and settlement quote finite required. First missing quote/stale funding terminates at last valid mark, costs charged, data_censor flag; later entries for that token/book stopped. Censor is not an executable fill.",
+    "notional": "1000USDT executed entry per independent opportunity, quantity fixed. Overlapping token opportunities are NOT a shared funded account; totals/R/drawdowns do not imply account ROI."
+  },
+  "costs": {
+    "fee_per_leg": 0.00055,
+    "baseline": {
+      "entry_regular_exit_slippage": 0.002,
+      "stop_slippage": 0.0
+    },
+    "moderate": {
+      "entry_regular_exit_slippage": 0.003,
+      "stop_slippage": 0.002
+    },
+    "desk": {
+      "entry_regular_exit_slippage": 0.00255,
+      "stop_slippage": 0.00255,
+      "total_per_leg": 0.0031,
+      "approx_round_trip": 0.0062
+    },
+    "severe": {
+      "entry_regular_exit_slippage": 0.01,
+      "stop_slippage": 0.01
+    },
+    "roles": "Baseline/moderate and exact0.31%perleg desk lead; severe secondary, not sole veto. Each cost independently admits by stop distance; fixed baseline-sample repricing also reported."
+  },
+  "risk_metric": "R=net trade PnL / original executable-entry-to-raw-stop price risk, includes costs/funding in numerator. Planned cost-aware loss shown separately. Sum R unweighted; opportunity drawdown USDT/R measured at observed minute opens, not funded-equity drawdown%.",
+  "screen_gate": {
+    "positive": "Full2022-25 and later2023-25 entry-cohort AND calendar net >0 at baseline/moderate/desk; later closed-only net >0.",
+    "annual": "At least2of3 later calendar years positive under each central cost.",
+    "latency": "Later and full cohort/calendar remain positive for+6min at all3central costs.",
+    "support": "At least100 closed later entries,26entryweeks,10tokens in each central main case; unexpected data-censors<=1% of later entries.",
+    "funding": "Later net minus1% of sum absolute funding cashflows positive under each central cost (proxy sensitivity).",
+    "control": "Compare S01 minusS00; control cannot silently replace primary. Concentration, confidence intervals mandatory diagnostics, not post-hoc parameter changes.",
+    "if_pass": "Proceed to matched funded account study vs I and IC on same costs/risk/data and exact control reconciliation; no claim of superiority before this.",
+    "if_fail": "Reject frozen specification; record loss/win characteristics and distinct next question; no historical winner-token list."
+  },
+  "statistics": {
+    "bootstrap": "4000 synchronized calendar week circular block draws,4week primary and13week sensitivity. Seed20261026+block. Main full/later meanR and netPnl; 6primary central cost\u00d7period economic contrasts. Bonferroni family95% quantiles0.025/6 and1-0.025/6; also ordinary95%. Current-family correction only, earlier adaptive search uncorrected.",
+    "attribution": "Annual/full/later, all96tokens inclzero, sector, side, priorBTC7day up>=5/down<=-5/sideways; win probability and win/loss severity, duration, top5concentration. Descriptive cells cannot create filters."
+  },
+  "benchmark_context": {
+    "I": "Hourly L01/F111 +BL8",
+    "IC": "I plusoriginal3R full-size",
+    "reference_library_id": "libfile_84f9215d25c8819196bbcf875394b577",
+    "rule": "Display inherited funded account performance in separately labelled panel. No direct comparison with unlimited-opportunity R or ROI. New matched comparison only after screen passes."
+  },
+  "sources": [
+    {
+      "url": "https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/cusum.htm",
+      "use": "CUSUM formula and external defaults only; does not establish market profitability"
+    },
+    {
+      "url": "https://www.nber.org/papers/w24877",
+      "use": "Historical crypto momentum motivation; not evidence for this candidate"
+    },
+    {
+      "url": "https://www.aqr.com/Insights/Research/Journal-Article/Time-Series-Momentum",
+      "use": "Time-series momentum mechanism, other asset classes; not a replication"
+    }
+  ]
+}
