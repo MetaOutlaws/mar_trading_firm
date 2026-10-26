@@ -342,6 +342,8 @@ def test_full_depth_fills_and_storage_keeps_top_25(book):
     stored=next(p for p in book.positions() if p['book']=='desk031:IC')
     assert len(stored['entry_quote']['b'])==25 and len(stored['entry_quote']['a'])==25
     assert stored['entry_quote']['full_sha256']==book_digest(full)
+    # The fill walked asks past the persisted top 25. Storage alone could not fill it.
+    assert stored['quantity'] > sum(float(level[1]) for level in stored['entry_quote']['a'])
     raw=book.db.execute('SELECT payload FROM events').fetchone()[0]
     payload=json.loads(zlib.decompress(raw))
     assert len(payload['quotes']['BTCUSDT']['b'])==25
@@ -353,23 +355,35 @@ def test_full_depth_fills_and_storage_keeps_top_25(book):
     assert omitted['quotes']['BTCUSDT']['levels_omitted'] is True
     assert 'b' not in omitted['quotes']['BTCUSDT']
     assert book.cycle('deep', T, {'BTCUSDT': full}, {'BTCUSDT': instrument()}, [signal()])['duplicate']
+    exit_book=dict(s='BTCUSDT', ts=T+2*MINUTE,
+        b=[[f'{111-i*0.01:.2f}','0.5'] for i in range(200)],
+        a=[[f'{111.05+i*0.01:.2f}','0.5'] for i in range(200)])
+    book.cycle('exit', T+2*MINUTE, {'BTCUSDT': exit_book}, {'BTCUSDT': instrument()}, [])
+    closed=next(p for p in book.positions(None) if p['book']=='desk031:IC')
+    assert closed['status']=='closed'
+    assert len(closed['exit_quote']['b'])==25 and len(closed['exit_quote']['a'])==25
+    assert closed['quantity'] > sum(float(level[1]) for level in closed['exit_quote']['b'])
 
 
-def test_year_summary_matches_full_scan_and_bounds_the_read(book):
+def test_report_matches_full_recompute_on_the_same_ledger(book):
+    """report() calendars equal a full scan of equity_samples on this ledger."""
     from research.cipher_forward.ledger import calendar_from_samples
     for step in range(30):
         cycle(book, T+step*MINUTE)
     later=T+400*DAY
     cycle(book, later)
-    samples=[dict(row) for row in book.db.execute(
-        'SELECT * FROM equity_samples WHERE book=? ORDER BY minute', ('baseline:I',))]
-    expected=calendar_from_samples(samples)
+    expected={}
+    for name in BOOKS:
+        samples=[dict(row) for row in book.db.execute(
+            'SELECT * FROM equity_samples WHERE book=? ORDER BY minute', (name,))]
+        expected[name]=calendar_from_samples(samples)
     calls=[]
     book.db.set_trace_callback(calls.append)
     value=report(book, later)
     book.db.set_trace_callback(None)
-    assert value['accounts']['baseline:I']['calendar_years']==expected
-    assert set(expected)=={'2024','2025'}
+    for name in BOOKS:
+        assert value['accounts'][name]['calendar_years']==expected[name]
+    assert set(expected['baseline:I'])=={'2024','2025'}
     assert not any('FROM equity_samples' in str(sql) for sql in calls)
     assert any('equity_year_summaries' in str(sql) for sql in calls)
     sample_count=book.db.execute('SELECT count(*) FROM equity_samples').fetchone()[0]
@@ -377,6 +391,35 @@ def test_year_summary_matches_full_scan_and_bounds_the_read(book):
     assert sample_count>=16*31
     assert summary_count<=16*2
     assert summary_count<sample_count
+
+
+def test_scan_pacer_stays_within_five_per_second_and_keeps_the_offset():
+    from research.cipher_forward.pace import (
+        SCAN_CONCURRENCY, SCAN_MIN_INTERVAL_S, SCAN_OFFSET_MS, SCAN_PEAK_REQ_PER_S)
+    from research.cipher_forward.public import RequestPacer
+    assert 0.2 <= SCAN_MIN_INTERVAL_S <= 0.25
+    assert SCAN_PEAK_REQ_PER_S == int(round(1 / SCAN_MIN_INTERVAL_S))
+    assert SCAN_PEAK_REQ_PER_S <= 5
+    assert SCAN_OFFSET_MS == 6 * 60_000
+    source=(ROOT/'scripts/run_cipher_forward_paper.py').read_text()
+    assert f'Market({SCAN_MIN_INTERVAL_S}' not in source
+    assert 'Market(SCAN_MIN_INTERVAL_S, SCAN_CONCURRENCY)' in source
+    assert 'now>=hour+SCAN_OFFSET_MS' in source
+    clock={'now': 0.0}
+
+    def monotonic():
+        return clock['now']
+
+    def sleep(seconds):
+        clock['now'] += seconds
+
+    pacer=RequestPacer(SCAN_MIN_INTERVAL_S, SCAN_CONCURRENCY, monotonic=monotonic, sleep=sleep)
+    for _ in range(5):
+        pacer.reserve()
+        pacer.release()
+    # Starts at 0, 0.25, 0.50, 0.75, 1.00: five requests span one second, peak 4/s.
+    assert clock['now'] == pytest.approx(1.0)
+    assert SCAN_CONCURRENCY > 1
 
 
 def test_prune_quotes_keeps_open_and_due_symbols():

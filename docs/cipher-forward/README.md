@@ -128,8 +128,9 @@ There are no retrospective fills or synthetic start date.
 Reports show four strategy comparisons, in fixed order I, IC, IM, IF. desk031,
 baseline, and moderate stay prominent, with desk031 first. Severe is secondary
 display only. The 16 portfolios are 16 looks at one idea, not 16 tests, and the
-report does not rank them. Only IC at desk031 is labelled BINDING. Every other
-cell is REPORT-ONLY. Baseline, moderate, and severe keep their previous rates.
+report does not rank them. The one BINDING statistic is the paired weekly
+IC-minus-I P&L difference at desk031. IC and I book metrics are REPORT-ONLY.
+Baseline, moderate, and severe keep their previous rates.
 Severe stays secondary. Cost sidecars
 must re-admit and resize independently, not simply subtract fees from another
 portfolio's already-selected trades. The four variants never share simulated
@@ -142,3 +143,24 @@ time alone does not establish profitability. Sparse or inconclusive evidence
 continues under the same frozen rules, without an arbitrary trade-count veto
 or outcome-driven tuning. Technical failures can stop new entries at any time
 while existing positions remain supervised.
+
+## Measured ledger growth
+
+Retention is 10 days. The SQLite cap stays 1 GiB (1,073,741,824 bytes). The
+figures below were measured on synthetic production-shaped inputs: 96 universe
+symbols, 200-level books, the 15-second quote cadence, top-25 levels stored at
+most every 15 minutes and hash-only otherwise, and 24 hourly history snapshots
+per day. Each snapshot is 860 hourly bars plus 40 four-hour bars, with varying
+synthetic prices so the compression is not a run of identical zeros. The clock
+is the suite's synthetic pre-2026 fixture. No 2026 bars were used and nothing
+was fetched. Tsuro's 51 MiB/day history estimate is not used.
+
+| Component | Bytes/day | MiB/day |
+|---|---:|---:|
+| Quotes | 28,637,568 | 27.31 |
+| History | 44,826,552 | 42.75 |
+| Equity | 2,833,920 | 2.70 |
+| Total | 76,298,040 | 72.76 |
+
+Ten days of that total is 762,980,400 bytes (727.62 MiB), under the 1 GiB cap.
+Sixteen portfolios do not multiply the shared quote feed or the history snapshots.

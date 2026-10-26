@@ -82,10 +82,73 @@ def assert_no_promotion_clause(protocol: dict) -> None:
             raise ValueError(f'protocol.json no-promotion statement is missing {phrase!r}')
 
 
+def assert_lock_terms(protocol: dict) -> None:
+    """Garwe LOCK terms Brian accepted. One binding statistic, grade cap B."""
+    if not isinstance(protocol, dict):
+        raise ValueError('protocol.json is missing the lock terms')
+    stat = protocol.get('binding_statistic')
+    if not isinstance(stat, dict) or stat.get('count') != 1:
+        raise ValueError('exactly one binding statistic is required')
+    if stat.get('name') != 'paired_weekly_ic_minus_i_pnl' or stat.get('scope') != 'desk031':
+        raise ValueError('binding statistic must be paired weekly IC-minus-I at desk031')
+    if stat.get('profit_factor_source') != 'challenger_leg_trades':
+        raise ValueError('profit factor must come from the challenger leg-trades')
+    if stat.get('ic_book_metrics') != 'REPORT-ONLY' or stat.get('i_book_metrics') != 'REPORT-ONLY':
+        raise ValueError('IC and I book metrics are report-only')
+    if stat.get('ic_book_mdd_veto_lt') != 0.25:
+        raise ValueError('IC book MDD veto must stay under 25%')
+    if protocol.get('grade_cap') != 'B':
+        raise ValueError('grade cap must be B')
+    window = protocol.get('evidence_window')
+    if not isinstance(window, dict):
+        raise ValueError('evidence window is missing')
+    if window.get('mode') != 'forward' or window.get('n_nonempty_week_clusters') != 30:
+        raise ValueError('evidence window is forward with N fixed at 30')
+    if window.get('n_fixed') is not True or window.get('looks') != 1:
+        raise ValueError('evidence window is one look and N is not extended')
+    if window.get('extension_allowed') is not False or window.get('bear_spell_required') is not True:
+        raise ValueError('evidence window cannot be extended and requires a BEAR spell')
+    if window.get('second_config_alpha') != 'alpha/4':
+        raise ValueError('a second config uses alpha/4')
+    carve = window.get('fixed_2026_window')
+    if not isinstance(carve, dict) or carve.get('enabled') is not False:
+        raise ValueError('fixed 2026 window is off by default')
+    if carve.get('operator_approved') is not False or carve.get('requires_operator_carve_out') is not True:
+        raise ValueError('fixed 2026 window requires an operator carve-out and is not approved')
+    screen = protocol.get('clone_screen')
+    if not isinstance(screen, dict):
+        raise ValueError('clone screen is missing')
+    if screen.get('weekly_pnl_rho_label') != 'SEEN' or screen.get('weekly_pnl_rho_role') != 'disqualifier_only':
+        raise ValueError('weekly P&L rho is a SEEN disqualifier only')
+    if screen.get('weekly_pnl_rho_fail_above') != 0.50 or screen.get('entry_timestamp_jaccard_fail_above') != 0.50:
+        raise ValueError('clone screen fail threshold is 0.50')
+    for key in (
+        'weekly_pnl_rho_not_supporting_evidence',
+        'weekly_pnl_rho_not_in_case_for_the_edge',
+        'weekly_pnl_rho_not_for_promotion',
+    ):
+        if screen.get(key) is not True:
+            raise ValueError(f'clone screen must keep {key} true')
+    statement = str(screen.get('statement') or '').lower()
+    for phrase in ('disqualifier', 'not supporting evidence', 'case for the edge', 'promotion', 'seen'):
+        if phrase not in statement:
+            raise ValueError(f'clone-screen statement is missing {phrase!r}')
+
+
+def fixed_2026_window_allowed(protocol: dict) -> bool:
+    """The fixed 2026 window is off unless the operator has approved the carve-out."""
+    window = protocol.get('evidence_window') if isinstance(protocol, dict) else None
+    carve = window.get('fixed_2026_window') if isinstance(window, dict) else None
+    if not isinstance(carve, dict):
+        return False
+    return carve.get('enabled') is True and carve.get('operator_approved') is True
+
+
 def frozen_config():
     protocol = json.loads((ROOT/'docs/cipher-forward/protocol.json').read_text())
     assert_no_promotion_clause(protocol)
     assert_interim_review_veto_only(protocol)
+    assert_lock_terms(protocol)
     primary = require_primary(protocol)
     return dict(version='cipher-forward-v1', mode='paper_comparison',live_authorized=False,
         starting_equity_usdt=20000, max_open_positions=15, gross_fraction=.5,

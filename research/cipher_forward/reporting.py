@@ -5,7 +5,8 @@ import html
 import json
 from pathlib import Path
 
-from .desk_cost import desk_cost_read
+from .config import REQUIRED_PROMOTION_GATES, ROOT
+from .desk_cost import binding_statistic_spec, desk_cost_read
 from .freeze import PORTFOLIO_LOOKS, enforce_identity
 from .ledger import BOOKS, OPPORTUNITIES, calendar_from_samples, funding_known
 from .pace import SCAN_OFFSET_MS
@@ -82,6 +83,65 @@ def _calendar(ledger, book, tainted, cutoff):
     return calendar
 
 
+def _iso_week(ms: int) -> str:
+    moment = datetime.fromtimestamp(int(ms) / 1000, timezone.utc)
+    year, week, _day = moment.isocalendar()
+    return f'{year:04d}-W{week:02d}'
+
+
+def _closed_week_pnl(positions) -> dict:
+    """Sum closed net P&L by the ISO week of the exit. Open rows stay out."""
+    totals = {}
+    for position in positions:
+        if position.get('status') != 'closed' or position.get('exit_ms') is None:
+            continue
+        week = _iso_week(position['exit_ms'])
+        totals[week] = totals.get(week, 0.0) + float(position['net_pnl'])
+    return totals
+
+
+def _profit_factor(positions):
+    closed = [p for p in positions if p.get('status') == 'closed']
+    wins = sum(p['net_pnl'] for p in closed if p['net_pnl'] > 0)
+    losses = -sum(p['net_pnl'] for p in closed if p['net_pnl'] < 0)
+    if not losses:
+        return None
+    return wins / losses
+
+
+def binding_stream(positions, ic_drawdown):
+    """Paired weekly IC-minus-I at desk031. This is the one binding statistic.
+
+    Profit factor is the challenger's own closed leg-trades (source C3 on
+    desk031:IC). Shared incumbent trades cancel when both books record them.
+    IC book drawdown is a veto at 25% and is not itself the binding statistic.
+    """
+    spec = binding_statistic_spec()
+    ic = [p for p in positions if p.get('book') == 'desk031:IC']
+    incumbent = [p for p in positions if p.get('book') == 'desk031:I']
+    ic_weeks = _closed_week_pnl(ic)
+    i_weeks = _closed_week_pnl(incumbent)
+    weeks = sorted(set(ic_weeks) | set(i_weeks))
+    series = [dict(
+        week=week,
+        ic_pnl=ic_weeks.get(week, 0.0),
+        i_pnl=i_weeks.get(week, 0.0),
+        difference=ic_weeks.get(week, 0.0) - i_weeks.get(week, 0.0),
+    ) for week in weeks]
+    challenger = [p for p in ic if p.get('source') == spec['challenger_source']]
+    veto = None if ic_drawdown is None else bool(float(ic_drawdown) >= spec['ic_book_mdd_veto_lt'])
+    return spec | dict(
+        weeks=series,
+        nonempty_week_clusters=len(series),
+        challenger_profit_factor=_profit_factor(challenger),
+        ic_book_max_drawdown=ic_drawdown,
+        ic_book_mdd_veto=veto,
+        gates_that_apply=dict(REQUIRED_PROMOTION_GATES),
+        book_metrics_role='REPORT-ONLY',
+        scored_as_promotion=False,
+    )
+
+
 def report(ledger,now):
     state=ledger.state();positions=ledger.positions(None)
     # `accounts` is the persisted simulated-cash key. The report also exposes
@@ -154,6 +214,13 @@ def report(ledger,now):
     output['data_coverage']=dict(last_scan=ledger.feed('last_scan',{}),
         first_forward_hour=cutoff,
         error_counts={r[0]:r[1] for r in ledger.db.execute("SELECT kind,count(*) FROM observations WHERE kind LIKE '%error%' GROUP BY kind")})
+    # Book drawdown stays a veto on the IC book. It is not the binding stream.
+    ic_drawdown = None if tainted else state['accounts']['desk031:IC']['maximum_drawdown']
+    output['binding_statistic'] = binding_stream(positions, ic_drawdown)
+    protocol = json.loads((ROOT / 'docs/cipher-forward/protocol.json').read_text())
+    output['grade_cap'] = protocol['grade_cap']
+    output['evidence_window'] = protocol['evidence_window']
+    output['clone_screen_rule'] = protocol['clone_screen']['statement']
     return output
 
 
@@ -253,7 +320,10 @@ def render(value):
 <p>Results are four strategy comparisons, in fixed order I, IC, IM, IF. Inside each comparison, desk031, baseline, and moderate are prominent, with desk031 first. Severe is secondary display only and stays collapsed. Each of the 16 simulated portfolios keeps its own record.</p>
 <p>I = hourly L01/F111 + BL8. IC = I + original 3R short. IM = I + half-size 3R short. IF = I + fixed-filter 3R short. BL8: port verified byte-identical to PR #149 @0519f425; strategy logic not desk-reviewed.</p>
 <p>Technical activation verified: '''+html.escape(str(verified))+'''. Returns below are new forward paper observations, not the 2022–2025 backtest. No superiority claim is made. Warmup bars are indicator state only and are omitted from performance.</p>
-<p>Desk binding cost is 0.31% per leg on entry and on exit. '''+html.escape(roles['statement'])+''' '''+html.escape(_cost_lines(roles))+'''</p>
+<p id="binding-statistic">'''+html.escape(value['binding_statistic']['definition'])+''' Grade cap B. '''+html.escape(roles['statement'])+'''</p>
+<p>Weekly P&amp;L rho on the clone screen is SEEN and is a disqualifier only. It is not supporting evidence, it is not part of the case for the edge, and it is not used for promotion.</p>
+<p>Evidence window: forward, N fixed at 30 non-empty week-clusters, one look, no extension, BEAR spell required. A second config uses alpha/4. The fixed 2026 window is off unless the operator approves the carve-out.</p>
+<p>Desk binding cost is 0.31% per leg on entry and on exit. '''+html.escape(_cost_lines(roles))+'''</p>
 '''+''.join(sections)+'''
 <p>R uses original entry-to-stop price risk. Marked returns include accrued fees and funding but no hypothetical exit fee. Unknown funding and stale marks remain provisional. Opportunity totals are not simulated-portfolio returns. Simulated cash starts at 20,000 USDT inside each portfolio record.</p>
 <details><summary>Full calendar-year, token, sector, source, cost and blocked-opportunity breakdown</summary><pre>'''+html.escape(json.dumps(value,indent=2,allow_nan=False))+'''</pre></details></html>'''

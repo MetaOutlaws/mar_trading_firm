@@ -20,8 +20,9 @@ MIN_FREE_BYTES = 2 * 1024 ** 3
 LEDGER_MAX_BYTES = 1 * 1024 ** 3
 # Observations, equity samples, and stored cycle/history payloads older than
 # this are eligible for retention. Positions, cash, decisions and signal rows
-# are not.
-LEDGER_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000
+# are not. Ten days keeps a measured production-shaped ledger under the 1 GiB cap.
+LEDGER_RETENTION_DAYS = 10
+LEDGER_MAX_AGE_MS = LEDGER_RETENTION_DAYS * 24 * 60 * 60 * 1000
 # Host path of the running paper book. The container sees the same volume
 # through the read-only /main-paper mount.
 DEFAULT_MAIN_PAPER_DB = Path('/data/state/data/firm.db')

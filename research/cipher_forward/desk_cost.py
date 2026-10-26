@@ -1,8 +1,9 @@
 """Desk cost labels for the paper settings.
 
 ``desk031`` is 0.31% of price on entry, on a non-stop exit, and on a stop
-exit. baseline, moderate, and severe keep their previous numbers. Only the
-PRIMARY arm at desk031 is labelled BINDING. Every other cell is REPORT-ONLY.
+exit. baseline, moderate, and severe keep their previous numbers. Book cells
+are REPORT-ONLY. The one BINDING statistic is the paired weekly IC-minus-I
+P&L difference at desk031, not a book cell.
 """
 from __future__ import annotations
 
@@ -58,19 +59,44 @@ def assert_cost_literals_unchanged() -> None:
             raise RuntimeError(f'{name} cost literal drifted; refusing to relabel costs')
 
 
+def binding_statistic_spec() -> dict:
+    """The one statistic desk gates apply to.
+
+    IC and I book metrics stay report-only. Profit factor for the gates is
+    the challenger's own leg-trades (source C3 on desk031:IC). The IC book
+    max drawdown is a veto at 25%, not a second binding statistic.
+    """
+    return dict(
+        name='paired_weekly_ic_minus_i_pnl',
+        count=1,
+        scope='desk031',
+        definition=(
+            'The paired weekly IC-minus-I P&L difference at desk031 only, '
+            'the 3R challenger marginal contribution.'
+        ),
+        gates='desk gates apply to this stream',
+        profit_factor_source='challenger_leg_trades',
+        challenger_source='C3',
+        ic_book_metrics='REPORT-ONLY',
+        i_book_metrics='REPORT-ONLY',
+        ic_book_mdd_veto_lt=0.25,
+        book_cells_are_not_binding=True,
+    )
+
+
 def cell_role(arm: str, cost: str, primary: str) -> str:
-    """BINDING only for the one PRIMARY x desk031 cell."""
-    if arm == primary and cost == 'desk031':
-        return 'BINDING'
+    """Every book cell is REPORT-ONLY. The binding statistic is not a cell."""
+    if arm not in ARMS or cost not in COST_ORDER or primary not in ARMS:
+        raise ValueError('unknown book cell')
     return 'REPORT-ONLY'
 
 
 def desk_cost_read() -> dict:
-    """Per-leg rates plus the one binding cell.
+    """Per-leg rates. No book cell is BINDING.
 
-    Severe stays a secondary display. The column itself is not the label:
-    I, IM, and IF at desk031 are REPORT-ONLY, as are baseline, moderate,
-    and severe on every arm.
+    Severe stays a secondary display. The one BINDING statistic is
+    ``binding_statistic_spec``. IC and I at desk031 are REPORT-ONLY, as are
+    IM, IF, baseline, moderate, and severe.
     """
     from .config import ROOT
     import json
@@ -102,20 +128,29 @@ def desk_cost_read() -> dict:
         for cost in COST_ORDER for arm in ARMS
     }
     binding = [name for name, role in cells.items() if role == 'BINDING']
-    if binding != [f'desk031:{primary}']:
-        raise RuntimeError('binding cell drifted')
+    if binding:
+        raise RuntimeError('a book cell was labelled BINDING')
+    if primary not in ARMS:
+        raise RuntimeError('primary arm missing')
+    statistic = binding_statistic_spec()
+    if statistic['count'] != 1:
+        raise RuntimeError('binding statistic count drifted')
     return dict(
         binding_per_leg=format(BINDING_PER_LEG, 'f'),
         binding_per_leg_percent='0.31%',
         binding_applies_to='entry and exit',
         primary=primary,
-        binding_cell=f'desk031:{primary}',
         binding_cells=binding,
+        binding_statistic=statistic,
         prior_three_cost_settings_unchanged=True,
         added_setting='desk031',
         statement=(
-            f'Only {primary} at desk031 is labelled BINDING. '
-            'Every other cell is REPORT-ONLY. Severe stays secondary display only.'
+            'The one BINDING statistic is the paired weekly IC-minus-I P&L '
+            'difference at desk031. Desk gates apply to that stream. Profit '
+            "factor is taken from the challenger's own leg-trades. IC and I "
+            'book metrics are REPORT-ONLY. IC book max drawdown must stay '
+            'under 25% as a veto. Every cell is REPORT-ONLY. Severe stays '
+            'secondary display only.'
         ),
         settings=settings,
         cells=cells,

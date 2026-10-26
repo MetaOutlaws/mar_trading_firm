@@ -23,8 +23,9 @@ by that clause.
   or cost. Four opportunity records track 2,000-USDT-per-signal
   counterfactuals, including capacity blocks.
 - PRIMARY is IC: incumbent L01/F111 plus original BL8, plus the original
-  unfiltered 3R short at full size. Only IC at desk031 is labelled BINDING.
-  Every other cell is REPORT-ONLY. Interim reviews are veto-only. An interim
+  unfiltered 3R short at full size. The one BINDING statistic is the paired
+  weekly IC-minus-I P&L difference at desk031. IC and I book metrics are
+  REPORT-ONLY. Interim reviews are veto-only. An interim
   review can stop or void the run. It cannot promote, re-pick PRIMARY, or
   change any config. No config is swapped after LOCK. Freeze and start refuse
   an empty PRIMARY. `docs/cipher-forward/config_freeze.json` carries the same
@@ -102,7 +103,7 @@ The installer does not start `mar-cipher-forward-paper.service` after
 preparation. An operator starts it only after the deploy OK. Its first
 eligible signal cutoff is the next whole UTC hour after the worker starts.
 Funded quote requests peak at 4/s (0.25s spacing, concurrency 2). The hourly
-scan keeps a separate 10/s pacer and is requested 6 minutes after the hour.
+scan uses the same 0.25s spacing, so at most 4 requests/s, and is requested 6 minutes after the hour.
 The scan as-of time stays the hour boundary. The 110-second completion budget
 is measured from that delayed request, not from the top of the hour.
 After reboots, existing books resume exit supervision immediately; warmup does
@@ -142,8 +143,9 @@ has been sent by this release.
 
 - `report.html`: self-contained browser view of four strategy comparisons, in
   fixed order I, IC, IM, IF. desk031, baseline, and moderate are prominent,
-  with desk031 first. Severe is secondary, collapsed, and display only. Only
-  IC at desk031 is labelled BINDING. Every other cell is REPORT-ONLY. The page
+  with desk031 first. Severe is secondary, collapsed, and display only. The
+  one BINDING statistic is the paired weekly IC-minus-I difference at desk031.
+  Every book cell is REPORT-ONLY. The page
   states that the 16 portfolios are 16 looks at one idea, not 16 tests. It
   does not rank them.
   Year, token, sector, source, costs, R, and blocked-opportunity details stay
@@ -161,8 +163,9 @@ token portfolio returns. Unknown funding and stale marks remain provisional.
 Opportunity totals overlap and are not simulated-portfolio returns. Short samples
 are descriptive. The 30/60/90-day reviews are report and veto only.
 
-desk031 is 0.31% on entry, on a non-stop exit, and on a stop exit. Only IC at
-desk031 is labelled BINDING. Every other cell is REPORT-ONLY. Baseline,
+desk031 is 0.31% on entry, on a non-stop exit, and on a stop exit. The one
+BINDING statistic is the paired weekly IC-minus-I P&L difference at desk031.
+IC and I book metrics are REPORT-ONLY. Every other cell is REPORT-ONLY. Baseline,
 moderate, and severe were not repriced. Baseline is 0.255% on entry and on a
 non-stop exit, and 0.055% on a stop exit, and stays prominent. Moderate is
 0.355% on entry and on a non-stop exit, and 0.255% on a stop exit, and stays
@@ -182,12 +185,17 @@ and they are written at most every 15 minutes; other cycles store the hash
 without the levels. Fills still use the full in-memory book. Position
 entry and exit quotes stored on the book are the top 25 plus that hash.
 The worker drops quote cache entries that are not an open position or a
-signal still inside its entry minute. A synthetic day of 96 symbols at 200
-levels, with no exchange bars, measures quote-event payloads at 26,403,744
-bytes/day (about 25.2 MiB). Sixteen equity-sample rows add about 2.7 MiB/day.
-The capacity review's history figure, not remeasured here, is 51 MiB/day.
-The sum is about 79 MiB/day. Fourteen days of that sum is about 1.08 GiB, so
-the 1 GiB write cap remains the backstop if history stays at that quoted size.
+signal still inside its entry minute. A synthetic day of 96 symbols, 200-level
+books, 860 hourly bars and 40 four-hour bars per snapshot, 24 snapshots, and
+the real quote cadence, with no exchange fetch and no 2026 bars, measures:
+
+- Quotes: 28,637,568 bytes/day (27.31 MiB/day).
+- History: 44,826,552 bytes/day (42.75 MiB/day).
+- Equity: 2,833,920 bytes/day (2.70 MiB/day).
+- Total: 76,298,040 bytes/day (72.76 MiB/day).
+
+Ten days of that total is 762,980,400 bytes (727.62 MiB), under the 1 GiB
+(1,073,741,824 byte) cap. The old 51 MiB/day history estimate is not used.
 Sixteen portfolios do not multiply the shared quote feed or the history
 snapshots. The size cap stops ledger writes: `block_writes` makes the next
 transaction raise `StorageWriteBlocked`, and the worker skips the cycle while
@@ -203,7 +211,7 @@ volume it stops ledger writes, disables entries, and logs
 that entry halt when space returns. While free space stays under the
 threshold, writes stay off even if `entries_disabled` is removed.
 
-Append-only history is retained for 14 days, and the SQLite files (database,
+Append-only history is retained for 10 days, and the SQLite files (database,
 WAL and shared memory) are kept at or under 1 GiB. Cycle and history payloads
 older than that can be dropped; their identities and hashes stay, so a replay
 cannot trade twice. If the active book itself is still over 1 GiB, writes stop
@@ -212,7 +220,7 @@ reserve would survive a second copy of the file.
 
 `CIPHER_FORWARD_MIN_FREE_BYTES` defaults to 2147483648,
 `CIPHER_FORWARD_LEDGER_MAX_BYTES` to 1073741824, and
-`CIPHER_FORWARD_LEDGER_MAX_AGE_MS` to 1209600000.
+`CIPHER_FORWARD_LEDGER_MAX_AGE_MS` to 864000000.
 `CIPHER_FORWARD_MAIN_PAPER_DB` is the book whose volume is protected.
 
 To pause funded **entries** while keeping exits and opportunities supervised:

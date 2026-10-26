@@ -41,8 +41,10 @@ ALL_BOOKS = BOOKS + OPPORTUNITIES
 EXIT_TICK = 15_000
 CYCLES_PER_DAY = 24 * 60 * 60 * 1000 // EXIT_TICK
 QUOTE_SNAPSHOTS_PER_DAY = 24 * 60 * 60 * 1000 // QUOTE_SNAPSHOT_INTERVAL_MS
-# Quoted from the 2026-10-26 capacity review. Not remeasured on exchange bars.
-HISTORY_SNAPSHOT_BYTES_PER_DAY_QUOTED = 51 * 1024 * 1024
+# feed.histories asks for 860 hourly bars and 40 four-hour bars, once an hour.
+HISTORY_HOURLY_BARS = 860
+HISTORY_FOUR_HOUR_BARS = 40
+HISTORY_SNAPSHOTS_PER_DAY = 24
 FEE = .00055
 SLIP = .002
 

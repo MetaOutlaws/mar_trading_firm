@@ -160,7 +160,7 @@ Requires=docker.service
 [Service]
 Type=oneshot
 TimeoutStartSec=2h
-ExecStart=/usr/bin/docker run --rm --name mar-cipher-forward-prepare --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --mount type=bind,src=$state,dst=/state --mount type=bind,src=$context,dst=/context,readonly --mount type=bind,src=$main_dir,dst=/main-paper,readonly -e CIPHER_FORWARD_MAIN_PAPER_DB=/main-paper/$main_name -e CIPHER_FORWARD_MIN_FREE_BYTES=2147483648 -e CIPHER_FORWARD_LEDGER_MAX_BYTES=1073741824 -e CIPHER_FORWARD_LEDGER_MAX_AGE_MS=1209600000 $image python scripts/run_cipher_forward_paper.py --db /state/trial.db --warmup --context-root /context
+ExecStart=/usr/bin/docker run --rm --name mar-cipher-forward-prepare --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --mount type=bind,src=$state,dst=/state --mount type=bind,src=$context,dst=/context,readonly --mount type=bind,src=$main_dir,dst=/main-paper,readonly -e CIPHER_FORWARD_MAIN_PAPER_DB=/main-paper/$main_name -e CIPHER_FORWARD_MIN_FREE_BYTES=2147483648 -e CIPHER_FORWARD_LEDGER_MAX_BYTES=1073741824 -e CIPHER_FORWARD_LEDGER_MAX_AGE_MS=864000000 $image python scripts/run_cipher_forward_paper.py --db /state/trial.db --warmup --context-root /context
 EOF
 python3 - "$state" "$receipt" "$release" "$context" <<'PY'
 import json,sys
@@ -195,7 +195,7 @@ RestartSec=10
 TimeoutStopSec=40
 ExecStartPre=-/usr/bin/docker stop --timeout 10 mar-cipher-forward-paper
 ExecStartPre=-/usr/bin/docker rm mar-cipher-forward-paper
-ExecStart=/usr/bin/docker run --rm --name mar-cipher-forward-paper --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --mount type=bind,src=$state,dst=/state --mount type=bind,src=$context,dst=/context,readonly --mount type=bind,src=$main_dir,dst=/main-paper,readonly -e CIPHER_FORWARD_MAIN_PAPER_DB=/main-paper/$main_name -e CIPHER_FORWARD_MIN_FREE_BYTES=2147483648 -e CIPHER_FORWARD_LEDGER_MAX_BYTES=1073741824 -e CIPHER_FORWARD_LEDGER_MAX_AGE_MS=1209600000 $image
+ExecStart=/usr/bin/docker run --rm --name mar-cipher-forward-paper --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --mount type=bind,src=$state,dst=/state --mount type=bind,src=$context,dst=/context,readonly --mount type=bind,src=$main_dir,dst=/main-paper,readonly -e CIPHER_FORWARD_MAIN_PAPER_DB=/main-paper/$main_name -e CIPHER_FORWARD_MIN_FREE_BYTES=2147483648 -e CIPHER_FORWARD_LEDGER_MAX_BYTES=1073741824 -e CIPHER_FORWARD_LEDGER_MAX_AGE_MS=864000000 $image
 ExecStop=/usr/bin/docker stop --timeout 30 mar-cipher-forward-paper
 [Install]
 WantedBy=multi-user.target

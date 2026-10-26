@@ -27,7 +27,7 @@ def book(tmp_path):
 def test_documented_guard_thresholds():
     assert MIN_FREE_BYTES == 2 * 1024 ** 3
     assert LEDGER_MAX_BYTES == 1 * 1024 ** 3
-    assert LEDGER_MAX_AGE_MS == 14 * 24 * 60 * 60 * 1000
+    assert LEDGER_MAX_AGE_MS == 10 * 24 * 60 * 60 * 1000
     assert DEFAULT_MAIN_PAPER_DB == Path('/data/state/data/firm.db')
     assert CONTAINER_MAIN_PAPER_DB == Path('/main-paper/firm.db')
 
@@ -183,46 +183,109 @@ def test_size_cap_stops_writes_without_deleting_positions(book):
     assert len(book.positions()) == positions
 
 
-def test_quote_storage_day_stays_under_the_cap():
+def _production_instrument(symbol):
+    """Bybit v5 linear instrument shape. Values are synthetic. No network call."""
+    return dict(
+        symbol=symbol, contractType='LinearPerpetual', status='Trading',
+        baseCoin=symbol[:-4], quoteCoin='USDT', launchTime='1584230400000',
+        deliveryTime='0', deliveryFeeRate='', priceScale='2',
+        leverageFilter=dict(minLeverage='1', maxLeverage='100.00', leverageStep='0.01'),
+        priceFilter=dict(minPrice='0.10', maxPrice='1999999.80', tickSize='0.10'),
+        lotSizeFilter=dict(
+            maxOrderQty='100.000', minOrderQty='0.001', qtyStep='0.001',
+            postOnlyMaxOrderQty='1000.000', maxMktOrderQty='100.000', minNotionalValue='5'),
+        unifiedMarginTrade=True, fundingInterval=480, settleCoin='USDT',
+        copyTrading='both', upperFundingRate='0.00375', lowerFundingRate='-0.00375',
+        isPreListing=False, preListingInfo=None,
+    )
+
+
+def _parsed_bars(count, duration, end_ms, seed):
+    """Same dicts parse_bars stores: close-labelled t and float OHLCV."""
+    bars = []
+    price = 10.0 + (seed % 50)
+    start = end_ms - count * duration
+    for i in range(count):
+        price = max(0.01, price * (1 + (((i * 17 + seed) % 11) - 5) / 10000))
+        opened = round(price, 6)
+        closed = round(opened * (1 + (((i + seed) % 5) - 2) / 10000), 6)
+        high = max(opened, closed) * 1.001
+        low = min(opened, closed) * 0.999
+        bars.append(dict(
+            t=start + (i + 1) * duration, o=opened, h=high, l=low, c=closed,
+            v=1000.0 + (i % 100) + seed / 100))
+    return bars
+
+
+def test_ten_day_projection_stays_under_the_cap():
+    """Measure quote, history, and equity bytes on synthetic production-shaped inputs.
+
+    96 universe symbols, 200-level books, the 15-second quote cadence, and one
+    hourly history snapshot of 860 hourly bars plus 40 four-hour bars. The
+    clock is the synthetic pre-2026 fixture T. Nothing is fetched.
+    """
     import zlib
     from research.cipher_forward.ledger import (
-        BOOKS, CYCLES_PER_DAY, HISTORY_SNAPSHOT_BYTES_PER_DAY_QUOTED,
-        QUOTE_SNAPSHOTS_PER_DAY, STORED_LEVELS, canonical, compact_event_payload,
-        project_quote_event_bytes_per_day,
+        BOOKS, CYCLES_PER_DAY, HISTORY_FOUR_HOUR_BARS, HISTORY_HOURLY_BARS,
+        HISTORY_SNAPSHOTS_PER_DAY, MINUTE, QUOTE_SNAPSHOTS_PER_DAY, STORED_LEVELS,
+        canonical, compact_event_payload, project_quote_event_bytes_per_day,
     )
+    from research.cipher_forward.storage import LEDGER_RETENTION_DAYS
+    universe = frozen_config()['universe']
+    assert len(universe) == 96
+    hour = 60 * MINUTE
+    asof = (T // hour) * hour
+    assert asof < 20454 * 24 * 60 * MINUTE  # before 2026-01-01
     quotes = {}
-    for i in range(96):
-        symbol = f'SYM{i:02d}USDT'
+    histories = {}
+    for seed, symbol in enumerate(universe):
         quotes[symbol] = dict(
-            s=symbol, ts=T,
+            s=symbol, ts=asof,
             b=[[f'{100 - level * 0.01:.2f}', '1.5'] for level in range(200)],
             a=[[f'{100.01 + level * 0.01:.2f}', '1.5'] for level in range(200)],
         )
-    def nbytes(include):
-        payload = compact_event_payload(T, quotes, {}, [], {}, False, include_levels=include)
+        histories[symbol] = dict(
+            symbol=symbol,
+            instrument=_production_instrument(symbol),
+            hours=_parsed_bars(HISTORY_HOURLY_BARS, hour, asof, seed),
+            four=_parsed_bars(HISTORY_FOUR_HOUR_BARS, 4 * hour, asof, seed + 1000),
+        )
+    def quote_bytes(include):
+        payload = compact_event_payload(asof, quotes, {}, [], {}, False, include_levels=include)
         if include:
-            assert len(payload['quotes'][next(iter(quotes))]['b']) == STORED_LEVELS
+            assert len(payload['quotes'][universe[0]]['b']) == STORED_LEVELS
         return len(zlib.compress(canonical(payload).encode()))
-    snapshot = nbytes(True)
-    hash_only = nbytes(False)
-    raw_full = len(zlib.compress(canonical(quotes).encode()))
-    assert snapshot < raw_full
-    day = project_quote_event_bytes_per_day(snapshot, hash_only)
+    snapshot = quote_bytes(True)
+    hash_only = quote_bytes(False)
+    quote_day = project_quote_event_bytes_per_day(snapshot, hash_only)
+    history_one = len(zlib.compress(canonical(histories).encode()))
+    history_day = history_one * HISTORY_SNAPSHOTS_PER_DAY
     equity_row = len(canonical(dict(
-        book='desk031:IC', minute=1, at_ms=T, equity=20000.0, peak=20000.0,
+        book='desk031:IC', minute=1, at_ms=asof, equity=20000.0, peak=20000.0,
         complete_marks=1, funding_known=1)))
     equity_day = equity_row * len(BOOKS) * 1440
-    total = day + HISTORY_SNAPSHOT_BYTES_PER_DAY_QUOTED + equity_day
-    assert len(BOOKS) == 16
+    total = quote_day + history_day + equity_day
+    ten_day = total * LEDGER_RETENTION_DAYS
+    assert HISTORY_HOURLY_BARS == 860 and HISTORY_FOUR_HOUR_BARS == 40
+    assert HISTORY_SNAPSHOTS_PER_DAY == 24
     assert QUOTE_SNAPSHOTS_PER_DAY == 96 and CYCLES_PER_DAY == 5760
-    # Sixteen portfolios share one quote feed, so they do not multiply this payload.
-    assert 'desk031' not in canonical(compact_event_payload(
-        T, quotes, {}, [], {}, False, include_levels=False))
-    assert day < 80 * 1024 * 1024
-    assert total < LEDGER_MAX_BYTES
+    assert len(BOOKS) == 16 and LEDGER_RETENTION_DAYS == 10
+    assert len(histories[universe[0]]['hours']) == 860
+    assert len(histories[universe[0]]['four']) == 40
+    assert quote_day > 0 and history_day > 0 and equity_day > 0
+    assert ten_day < LEDGER_MAX_BYTES
+    documented = '\n'.join(
+        path.read_text() for path in (
+            ROOT / 'docs/cipher-forward/README.md',
+            ROOT / 'docs/cipher-forward/DEPLOYMENT.md'))
+    for measured in (quote_day, history_day, equity_day, total, ten_day):
+        assert f'{measured:,}' in documented
+    assert 'retained for 14 days' not in documented
+    assert '1209600000' not in documented
     print(
-        f'quote_event_bytes_per_day={day} snapshot={snapshot} hash_only={hash_only} '
-        f'equity_bytes_per_day={equity_day} quoted_history={HISTORY_SNAPSHOT_BYTES_PER_DAY_QUOTED} total={total}')
+        f'quote_bytes_per_day={quote_day} history_bytes_per_day={history_day} '
+        f'history_snapshot_bytes={history_one} equity_bytes_per_day={equity_day} '
+        f'total_bytes_per_day={total} ten_day_bytes={ten_day}')
 
 
 def test_protocol_clause_is_what_the_runtime_loads():

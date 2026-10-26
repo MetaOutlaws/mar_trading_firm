@@ -7,13 +7,14 @@ from pathlib import Path
 import pytest
 
 from research.cipher_forward.config import (
-    assert_interim_review_veto_only, assert_no_promotion_clause, frozen_config, require_primary)
+    assert_interim_review_veto_only, assert_lock_terms, assert_no_promotion_clause,
+    fixed_2026_window_allowed, frozen_config, require_primary)
 from research.cipher_forward.desk_cost import desk_cost_read
 from research.cipher_forward.freeze import (
     PORTFOLIO_LOOKS, current_identity, digest as freeze_digest, enforce_identity,
     entries_halted, freeze_before_warmup, warmup_begun)
 from research.cipher_forward.ledger import BOOKS, DAY, MINUTE, PaperTrial, digest as ledger_digest
-from research.cipher_forward.reporting import report, render
+from research.cipher_forward.reporting import binding_stream, report, render
 from research.cipher_forward.strategy import COSTS, FEE
 from scripts.run_cipher_forward_paper import warmup
 
@@ -72,8 +73,11 @@ def test_only_primary_desk031_is_binding_and_other_numbers_stay():
     assert protocol['desk_cost_read'] == roles
     assert roles['binding_per_leg'] == '0.0031'
     assert roles['primary'] == 'IC'
-    assert roles['binding_cell'] == 'desk031:IC'
-    assert roles['binding_cells'] == ['desk031:IC']
+    assert roles['binding_cells'] == []
+    assert roles['binding_statistic']['count'] == 1
+    assert roles['binding_statistic']['name'] == 'paired_weekly_ic_minus_i_pnl'
+    assert roles['binding_statistic']['scope'] == 'desk031'
+    assert roles['binding_statistic'] == protocol['binding_statistic']
     assert roles['prior_three_cost_settings_unchanged'] is True
     desk, baseline, moderate, severe = (
         roles['settings'][name] for name in ('desk031', 'baseline', 'moderate', 'severe'))
@@ -85,8 +89,10 @@ def test_only_primary_desk031_is_binding_and_other_numbers_stay():
     assert moderate['display'] == 'prominent'
     assert severe['entry']['percent'] == severe['stop_exit']['percent'] == '1.055%'
     assert severe['display'] == 'secondary'
-    assert [name for name, role in roles['cells'].items() if role == 'BINDING'] == ['desk031:IC']
-    assert all(role == 'REPORT-ONLY' for name, role in roles['cells'].items() if name != 'desk031:IC')
+    assert [name for name, role in roles['cells'].items() if role == 'BINDING'] == []
+    assert all(role == 'REPORT-ONLY' for role in roles['cells'].values())
+    assert roles['cells']['desk031:IC'] == 'REPORT-ONLY'
+    assert roles['cells']['desk031:I'] == 'REPORT-ONLY'
     assert FEE == .00055
     assert tuple(COSTS) == ('desk031', 'baseline', 'moderate', 'severe')
     assert COSTS['desk031'] == (.00255, .00255)
@@ -135,10 +141,16 @@ def test_report_has_no_best_of_selection_and_groups_four_comparisons(book):
     assert html.index('Strategy comparison IM') < html.index('Strategy comparison IF')
     assert '<details open' not in html
     assert html.count('secondary display only') >= 4
-    assert html.count('>BINDING<') == 1
+    assert html.count('>BINDING<') == 0
+    assert html.count('id="binding-statistic"') == 1
+    assert 'Grade cap B' in html
+    assert 'paired weekly IC-minus-I' in html
+    assert 'not supporting evidence' in html
     assert 'REPORT-ONLY' in html and 'not the 2022' in html and '<table>' in html
-    assert value['cost_roles']['cells']['desk031:IC'] == 'BINDING'
+    assert value['cost_roles']['cells']['desk031:IC'] == 'REPORT-ONLY'
     assert value['cost_roles']['cells']['desk031:I'] == 'REPORT-ONLY'
+    assert value['binding_statistic']['count'] == 1
+    assert value['grade_cap'] == 'B'
     assert value['cost_roles']['settings']['severe']['display'] == 'secondary'
     assert _protocol()['twelve_looks']['statement'] == PORTFOLIO_LOOKS
     assert _protocol()['twelve_looks']['selects_a_config_or_cost'] is False
@@ -296,6 +308,70 @@ def test_interim_review_is_veto_only():
     del stripped['interim_review']
     with pytest.raises(ValueError, match='interim-review'):
         assert_interim_review_veto_only(stripped)
+
+
+def _closed(book_name, uid, source, exit_ms, net_pnl):
+    return dict(
+        book=book_name, uid=uid, symbol='BTCUSDT', source=source, sector='majors',
+        status='closed', entry_ms=exit_ms - DAY, exit_ms=exit_ms, net_pnl=net_pnl,
+        original_risk_usdt=100., side=-1, quantity=1., entry=100., mark=100.,
+        entry_fee=0., exit_fee=0., funding=0., gross_pnl=net_pnl,
+        funding_interval=10**9, settlements=[],
+        missed_exit_ticks=0, missed_exit_minutes=0, decision_latency_ms=0,
+        quote_age_ms=0, entry_slippage_usdt=0., exit_slippage_usdt=0.,
+        entry_depth_usdt=0., exit_depth_usdt=0., entry_half_spread_usdt=0.)
+
+
+def test_binding_stream_is_the_paired_weekly_difference(book):
+    """Shared incumbent P&L cancels. Challenger PF ignores the incumbent leg."""
+    from datetime import datetime, timezone
+    week_a = int(datetime(2024, 1, 5, tzinfo=timezone.utc).timestamp() * 1000)
+    week_b = int(datetime(2024, 1, 12, tzinfo=timezone.utc).timestamp() * 1000)
+    rows = [
+        _closed('desk031:IC', 'h-ic', 'H', week_a, 5.),
+        _closed('desk031:I', 'h-i', 'H', week_a, 5.),
+        _closed('desk031:IC', 'c3-a', 'C3', week_a, 10.),
+        _closed('desk031:IC', 'c3-b', 'C3', week_b, -4.),
+        _closed('desk031:I', 'i-b', 'H', week_b, -1.),
+        _closed('baseline:IC', 'other', 'C3', week_a, 999.),
+    ]
+    for row in rows:
+        book.save_position(row)
+    value = report(book, week_b + DAY)
+    stream = value['binding_statistic']
+    direct = binding_stream(rows, 0.25)
+    assert stream['count'] == 1 and stream['scope'] == 'desk031'
+    assert [(row['week'], row['difference']) for row in stream['weeks']] == [
+        ('2024-W01', 10.), ('2024-W02', -3.)]
+    assert stream['challenger_profit_factor'] == pytest.approx(10. / 4.)
+    assert direct['ic_book_mdd_veto'] is True
+    assert binding_stream(rows, 0.249)['ic_book_mdd_veto'] is False
+    assert stream['ic_book_mdd_veto'] is False
+    assert stream['scored_as_promotion'] is False
+    assert '999' not in json.dumps(stream['weeks'])
+
+
+def test_lock_terms_keep_one_statistic_and_the_2026_window_off():
+    protocol = _protocol()
+    assert_lock_terms(protocol)
+    assert protocol['grade_cap'] == 'B'
+    assert protocol['evidence_window']['n_nonempty_week_clusters'] == 30
+    assert protocol['evidence_window']['looks'] == 1
+    assert protocol['evidence_window']['extension_allowed'] is False
+    assert protocol['evidence_window']['bear_spell_required'] is True
+    assert protocol['evidence_window']['second_config_alpha'] == 'alpha/4'
+    assert fixed_2026_window_allowed(protocol) is False
+    assert protocol['historical_2026_backtest_opened'] is False
+    screen = protocol['clone_screen']
+    assert screen['weekly_pnl_rho_role'] == 'disqualifier_only'
+    assert screen['weekly_pnl_rho_not_for_promotion'] is True
+    assert 'not supporting evidence' in screen['statement']
+    opened = json.loads(json.dumps(protocol))
+    opened['evidence_window']['fixed_2026_window']['enabled'] = True
+    opened['evidence_window']['fixed_2026_window']['operator_approved'] = True
+    assert fixed_2026_window_allowed(opened) is True
+    with pytest.raises(ValueError, match='off by default'):
+        assert_lock_terms(opened)
 
 
 def test_installer_does_not_enable_start_or_initialize():
