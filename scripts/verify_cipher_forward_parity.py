@@ -15,6 +15,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from research.cipher_forward.config import assert_no_promotion_clause
 from research.cipher_forward.features import compute
 from research.cipher_forward.strategy import (
     COSTS, HOUR, MIN_TURNOVER, MAX_STRUCTURAL_STOP_PERCENT,
@@ -35,6 +36,7 @@ def verify(features, signals_path, paths_path, late_path):
     paths = pd.read_parquet(paths_path)
     late = pd.read_parquet(late_path)
     protocol = json.loads((ROOT / 'docs/cipher-forward/protocol.json').read_text())
+    assert_no_promotion_clause(protocol)
     universe = protocol['universe']
     assert set(saved.symbol) <= set(universe)
     assert set(paths.symbol) <= set(universe)

@@ -1,4 +1,4 @@
-"""Public-data paper comparison. No order endpoint or live broker dependency.
+"""Public-data paper comparison. No order endpoint and no broker dependency.
 
 One SQLite transaction commits decisions, fills, cash, recovery state and the
 opportunity ledgers together. Four independent funded arms per cost scenario.
@@ -13,6 +13,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import shutil
 import sqlite3
 import zlib
 
@@ -21,6 +22,7 @@ from .allocation import membership, planned_notional, ordered_candidates
 from .strategy import fill_gate as cipher_gate, COSTS
 from .config import frozen_config
 from .bl8 import fill_gate
+from .storage import StorageWriteBlocked, ledger_nbytes
 from core.strategy.f111_semantics import initial_brackets, new_protection_state, step_protection
 
 MINUTE = 60_000
@@ -118,8 +120,14 @@ class PaperTrial:
             self.path.touch(exist_ok=False, mode=0o600)
         if not self.path.is_file():
             raise ValueError('book missing: initialize explicitly; never silently reset a lost ledger')
+        self.writes_blocked = False
+        self.block_reason = ''
         self.db = sqlite3.connect(self.path, isolation_level=None)
         self.db.row_factory = sqlite3.Row
+        # Incremental vacuum has to be selected before the schema is written.
+        # A later open cannot turn it on for a database that already has tables.
+        if create:
+            self.db.execute('PRAGMA auto_vacuum=INCREMENTAL')
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.execute('PRAGMA synchronous=FULL')
         self.db.execute('PRAGMA busy_timeout=5000')
@@ -149,8 +157,22 @@ class PaperTrial:
             raise ValueError('configuration changed: a new book is required')
         self.reconcile()
 
+    def block_writes(self, reason: str):
+        """Refuse new ledger writes. The caller also disables entries."""
+        self.writes_blocked = True
+        self.block_reason = reason
+
+    def allow_writes(self):
+        self.writes_blocked = False
+        self.block_reason = ''
+
+    def _require_writes(self):
+        if self.writes_blocked:
+            raise StorageWriteBlocked(self.block_reason or 'ledger writes blocked')
+
     @contextmanager
     def transaction(self):
+        self._require_writes()
         self.db.execute('BEGIN IMMEDIATE')
         try:
             yield
@@ -203,17 +225,20 @@ class PaperTrial:
         return json.loads(row[0]) if row else default
 
     def save_feed(self, key, value):
+        self._require_writes()
         encoded=canonical(value)
         row=self.db.execute('SELECT body FROM feed WHERE key=?',(key,)).fetchone()
         if row is None or row[0]!=encoded:
             self.db.execute('INSERT OR REPLACE INTO feed VALUES (?,?)', (key, encoded))
 
     def observe(self, now, kind, payload):
+        self._require_writes()
         self.db.execute('INSERT INTO observations(at_ms,kind,body) VALUES (?,?,?)',
                         (now, kind, canonical(payload)))
 
     def history_snapshot(self, hour, histories):
         """First observed completed-bar input for the hour, never silently revised."""
+        self._require_writes()
         raw=canonical(histories).encode();sha=hashlib.sha256(raw).hexdigest()
         old=self.db.execute('SELECT sha256 FROM history_snapshots WHERE hour=?',(hour,)).fetchone()
         if old:
@@ -526,6 +551,78 @@ class PaperTrial:
             self.db.execute('UPDATE state SET body=? WHERE id=1', (canonical(state),))
             self.db.execute('INSERT INTO events VALUES (?,?,?,?,?)', (event_id,input_hash,now,canonical(output),zlib.compress(canonical(payload).encode())))
             return output
+
+    def _drop_oldest_append_only(self):
+        """Remove one batch of history that is not the book. Return whether any row changed.
+
+        Positions, cash, decisions, signals, feed and event identities stay.
+        Clearing an event payload keeps the id and hash, so a replay of that
+        cycle still cannot trade a second time.
+        """
+        ids=[row[0] for row in self.db.execute(
+            'SELECT id FROM observations ORDER BY at_ms, id LIMIT 500')]
+        if ids:
+            self.db.executemany('DELETE FROM observations WHERE id=?', [(i,) for i in ids])
+            return True
+        samples=self.db.execute(
+            'SELECT book, minute FROM equity_samples ORDER BY at_ms, book LIMIT 500').fetchall()
+        if samples:
+            self.db.executemany('DELETE FROM equity_samples WHERE book=? AND minute=?', samples)
+            return True
+        event=self.db.execute(
+            'SELECT id FROM events WHERE length(payload)>0 ORDER BY at_ms, id LIMIT 1').fetchone()
+        if event:
+            self.db.execute('UPDATE events SET payload=? WHERE id=?', (b'', event[0]))
+            return True
+        snapshot=self.db.execute(
+            'SELECT hour FROM history_snapshots WHERE length(payload)>0 ORDER BY hour LIMIT 1').fetchone()
+        if snapshot:
+            self.db.execute('UPDATE history_snapshots SET payload=? WHERE hour=?', (b'', snapshot[0]))
+            return True
+        return False
+
+    def _reclaim_pages(self, *, min_free_bytes, main_free_bytes):
+        """Shrink the file only when doing so cannot spend the free-space reserve.
+
+        VACUUM writes a second copy. Skip it when the ledger volume, or the
+        main paper volume, would fall to the halt threshold. Incremental
+        vacuum reclaims pages that were reserved at database creation and does
+        not need that second copy.
+        """
+        size=ledger_nbytes(self.path)
+        ledger_free=shutil.disk_usage(self.path).free
+        reserve=min(ledger_free, main_free_bytes if main_free_bytes is not None else ledger_free)
+        if reserve > size + min_free_bytes:
+            self.db.execute('VACUUM')
+        else:
+            self.db.execute('PRAGMA incremental_vacuum')
+        self.db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+
+    def enforce_retention(self, now, *, max_age_ms, max_bytes, min_free_bytes, main_free_bytes):
+        """Apply the age limit, then the size cap. Return True if still over the cap.
+
+        Active book rows are never deleted. If they alone exceed the cap, the
+        caller stops further writes instead of discarding positions.
+        """
+        cutoff=int(now)-int(max_age_ms)
+        with self.transaction():
+            removed=0
+            for statement, args in (
+                ('DELETE FROM observations WHERE at_ms < ?', (cutoff,)),
+                ('DELETE FROM equity_samples WHERE at_ms < ?', (cutoff,)),
+                ('UPDATE events SET payload=? WHERE at_ms < ? AND length(payload)>0', (b'', cutoff)),
+                ('UPDATE history_snapshots SET payload=? WHERE hour < ? AND length(payload)>0', (b'', cutoff)),
+            ):
+                removed += self.db.execute(statement, args).rowcount
+        if removed or ledger_nbytes(self.path) > max_bytes:
+            self._reclaim_pages(min_free_bytes=min_free_bytes, main_free_bytes=main_free_bytes)
+        while ledger_nbytes(self.path) > max_bytes:
+            with self.transaction():
+                changed=self._drop_oldest_append_only()
+            if not changed:
+                break
+            self._reclaim_pages(min_free_bytes=min_free_bytes, main_free_bytes=main_free_bytes)
+        return ledger_nbytes(self.path) > max_bytes
 
     def report(self, now):
         state = self.state()

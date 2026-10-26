@@ -54,7 +54,7 @@ This handoff is committed for review; no external message was sent.
   trade. Overlapping opportunities have no funded-portfolio ROI.
 - Baseline/moderate/severe scenarios use separate admissions and accounts; mark
   severe as secondary. Quote snapshots are observations; fees and extra slippage
-  are model assumptions. Do not label paper fills measured live execution.
+  are model assumptions. Do not describe paper fills as exchange execution.
 - Provide daily overall/calendar-year/token/sector/source returns and R,
   drawdown, count, expectancy, win rate, profit factor, costs, exposure, blocked
   opportunities and data coverage. Show open versus completed outcomes.

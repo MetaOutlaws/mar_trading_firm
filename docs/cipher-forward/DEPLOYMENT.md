@@ -1,9 +1,12 @@
-# Deploy the authorized 3R PAPER comparison
+# Deploy the authorized 3R paper comparison
 
-The user's “push this live” authorization applies to running the four-book
-**paper** experiment. No real-money broker, exchange credentials or order API
-is supplied. This release is an isolated companion to the existing application.
-PR149 migration/top-up and unrelated research are separate workstreams.
+This release runs the four-book comparison as paper only. It does not authorize
+real-money trading, a broker, exchange order credentials, or an order API. The
+process refuses to start unless `TRADING_MODE` is paper and `GO_LIVE_CONFIRMED`
+is unset. It is an isolated companion to the existing application. PR149
+migration/top-up and unrelated research are separate workstreams. This is a
+non-promotional experiment: moving it onto the approved book requires the full
+desk gates in `protocol.json`.
 
 ## What runs
 
@@ -53,10 +56,11 @@ It extracts the pinned commit into `/opt/mar-cipher-forward/releases/SHA`, build
 image with networking disabled, and records the image ID. The image deliberately
 uses a minimal `research` package initializer to avoid importing the historical
 backtester or unrelated execution code. No production execution modules or
-credential files are copied. Package versions are pinned; build outputs and the
-resulting image ID are retained because the base image tag itself can change.
+credential files are copied. Package versions are pinned. The `python:3.11-slim`
+base is pinned by digest in `docker/cipher-forward.Dockerfile` (tag last updated
+2026-10-22). Build outputs and the resulting image ID are retained.
 
-New state lives only at `/data/state/cipher-forward-v1`. Existing trial books
+New state is stored only at `/data/state/cipher-forward-v1`. Existing trial books
 are reconciled and backed up, never reset. A different release cannot silently
 take ownership of existing books. Existing production containers are not
 stopped/restarted or resized. Installation logs are under `install-TIMESTAMP`.
@@ -122,10 +126,29 @@ token portfolio returns. Unknown funding and stale marks remain provisional.
 Opportunity totals overlap and have no account ROI. Short samples are descriptive;
 the predeclared 30/60-day operational checks and 90-day primary review remain.
 
-Visible depth inputs can grow the ledger substantially. Monitor disk space and
-archive consistent SQLite backups to protected storage; never delete active
-state. Below 2 GiB free, new funded entries are latched off and exits continue
-while space remains. No automatic deletion or automatic halt clearing occurs.
+Visible depth inputs can grow the ledger substantially. Archive consistent
+SQLite backups to protected storage. Do not delete open positions, cash,
+decisions or signals to make room.
+
+The service measures free space on the volume that holds the main paper
+database (`/data/state/data/firm.db`, mounted read-only at `/main-paper` in
+the container) and on its own state directory. Below 2 GiB free on either
+volume it stops ledger writes, disables entries, and logs
+`ERROR cipher-forward storage guard` about once a minute. It does not clear
+that entry halt when space returns. While free space stays under the
+threshold, writes stay off even if `entries_disabled` is removed.
+
+Append-only history is retained for 14 days, and the SQLite files (database,
+WAL and shared memory) are kept at or under 1 GiB. Cycle and history payloads
+older than that can be dropped; their identities and hashes stay, so a replay
+cannot trade twice. If the active book itself is still over 1 GiB, writes stop
+rather than growing without a bound. `VACUUM` runs only when the free-space
+reserve would survive a second copy of the file.
+
+`CIPHER_FORWARD_MIN_FREE_BYTES` defaults to 2147483648,
+`CIPHER_FORWARD_LEDGER_MAX_BYTES` to 1073741824, and
+`CIPHER_FORWARD_LEDGER_MAX_AGE_MS` to 1209600000.
+`CIPHER_FORWARD_MAIN_PAPER_DB` is the book whose volume is protected.
 
 To pause funded **entries** while keeping exits and opportunities supervised:
 

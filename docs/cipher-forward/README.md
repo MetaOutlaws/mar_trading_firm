@@ -88,7 +88,7 @@ These are source observations, not proof of the effective remote settings.
 The historical A00 control is L01 long / unchanged F111 short, not a different
 new strategy. Its hourly protection and L01 context source files are unchanged
 between the historical pin and inspected default head. BL8 and recovery trial
-modules still live on the open branch. Recent default-head exit-supervision and
+modules remain on the open branch. Recent default-head exit-supervision and
 ledger fixes must not be lost by installing an older branch over production.
 
 To collect declarations from the actual running paper container, an operator

@@ -5,6 +5,17 @@
   "live_authorized": false,
   "production_account_changes": false,
   "historical_2026_backtest_opened": false,
+  "promotion": {
+    "non_promotional": true,
+    "promotion_authorized": false,
+    "statement": "This is a non-promotional experiment. Any promotion requires the full desk gates: profit factor at least 1.15, a confidence interval excluding zero, beats random, and week clusters. 2026 warmup counts as veto-only and is not a promotion sample.",
+    "required_gates": {
+      "profit_factor_min": 1.15,
+      "confidence_interval_excludes_zero": true,
+      "beats_random": true,
+      "week_clusters": true
+    }
+  },
   "start_time_utc": null,
   "start_rule": "first complete hourly signal strictly after verified activation; no retrospective fills",
   "universe": [

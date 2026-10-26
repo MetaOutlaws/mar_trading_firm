@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 from research.cipher_forward.allocation import membership, ordered_candidates, planned_notional
+from research.cipher_forward.config import assert_no_promotion_clause, frozen_config
 from research.cipher_forward.strategy import (
     HOUR, MINUTE, MIN_TURNOVER, MAX_STRUCTURAL_STOP_PERCENT,
     decision, fill_gate, from_feature, validate_history,
@@ -116,7 +117,39 @@ def test_no_production_override_and_no_fake_start():
     p = json.loads((Path(__file__).resolve().parents[1] / 'docs/cipher-forward/protocol.json').read_text())
     assert p['status'] == 'prepared_not_activated'
     assert p['start_time_utc'] is None
+    assert p['accounts']['gross_admission'] == .5
     assert p['accounts']['drawdown_entry_latch'] == .15
+    assert p['accounts']['daily_closed_loss_fraction'] == .03
+    assert p['accounts']['nonpositive_close_streak'] == 6
+    assert p['accounts']['risk_incumbent'] == .01
+    assert p['accounts']['position_incumbent'] == .1
+    assert p['books']['IM']['challenger_risk'] == .005
+    assert p['books']['IM']['challenger_position'] == .05
+    assert p['books']['IC']['challenger_risk'] == .01
+    assert p['books']['IC']['challenger_position'] == .1
     assert not p['accounts']['historical_70_percent_guard_copied']
     assert not p['production_account_changes']
     assert len(p['books']) == 4 and len(p['universe']) == 96
+    assert_no_promotion_clause(p)
+    # Loading the runtime config checks the clause again and does not change
+    # the frozen paper risk set.
+    cfg = frozen_config()
+    assert cfg['gross_fraction'] == .5 and cfg['drawdown_fraction'] == .15
+    assert cfg['daily_realised_loss'] == .03 and cfg['risk_fraction'] == .01
+    assert cfg['position_fraction'] == .1 and cfg['live_authorized'] is False
+
+
+def test_missing_no_promotion_clause_is_refused():
+    p = json.loads((Path(__file__).resolve().parents[1] / 'docs/cipher-forward/protocol.json').read_text())
+    broken = dict(p)
+    del broken['promotion']
+    with pytest.raises(ValueError, match='no-promotion'):
+        assert_no_promotion_clause(broken)
+    weakened = json.loads(json.dumps(p))
+    weakened['promotion']['required_gates']['profit_factor_min'] = 1.0
+    with pytest.raises(ValueError, match='full desk gates'):
+        assert_no_promotion_clause(weakened)
+    weakened = json.loads(json.dumps(p))
+    weakened['promotion']['statement'] = 'This is a non-promotional experiment.'
+    with pytest.raises(ValueError, match='missing'):
+        assert_no_promotion_clause(weakened)

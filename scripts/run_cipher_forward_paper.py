@@ -7,7 +7,6 @@ import concurrent.futures as cf
 import fcntl
 import json
 import os
-import shutil
 from pathlib import Path
 import sys
 import time
@@ -23,6 +22,9 @@ from research.cipher_forward.public import PublicClient
 from research.cipher_forward.ledger import PaperTrial, BOOKS, MINUTE, canonical, fresh_quote, funding_known
 from research.cipher_forward.feed import SignalFeed, advance_retest, HOUR
 from research.cipher_forward.strategy import decision as cipher_decision
+from research.cipher_forward.storage import (
+    GuardAnnouncer, StorageWriteBlocked, assess_storage, disable_entries,
+    ledger_nbytes, loud, storage_settings_from_env)
 
 ALLOWED=frozenset(('instruments-info','kline','orderbook','funding/history'))
 
@@ -155,6 +157,50 @@ def retests(feed,pending,minute):
     return dict(pending=next_pending,ready=ready,observations=observations,minute=minute)
 
 
+def storage_tick(ledger, db_path, storage, announcer, now, last_retention):
+    """Measure the main paper volume and the ledger volume, then retain or halt.
+
+    A low-space halt stops ledger writes. Entry disablement uses the same
+    flag an operator can set by hand, and this function does not clear it.
+    """
+    decision=assess_storage(db_path, storage.main_paper_db,
+        min_free_bytes=storage.min_free_bytes, ledger_max_bytes=storage.ledger_max_bytes)
+    if decision.blocked:
+        ledger.block_writes(decision.reason)
+        announcer.announce(decision.reason, now)
+        try: disable_entries(db_path.parent)
+        except OSError as exc: loud(f'could not disable entries: {exc}')
+        return decision
+    # Retention is at most once a minute. Crossing the size cap between those
+    # passes still halts immediately, without a vacuum on every quote tick.
+    due=now-last_retention[0] >= 60_000
+    if decision.over_size and not due:
+        reason=(f'cipher-forward ledger is {decision.ledger_bytes} bytes, above the '
+                f'{storage.ledger_max_bytes}-byte cap; stopping writes and disabling entries '
+                f'to protect the main paper DB at {storage.main_paper_db}')
+        ledger.block_writes(reason)
+        announcer.announce(reason, now)
+        try: disable_entries(db_path.parent)
+        except OSError as exc: loud(f'could not disable entries: {exc}')
+        return decision
+    ledger.allow_writes()
+    still_over=False
+    if due or decision.over_size:
+        still_over=ledger.enforce_retention(now, max_age_ms=storage.ledger_max_age_ms,
+            max_bytes=storage.ledger_max_bytes, min_free_bytes=storage.min_free_bytes,
+            main_free_bytes=decision.main_free_bytes)
+        last_retention[0]=now
+    if still_over:
+        reason=(f'cipher-forward ledger is {ledger_nbytes(db_path)} bytes after retention, '
+                f'above the {storage.ledger_max_bytes}-byte cap; stopping writes and disabling entries '
+                f'to protect the main paper DB at {storage.main_paper_db}')
+        ledger.block_writes(reason)
+        announcer.announce(reason, now)
+        try: disable_entries(db_path.parent)
+        except OSError as exc: loud(f'could not disable entries: {exc}')
+    return decision
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--db',type=Path,required=True)
@@ -172,10 +218,24 @@ def main():
     if not args.audit and not args.verify:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
     seed_root=args.seed_root or args.db.parent/'seed'
+    storage=storage_settings_from_env()
+    if args.warmup or args.initialize:
+        decision=assess_storage(args.db, storage.main_paper_db,
+            min_free_bytes=storage.min_free_bytes, ledger_max_bytes=storage.ledger_max_bytes)
+        if decision.blocked:
+            loud(decision.reason)
+            try: disable_entries(args.db.parent)
+            except OSError as exc: loud(f'could not disable entries: {exc}')
+            raise SystemExit(3)
     if args.warmup:
         warmup(seed_root,args.context_root);return
     ledger=PaperTrial(args.db,frozen_config(),create=args.initialize)
     if args.verify:
+        decision=assess_storage(args.db, storage.main_paper_db,
+            min_free_bytes=storage.min_free_bytes, ledger_max_bytes=storage.ledger_max_bytes)
+        if decision.blocked:
+            loud(decision.reason)
+            raise SystemExit(3)
         value=report_and_verify(ledger,now_ms(),args.db.parent,seed_root)
         print(json.dumps(value['verification'],indent=2))
         raise SystemExit(0 if value['verification']['activation_verified'] else 2)
@@ -183,13 +243,16 @@ def main():
         print(json.dumps(ledger.report(now_ms()),indent=2));return
     started=now_ms()
     release=(ROOT/'CIPHER_RELEASE_SHA').read_text().strip() if (ROOT/'CIPHER_RELEASE_SHA').is_file() else 'unpublished'
+    announcer=GuardAnnouncer();last_retention=[-60_000]
+    decision=storage_tick(ledger,args.db,storage,announcer,started,last_retention)
     first_hour=ledger.feed('first_forward_hour')
     if first_hour is None:
         warmup_path=args.db.parent/'warmup.json'
         if not warmup_path.is_file() or not json.loads(warmup_path.read_text()).get('ready'):
             raise ValueError('initial indicator preparation has not passed')
         first_hour=(started//HOUR+1)*HOUR
-        ledger.save_feed('first_forward_hour',first_hour)
+        if not ledger.writes_blocked:
+            ledger.save_feed('first_forward_hour',first_hour)
     pending=ledger.feed('pending',{});ready=ledger.feed('ready',{})
     instruments=ledger.feed('instruments',{})
     market=Market(.1,6);funded_market=Market(.05,8);opportunity_market=Market(.1,4)
@@ -199,14 +262,21 @@ def main():
     quotes={};settlements={};jobs={};busy=set();last_requested_hour=None
     retest_minute=None;retest_complete=None;last_quote={};last_funding={};last_status=0;last_cycle_tick=None;last_report=0
     last_scan=ledger.feed('last_scan',{})
-    ledger.observe(started,'startup',dict(release=release,first_forward_hour=first_hour,paper_only=True))
+    if not ledger.writes_blocked:
+        ledger.observe(started,'startup',dict(release=release,first_forward_hour=first_hour,paper_only=True))
     with cf.ThreadPoolExecutor(max_workers=2) as work_pool, cf.ThreadPoolExecutor(max_workers=8) as quote_pool, \
          cf.ThreadPoolExecutor(max_workers=4) as opportunity_pool, cf.ThreadPoolExecutor(max_workers=2) as funding_pool:
         while True:
             now=now_ms();minute=now//MINUTE*MINUTE;hour=now//HOUR*HOUR
+            decision=storage_tick(ledger,args.db,storage,announcer,now,last_retention)
             for job in list(jobs):
                 if not job.done(): continue
                 kind,key=jobs.pop(job);busy.discard((kind,key))
+                if ledger.writes_blocked:
+                    # Drop the result. Persisting it would keep filling the disk.
+                    try: job.result()
+                    except Exception: pass
+                    continue
                 try:
                     result=job.result()
                     if kind=='scan':
@@ -272,36 +342,52 @@ def main():
                 if all_quotes or now-minute>=50000:
                     batch=due
             try:
-                if batch or now//15000 != last_cycle_tick:
+                if not ledger.writes_blocked and (batch or now//15000 != last_cycle_tick):
                     ledger.cycle(f'cycle:{now}',now,quotes,instruments,batch,settlements,
                                  manual_halt=(args.db.parent/'entries_disabled').exists())
                     last_cycle_tick=now//15000
+            except StorageWriteBlocked as exc:
+                ledger.block_writes(str(exc))
+                announcer.announce(str(exc), now)
+                try: disable_entries(args.db.parent)
+                except OSError: pass
             except Exception as exc:
                 # A ledger/input conflict must never be bypassed by subsequent
                 # admissions. Keep supervision and exits running with the halt.
                 (args.db.parent/'entries_disabled').touch(exist_ok=True)
-                ledger.observe(now,'cycle_error',dict(error=f'{type(exc).__name__}: {exc}'))
-                for s in batch:
-                    ledger.observe(now,'quarantined_candidate',s)
+                try:
+                    ledger.observe(now,'cycle_error',dict(error=f'{type(exc).__name__}: {exc}'))
+                    for s in batch:
+                        ledger.observe(now,'quarantined_candidate',s)
+                except StorageWriteBlocked:
+                    announcer.announce(ledger.block_reason or 'ledger writes blocked', now)
                 settlements.clear()
             for s in batch: ready.pop(s['uid'],None)
-            with ledger.transaction():
-                for key,value in [('pending',pending),('ready',ready),('instruments',instruments),('last_scan',last_scan)]:
-                    ledger.save_feed(key,value)
+            if not ledger.writes_blocked:
+                with ledger.transaction():
+                    for key,value in [('pending',pending),('ready',ready),('instruments',instruments),('last_scan',last_scan)]:
+                        ledger.save_feed(key,value)
             if now-last_status>=10000:
                 last_status=now
-                disk_free=shutil.disk_usage(args.db.parent).free
-                if disk_free<2*1024**3:
-                    (args.db.parent/'entries_disabled').touch(exist_ok=True)
                 status=ledger.report(now)|dict(heartbeat_ms=now,started_ms=started,release=release,
                     first_forward_hour=first_hour,last_scan=last_scan,pending_retests=len(pending),
-                    ready_candidates=len(ready),disk_free_bytes=disk_free,
+                    ready_candidates=len(ready),disk_free_bytes=decision.ledger_free_bytes,
+                    main_paper_free_bytes=decision.main_free_bytes,
+                    main_paper_db=str(storage.main_paper_db),
+                    ledger_bytes=decision.ledger_bytes,
+                    storage_writes_blocked=ledger.writes_blocked,
+                    storage_guard=decision.reason,
                     manual_entry_halt=(args.db.parent/'entries_disabled').exists())
-                atomic_json(args.db.parent/'status.json',status)
-            if now-last_report>=60000:
+                try: atomic_json(args.db.parent/'status.json',status)
+                except OSError as exc: loud(f'could not write status.json: {exc}')
+            if not ledger.writes_blocked and now-last_report>=60000:
                 last_report=now
                 try: report_and_verify(ledger,now,args.db.parent,seed_root)
-                except Exception as exc: ledger.observe(now,'report_error',dict(error=str(exc)))
+                except StorageWriteBlocked:
+                    announcer.announce(ledger.block_reason or 'ledger writes blocked', now)
+                except Exception as exc:
+                    try: ledger.observe(now,'report_error',dict(error=str(exc)))
+                    except StorageWriteBlocked: pass
             time.sleep(.25)
 
 

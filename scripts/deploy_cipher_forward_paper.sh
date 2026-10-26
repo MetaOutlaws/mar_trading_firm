@@ -71,6 +71,36 @@ print(path)
 PY
 )
 [[ "$context" =~ ^/[A-Za-z0-9_./-]+$ ]]
+# The comparison has to see the volume that holds the main paper book, not
+# only its own state directory. The mount is read-only.
+main_db=$(python3 - "$receipt/mounts.json" <<'PY'
+import json, sys
+from pathlib import Path, PurePosixPath
+mounts=json.load(open(sys.argv[1]))
+found=[]
+for mount in mounts:
+    source=Path(mount['Source'])
+    destination=PurePosixPath(mount['Destination'])
+    candidate=source/'firm.db'
+    if candidate.is_file():
+        found.append(candidate.resolve())
+    elif destination==PurePosixPath('/app/data/firm.db') and source.is_file():
+        found.append(source.resolve())
+unique=[]
+for path in found:
+    if path not in unique:
+        unique.append(path)
+if len(unique)!=1:
+    listed=', '.join(map(str, unique)) or 'none'
+    raise SystemExit('expected exactly one mounted main paper firm.db; found '+listed)
+print(unique[0])
+PY
+)
+main_dir=$(dirname "$main_db")
+main_name=$(basename "$main_db")
+test -f "$main_db"
+[[ "$main_dir" =~ ^/[A-Za-z0-9_./-]+$ ]]
+[[ "$main_name" =~ ^[A-Za-z0-9_.-]+$ ]]
 docker exec -i -w /app mo-paper-paper-1 python - < "$dest/scripts/audit_cipher_forward_runtime.py" > "$receipt/current-runtime-source.json"
 docker exec -i -w /app mo-paper-paper-1 python - > "$receipt/current-paper-mode.json" <<'PY'
 import json,os
@@ -85,7 +115,7 @@ PY
 image="mar-cipher-forward:$release"
 docker build --pull -f "$dest/docker/cipher-forward.Dockerfile" -t "$image" "$dest" > "$receipt/build.log" 2>&1
 common=(--rm --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m)
-docker run "${common[@]}" --network none "$image" python -m pytest -q -p no:cacheprovider tests/test_cipher_forward.py tests/test_cipher_forward_runtime.py > "$receipt/tests.log" 2>&1
+docker run "${common[@]}" --network none "$image" python -m pytest -q -p no:cacheprovider tests/test_cipher_forward.py tests/test_cipher_forward_runtime.py tests/test_cipher_forward_storage.py > "$receipt/tests.log" 2>&1
 docker image inspect --format '{{.Id}}' "$image" > "$receipt/image-id.txt"
 if [[ -f "$state/trial.db" ]]; then
     python3 - "$state/trial.db" "$receipt/trial-before.db" <<'PY'
@@ -104,7 +134,7 @@ Requires=docker.service
 [Service]
 Type=oneshot
 TimeoutStartSec=2h
-ExecStart=/usr/bin/docker run --rm --name mar-cipher-forward-prepare --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --mount type=bind,src=$state,dst=/state --mount type=bind,src=$context,dst=/context,readonly $image python scripts/run_cipher_forward_paper.py --db /state/trial.db --warmup --context-root /context
+ExecStart=/usr/bin/docker run --rm --name mar-cipher-forward-prepare --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --mount type=bind,src=$state,dst=/state --mount type=bind,src=$context,dst=/context,readonly --mount type=bind,src=$main_dir,dst=/main-paper,readonly -e CIPHER_FORWARD_MAIN_PAPER_DB=/main-paper/$main_name -e CIPHER_FORWARD_MIN_FREE_BYTES=2147483648 -e CIPHER_FORWARD_LEDGER_MAX_BYTES=1073741824 -e CIPHER_FORWARD_LEDGER_MAX_AGE_MS=1209600000 $image python scripts/run_cipher_forward_paper.py --db /state/trial.db --warmup --context-root /context
 ExecStartPost=/usr/bin/systemctl start --no-block $service
 EOF
 python3 - "$state" "$receipt" "$release" "$context" <<'PY'
@@ -124,7 +154,7 @@ if [[ ! -f "$state/trial.db" ]]; then
         echo 'Ledger missing beside prior trial state; restore/reconcile before continuing.' >&2
         exit 1
     fi
-    docker run "${common[@]}" --network none --mount "type=bind,src=$state,dst=/state" "$image" python scripts/run_cipher_forward_paper.py --db /state/trial.db --initialize > "$state/initialized.json"
+    docker run "${common[@]}" --network none --mount "type=bind,src=$state,dst=/state" --mount "type=bind,src=$main_dir,dst=/main-paper,readonly" -e CIPHER_FORWARD_MAIN_PAPER_DB=/main-paper/$main_name -e CIPHER_FORWARD_MIN_FREE_BYTES=2147483648 -e CIPHER_FORWARD_LEDGER_MAX_BYTES=1073741824 -e CIPHER_FORWARD_LEDGER_MAX_AGE_MS=1209600000 "$image" python scripts/run_cipher_forward_paper.py --db /state/trial.db --initialize > "$state/initialized.json"
 else
     docker run "${common[@]}" --network none --mount "type=bind,src=$state,dst=/state" "$image" python scripts/run_cipher_forward_paper.py --db /state/trial.db --audit > "$receipt/ledger-reconciliation.json"
 fi
@@ -140,7 +170,7 @@ RestartSec=10
 TimeoutStopSec=40
 ExecStartPre=-/usr/bin/docker stop --timeout 10 mar-cipher-forward-paper
 ExecStartPre=-/usr/bin/docker rm mar-cipher-forward-paper
-ExecStart=/usr/bin/docker run --rm --name mar-cipher-forward-paper --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --mount type=bind,src=$state,dst=/state --mount type=bind,src=$context,dst=/context,readonly $image
+ExecStart=/usr/bin/docker run --rm --name mar-cipher-forward-paper --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --mount type=bind,src=$state,dst=/state --mount type=bind,src=$context,dst=/context,readonly --mount type=bind,src=$main_dir,dst=/main-paper,readonly -e CIPHER_FORWARD_MAIN_PAPER_DB=/main-paper/$main_name -e CIPHER_FORWARD_MIN_FREE_BYTES=2147483648 -e CIPHER_FORWARD_LEDGER_MAX_BYTES=1073741824 -e CIPHER_FORWARD_LEDGER_MAX_AGE_MS=1209600000 $image
 ExecStop=/usr/bin/docker stop --timeout 30 mar-cipher-forward-paper
 [Install]
 WantedBy=multi-user.target
