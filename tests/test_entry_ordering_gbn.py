@@ -302,7 +302,8 @@ def test_non_paper_ignores_the_flag(monkeypatch) -> None:
 def test_risk_limits_sha_is_unchanged() -> None:
     digest = hashlib.sha256(RISK_LIMITS_PATH.read_bytes()).hexdigest()
     assert digest == RISK_LIMITS_SHA256
-    assert RiskLimits().max_total_exposure_pct == 0.80
+    # Bare callers take the original 0.50 default. Paper still passes 0.80.
+    assert RiskLimits().max_total_exposure_pct == 0.50
     assert PAPER_LIMITS.max_total_exposure_pct == 0.80
 
 

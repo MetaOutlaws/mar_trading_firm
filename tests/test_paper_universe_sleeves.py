@@ -3,8 +3,9 @@
 Old rows stay byte-identical. New rows are paper overrides with the frozen
 params and the 4h clock. Live ``build_plan`` does not select them.
 ``core/risk/limits.py`` is hash-pinned. The pin covers the paper cap of 15,
-the paper dust-floor constants, and the gross exposure default of 0.80.
-RiskLimits defaults other than that cap are not part of the dust rule.
+the paper dust-floor constants, the dataclass gross default of 0.50, and
+the explicit paper gross cap of 0.80. RiskLimits defaults other than the
+concurrent cap and that paper gross override are not part of the dust rule.
 """
 
 from __future__ import annotations
@@ -56,12 +57,13 @@ OLD_BOOK_SHA256 = (
 )
 OLD_BOOK_LEN = 1579403
 OLD_BOOK_CLOSER = b"\n}\n"
-# core/risk/limits.py after the gross exposure default moved from 0.50 to
-# 0.80. PAPER_LIMITS inherits it. INITIAL_LIVE_LIMITS still sets 0.20.
-# Previous pin (post-dust, before this cap):
-# 173bd4302718bd99a3abbd65c8db5cc9f80d85b571e0aceded6471482b8f009e
+# core/risk/limits.py after the dataclass gross default was put back to the
+# original 0.50 (e0127da). PAPER_LIMITS passes 0.80 explicitly.
+# INITIAL_LIVE_LIMITS still sets 0.20.
+# Previous pin (shared default 0.80, a977119):
+# b53c8b3975a1d8b62d62ac4179c1ee36da19474a0dd913a5b80314e21befbf7d
 RISK_LIMITS_SHA256 = (
-    "b53c8b3975a1d8b62d62ac4179c1ee36da19474a0dd913a5b80314e21befbf7d"
+    "382a55ebc964d1bbd981ed1725c9a1764518c3b9475f328806d9407b0cd11a4e"
 )
 
 RULES = ("ema_adx_trend", "range_compression_volume_thrust")
@@ -343,16 +345,16 @@ def test_live_plan_does_not_select_the_new_sleeves(monkeypatch) -> None:
 
 
 def test_risk_limits_sha_and_gross_exposure_cap() -> None:
-    """Pinned sha256 of limits.py, and the gross exposure cap is 0.80.
+    """Pinned sha256 of limits.py.
 
-    PAPER_LIMITS inherits the dataclass default. INITIAL_LIVE_LIMITS still
-    sets its own 0.20 and is not this cap.
+    The dataclass gross default is the original 0.50. PAPER_LIMITS sets
+    0.80 itself. INITIAL_LIVE_LIMITS still sets its own 0.20.
     """
     from core.risk.limits import INITIAL_LIVE_LIMITS, PAPER_LIMITS, RiskLimits
 
     digest = hashlib.sha256(RISK_LIMITS_PATH.read_bytes()).hexdigest()
     assert digest == RISK_LIMITS_SHA256
-    assert RiskLimits().max_total_exposure_pct == 0.80
+    assert RiskLimits().max_total_exposure_pct == 0.50
     assert PAPER_LIMITS.max_total_exposure_pct == 0.80
     assert INITIAL_LIVE_LIMITS.max_total_exposure_pct == 0.20
 
