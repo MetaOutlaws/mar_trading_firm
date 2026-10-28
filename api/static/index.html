@@ -294,6 +294,12 @@ tr.job-group:hover td { background: var(--surface-2); }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .toolbar.filters { margin-bottom: 12px; }
 .toolbar .filter-count { color: var(--muted); font-size: 12px; margin-left: auto; }
+.blotter-count {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
 .pager {
   display: flex;
   flex-direction: column;
@@ -810,7 +816,11 @@ const KICKERS = {
   gates: "Every live-trading condition, measured not hoped",
   controls: "Token, kill switch, and the only legal reset",
 };
-let state = { floor: {}, risk: {}, trades: [], golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, observers: null, observersPoll: { failed: false, error: null }, regime: {}, expansion: { rows: [], active_strategies: [] } };
+let state = { floor: {}, risk: {}, trades: [], tradesTotal: 0, tradesMatch: 0, golive: {}, equity: [], rejections: [], llm: {}, strategies: {}, cycle: {}, desk: {}, observers: null, observersPoll: { failed: false, error: null }, regime: {}, expansion: { rows: [], active_strategies: [] } };
+// Last blotter filter. Kept off the DOM so a 15s refresh still searches the
+// full history when the operator is on another tab.
+let blotterFilter = { q: "", side: "" };
+let tradeFetchGen = 0;
 let lastError = "";
 
 function viewName() {
@@ -1060,6 +1070,11 @@ function pagerChevron(dir) {
 }
 function goPage(id, page) {
   pages[id] = Math.max(1, Number(page) || 1);
+  // Blotter pages are server pages. The other lists still slice what is loaded.
+  if (id === "blotter") {
+    loadBlotter();
+    return;
+  }
   render({ keepScroll: true, force: true });
 }
 function snapshotScroll() {
@@ -1184,7 +1199,8 @@ async function post(path, body) {
 function renderNav() {
   const inbox = (state.floor.inbox || []).length;
   const positions = (state.risk.open_positions || []).length;
-  const counts = { inbox, positions, blotter: (state.trades || []).length };
+  // Badge is every closed trade, not the page currently loaded.
+  const counts = { inbox, positions, blotter: Number(state.tradesTotal) || 0 };
   document.getElementById("nav").innerHTML = VIEWS.map(([id, label]) => {
     const active = viewName() === id ? "active" : "";
     const count = counts[id] ? `<span class="count">${counts[id]}</span>` : "";
@@ -1202,6 +1218,14 @@ function go(id) {
 function onFilterChange() {
   if (restoringUi) return;
   for (const key of (VIEW_PAGE_KEYS[viewName()] || [])) pages[key] = 1;
+  if (viewName() === "blotter") {
+    const qEl = document.getElementById("blotterQ");
+    const sEl = document.getElementById("blotterSide");
+    if (qEl) blotterFilter.q = qEl.value || "";
+    if (sEl) blotterFilter.side = sEl.value || "";
+    scheduleBlotterReload();
+    return;
+  }
   render({ keepScroll: true, force: true });
 }
 
@@ -1703,34 +1727,61 @@ function activityRow(a) {
   </div>`;
 }
 
+function blotterQuery() {
+  // One server page. q and side are applied before offset, so a filter can
+  // hit a close older than the newest page.
+  const size = pageSize("blotter");
+  const page = Math.max(1, Number(pages.blotter || 1) || 1);
+  const params = new URLSearchParams();
+  params.set("limit", String(size));
+  params.set("offset", String((page - 1) * size));
+  params.set("with_total", "1");
+  const q = (blotterFilter.q || "").trim();
+  const side = blotterFilter.side || "";
+  if (q) params.set("q", q);
+  if (side) params.set("side", side);
+  return "/api/trades?" + params.toString();
+}
+
+function blotterServerSlice(items, total) {
+  // The rows are already one server page. The pager still needs the full
+  // match count so prev/next can walk the rest of the book.
+  const size = pageSize("blotter");
+  const count = Number(total) || 0;
+  const max = Math.max(1, Math.ceil(count / size) || 1);
+  let page = Number(pages.blotter || 1) || 1;
+  if (page > max) page = max;
+  if (page < 1) page = 1;
+  pages.blotter = page;
+  const start = (page - 1) * size;
+  const shown = Math.min(count, start + (items ? items.length : 0));
+  return { items: items || [], total: count, page, max, start, shown, size };
+}
+
 function renderBlotter() {
   const trades = state.trades || [];
+  const total = Number(state.tradesMatch) || 0;
+  const shown = trades.length;
+  const filtering = !!((blotterFilter.q || "").trim() || blotterFilter.side);
   const filters = `
     <div class="toolbar">
-      <input class="field" id="blotterQ" placeholder="Filter symbol, strategy, or reason" oninput="onFilterChange()"/>
+      <input class="field" id="blotterQ" placeholder="Filter symbol, strategy, or reason" value="${esc(blotterFilter.q || "")}" oninput="onFilterChange()"/>
       <select class="field" id="blotterSide" onchange="onFilterChange()">
-        <option value="">All sides</option><option>LONG</option><option>SHORT</option>
+        <option value="">All sides</option>
+        <option ${blotterFilter.side === "LONG" ? "selected" : ""}>LONG</option>
+        <option ${blotterFilter.side === "SHORT" ? "selected" : ""}>SHORT</option>
       </select>
     </div>`;
-  if (!trades.length) {
+  const summary = `<div class="blotter-count">showing ${shown} of ${total} closed trades</div>`;
+  if (!shown && !filtering && !Number(state.tradesTotal)) {
     const rejectSliced = pageSlice("rejects", state.rejections || []);
-    return `${filters}<div class="card">${empty("No fills yet", "The blotter stays empty until a signal clears risk and the paper (or live) broker fills it. If the strategy is rejected, that is expected — scanning does not mean trading.")}
+    return `${filters}${summary}<div class="card">${empty("No fills yet", "The blotter stays empty until a signal clears risk and the paper (or live) broker fills it. If the strategy is rejected, that is expected — scanning does not mean trading.")}
       ${rejectSliced.total ? `${rejectionList(rejectSliced.items)}${pagerHtml("rejects", rejectSliced, "rejections")}` : ""}</div>`;
   }
-  const q = (document.getElementById("blotterQ")?.value || "").toLowerCase();
-  const side = document.getElementById("blotterSide")?.value || "";
-  const rows = trades.filter(t => {
-    const hay = (
-      t.symbol + " " + (t.exit_reason || "") + " " + (t.strategy || "") + " "
-      + (t.strategy_label || "") + " " + (t.sleeve || "") + " " + (t.strategy_id || "")
-      + " " + (t.strategy_version || "")
-    ).toLowerCase();
-    return (!q || hay.includes(q)) && (!side || t.side === side);
-  });
-  const sliced = pageSlice("blotter", rows);
+  const sliced = blotterServerSlice(trades, total);
   const rejects = state.rejections || [];
   const rejectSliced = pageSlice("rejects", rejects);
-  return `${filters}<div class="card">
+  return `${filters}${summary}<div class="card">
     <div data-page-list="blotter">
     <table>
       <thead><tr>
@@ -3140,7 +3191,7 @@ function viewFingerprint(name) {
     health: { cycle: state.cycle, llm: state.llm, risk: state.risk },
     observers: { observers: state.observers, chip: observerChip() },
     floor: { employees: floor.employees, activity: floor.activity, org: floor.org },
-    blotter: { trades: state.trades, rejections: state.rejections },
+    blotter: { trades: state.trades, rejections: state.rejections, total: state.tradesTotal, match: state.tradesMatch, page: pages.blotter || 1 },
     positions: { pos: (state.risk || {}).open_positions, eq: state.equity },
     strategies: { strategies: state.strategies, integrity: floor.integrity },
     inbox: { inbox: floor.inbox, escalations: floor.escalations, near: (state.nearMisses || {}).count },
@@ -3186,6 +3237,8 @@ function render(opts) {
   };
   const blotterQ = document.getElementById("blotterQ")?.value;
   const blotterSide = document.getElementById("blotterSide")?.value;
+  if (blotterQ != null) blotterFilter.q = blotterQ;
+  if (blotterSide != null) blotterFilter.side = blotterSide;
   const filters = snapshotFilters();
   const view = document.getElementById("view");
   let inner = document.getElementById("viewInner");
@@ -3329,13 +3382,74 @@ async function wakeFloor() {
   }
 }
 
+function applyTradePayload(page, count) {
+  state.trades = Array.isArray(page) ? page : ((page && page.rows) || []);
+  state.tradesMatch = Array.isArray(page) ? state.trades.length : Number((page && page.total) || 0);
+  state.tradesTotal = Number((count && count.total) || 0);
+}
+
+function clampBlotterPage() {
+  const size = pageSize("blotter");
+  const max = Math.max(1, Math.ceil((Number(state.tradesMatch) || 0) / size) || 1);
+  const page = Number(pages.blotter || 1) || 1;
+  if (page > max) {
+    pages.blotter = max;
+    return true;
+  }
+  if (page < 1) {
+    pages.blotter = 1;
+    return true;
+  }
+  return false;
+}
+
+async function pullTrades() {
+  // Generation drops a slow page when the operator has already moved on.
+  const gen = ++tradeFetchGen;
+  const [page, count] = await Promise.all([
+    get(blotterQuery()),
+    get("/api/trades/count"),
+  ]);
+  if (gen !== tradeFetchGen) return false;
+  applyTradePayload(page, count);
+  if (!clampBlotterPage()) return true;
+  const gen2 = ++tradeFetchGen;
+  const [page2, count2] = await Promise.all([
+    get(blotterQuery()),
+    get("/api/trades/count"),
+  ]);
+  if (gen2 !== tradeFetchGen) return false;
+  applyTradePayload(page2, count2);
+  return true;
+}
+
+async function loadBlotter() {
+  try {
+    const pulled = await pullTrades();
+    if (!pulled) return;
+    render({ keepScroll: true, force: true });
+  } catch (err) {
+    toast(String(err.message || err));
+  }
+}
+
+let blotterFilterTimer = null;
+function scheduleBlotterReload() {
+  clearTimeout(blotterFilterTimer);
+  blotterFilterTimer = setTimeout(() => {
+    blotterFilterTimer = null;
+    loadBlotter();
+  }, 250);
+}
+
 async function load(manual) {
   try {
     await ensureLocalToken();
-    const [floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, regime, nearMisses, expansion] = await Promise.all([
+    const tradePull = pullTrades();
+    const [floor, risk, , golive, equity, rejections, llm, strategies, cycle, desk, regime, nearMisses, expansion] = await Promise.all([
       get("/api/floor"),
       get("/api/risk"),
-      get("/api/trades?limit=100"),
+      tradePull,
       get("/api/go-live"),
       get("/api/equity?limit=240"),
       get("/api/rejections?limit=40"),
@@ -3353,7 +3467,12 @@ async function load(manual) {
     // the last good snapshot with a timeout or an empty list.
     const keptObservers = state.observers;
     const keptPoll = state.observersPoll;
-    state = { floor, risk, trades, golive, equity, rejections, llm, strategies, cycle, desk, observers: keptObservers, observersPoll: keptPoll, regime: regime || {}, nearMisses, expansion: expansion || { ok: false, rows: [], active_strategies: [] }, llmPing: state.llmPing };
+    // pullTrades wrote the page onto state. Copy it into the replacement
+    // so a newer page click is not thrown away by this refresh.
+    const trades = state.trades;
+    const tradesTotal = state.tradesTotal;
+    const tradesMatch = state.tradesMatch;
+    state = { floor, risk, trades, tradesTotal, tradesMatch, golive, equity, rejections, llm, strategies, cycle, desk, observers: keptObservers, observersPoll: keptPoll, regime: regime || {}, nearMisses, expansion: expansion || { ok: false, rows: [], active_strategies: [] }, llmPing: state.llmPing };
     lastError = "";
     render({ keepScroll: true, force: !!manual });
   } catch (err) {
