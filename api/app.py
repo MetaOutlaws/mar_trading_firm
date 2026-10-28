@@ -831,58 +831,200 @@ def blotter_strategy_fields(trade: Any) -> dict[str, str]:
     }
 
 
-@app.get("/api/trades")
-def trades(limit: int = 50) -> list[dict[str, Any]]:
+# One blotter page. Larger asks are clamped so a single read cannot pull
+# the whole book. The default /api/trades body stays a JSON list.
+TRADES_PAGE_CAP = 500
+
+
+def _non_negative(name: str, value: int) -> int:
+    """Reject a negative page argument. Zero is an empty page, not an error."""
+    if value < 0:
+        raise HTTPException(status_code=422, detail=f"{name} must be zero or greater")
+    return int(value)
+
+
+def _like_contains(raw: str) -> str:
+    """Bound LIKE pattern for a literal substring.
+
+    The operator's text is escaped and passed as a parameter. % and _ in
+    that text do not become wildcards, and the text is never interpolated
+    into the SQL string.
+    """
+    escaped = raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _trade_row(trade: Any) -> dict[str, Any]:
+    """One closed trade, same keys the blotter has always received.
+
+    Position is read only so the label can name the sleeve. Nothing here
+    writes the row.
+    """
+    identity = blotter_strategy_fields(trade)
+    return {
+        "id": trade.id,
+        "symbol": trade.symbol,
+        "side": trade.side,
+        "quantity": trade.quantity,
+        "notional": trade.notional,
+        "entry_price": trade.entry_price,
+        "exit_price": trade.exit_price,
+        "gross_pnl": trade.gross_pnl,
+        "net_pnl": trade.net_pnl,
+        "return_pct": trade.return_pct,
+        "fees": trade.fees,
+        "entry_fees": trade.entry_fees,
+        "exit_fees": trade.exit_fees,
+        "funding": trade.funding,
+        "exit_reason": trade.exit_reason,
+        "strategy": trade.strategy,
+        "strategy_id": identity["strategy_id"],
+        "sleeve": identity["sleeve"],
+        "strategy_version": identity["strategy_version"],
+        "strategy_label": identity["strategy_label"],
+        "agents": trade.contributing_agents,
+        "entry_slippage_bps": trade.entry_slippage_bps,
+        "exit_slippage_bps": trade.exit_slippage_bps,
+        "mode": trade.mode,
+        "entry_time": trade.entry_time.isoformat(),
+        "exit_time": trade.exit_time.isoformat(),
+    }
+
+
+def _apply_trade_filters(stmt: Any, q: str | None, side: str | None) -> Any:
+    """Filter closed trades before any LIMIT/OFFSET.
+
+    ``q`` matches the same text the blotter used to search in the browser:
+    symbol, exit reason, strategy, and the stored sleeve / strategy id /
+    version (those live in JSON, not in their own columns). ``side`` is an
+    exact LONG/SHORT match. A blank filter leaves the statement unchanged.
+    """
+    from sqlalchemy import String, cast, func, or_
+
+    from core.ledger.models import Position, TradeRecord
+
+    clauses = []
+    if side and side.strip():
+        clauses.append(func.upper(TradeRecord.side) == side.strip().upper())
+    text = (q or "").strip()
+    if text:
+        # Outer join so a trade with no position row still matches on its
+        # own columns. One trade points at one position, so the join does
+        # not duplicate rows.
+        stmt = stmt.outerjoin(Position, TradeRecord.position_id == Position.id)
+        pattern = _like_contains(text)
+        columns = [
+            TradeRecord.symbol,
+            TradeRecord.exit_reason,
+            TradeRecord.strategy,
+            cast(TradeRecord.entry_indicators, String),
+            cast(Position.strategy_params, String),
+            Position.strategy,
+        ]
+        clauses.append(
+            or_(*(func.coalesce(column, "").ilike(pattern, escape="\\") for column in columns))
+        )
+    if clauses:
+        stmt = stmt.where(*clauses)
+    return stmt
+
+
+def _count_closed_trades_in(session: Any, q: str | None, side: str | None) -> int:
+    """How many closed trades match. Same filters as the page, no limit.
+
+    Runs on the caller's session so a page and its total share one read.
+    """
+    from sqlalchemy import func, select
+
+    from core.ledger.models import TradeRecord
+
+    stmt = _apply_trade_filters(
+        select(func.count(TradeRecord.id)).select_from(TradeRecord),
+        q,
+        side,
+    )
+    return int(session.scalar(stmt) or 0)
+
+
+def _count_closed_trades(q: str | None = None, side: str | None = None) -> int:
+    """Closed-trade count for callers that are not already in a session."""
+    from core.db import session_scope
+
+    with session_scope() as session:
+        return _count_closed_trades_in(session, q, side)
+
+
+def _load_closed_trades(
+    *,
+    limit: int,
+    offset: int,
+    q: str | None,
+    side: str | None,
+    with_total: bool,
+) -> list[dict[str, Any]] | dict[str, Any]:
+    """Newest matching closes, one page.
+
+    ``id`` is the tiebreaker so two trades that share an exit time do not
+    swap places between pages. The count, when requested, uses the filter
+    and ignores limit/offset.
+    """
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
     from core.db import session_scope
     from core.ledger.models import TradeRecord
 
+    capped = min(_non_negative("limit", limit), TRADES_PAGE_CAP)
+    start = _non_negative("offset", offset)
     with session_scope() as session:
+        stmt = _apply_trade_filters(select(TradeRecord), q, side)
         rows = session.scalars(
-            select(TradeRecord)
-            .options(selectinload(TradeRecord.position))
-            .order_by(TradeRecord.exit_time.desc())
-            .limit(limit)
+            stmt.options(selectinload(TradeRecord.position))
+            .order_by(TradeRecord.exit_time.desc(), TradeRecord.id.desc())
+            .offset(start)
+            .limit(capped)
         )
-        payload = []
-        for t in rows:
-            # Position holds strategy_params (version, sleeve). Loaded here
-            # so the response can name the strategy without a second query
-            # after the session closes. This select does not update the row.
-            identity = blotter_strategy_fields(t)
-            payload.append(
-                {
-                    "id": t.id,
-                    "symbol": t.symbol,
-                    "side": t.side,
-                    "quantity": t.quantity,
-                    "notional": t.notional,
-                    "entry_price": t.entry_price,
-                    "exit_price": t.exit_price,
-                    "gross_pnl": t.gross_pnl,
-                    "net_pnl": t.net_pnl,
-                    "return_pct": t.return_pct,
-                    "fees": t.fees,
-                    "entry_fees": t.entry_fees,
-                    "exit_fees": t.exit_fees,
-                    "funding": t.funding,
-                    "exit_reason": t.exit_reason,
-                    "strategy": t.strategy,
-                    "strategy_id": identity["strategy_id"],
-                    "sleeve": identity["sleeve"],
-                    "strategy_version": identity["strategy_version"],
-                    "strategy_label": identity["strategy_label"],
-                    "agents": t.contributing_agents,
-                    "entry_slippage_bps": t.entry_slippage_bps,
-                    "exit_slippage_bps": t.exit_slippage_bps,
-                    "mode": t.mode,
-                    "entry_time": t.entry_time.isoformat(),
-                    "exit_time": t.exit_time.isoformat(),
-                }
-            )
-        return payload
+        payload = [_trade_row(trade) for trade in rows]
+        total = _count_closed_trades_in(session, q, side) if with_total else None
+    if with_total:
+        return {"total": int(total or 0), "rows": payload}
+    return payload
+
+
+@app.get("/api/trades/count")
+def trades_count(q: str | None = None, side: str | None = None) -> dict[str, int]:
+    """Closed-trade count. Optional q and side use the blotter filter.
+
+    The unfiltered call is the sidebar badge. A filtered call is the number
+    of closes that match, not the number loaded on the current page.
+    """
+    return {"total": _count_closed_trades(q, side)}
+
+
+@app.get("/api/trades")
+def trades(
+    limit: int = 50,
+    offset: int = 0,
+    with_total: int = 0,
+    q: str | None = None,
+    side: str | None = None,
+) -> list[dict[str, Any]] | dict[str, Any]:
+    """Newest closed trades.
+
+    Callers that omit the new query params still get a JSON list, capped at
+    ``limit`` rows (default 50). ``with_total=1`` wraps that page as
+    ``{"total", "rows"}``. ``limit`` above 500 is clamped. Negative
+    ``limit``, ``offset``, or ``with_total`` is a 422.
+    """
+    if with_total < 0:
+        raise HTTPException(status_code=422, detail="with_total must be zero or greater")
+    return _load_closed_trades(
+        limit=limit,
+        offset=offset,
+        q=q,
+        side=side,
+        with_total=bool(with_total),
+    )
 
 
 def _live_book(mode: str, positions: list[Any], marks: dict[str, float | None]) -> dict[str, Any]:

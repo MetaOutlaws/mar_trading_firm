@@ -103,7 +103,12 @@ def test_observers_tab_replaces_f111_and_keeps_the_hourly_book():
     assert "Legacy LLM record" in html
     assert "legacy_llm" in html
     assert 'get("/api/regime")' in html
-    assert 'get("/api/trades?limit=100")' in html
+    # The blotter pages the full book. The old hard cap of 100 is gone.
+    assert 'get("/api/trades?limit=100")' not in html
+    assert 'get("/api/trades/count")' in html
+    assert 'params.set("with_total", "1")' in html
+    assert "showing ${shown} of ${total} closed trades" in html
+    assert "state.tradesTotal" in html
     blotter = _slice(html, "function renderBlotter(", "function tradeRow(")
     positions = _slice(html, "function renderPositions(", "function positionsTable(")
     observers = _slice(html, "function observerPanel(", "function renderObservers(")
