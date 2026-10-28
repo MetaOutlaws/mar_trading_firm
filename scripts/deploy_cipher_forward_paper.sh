@@ -1,38 +1,203 @@
 #!/usr/bin/env bash
 # Authorized isolated PAPER trial only. Never operates the existing account.
+# --dry-run prints the install plan and returns before any write.
 set -euo pipefail
 umask 077
-test "$(hostname)" = mo-paper-vm-sgp1
-test "$(id -u)" = 0
+
+# Installer filesystem roots only. Unset, these are the historical hardcoded
+# paths. They are never passed into the paper containers, and they do not
+# change cost, PRIMARY, the evidence window, or portfolio loading.
+base=${CIPHER_FORWARD_INSTALL_ROOT:-/opt/mar-cipher-forward}
+state=${CIPHER_FORWARD_STATE_ROOT:-/data/state/cipher-forward-v1}
+unit_dir=${CIPHER_FORWARD_SYSTEMD_DIR:-/etc/systemd/system}
+service=mar-cipher-forward-paper.service
+lock_path=/var/lock/mar-cipher-forward-install.lock
+
+dry_run=0
 release=
 no_start=0
 audit_production=0
+parse_error=
+
+usage() {
+    echo 'Usage: deploy_cipher_forward_paper.sh FULL_40_CHARACTER_COMMIT [--no-start] [--audit-production] [--dry-run]' >&2
+}
+
+# Single mutation gate. Under --dry-run the wrappers only print. The dry-run
+# path returns before the mutating block, so a redirection on a later command
+# cannot open a file either. There is no per-command dry-run branch below.
+run() {
+    if [[ "$dry_run" == 1 ]]; then
+        printf 'would-run:'
+        local arg
+        for arg in "$@"; do
+            printf ' %q' "$arg"
+        done
+        printf '\n'
+        return 0
+    fi
+    "$@"
+}
+
+write_file() {
+    local dest=$1
+    if [[ "$dry_run" == 1 ]]; then
+        printf 'would-write: %s\n' "$dest"
+        return 0
+    fi
+    cat > "$dest"
+}
+
 for arg in "$@"; do
     case "$arg" in
         --no-start) no_start=1 ;;
         --audit-production) audit_production=1 ;;
+        --dry-run) dry_run=1 ;;
         *)
             if [[ -n "$release" ]]; then
-                echo "unexpected argument: $arg" >&2
-                exit 2
+                parse_error="unexpected argument: $arg"
+            else
+                release=$arg
             fi
-            release=$arg
             ;;
     esac
 done
-if [[ ! "$release" =~ ^[0-9a-f]{40}$ ]]; then
-    echo 'Usage: deploy_cipher_forward_paper.sh FULL_40_CHARACTER_COMMIT [--no-start] [--audit-production]' >&2
+
+# A real install still refuses the wrong host before it does any work.
+# --dry-run is the off-host read-only plan: it records hostname and uid
+# and does not enforce them.
+if [[ "$dry_run" != 1 ]]; then
+    test "$(hostname)" = mo-paper-vm-sgp1
+    test "$(id -u)" = 0
+fi
+
+if [[ -n "$parse_error" ]]; then
+    echo "$parse_error" >&2
     exit 2
 fi
+if [[ ! "$release" =~ ^[0-9a-f]{40}$ ]]; then
+    usage
+    exit 2
+fi
+
+# command -v is a shell builtin. It does not execute the binaries.
 command -v docker >/dev/null
 command -v git >/dev/null
 command -v python3 >/dev/null
 command -v systemctl >/dev/null
-exec 9>/var/lock/mar-cipher-forward-install.lock
+
+if [[ "$dry_run" == 1 ]]; then
+    printf 'preflight: command docker present\n'
+    printf 'preflight: command git present\n'
+    printf 'preflight: command python3 present\n'
+    printf 'preflight: command systemctl present\n'
+    if command -v flock >/dev/null; then
+        printf 'preflight: command flock present\n'
+    else
+        printf 'preflight: command flock absent\n'
+    fi
+    printf 'preflight: hostname=%s install-requires=mo-paper-vm-sgp1\n' "$(hostname)"
+    printf 'preflight: uid=%s install-requires=0\n' "$(id -u)"
+    if [[ "$no_start" == 1 ]]; then
+        # --dry-run wins. The install path's --no-start echoes are not reached.
+        printf 'precedence: dry-run\n'
+    fi
+
+    script_dir=$(cd "$(dirname "$0")" && pwd)
+    repo_root=$(cd "$script_dir/.." && pwd)
+    freeze_json=$repo_root/docs/cipher-forward/config_freeze.json
+    # Read the checkout's declaration. Do not fetch, and do not import the
+    # runtime (that would call git). The pinned SHA is the argument below.
+    freeze_hash=$(python3 -B -I - "$freeze_json" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as handle:
+    data = json.load(handle)
+portfolio = 'desk031:IC'
+value = data['portfolio_hashes'][portfolio]
+if data.get('primary_portfolio') != portfolio:
+    raise SystemExit('primary portfolio is not desk031:IC')
+if data.get('primary_config_sha256') != value:
+    raise SystemExit('primary_config_sha256 disagrees with desk031:IC')
+if data.get('primary') != 'IC':
+    raise SystemExit('primary id is not IC')
+sys.stdout.write(value + '\n')
+PY
+)
+    [[ "$freeze_hash" =~ ^[0-9a-f]{64}$ ]]
+    image="mar-cipher-forward:$release"
+    stamp=$(date -u +%Y%m%dT%H%M%SZ)
+    receipt="$state/install-$stamp"
+    dest="$base/releases/$release"
+    origin=https://github.com/MetaOutlaws/mar_trading_firm.git
+
+    printf 'pinned-sha: %s\n' "$release"
+    printf 'image-tag: %s\n' "$image"
+    printf 'freeze-hash: desk031:IC %s\n' "$freeze_hash"
+    printf 'freeze-source: docs/cipher-forward/config_freeze.json\n'
+    printf 'install-root: %s\n' "$base"
+    printf 'state-root: %s\n' "$state"
+    printf 'systemd-dir: %s\n' "$unit_dir"
+    printf 'note: source is a bare repo via git init and git fetch, not a work-tree clone\n'
+    printf 'note: ledger not touched\n'
+    printf 'note: warmup not run\n'
+    printf 'note: clock field not written\n'
+
+    write_file "$lock_path"
+    run flock -n 9
+    run mkdir -p "$base/releases" "$state"
+    if [[ -d "$base/source.git" ]]; then
+        printf 'note: bare repo already present\n'
+    else
+        run git init --bare "$base/source.git"
+        run git --git-dir="$base/source.git" remote add origin "$origin"
+    fi
+    run git --git-dir="$base/source.git" fetch --no-tags origin "$release"
+    run git --git-dir="$base/source.git" rev-parse FETCH_HEAD
+    run systemctl is-active --quiet "$service"
+    run docker ps --format '{{.Names}}'
+    run touch "$state/entries_disabled"
+    run docker inspect --format '{{.State.Running}}' mo-paper-paper-1
+    if [[ ! -d "$dest" ]]; then
+        run mktemp -d "$base/releases/staging.XXXXXX"
+        run git --git-dir="$base/source.git" archive "$release"
+        run tar -x -C "$base/releases/staging.XXXXXX"
+        write_file "$dest/CIPHER_RELEASE_SHA"
+        run mv "$base/releases/staging.XXXXXX" "$dest"
+    fi
+    run mkdir "$receipt"
+    run docker inspect --format '{{json .Mounts}}' mo-paper-paper-1
+    write_file "$receipt/mounts.json"
+    if [[ "$audit_production" == 1 ]]; then
+        run docker exec -i -w /app mo-paper-paper-1 python -
+        write_file "$receipt/current-runtime-source.json"
+        write_file "$receipt/current-paper-mode.json"
+    else
+        printf 'note: production container audit not selected\n'
+    fi
+    run docker build --pull -f "$dest/docker/cipher-forward.Dockerfile" -t "$image" "$dest"
+    write_file "$receipt/build.log"
+    run docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --cpus 1 --memory 1g --tmpfs /tmp:rw,noexec,nosuid,size=256m --network none "$image" python -m pytest -q -p no:cacheprovider tests/test_cipher_forward.py tests/test_cipher_forward_runtime.py tests/test_cipher_forward_storage.py tests/test_cipher_forward_ruling.py
+    write_file "$receipt/tests.log"
+    run docker image inspect --format '{{.Id}}' "$image"
+    write_file "$receipt/image-id.txt"
+    if [[ -f "$state/trial.db" ]]; then
+        write_file "$receipt/trial-before.db"
+        run docker run --rm --network none --mount "type=bind,src=$state,dst=/state" "$image" python scripts/run_cipher_forward_paper.py --db /state/trial.db --audit
+        write_file "$receipt/ledger-reconciliation.json"
+    fi
+    write_file "$unit_dir/mar-cipher-forward-prepare.service"
+    write_file "$state/deployment.json"
+    write_file "$unit_dir/$service"
+    run systemctl daemon-reload
+    printf 'note: dry-run wrote nothing\n'
+    exit 0
+fi
+
+# Mutating block. --dry-run has already returned. A fall-through aborts
+# before the lock file is opened.
+[[ "$dry_run" == 0 ]]
+exec 9>"$lock_path"
 flock -n 9
-base=/opt/mar-cipher-forward
-state=/data/state/cipher-forward-v1
-service=mar-cipher-forward-paper.service
 mkdir -p "$base/releases" "$state"
 if [[ -f "$state/deployment.json" ]]; then
     python3 - "$state/deployment.json" "$release" <<'PY'
@@ -152,7 +317,7 @@ fi
 # Warmup freezes portfolio-config hashes and the code SHA first, then computes
 # indicator state only. It cannot place simulated entries.
 # This runs as a service so a disconnected SSH session does not kill the job.
-cat > /etc/systemd/system/mar-cipher-forward-prepare.service <<EOF
+cat > "$unit_dir/mar-cipher-forward-prepare.service" <<EOF
 [Unit]
 Description=Prepare fixed indicators for isolated 3R paper comparison
 After=docker.service network-online.target
@@ -183,7 +348,7 @@ if [[ ! -f "$state/trial.db" ]]; then
 else
     docker run "${common[@]}" --network none --mount "type=bind,src=$state,dst=/state" "$image" python scripts/run_cipher_forward_paper.py --db /state/trial.db --audit > "$receipt/ledger-reconciliation.json"
 fi
-cat > /etc/systemd/system/$service <<EOF
+cat > "$unit_dir/$service" <<EOF
 [Unit]
 Description=Isolated four-book 3R forward PAPER comparison
 After=docker.service network-online.target
@@ -214,4 +379,4 @@ echo '  enable the paper service'
 echo 'This installer did not do those steps.'
 echo 'This is not activation verification; the first complete future hourly scan is still required.'
 echo 'Progress, after a manual start: journalctl -u mar-cipher-forward-prepare -u mar-cipher-forward-paper -f'
-echo 'Evidence: /data/state/cipher-forward-v1/activation_evidence.json'
+echo "Evidence: $state/activation_evidence.json"
