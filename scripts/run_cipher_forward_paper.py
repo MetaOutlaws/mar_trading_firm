@@ -6,6 +6,7 @@ import argparse
 import concurrent.futures as cf
 import fcntl
 import json
+import logging
 import os
 from pathlib import Path
 import sys
@@ -31,24 +32,88 @@ from research.cipher_forward.storage import (
     ledger_nbytes, loud, storage_settings_from_env)
 
 ALLOWED=frozenset(('instruments-info','kline','orderbook','funding/history'))
+# skew_ms = now_ms - bybit_time, where negative means the local clock is behind Bybit.
+# The SGP1 host runs a few tens of milliseconds behind Bybit, so a small negative
+# skew is healthy. Further behind than MAX_NEGATIVE_SKEW_MS is a clock mismatch;
+# a response older than MAX_STALE_MS (skew above that) is stale.
+MAX_NEGATIVE_SKEW_MS=2000
+MAX_STALE_MS=5000
+logger=logging.getLogger(__name__)
 
 
 def now_ms():
     return time.time_ns()//1_000_000
 
 
+def bar_is_closed(close_ms, bybit_time_ms):
+    """Whether a bar is closed and usable.
+
+    Uses Bybit server time and the bar's own close timestamp. The local clock
+    is not an argument. A bar whose close is after Bybit server time is still open.
+    """
+    return int(close_ms)<=int(bybit_time_ms)
+
+
+def closed_bar_asof(bybit_time_ms, duration_ms):
+    """Latest duration boundary Bybit server time has reached.
+
+    Bar parsers keep a bar when its close is at or before this value, so a
+    close after Bybit server time is left out. The local clock is not an argument.
+    """
+    server_ms=int(bybit_time_ms)
+    step=int(duration_ms)
+    if step<=0 or server_ms<0:
+        raise ValueError('bybit time missing')
+    boundary=server_ms//step*step
+    # The boundary itself is a close timestamp. It is usable only when Bybit
+    # has already reached it.
+    if not bar_is_closed(boundary, server_ms):
+        raise ValueError('bybit time missing')
+    return boundary
+
+
+def bybit_server_time(market, symbol='BTCUSDT'):
+    """Fresh Bybit server time from an allowlisted public response.
+
+    The value is the exchange ``time`` field, not the local clock and not
+    local time minus skew_ms.
+    """
+    body=market.get('instruments-info', symbol=symbol)
+    server_ms=market.bybit_time_ms
+    if server_ms is None:
+        server_ms=int(body['time'])
+    return int(server_ms)
+
+
 class Market:
     def __init__(self, interval=.2, concurrency=2):
         self.client=PublicClient(min_interval_s=interval,concurrency=concurrency,
                                  max_attempts=3,header_cap_s=30)
+        # Last accepted Bybit server time. Closed-bar decisions read this, not now_ms.
+        self.bybit_time_ms=None
 
     def get(self, path, **params):
         if path not in ALLOWED:
             raise ValueError('only allowlisted public market GETs are permitted')
         body=self.client.get('https://api.bybit.com/v5/market/'+path+'?'+
             urlencode(dict(category='linear',**params)),{'User-Agent':'MAR-cipher-forward-paper/1'})
-        if not 0<=now_ms()-int(body['time'])<=5000:
+        bybit_time=int(body['time'])
+        # skew_ms = now_ms - bybit_time, where negative means the local clock is behind Bybit.
+        skew_ms=now_ms()-bybit_time
+        symbol=params.get('symbol','')
+        # One skew line per response, so every scan that calls get logs skew.
+        logger.info('bybit response symbol=%s skew_ms=%s',symbol,skew_ms)
+        if skew_ms<-MAX_NEGATIVE_SKEW_MS:
+            logger.warning(
+                'bybit clock mismatch symbol=%s skew_ms=%s failed_bound=MAX_NEGATIVE_SKEW_MS limit=%s',
+                symbol,skew_ms,-MAX_NEGATIVE_SKEW_MS)
             raise ValueError('stale response or clock mismatch')
+        if skew_ms>MAX_STALE_MS:
+            logger.warning(
+                'bybit stale response symbol=%s skew_ms=%s failed_bound=MAX_STALE_MS limit=%s',
+                symbol,skew_ms,MAX_STALE_MS)
+            raise ValueError('stale response or clock mismatch')
+        self.bybit_time_ms=bybit_time
         return body
 
     def quote(self,symbol):
@@ -124,11 +189,14 @@ def warmup(seed_root,context_root):
         matches=[r for r in rows if r.get('symbol')==symbol and r.get('status')=='Trading']
         if not matches: return dict(symbol=symbol,unavailable=True,reason='instrument_not_trading')
         if len(matches)!=1: raise ValueError('duplicate instrument')
-        bars=seed.advance(symbol,asof,market.get)
+        # The seed anchor above is fixed before any response. Bars that are
+        # fetched are closed on Bybit's clock, not on the local hour.
+        server_asof=closed_bar_asof(market.bybit_time_ms, HOUR)
+        bars=seed.advance(symbol,server_asof,market.get)
         # Evaluate only to establish a valid causal feature state. No fills,
         # trade paths, outcomes or optimization are calculated during warmup.
-        state=cipher_decision(symbol,bars,seed.start,asof)
-        context=feed.long_context(symbol,asof)
+        state=cipher_decision(symbol,bars,seed.start,server_asof)
+        context=feed.long_context(symbol,server_asof)
         return dict(symbol=symbol,ready=True,hours=len(bars)-1,
             cipher_signal_evaluated=True,l01_processed_through=context['processed_through'])
     with cf.ThreadPoolExecutor(max_workers=6) as pool:
@@ -140,6 +208,8 @@ def warmup(seed_root,context_root):
             print(json.dumps(dict(completed=len(results),total=len(jobs),**value)),flush=True)
     failures=[r for r in results if 'error' in r]
     available=sum(r.get('ready',False) for r in results)
+    if market.bybit_time_ms is not None:
+        asof=closed_bar_asof(market.bybit_time_ms, HOUR)
     receipt=dict(ready=not failures and available>0,asof_ms=asof,available=available,
         failures=failures,instruments=sorted(results,key=lambda r:r['symbol']),seed=seed.receipt(),
         indicator_state_only=True,trades=0,signal_outcomes=0,performance_recorded=False,pnl=None)
@@ -327,20 +397,30 @@ def main():
                     elif kind=='funding': settlements[key]=result
                 except Exception as exc:
                     ledger.observe(now,'error',dict(operation=kind,key=str(key),error=f'{type(exc).__name__}: {exc}'))
-            # The as-of hour is unchanged. Only the request waits six minutes.
+            # The request still waits six minutes. The closed hour itself is
+            # Bybit server time, not this local `hour`.
             if (hour!=last_requested_hour and now>=hour+SCAN_OFFSET_MS
                     and not any(k=='scan' for k,_ in busy)):
                 last_requested_hour=hour
                 try:
                     if feed is None:
                         feed=SignalFeed(market.get,ledger.config['universe'],args.context_root,seed_root)
-                    job=work_pool.submit(scan,feed,hour);jobs[job]=('scan',hour);busy.add(('scan',hour))
+                    scan_asof=closed_bar_asof(bybit_server_time(market), HOUR)
+                    job=work_pool.submit(scan,feed,scan_asof);jobs[job]=('scan',scan_asof);busy.add(('scan',scan_asof))
                 except Exception as exc:
                     ledger.observe(now,'feed_initialization_error',dict(error=str(exc)))
             if feed is not None and pending and retest_minute!=minute and not any(k=='retest' for k,_ in busy):
-                retest_minute=minute;key=tuple(sorted(pending))
-                job=work_pool.submit(retests,feed,dict(pending),minute)
-                jobs[job]=('retest',key);busy.add(('retest',key))
+                # `minute` only rate-limits the poll. The as-of passed in is the
+                # minute Bybit has closed, so a locally early clock cannot use
+                # a bar whose close is still after server time.
+                try:
+                    retest_asof=closed_bar_asof(bybit_server_time(market), MINUTE)
+                    retest_minute=minute;key=tuple(sorted(pending))
+                    job=work_pool.submit(retests,feed,dict(pending),retest_asof)
+                    jobs[job]=('retest',key);busy.add(('retest',key))
+                except Exception as exc:
+                    retest_minute=minute
+                    ledger.observe(now,'retest_clock_error',dict(error=f'{type(exc).__name__}: {exc}'))
             if not pending: retest_complete=minute
             positions=ledger.positions()
             funded={p['symbol'] for p in positions if p['book'] in BOOKS and p['status']=='open'}
@@ -420,4 +500,6 @@ def main():
 
 
 if __name__=='__main__':
+    # The worker otherwise has no logging config, so the skew line would be dropped.
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s %(message)s')
     main()
